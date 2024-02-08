@@ -1,0 +1,69 @@
+Metadata-Version: 2.1
+Name: energyml-witsml2-1
+Version: 1.7.0
+Summary: energyml_witsml2_1 types
+Home-page: http://www.geosiris.com
+License: Apache-2.0
+Keywords: energyml,resqml,witsml,prodml
+Author: Valentin Gauthier
+Author-email: valentin.gauthier@geosiris.com
+Maintainer: Lionel Untereiner
+Maintainer-email: lionel.untereiner@geosiris.com
+Requires-Python: >=3.9,<4.0
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Information Technology
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Internet
+Classifier: Topic :: Software Development
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Application Frameworks
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Typing :: Typed
+Requires-Dist: energyml-common2_3 (>=1.0.0,<2.0.0)
+Requires-Dist: xsdata[lxml] (>=24.0,<25.0)
+Project-URL: Repository, https://github.com/geosiris-technologies/energyml-python-generator
+Description-Content-Type: text/markdown
+
+<!--
+Copyright (c) 2022-2023 Geosiris.
+SPDX-License-Identifier: Apache-2.0
+-->
+energyml_witsml2_1
+==============
+
+[![License](https://img.shields.io/pypi/l/resqml22)](https://github.com/geosiris-technologies/energyml-python-generator/blob/main/LICENSE)
+[![Documentation Status](https://readthedocs.org/projects/energyml-python-generator/badge/?version=latest)](https://energyml-python-generator.readthedocs.io/en/latest/?badge=latest)
+![Python version](https://img.shields.io/pypi/pyversions/resqml22)
+![Status](https://img.shields.io/pypi/status/resqml22)
+
+
+
+
+Installation
+------------
+
+energyml_witsml2_1 can be installed with pip : 
+
+```console
+pip install energyml_witsml2_1
+```
+
+or with poetry: 
+```console
+poetry add energyml_witsml2_1
+```
+
+
+Content of the module
+---
+
+energyml/witsml/v2_1/witsmlv2.py
+
