@@ -3,7 +3,7 @@ requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning"]
 build-backend = "poetry_dynamic_versioning.backend"
 
 [tool.poetry]
-name = "energyml"
+name = "energyml-utils"
 version = "0.0.0" # Set at build time
 description = "Energyml helper"
 authors = [
@@ -34,15 +34,17 @@ classifiers = [
 ]
 keywords = ["energyml", "resqml", "witsml", "prodml"]
 packages = [
-#    { include = "energyml_utils" },
+    { include = "src/energyml" },
 ]
 exclude = [
-#    "energyml/main.py"
+    "energyml/main.py"
 ]
 
 [tool.poetry.dependencies]
 python = "^3.9"
 xsdata = {version = "^24.0", extras = ["cli", "lxml"]}
+energyml-opc = "^1.0.7"
+energyml-common2-3 = "^1.7.0"
 
 [tool.poetry.dev-dependencies]
 coverage = {extras = ["toml"], version = "^6.2"}
@@ -55,7 +57,7 @@ click = ">=8.1.3, <=8.1.3" # upper version than 8.0.2 fail with black
 
 [tool.coverage.run]
 branch = true
-#source = ["energyml-utils"]
+source = ["energyml-utils"]
 
 [tool.black]
 line-length = 79

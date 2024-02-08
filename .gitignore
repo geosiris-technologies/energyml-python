@@ -28,6 +28,10 @@ dist
 *.egg-info
 venv/
 
+# Poetry
+*.lock
+*/dist/
+
 # Dask
 dask-worker-space
 
