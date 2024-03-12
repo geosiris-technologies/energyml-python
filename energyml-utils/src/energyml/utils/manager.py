@@ -8,7 +8,10 @@ import pkgutil
 
 import energyml
 
-energyml_modules_names = ["eml", "prodml", "witsml", "resqml"]
+REGEX_ENERGYML_MODULE_NAME = r"energyml\.(?P<pkg>.*)\.v(?P<version>(?P<versionNumber>\d+(_\d+)?)(_dev(?P<versionDev>.*))?)\..*"
+REGEX_PROJECT_VERSION = r"(?P<n0>[\d]+)(.(?P<n1>[\d]+)(.(?P<n2>[\d]+))?)?"
+
+ENERGYML_MODULES_NAMES = ["eml", "prodml", "witsml", "resqml"]
 
 
 def dict_energyml_modules():
@@ -18,7 +21,7 @@ def dict_energyml_modules():
     print("> energyml")
     for mod in pkgutil.iter_modules(energyml_module.__path__):
         print(f"{mod.name}")
-        if mod.name in energyml_modules_names:
+        if mod.name in ENERGYML_MODULES_NAMES:
             energyml_sub_module = importlib.import_module(f"energyml.{mod.name}")
             if mod.name not in modules:
                 modules[mod.name] = []
@@ -34,7 +37,7 @@ def list_energyml_modules():
         modules = []
         for obj in pkgutil.iter_modules(energyml_module.__path__):
             # print(f"{obj.name}")
-            if obj.name in energyml_modules_names:
+            if obj.name in ENERGYML_MODULES_NAMES:
                 modules.append(obj.name)
         return modules
     except ModuleNotFoundError as e:
@@ -80,6 +83,39 @@ def get_all_classes(module_name: str, version: str) -> dict:
 
     return result
 
+
+def get_class_pkg(cls):
+    p = re.compile(REGEX_ENERGYML_MODULE_NAME)
+    m = p.search(cls.__module__)
+    return m.group('pkg')
+
+
+def reshape_version(version: str, nb_digit: int) -> str:
+    """
+    Reshape a project version to have only specific number of digits. If 0 < nbDigit < 4 then the reshape is done,
+    else, the original version is returned.
+    Example : reshapeVersion("v2.0.1", 2) ==> "2.0" and reshapeVersion("version2.0.1.3.2.5", 4) ==> "version2.0.1.3.2.5"
+    """
+    p = re.compile(REGEX_PROJECT_VERSION)
+    m = p.search(version)
+    if m is not None:
+        n0 = m.group("n0")
+        n1 = m.group("n1")
+        n2 = m.group("n2")
+        if nb_digit == 1:
+            return n0
+        elif nb_digit == 2:
+            return n0 + ("." + n1 if n1 is not None else "")
+        elif nb_digit == 3:
+            return n0 + ("." + n1 + ("." + n2  if n2 is not None else "") if n1 is not None else  "")
+
+    return version
+
+
+def get_class_pkg_version(cls, printDevVersion: bool =True, nbMaxVersionDigits: int = 2, only_numbers: bool = False):
+    p = re.compile(REGEX_ENERGYML_MODULE_NAME)
+    m = p.search(cls.__module__ if isinstance(cls, type) else type(cls).__module__)
+    return reshape_version(m.group("versionNumber"), nbMaxVersionDigits) + (m.group("versionDev") if m.group("versionDev") is not None and printDevVersion else "")
 
 
 # ProtocolDict = DefaultDict[str, MessageDict]
