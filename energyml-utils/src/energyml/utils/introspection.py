@@ -184,3 +184,69 @@ def t_get_attribute_type(cls: Union[type, Any], attribute_name: str):
     attrib_as_field = cls.__dataclass_fields__[attribute_name]
 
     # TODO : retourner le type sans les Optional,
+
+
+def get_obj_type(obj: Any) -> str:
+    if isinstance(obj, type):
+        return str(obj.__name__)
+    return get_obj_type(type(obj))
+
+
+def class_match_rgx(cls: Union[type, Any], rgx: str, super_class_search: bool = True, ignore_case: bool = True,):
+    if not isinstance(cls, type):
+        cls = type(cls)
+
+    if re.search(rgx, cls.__name__, re.IGNORECASE if ignore_case else None):
+        return True
+
+    if super_class_search:
+        for base in cls.__bases__:
+            if class_match_rgx(base, rgx, super_class_search, ignore_case):
+                return True
+    return False
+
+
+def search_attribute_matching_type(
+        obj: Any,
+        type_rgx: str,
+        ignore_case: bool = True,
+        return_self: bool = True,  # test directly on input object and not only in its attributes
+        deep_search: bool = True,  # Search inside a matching object
+        super_class_search: bool = True,  # Search inside a matching object
+) -> List[Any]:
+    res = []
+    if obj is not None:
+        if return_self and class_match_rgx(obj, type_rgx, super_class_search, ignore_case):
+            res.append(obj)
+            if not deep_search:
+                return res
+
+    if isinstance(obj, list):
+        for s_o in obj:
+            res = res + search_attribute_matching_type(
+                obj=s_o,
+                type_rgx=type_rgx,
+                ignore_case=ignore_case,
+                return_self=True,
+                deep_search=deep_search,
+            )
+    elif isinstance(obj, dict):
+        for k, s_o in obj.items():
+            res = res + search_attribute_matching_type(
+                obj=s_o,
+                type_rgx=type_rgx,
+                ignore_case=ignore_case,
+                return_self=True,
+                deep_search=deep_search,
+            )
+    else:
+        for att_name in get_class_attributes(obj):
+            res = res + search_attribute_matching_type(
+                obj=get_object_attribute_rgx(obj, att_name),
+                type_rgx=type_rgx,
+                ignore_case=ignore_case,
+                return_self=True,
+                deep_search=deep_search,
+            )
+
+    return res

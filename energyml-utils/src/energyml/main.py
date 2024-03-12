@@ -2,7 +2,7 @@ import re
 from dataclasses import fields
 
 from energyml.eml.v2_3.commonv2 import *
-from energyml.resqml.v2_2.resqmlv2 import TriangulatedSetRepresentation
+from energyml.resqml.v2_2.resqmlv2 import TriangulatedSetRepresentation, FaultInterpretation, ContactElement
 
 from utils.manager import *
 from utils.serialization import *
@@ -18,9 +18,17 @@ cit = Citation(
     last_update=epoch_to_date(epoch()),
 )
 
+dor = DataObjectReference(
+    uuid=gen_uuid(),
+    title="a DOR title",
+    object_version="0",
+    qualified_type=get_qualified_type_from_class(FaultInterpretation)
+)
+
 tr = TriangulatedSetRepresentation(
     citation=cit,
-    uuid=gen_uuid()
+    uuid=gen_uuid(),
+    represented_object=dor,
 )
 
 
@@ -113,16 +121,33 @@ def tests_content_type():
 
     print(get_class_from_content_type("application/vnd.openxmlformats-package.core-properties+xml"))
 
+    print(get_content_type_from_class(tr))
+    print(get_qualified_type_from_class(tr))
+
+    print(gen_energyml_object_path(tr, EpcExportVersion.EXPANDED))
+    print(gen_energyml_object_path(tr))
+
+
 def tests_epc():
     epc = Epc.read_file("D:/Geosiris/Github/energyml/#data/Volve_Horizons_and_Faults_Depth_originEQN_v2.2_colorised.epc")
     print(epc)
 
-    print(serialize_json(epc.gen_content_type_file()))
+    print(serialize_json(epc.gen_opc_content_type()))
+
+
+def test_introspection():
+    print(search_attribute_matching_type(tr, "list"))
+    print(search_attribute_matching_type(tr, "str"))
+    print(search_attribute_matching_type(tr, "Citation"))
+    print(search_attribute_matching_type(tr, "DataObjectreference"))
+    print(class_match_rgx(ContactElement, "DataObjectreference", super_class_search=False))
+    print(class_match_rgx(ContactElement, "DataObjectreference", super_class_search=True))
+
 
 if __name__ == "__main__":
     # tests_0()
     # ast_test()
-    # file_test()
     # tests_content_type()
-    tests_epc()
-
+    # tests_content_type()
+    # tests_epc()
+    test_introspection()

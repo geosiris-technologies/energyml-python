@@ -1,6 +1,6 @@
 import datetime
 import re
-import uuid
+import uuid as uuid_mod
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
@@ -10,18 +10,16 @@ from typing import List, Any, Union, Dict
 
 from energyml.opc.opc import CoreProperties, Relationships, Types, Default, Relationship, Override
 
+from .introspection import (
+    get_object_attribute_rgx,
+    get_class_from_content_type,
+    get_obj_type
+)
 from .manager import get_class_pkg, get_class_pkg_version
-from .xml import is_energyml_content_type
-
-try:
-    from introspection import get_object_attribute_rgx, get_class_from_content_type
-except ImportError:
-    from utils.introspection import get_object_attribute_rgx, get_class_from_content_type
-
 from .serialization import (
     serialize_xml, read_energyml_xml_str, read_energyml_xml_bytes, read_energyml_xml_bytes_as_class
 )
-
+from .xml import is_energyml_content_type
 
 RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
 
@@ -95,19 +93,18 @@ class Epc:
 
         ct.override = []
         for e_obj in self.energyml_objects:
-            ct.override.append(Override(content_type=get_content_type_from_class(e_obj), part_name=gen_energyml_object_path(e_obj, self.export_version)))
+            ct.override.append(Override(
+                content_type=get_content_type_from_class(type(e_obj)),
+                part_name=gen_energyml_object_path(e_obj, self.export_version),
+            ))
+
+        if self.core_props is not None:
+            ct.override.append(Override(
+                content_type=get_content_type_from_class(self.core_props),
+                part_name=gen_core_props_path(self.export_version),
+            ))
 
         return ct
-
-    def gen_content_type_file(self) -> Types:
-        content_type = Types()
-
-        for obj in self.energyml_objects:
-            content_type.override.append(Override(
-                content_type=get_content_type_from_class(type(obj)),
-                part_name=gen_energyml_object_path(obj, self.export_version),
-            ))
-        return content_type
 
     def export_file(self, path: str) -> None:
         epc_io = self.export_io()
@@ -179,11 +176,11 @@ class Epc:
                         while ov_path.startswith("/") or ov_path.startswith("\\"):
                             ov_path = ov_path[1:]
                         if is_energyml_content_type(ov_ct):
-
                             obj_list.append(
-                                read_energyml_xml_bytes_as_class(epc_file.read(ov_path),
-                                                                 get_class_from_content_type(ov_ct)
-                                                                 )
+                                read_energyml_xml_bytes_as_class(
+                                    epc_file.read(ov_path),
+                                    get_class_from_content_type(ov_ct)
+                                )
                             )
                         elif get_class_from_content_type(ov_ct) == CoreProperties:
                             core_props = read_energyml_xml_bytes_as_class(epc_file.read(ov_path), CoreProperties)
@@ -207,13 +204,23 @@ def get_data_object_type(cls: Union[type, Any], print_dev_version=True, nb_max_v
 
 
 def get_qualified_type_from_class(cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2):
-    return get_data_object_type(cls, print_dev_version, nb_max_version_digits) + "." + get_object_type_for_file_path_from_class(cls);
+    return get_data_object_type(cls, print_dev_version, 2).replace(".", "") + "." + get_object_type_for_file_path_from_class(cls);
 
 
 def get_content_type_from_class(cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2):
-    return ("application/x-" + get_class_pkg(cls)
-            + "+xml;version=" + get_class_pkg_version(cls, print_dev_version, nb_max_version_digits) + ";type="
-            + get_object_type_for_file_path_from_class(cls))
+    if not isinstance(cls, type):
+        cls = type(cls)
+
+    if ".opc." in cls.__module__:
+        if cls.__name__.lower() == "coreproperties":
+            return "application/vnd.openxmlformats-package.core-properties+xml"
+    else:
+        return ("application/x-" + get_class_pkg(cls)
+                + "+xml;version=" + get_class_pkg_version(cls, print_dev_version, nb_max_version_digits) + ";type="
+                + get_object_type_for_file_path_from_class(cls))
+
+    print(f"@get_content_type_from_class not supported type : {cls}")
+    return None
 
 
 def get_object_type_for_file_path_from_class(cls) -> str:
@@ -222,6 +229,10 @@ def get_object_type_for_file_path_from_class(cls) -> str:
     if re.match(r"Obj[A-Z].*", obj_type) is not None and pkg == "resqml":
         return "obj_" + obj_type[3:]
     return obj_type
+
+
+def gen_core_props_path(export_version: EpcExportVersion = EpcExportVersion.CLASSIC):
+    return "docProps/core.xml"
 
 
 def gen_energyml_object_path(energyml_object: Union[str, Any], export_version: EpcExportVersion = EpcExportVersion.CLASSIC):
@@ -233,13 +244,15 @@ def gen_energyml_object_path(energyml_object: Union[str, Any], export_version: E
     pkg = get_class_pkg(energyml_object)
     pkg_version = get_class_pkg_version(energyml_object)
     object_version = get_obj_version(energyml_object)
+    uuid = get_obj_uuid(energyml_object)
+
     if object_version is None:
         object_version = "0"
 
     if export_version == EpcExportVersion.EXPANDED:
-        return pkg + "/" + get_obj_uuid(energyml_object) + pkg_version + "/" + object_version + ".xml"
+        return f"namespace_{pkg}{pkg_version.replace('.','')}/{uuid}{('/version_' + object_version) if object_version is not None else ''}/{obj_type}_{uuid}.xml"
     else:
-        return obj_type + "_" + get_obj_uuid(energyml_object) + ".xml"
+        return obj_type + "_" + uuid + ".xml"
 
 
 def now(time_zone=timezone(timedelta(hours=1), "UTC")) -> int:
@@ -264,13 +277,7 @@ def epoch_to_date(epoch: int, time_zone=timezone(timedelta(hours=1), "UTC")) -> 
 
 
 def gen_uuid() -> str:
-    return str(uuid.uuid4())
-
-
-def get_obj_type(obj: Any) -> str:
-    if isinstance(obj, type):
-        return str(obj.__name__)
-    return get_obj_type(type(obj))
+    return str(uuid_mod.uuid4())
 
 
 def get_obj_uuid(obj: Any) -> str:
