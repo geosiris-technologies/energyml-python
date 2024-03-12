@@ -136,8 +136,11 @@ def tests_epc():
 
 
 def test_introspection():
+    print(search_attribute_matching_type(tr, "int"))
+    print(search_attribute_matching_type(tr, "float"))
     print(search_attribute_matching_type(tr, "list"))
     print(search_attribute_matching_type(tr, "str"))
+    print(search_attribute_matching_type(tr, "^str$"))
     print(search_attribute_matching_type(tr, "Citation"))
     print(search_attribute_matching_type(tr, "DataObjectreference"))
     print(class_match_rgx(ContactElement, "DataObjectreference", super_class_search=False))

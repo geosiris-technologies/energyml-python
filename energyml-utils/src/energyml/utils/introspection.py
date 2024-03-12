@@ -192,16 +192,16 @@ def get_obj_type(obj: Any) -> str:
     return get_obj_type(type(obj))
 
 
-def class_match_rgx(cls: Union[type, Any], rgx: str, super_class_search: bool = True, ignore_case: bool = True,):
+def class_match_rgx(cls: Union[type, Any], rgx: str, super_class_search: bool = True, re_flags=re.IGNORECASE):
     if not isinstance(cls, type):
         cls = type(cls)
 
-    if re.search(rgx, cls.__name__, re.IGNORECASE if ignore_case else None):
+    if re.match(rgx, cls.__name__, re_flags):
         return True
 
     if super_class_search:
         for base in cls.__bases__:
-            if class_match_rgx(base, rgx, super_class_search, ignore_case):
+            if class_match_rgx(base, rgx, super_class_search, re_flags):
                 return True
     return False
 
@@ -209,14 +209,14 @@ def class_match_rgx(cls: Union[type, Any], rgx: str, super_class_search: bool = 
 def search_attribute_matching_type(
         obj: Any,
         type_rgx: str,
-        ignore_case: bool = True,
+        re_flags=re.IGNORECASE,
         return_self: bool = True,  # test directly on input object and not only in its attributes
         deep_search: bool = True,  # Search inside a matching object
-        super_class_search: bool = True,  # Search inside a matching object
+        super_class_search: bool = True,  # Search inside in super classes of the object
 ) -> List[Any]:
     res = []
     if obj is not None:
-        if return_self and class_match_rgx(obj, type_rgx, super_class_search, ignore_case):
+        if return_self and class_match_rgx(obj, type_rgx, super_class_search, re_flags):
             res.append(obj)
             if not deep_search:
                 return res
@@ -226,7 +226,7 @@ def search_attribute_matching_type(
             res = res + search_attribute_matching_type(
                 obj=s_o,
                 type_rgx=type_rgx,
-                ignore_case=ignore_case,
+                re_flags=re_flags,
                 return_self=True,
                 deep_search=deep_search,
             )
@@ -235,7 +235,7 @@ def search_attribute_matching_type(
             res = res + search_attribute_matching_type(
                 obj=s_o,
                 type_rgx=type_rgx,
-                ignore_case=ignore_case,
+                re_flags=re_flags,
                 return_self=True,
                 deep_search=deep_search,
             )
@@ -244,7 +244,7 @@ def search_attribute_matching_type(
             res = res + search_attribute_matching_type(
                 obj=get_object_attribute_rgx(obj, att_name),
                 type_rgx=type_rgx,
-                ignore_case=ignore_case,
+                re_flags=re_flags,
                 return_self=True,
                 deep_search=deep_search,
             )
