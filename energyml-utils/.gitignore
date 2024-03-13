@@ -41,3 +41,4 @@ requirements.txt
 sample/
 gen*/
 manip*
+*.epc

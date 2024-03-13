@@ -1,9 +1,19 @@
+from enum import Enum
 from typing import Any, List, Optional, Union
 import re
 import ast
 import sys
 
 from src.energyml.utils.xml import parse_content_type, ENERGYML_NAMESPACES
+
+
+primitives = (bool, str, int, float, type(None))
+
+
+def is_primitive(cls: Union[type, Any]) -> bool:
+    if isinstance(cls, type):
+        return cls in primitives or Enum in cls.__bases__
+    return is_primitive(type(cls))
 
 
 def get_class_from_name(class_name_and_module: str) -> Optional[type]:
@@ -130,7 +140,7 @@ def get_object_attribute_advanced(obj: Any, attr_dot_path: str) -> Any:
     if '.' in attr_dot_path:
         current_attrib_name = attr_dot_path.split('.')[0]
 
-    current_attrib_name = get_matching_class_attribute_name(current_attrib_name)
+    current_attrib_name = get_matching_class_attribute_name(obj, current_attrib_name)
 
     value = None
     if isinstance(obj, list):
@@ -199,7 +209,7 @@ def class_match_rgx(cls: Union[type, Any], rgx: str, super_class_search: bool = 
     if re.match(rgx, cls.__name__, re_flags):
         return True
 
-    if super_class_search:
+    if not is_primitive(cls) and super_class_search:
         for base in cls.__bases__:
             if class_match_rgx(base, rgx, super_class_search, re_flags):
                 return True
@@ -239,7 +249,7 @@ def search_attribute_matching_type(
                 return_self=True,
                 deep_search=deep_search,
             )
-    else:
+    elif not is_primitive(obj):
         for att_name in get_class_attributes(obj):
             res = res + search_attribute_matching_type(
                 obj=get_object_attribute_rgx(obj, att_name),

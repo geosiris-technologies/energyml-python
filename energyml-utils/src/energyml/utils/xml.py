@@ -1,5 +1,5 @@
 import re
-from io import StringIO, BytesIO
+from io import BytesIO
 from typing import Optional, Any, Union
 
 from lxml import etree as ETREE  # type: Any
@@ -16,7 +16,10 @@ ENERGYML_NAMESPACES_PACKAGE = {
     "prodml": ["http://www.energistics.org/energyml/data/prodmlv2"],
     "witsml": ["http://www.energistics.org/energyml/data/witsmlv2"],
     "resqml": ["http://www.energistics.org/energyml/data/resqmlv2"],
-    "opc": ["http://schemas.openxmlformats.org/package/2006/content-types", "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"],
+    "opc": [
+        "http://schemas.openxmlformats.org/package/2006/content-types",
+        "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+    ],
 }
 
 REGEX_UUID_NO_GRP = (

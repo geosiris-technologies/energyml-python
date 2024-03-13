@@ -46,3 +46,4 @@ sample/
 gen*/
 manip*
 zip/
+*.epc

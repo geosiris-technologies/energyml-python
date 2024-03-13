@@ -1,13 +1,12 @@
-import re
 from dataclasses import fields
 
 from energyml.eml.v2_3.commonv2 import *
 from energyml.resqml.v2_2.resqmlv2 import TriangulatedSetRepresentation, FaultInterpretation, ContactElement
 
-from utils.manager import *
-from utils.serialization import *
 from utils.epc import *
 from utils.introspection import *
+from utils.manager import *
+from utils.serialization import *
 from utils.xml import *
 
 cit = Citation(
@@ -130,9 +129,9 @@ def tests_content_type():
 
 def tests_epc():
     epc = Epc.read_file("D:/Geosiris/Github/energyml/#data/Volve_Horizons_and_Faults_Depth_originEQN_v2.2_colorised.epc")
-    print(epc)
-
     print(serialize_json(epc.gen_opc_content_type()))
+    print(epc)
+    epc.export_file("D:/Geosiris/Github/energyml/energyml-python/test.epc")
 
 
 def test_introspection():
@@ -145,12 +144,33 @@ def test_introspection():
     print(search_attribute_matching_type(tr, "DataObjectreference"))
     print(class_match_rgx(ContactElement, "DataObjectreference", super_class_search=False))
     print(class_match_rgx(ContactElement, "DataObjectreference", super_class_search=True))
+    print(Enum in ExistenceKind.__bases__)
+    print(Enum in TriangulatedSetRepresentation.__bases__)
+    print(is_primitive(int))
+    print(is_primitive(str))
+    print(is_primitive(TriangulatedSetRepresentation))
+    print(is_primitive(Citation))
+    print(is_primitive(ExistenceKind))
+    print(ExistenceKind.__bases__)
+    print(Enum in ExistenceKind.__bases__)
+
+
+def tests_dor():
+    import json
+    epc = Epc.read_file("D:/Geosiris/Github/energyml/#data/Volve_Horizons_and_Faults_Depth_originEQN_v2.2_colorised.epc")
+
+    print(EPCRelsRelationshipType.DESTINATION_OBJECT.get_type())
+
+    print(json.dumps({k: [get_obj_uuid(x) for x in v] for k, v in get_reverse_dor_list(epc.energyml_objects).items()}, indent=4))
+    print(epc.compute_rels())
+
 
 
 if __name__ == "__main__":
     # tests_0()
-    # ast_test()
+    ast_test()
     # tests_content_type()
     # tests_content_type()
     # tests_epc()
-    test_introspection()
+    # test_introspection()
+    # tests_dor()
