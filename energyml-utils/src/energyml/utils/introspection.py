@@ -1,10 +1,27 @@
 from enum import Enum
-from typing import Any, List, Optional, Union
+from importlib import import_module
+from typing import Any, List, Optional, Union, Dict, Tuple
 import re
 import ast
 import sys
 
 from src.energyml.utils.xml import parse_content_type, ENERGYML_NAMESPACES
+
+RELATED_MODULES = [
+    ["energyml.eml.v2_0.commonv2", "energyml.resqml.v2_0_1.resqmlv2"],
+    [
+        "energyml.eml.v2_1.commonv2",
+        "energyml.prodml.v2_0.prodmlv2",
+        "energyml.witsml.v2_0.witsmlv2",
+    ],
+    ["energyml.eml.v2_2.commonv2", "energyml.resqml.v2_2_dev3.resqmlv2"],
+    [
+        "energyml.eml.v2_3.commonv2",
+        "energyml.resqml.v2_2.resqmlv2",
+        "energyml.prodml.v2_2.prodmlv2",
+        "energyml.witsml.v2_1.witsmlv2",
+    ],
+]
 
 
 primitives = (bool, str, int, float, type(None))
@@ -17,17 +34,28 @@ def is_primitive(cls: Union[type, Any]) -> bool:
 
 
 def get_class_from_name(class_name_and_module: str) -> Optional[type]:
-    module_name = class_name_and_module[:class_name_and_module.rindex(".")]
-    last_ns_part = class_name_and_module[class_name_and_module.rindex(".") + 1:]
+    module_name = class_name_and_module[: class_name_and_module.rindex(".")]
+    last_ns_part = class_name_and_module[
+        class_name_and_module.rindex(".") + 1 :
+    ]
     try:
+        # Required to read "CustomData" on eml objects that may contain resqml values
+        # ==> we need to import all modules related to the same version of the common
+        import_related_module(module_name)
         return getattr(sys.modules[module_name], last_ns_part)
     except AttributeError as e:
         if "2d" in last_ns_part:
-            return get_class_from_name(class_name_and_module.replace("2d", "2D"))
+            return get_class_from_name(
+                class_name_and_module.replace("2d", "2D")
+            )
         elif "3d" in last_ns_part:
-            return get_class_from_name(class_name_and_module.replace("3d", "3D"))
+            return get_class_from_name(
+                class_name_and_module.replace("3d", "3D")
+            )
         elif last_ns_part[0].islower():
-            return get_class_from_name(module_name + "." + last_ns_part[0].upper() + last_ns_part[1:])
+            return get_class_from_name(
+                module_name + "." + last_ns_part[0].upper() + last_ns_part[1:]
+            )
         else:
             print(e)
     return None
@@ -40,17 +68,27 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
         domain = "opc"
     if domain == "opc":
         xml_domain = ct.group("xmlDomain")
-        opc_type = pascal_case(xml_domain[xml_domain.rindex(".") + 1:])
-        print("energyml.opc.opc." + opc_type)
+        opc_type = pascal_case(xml_domain[xml_domain.rindex(".") + 1 :])
+        # print("energyml.opc.opc." + opc_type)
         return get_class_from_name("energyml.opc.opc." + opc_type)
     else:
         ns = ENERGYML_NAMESPACES[domain]
+        domain = ct.group("domain")
+        obj_type = ct.group("type")
+        if obj_type.lower().startswith("obj_"):  # for resqml201
+            obj_type = "Obj" + obj_type[4:]
+        version_num = str(ct.group("domainVersion")).replace(".", "_")
+        if domain.lower() == "resqml" and version_num.startswith("2_0"):
+            version_num = "2_0_1"
         return get_class_from_name(
             "energyml."
-            + ct.group("domain")
-            + ".v" + str(ct.group("domainVersion")).replace(".", "_")
-            + "." + ns[ns.rindex("/") + 1:]
-            + "." + ct.group("type")
+            + domain
+            + ".v"
+            + version_num
+            + "."
+            + ns[ns.rindex("/") + 1 :]
+            + "."
+            + obj_type
         )
 
 
@@ -59,26 +97,51 @@ def snake_case(s: str) -> str:
     Replace hyphens with spaces, then apply regular expression substitutions for title case conversion
     and add an underscore between words, finally convert the result to lowercase
     """
-    return '_'.join(
-        re.sub('([A-Z][a-z]+)', r' \1',
-               re.sub('([A-Z]+)', r' \1',
-                      s.replace('-', ' '))).split()).lower()
+    return "_".join(
+        re.sub(
+            "([A-Z][a-z]+)",
+            r" \1",
+            re.sub("([A-Z]+)", r" \1", s.replace("-", " ")),
+        ).split()
+    ).lower()
 
 
 def pascal_case(s: str) -> str:
     return snake_case(s).replace("_", " ").title().replace(" ", "")
 
 
+def import_related_module(energyml_module_name: str) -> None:
+    for related in RELATED_MODULES:
+        if energyml_module_name in related:
+            for m in related:
+                try:
+                    import_module(m)
+                except Exception as e:
+                    print(e)
+
+
+def get_class_fields(cls: Union[type, Any]) -> Dict[str, Any]:
+    if not isinstance(cls, type):  # if cls is an instance
+        cls = type(cls)
+    try:
+        return cls.__dataclass_fields__
+    except AttributeError:
+        return {}
+
+
 def get_class_attributes(cls: Union[type, Any]) -> List[str]:
     """
     returns a list of attributes (not private ones)
     """
-    if not isinstance(cls, type):  # if cls is an instance
-        cls = type(cls)
-    return list(filter(lambda a: not a.startswith("__"), dir(cls)))
+    # if not isinstance(cls, type):  # if cls is an instance
+    #     cls = type(cls)
+    # return list(filter(lambda a: not a.startswith("__"), dir(cls)))
+    return list(get_class_fields(cls).keys())
 
 
-def get_matching_class_attribute_name(cls: Union[type, Any], attribute_name: str) -> Optional[str]:
+def get_matching_class_attribute_name(
+    cls: Union[type, Any], attribute_name: str
+) -> Optional[str]:
     """
     From an object and an attribute name, returns the correct attribute name of the class.
     Example : "ObjectVersion" --> object_version.
@@ -104,15 +167,17 @@ def get_matching_class_attribute_name(cls: Union[type, Any], attribute_name: str
     return None
 
 
-def get_object_attribute(obj: Any, attr_dot_path: str, force_snake_case=True) -> Any:
+def get_object_attribute(
+    obj: Any, attr_dot_path: str, force_snake_case=True
+) -> Any:
     """
     returns the value of an attribute given by a dot representation of its path in the object
     example "Citation.Title"
     """
     current_attrib_name = attr_dot_path
 
-    if '.' in attr_dot_path:
-        current_attrib_name = attr_dot_path.split('.')[0]
+    if "." in attr_dot_path:
+        current_attrib_name = attr_dot_path.split(".")[0]
 
     if force_snake_case:
         current_attrib_name = snake_case(current_attrib_name)
@@ -125,8 +190,10 @@ def get_object_attribute(obj: Any, attr_dot_path: str, force_snake_case=True) ->
     else:
         value = getattr(obj, current_attrib_name)
 
-    if '.' in attr_dot_path:
-        return get_object_attribute(value, attr_dot_path[len(current_attrib_name) + 1:])
+    if "." in attr_dot_path:
+        return get_object_attribute(
+            value, attr_dot_path[len(current_attrib_name) + 1 :]
+        )
     else:
         return value
 
@@ -137,10 +204,12 @@ def get_object_attribute_advanced(obj: Any, attr_dot_path: str) -> Any:
     """
     current_attrib_name = attr_dot_path
 
-    if '.' in attr_dot_path:
-        current_attrib_name = attr_dot_path.split('.')[0]
+    if "." in attr_dot_path:
+        current_attrib_name = attr_dot_path.split(".")[0]
 
-    current_attrib_name = get_matching_class_attribute_name(obj, current_attrib_name)
+    current_attrib_name = get_matching_class_attribute_name(
+        obj, current_attrib_name
+    )
 
     value = None
     if isinstance(obj, list):
@@ -150,10 +219,21 @@ def get_object_attribute_advanced(obj: Any, attr_dot_path: str) -> Any:
     else:
         value = getattr(obj, current_attrib_name)
 
-    if '.' in attr_dot_path:
-        return get_object_attribute_advanced(value, attr_dot_path[len(current_attrib_name) + 1:])
+    if "." in attr_dot_path:
+        return get_object_attribute_advanced(
+            value, attr_dot_path[len(current_attrib_name) + 1 :]
+        )
     else:
         return value
+
+
+def get_object_attribute_no_verif(obj: Any, attr_name: str) -> Any:
+    if isinstance(obj, list):
+        return obj[int(attr_name)]
+    elif isinstance(obj, dict):
+        return obj[attr_name]
+    else:
+        return getattr(obj, attr_name)
 
 
 def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:
@@ -171,18 +251,16 @@ def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:
     # unescape Dot
     current_attrib_name = current_attrib_name.replace("\\.", ".")
 
-    real_attrib_name = get_matching_class_attribute_name(obj, current_attrib_name)
+    real_attrib_name = get_matching_class_attribute_name(
+        obj, current_attrib_name
+    )
 
-    value = None
-    if isinstance(obj, list):
-        value = obj[int(real_attrib_name)]
-    elif isinstance(obj, dict):
-        value = obj[real_attrib_name]
-    else:
-        value = getattr(obj, real_attrib_name)
+    value = get_object_attribute_no_verif(obj, real_attrib_name)
 
     if len(attrib_list) > 1:
-        return get_object_attribute_rgx(value, attr_dot_path_rgx[len(current_attrib_name) + 1:])
+        return get_object_attribute_rgx(
+            value, attr_dot_path_rgx[len(current_attrib_name) + 1 :]
+        )
     else:
         return value
 
@@ -202,7 +280,12 @@ def get_obj_type(obj: Any) -> str:
     return get_obj_type(type(obj))
 
 
-def class_match_rgx(cls: Union[type, Any], rgx: str, super_class_search: bool = True, re_flags=re.IGNORECASE):
+def class_match_rgx(
+    cls: Union[type, Any],
+    rgx: str,
+    super_class_search: bool = True,
+    re_flags=re.IGNORECASE,
+):
     if not isinstance(cls, type):
         cls = type(cls)
 
@@ -216,47 +299,88 @@ def class_match_rgx(cls: Union[type, Any], rgx: str, super_class_search: bool = 
     return False
 
 
-def search_attribute_matching_type(
-        obj: Any,
-        type_rgx: str,
-        re_flags=re.IGNORECASE,
-        return_self: bool = True,  # test directly on input object and not only in its attributes
-        deep_search: bool = True,  # Search inside a matching object
-        super_class_search: bool = True,  # Search inside in super classes of the object
-) -> List[Any]:
+def search_attribute_matching_type_with_path(
+    obj: Any,
+    type_rgx: str,
+    re_flags=re.IGNORECASE,
+    return_self: bool = True,  # test directly on input object and not only in its attributes
+    deep_search: bool = True,  # Search inside a matching object
+    super_class_search: bool = True,  # Search inside in super classes of the object
+    current_path: str = "",
+) -> List[Tuple[str, Any]]:
+    """
+    Returns a list of tuple (path, value) for each sub attribute with type matching param "type_rgx".
+    The path is a dot-version like ".Citation.Title"
+    :param obj:
+    :param type_rgx:
+    :param re_flags:
+    :param return_self:
+    :param deep_search:
+    :param super_class_search:
+    :param current_path:
+    :return:
+    """
     res = []
     if obj is not None:
-        if return_self and class_match_rgx(obj, type_rgx, super_class_search, re_flags):
-            res.append(obj)
+        if return_self and class_match_rgx(
+            obj, type_rgx, super_class_search, re_flags
+        ):
+            res.append((current_path, obj))
             if not deep_search:
                 return res
 
     if isinstance(obj, list):
+        cpt = 0
         for s_o in obj:
-            res = res + search_attribute_matching_type(
+            res = res + search_attribute_matching_type_with_path(
                 obj=s_o,
                 type_rgx=type_rgx,
                 re_flags=re_flags,
                 return_self=True,
                 deep_search=deep_search,
+                current_path=f"{current_path}.{cpt}",
             )
+            cpt = cpt + 1
     elif isinstance(obj, dict):
         for k, s_o in obj.items():
-            res = res + search_attribute_matching_type(
+            res = res + search_attribute_matching_type_with_path(
                 obj=s_o,
                 type_rgx=type_rgx,
                 re_flags=re_flags,
                 return_self=True,
                 deep_search=deep_search,
+                current_path=f"{current_path}.{k}",
             )
     elif not is_primitive(obj):
         for att_name in get_class_attributes(obj):
-            res = res + search_attribute_matching_type(
+            res = res + search_attribute_matching_type_with_path(
                 obj=get_object_attribute_rgx(obj, att_name),
                 type_rgx=type_rgx,
                 re_flags=re_flags,
                 return_self=True,
                 deep_search=deep_search,
+                current_path=f"{current_path}.{att_name}",
             )
 
     return res
+
+
+def search_attribute_matching_type(
+    obj: Any,
+    type_rgx: str,
+    re_flags=re.IGNORECASE,
+    return_self: bool = True,  # test directly on input object and not only in its attributes
+    deep_search: bool = True,  # Search inside a matching object
+    super_class_search: bool = True,  # Search inside in super classes of the object
+) -> List[Any]:
+    return [
+        val
+        for path, val in search_attribute_matching_type_with_path(
+            obj=obj,
+            type_rgx=type_rgx,
+            re_flags=re_flags,
+            return_self=return_self,
+            deep_search=deep_search,
+            super_class_search=super_class_search,
+        )
+    ]

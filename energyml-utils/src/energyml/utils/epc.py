@@ -5,14 +5,15 @@ import zipfile
 from dataclasses import dataclass, field
 from enum import Enum
 from io import BytesIO
-from typing import List, Any, Union, Dict, Callable
+from typing import List, Any, Union, Dict, Callable, Optional, Tuple
 
 from energyml.opc.opc import CoreProperties, Relationships, Types, Default, Relationship, Override
+from xsdata.exceptions import ParserError
 
 from .introspection import (
     get_object_attribute_rgx,
     get_class_from_content_type,
-    get_obj_type, search_attribute_matching_type
+    get_obj_type, search_attribute_matching_type, get_object_attribute_no_verif
 )
 from .manager import get_class_pkg, get_class_pkg_version
 from .serialization import (
@@ -21,6 +22,7 @@ from .serialization import (
 from .xml import is_energyml_content_type
 
 RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
+RELS_FOLDER_NAME = "_rels"
 
 
 class EpcExportVersion(Enum):
@@ -58,15 +60,15 @@ class EPCRelsRelationshipType(Enum):
             case EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES:
                 return "http://schemas.f2i-consulting.com/package/2014/relationships/" + str(self.value)
             case (
-                EPCRelsRelationshipType.CHUNKED_PART
-                | EPCRelsRelationshipType.DESTINATION_OBJECT
-                | EPCRelsRelationshipType.SOURCE_OBJECT
-                | EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY
-                | EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML
-                | EPCRelsRelationshipType.EXTERNAL_RESOURCE
-                | EPCRelsRelationshipType.DestinationMedia
-                | EPCRelsRelationshipType.SOURCE_MEDIA
-                | _
+            EPCRelsRelationshipType.CHUNKED_PART
+            | EPCRelsRelationshipType.DESTINATION_OBJECT
+            | EPCRelsRelationshipType.SOURCE_OBJECT
+            | EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY
+            | EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML
+            | EPCRelsRelationshipType.EXTERNAL_RESOURCE
+            | EPCRelsRelationshipType.DestinationMedia
+            | EPCRelsRelationshipType.SOURCE_MEDIA
+            | _
             ):
                 return "http://schemas.energistics.org/package/2012/relationships/" + str(self.value)
 
@@ -120,7 +122,10 @@ class Epc:
         return (
                 "EPC file (" + str(self.export_version) + ") "
                 + f"{len(self.energyml_objects)} energyml objects and {len(self.raw_files)} other files {[f.path for f in self.raw_files]}"
+                # + f"\n{[serialize_json(ar) for ar in self.additional_rels]}"
         )
+
+    # EXPORT functions
 
     def gen_opc_content_type(self) -> Types:
         ct = Types()
@@ -156,7 +161,7 @@ class Epc:
         with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
             #  Energyml objects
             for e_obj in self.energyml_objects:
-                e_path = gen_energyml_object_path(e_obj)
+                e_path = gen_energyml_object_path(e_obj, self.export_version)
                 zip_info = zipfile.ZipInfo(filename=e_path, date_time=datetime.datetime.now().timetuple()[:6])
                 data = serialize_xml(e_obj)
                 zip_file.writestr(zip_info, data)
@@ -169,12 +174,14 @@ class Epc:
 
             # CoreProps
             if self.core_props is not None:
-                zip_info = zipfile.ZipInfo(filename=gen_core_props_path(self.export_version), date_time=datetime.datetime.now().timetuple()[:6])
+                zip_info = zipfile.ZipInfo(filename=gen_core_props_path(self.export_version),
+                                           date_time=datetime.datetime.now().timetuple()[:6])
                 data = serialize_xml(self.core_props)
                 zip_file.writestr(zip_info, data)
 
             # ContentType
-            zip_info = zipfile.ZipInfo(filename=get_epc_content_type_path(), date_time=datetime.datetime.now().timetuple()[:6])
+            zip_info = zipfile.ZipInfo(filename=get_epc_content_type_path(),
+                                       date_time=datetime.datetime.now().timetuple()[:6])
             data = serialize_xml(self.gen_opc_content_type())
             zip_file.writestr(zip_info, data)
 
@@ -216,8 +223,9 @@ class Epc:
         }
 
         obj_rels = {
-            gen_rels_path(map_obj_id_to_obj.get(obj_id)): Relationships(
-                relationship=obj_rels + (self.additional_rels[obj_id] if obj_id in self.additional_rels else [])
+            gen_rels_path(map_obj_id_to_obj.get(obj_id), export_version=self.export_version): Relationships(
+                relationship=obj_rels + (self.additional_rels[obj_id] if obj_id in self.additional_rels else []),
+
             )
             for obj_id, obj_rels in rels.items()
         }
@@ -236,6 +244,23 @@ class Epc:
 
         return obj_rels
 
+    # -----------
+
+    def get_object_by_uuid(self, uuid: str) -> List[Any]:
+        return list(filter(lambda o: get_obj_uuid(o) == uuid, self.energyml_objects))
+
+    def get_object_by_identifier(self, identifier: str) -> Optional[Any]:
+        """
+        :param identifier: given by the function @get_obj_identifier
+        :return:
+        """
+        for o in self.energyml_objects:
+            if get_obj_identifier(o) == identifier:
+                return o
+        return None
+
+    # Class methods
+
     @classmethod
     def read_file(cls, epc_file_path: str):
         with open(epc_file_path, "rb") as f:
@@ -247,6 +272,7 @@ class Epc:
             _read_files = []
             obj_list = []
             raw_file_list = []
+            additional_rels = {}
             core_props = None
             with zipfile.ZipFile(epc_file_io, "r", zipfile.ZIP_DEFLATED) as epc_file:
                 content_type_file_name = get_epc_content_type_path()
@@ -272,30 +298,61 @@ class Epc:
                             ov_path = ov_path[1:]
                         if is_energyml_content_type(ov_ct):
                             _read_files.append(ov_path)
-                            obj_list.append(
-                                read_energyml_xml_bytes_as_class(
-                                    epc_file.read(ov_path),
-                                    get_class_from_content_type(ov_ct)
+                            try:
+                                obj_list.append(
+                                    read_energyml_xml_bytes_as_class(
+                                        epc_file.read(ov_path),
+                                        get_class_from_content_type(ov_ct)
+                                    )
                                 )
-                            )
+                            except ParserError as e:
+                                print(f"Epc.@read_stream failed to parse file {ov_path} for content-type: {ov_ct} => {get_class_from_content_type(ov_ct)}")
+                                raise e
                         elif get_class_from_content_type(ov_ct) == CoreProperties:
                             _read_files.append(ov_path)
                             core_props = read_energyml_xml_bytes_as_class(epc_file.read(ov_path), CoreProperties)
 
                     for f_info in epc_file.infolist():
-                        if f_info.filename not in _read_files and not f_info.filename.lower().endswith(".rels"):
+                        if f_info.filename not in _read_files:
                             _read_files.append(f_info.filename)
-                            try:
-                                raw_file_list.append(
-                                    RawFile(
-                                        path=f_info.filename,
-                                        content=BytesIO(epc_file.read(f_info.filename)),
+                            if not f_info.filename.lower().endswith(".rels"):
+                                try:
+                                    raw_file_list.append(
+                                        RawFile(
+                                            path=f_info.filename,
+                                            content=BytesIO(epc_file.read(f_info.filename)),
+                                        )
                                     )
+                                except IOError as e:
+                                    print(e)
+                            else:  # rels
+                                print(f"reading rels {f_info.filename}")
+                                rels_folder, rels_file_name = get_file_folder_and_name_from_path(f_info.filename)
+                                while rels_folder.endswith("/"):
+                                    rels_folder = rels_folder[:-1]
+                                obj_folder = rels_folder[:rels_folder.rindex("/") + 1] if "/" in rels_folder else ""
+                                obj_file_name = rels_file_name[:-5]  # removing the ".rels"
+                                rels_file: Relationships = read_energyml_xml_bytes_as_class(
+                                    epc_file.read(f_info.filename),
+                                    Relationships
                                 )
-                            except IOError as e:
-                                print(e)
+                                additional_rels_key = obj_folder + obj_file_name
+                                print(f"\t{additional_rels_key}")
+                                for rel in rels_file.relationship:
+                                    print(f"\t\t{rel.type_value}")
+                                    if (rel.type_value != EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
+                                            and rel.type_value != EPCRelsRelationshipType.SOURCE_OBJECT.get_type()
+                                            and rel.type_value != EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES.get_type()
+                                    ):  # not a computable relation
+                                        if additional_rels_key not in additional_rels:
+                                            additional_rels[additional_rels_key] = []
+                                        additional_rels[additional_rels_key].append(rel)
 
-            return Epc(energyml_objects=obj_list, raw_files=raw_file_list, core_props=core_props)
+            return Epc(energyml_objects=obj_list,
+                       raw_files=raw_file_list,
+                       core_props=core_props,
+                       additional_rels=additional_rels
+                       )
         except zipfile.BadZipFile as error:
             print(error)
 
@@ -318,7 +375,7 @@ def get_qualified_type_from_class(cls: Union[type, Any], print_dev_version=True)
     return (
             get_data_object_type(cls, print_dev_version, 2)
             .replace(".", "") + "." + get_object_type_for_file_path_from_class(cls)
-            )
+    )
 
 
 def get_content_type_from_class(cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2):
@@ -375,7 +432,7 @@ def get_obj_uuid(obj: Any) -> str:
 
 
 def get_obj_version(obj: Any) -> str:
-    return get_object_attribute_rgx(obj, "object_version")
+    return get_object_attribute_no_verif(obj, "object_version")
 
 
 def get_direct_dor_list(obj: Any) -> List[Any]:
@@ -433,8 +490,8 @@ def gen_energyml_object_path(energyml_object: Union[str, Any],
     object_version = get_obj_version(energyml_object)
     uuid = get_obj_uuid(energyml_object)
 
-    if object_version is None:
-        object_version = "0"
+    # if object_version is None:
+    #     object_version = "0"
 
     if export_version == EpcExportVersion.EXPANDED:
         return f"namespace_{pkg}{pkg_version.replace('.', '')}/{uuid}{('/version_' + object_version) if object_version is not None else ''}/{obj_type}_{uuid}.xml"
@@ -442,11 +499,21 @@ def gen_energyml_object_path(energyml_object: Union[str, Any],
         return obj_type + "_" + uuid + ".xml"
 
 
-def gen_rels_path(obj: Any) -> str:
+def get_file_folder_and_name_from_path(path: str) -> Tuple[str, str]:
+    obj_folder = path[:path.rindex("/") + 1] if "/" in path else ""
+    obj_file_name = path[path.rindex("/") + 1:] if "/" in path else path
+    return obj_folder, obj_file_name
+
+
+def gen_rels_path(obj: Any,
+                  export_version: EpcExportVersion = EpcExportVersion.CLASSIC
+                  ) -> str:
     if isinstance(obj, CoreProperties):
-        return ".rels/.rels"
+        return f"{RELS_FOLDER_NAME}/.rels"
     else:
-        return f".rels/{gen_energyml_object_path(obj, EpcExportVersion.CLASSIC)}.rels"
+        obj_path = gen_energyml_object_path(obj, export_version)
+        obj_folder, obj_file_name = get_file_folder_and_name_from_path(obj_path, )
+        return f"{obj_folder}{RELS_FOLDER_NAME}/{obj_file_name}.rels"
 
 
 def get_epc_content_type_path() -> str:

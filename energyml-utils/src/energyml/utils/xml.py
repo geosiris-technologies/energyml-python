@@ -35,7 +35,7 @@ REGEX_MIME_TYPE_MEDIA = r"(?P<media>application|audio|font|example|image|message
 REGEX_CT_ENERGYML_DOMAIN = r"(?P<energymlDomain>x-(?P<domain>[\w]+)\+xml)"
 REGEX_CT_XML_DOMAIN = r"(?P<xmlRawDomain>(x\-)?(?P<xmlDomain>.+)\+xml)"
 REGEX_CT_TOKEN_VERSION = r"version=" + REGEX_DOMAIN_VERSION
-REGEX_CT_TOKEN_TYPE = r"type=(?P<type>\w+)"
+REGEX_CT_TOKEN_TYPE = r"type=(?P<type>[\w\_]+)"
 
 REGEX_CONTENT_TYPE = (
         REGEX_MIME_TYPE_MEDIA + "/"
