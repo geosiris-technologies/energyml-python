@@ -5,20 +5,15 @@ from typing import Any, List
 
 from src.energyml.utils.epc import (
     get_obj_identifier,
-    get_obj_uuid,
-    get_obj_version,
-    get_content_type_from_class,
-    get_qualified_type_from_class,
 )
 from src.energyml.utils.introspection import (
-    get_class_attributes,
     get_class_fields,
     get_object_attribute,
-    search_attribute_matching_type,
     search_attribute_matching_type_with_path,
     get_object_attribute_no_verif,
     get_object_attribute_rgx,
-    get_matching_class_attribute_name,
+    get_matching_class_attribute_name, get_obj_uuid, get_obj_version, get_content_type_from_class,
+    get_qualified_type_from_class,
 )
 
 

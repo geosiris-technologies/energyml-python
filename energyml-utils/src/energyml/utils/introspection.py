@@ -1,10 +1,16 @@
+import datetime
+import random
+import typing
+from dataclasses import Field
 from enum import Enum
+import uuid as uuid_mod
 from importlib import import_module
 from typing import Any, List, Optional, Union, Dict, Tuple
 import re
 import ast
 import sys
 
+from src.energyml.utils.manager import get_class_pkg, get_class_pkg_version
 from src.energyml.utils.xml import parse_content_type, ENERGYML_NAMESPACES
 
 RELATED_MODULES = [
@@ -23,8 +29,13 @@ RELATED_MODULES = [
     ],
 ]
 
-
 primitives = (bool, str, int, float, type(None))
+
+
+def is_enum(cls: Union[type, Any]):
+    if isinstance(cls, type):
+        return Enum in cls.__bases__
+    return is_enum(type(cls))
 
 
 def is_primitive(cls: Union[type, Any]) -> bool:
@@ -36,8 +47,8 @@ def is_primitive(cls: Union[type, Any]) -> bool:
 def get_class_from_name(class_name_and_module: str) -> Optional[type]:
     module_name = class_name_and_module[: class_name_and_module.rindex(".")]
     last_ns_part = class_name_and_module[
-        class_name_and_module.rindex(".") + 1 :
-    ]
+                   class_name_and_module.rindex(".") + 1:
+                   ]
     try:
         # Required to read "CustomData" on eml objects that may contain resqml values
         # ==> we need to import all modules related to the same version of the common
@@ -68,7 +79,7 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
         domain = "opc"
     if domain == "opc":
         xml_domain = ct.group("xmlDomain")
-        opc_type = pascal_case(xml_domain[xml_domain.rindex(".") + 1 :])
+        opc_type = pascal_case(xml_domain[xml_domain.rindex(".") + 1:])
         # print("energyml.opc.opc." + opc_type)
         return get_class_from_name("energyml.opc.opc." + opc_type)
     else:
@@ -86,7 +97,7 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
             + ".v"
             + version_num
             + "."
-            + ns[ns.rindex("/") + 1 :]
+            + ns[ns.rindex("/") + 1:]
             + "."
             + obj_type
         )
@@ -120,7 +131,15 @@ def import_related_module(energyml_module_name: str) -> None:
                     print(e)
 
 
-def get_class_fields(cls: Union[type, Any]) -> Dict[str, Any]:
+def get_related_energyml_modules_name(cls: Union[type, Any]):
+    if isinstance(cls, type):
+        for related in RELATED_MODULES:
+            if cls.__module__ in related:
+                return related
+    return get_related_energyml_modules_name(type(cls))
+
+
+def get_class_fields(cls: Union[type, Any]) -> Dict[str, Field]:
     if not isinstance(cls, type):  # if cls is an instance
         cls = type(cls)
     try:
@@ -140,7 +159,7 @@ def get_class_attributes(cls: Union[type, Any]) -> List[str]:
 
 
 def get_matching_class_attribute_name(
-    cls: Union[type, Any], attribute_name: str
+        cls: Union[type, Any], attribute_name: str
 ) -> Optional[str]:
     """
     From an object and an attribute name, returns the correct attribute name of the class.
@@ -168,7 +187,7 @@ def get_matching_class_attribute_name(
 
 
 def get_object_attribute(
-    obj: Any, attr_dot_path: str, force_snake_case=True
+        obj: Any, attr_dot_path: str, force_snake_case=True
 ) -> Any:
     """
     returns the value of an attribute given by a dot representation of its path in the object
@@ -192,7 +211,7 @@ def get_object_attribute(
 
     if "." in attr_dot_path:
         return get_object_attribute(
-            value, attr_dot_path[len(current_attrib_name) + 1 :]
+            value, attr_dot_path[len(current_attrib_name) + 1:]
         )
     else:
         return value
@@ -221,7 +240,7 @@ def get_object_attribute_advanced(obj: Any, attr_dot_path: str) -> Any:
 
     if "." in attr_dot_path:
         return get_object_attribute_advanced(
-            value, attr_dot_path[len(current_attrib_name) + 1 :]
+            value, attr_dot_path[len(current_attrib_name) + 1:]
         )
     else:
         return value
@@ -259,7 +278,7 @@ def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:
 
     if len(attrib_list) > 1:
         return get_object_attribute_rgx(
-            value, attr_dot_path_rgx[len(current_attrib_name) + 1 :]
+            value, attr_dot_path_rgx[len(current_attrib_name) + 1:]
         )
     else:
         return value
@@ -281,10 +300,10 @@ def get_obj_type(obj: Any) -> str:
 
 
 def class_match_rgx(
-    cls: Union[type, Any],
-    rgx: str,
-    super_class_search: bool = True,
-    re_flags=re.IGNORECASE,
+        cls: Union[type, Any],
+        rgx: str,
+        super_class_search: bool = True,
+        re_flags=re.IGNORECASE,
 ):
     if not isinstance(cls, type):
         cls = type(cls)
@@ -300,13 +319,13 @@ def class_match_rgx(
 
 
 def search_attribute_matching_type_with_path(
-    obj: Any,
-    type_rgx: str,
-    re_flags=re.IGNORECASE,
-    return_self: bool = True,  # test directly on input object and not only in its attributes
-    deep_search: bool = True,  # Search inside a matching object
-    super_class_search: bool = True,  # Search inside in super classes of the object
-    current_path: str = "",
+        obj: Any,
+        type_rgx: str,
+        re_flags=re.IGNORECASE,
+        return_self: bool = True,  # test directly on input object and not only in its attributes
+        deep_search: bool = True,  # Search inside a matching object
+        super_class_search: bool = True,  # Search inside in super classes of the object
+        current_path: str = "",
 ) -> List[Tuple[str, Any]]:
     """
     Returns a list of tuple (path, value) for each sub attribute with type matching param "type_rgx".
@@ -323,7 +342,7 @@ def search_attribute_matching_type_with_path(
     res = []
     if obj is not None:
         if return_self and class_match_rgx(
-            obj, type_rgx, super_class_search, re_flags
+                obj, type_rgx, super_class_search, re_flags
         ):
             res.append((current_path, obj))
             if not deep_search:
@@ -366,12 +385,12 @@ def search_attribute_matching_type_with_path(
 
 
 def search_attribute_matching_type(
-    obj: Any,
-    type_rgx: str,
-    re_flags=re.IGNORECASE,
-    return_self: bool = True,  # test directly on input object and not only in its attributes
-    deep_search: bool = True,  # Search inside a matching object
-    super_class_search: bool = True,  # Search inside in super classes of the object
+        obj: Any,
+        type_rgx: str,
+        re_flags=re.IGNORECASE,
+        return_self: bool = True,  # test directly on input object and not only in its attributes
+        deep_search: bool = True,  # Search inside a matching object
+        super_class_search: bool = True,  # Search inside in super classes of the object
 ) -> List[Any]:
     return [
         val
@@ -384,3 +403,180 @@ def search_attribute_matching_type(
             super_class_search=super_class_search,
         )
     ]
+
+
+# Utility functions
+
+
+def gen_uuid() -> str:
+    return str(uuid_mod.uuid4())
+
+
+def get_obj_uuid(obj: Any) -> str:
+    return get_object_attribute_rgx(obj, "[Uu]u?id|UUID")
+
+
+def get_obj_version(obj: Any) -> str:
+    return get_object_attribute_no_verif(obj, "object_version")
+
+
+def get_direct_dor_list(obj: Any) -> List[Any]:
+    return search_attribute_matching_type(obj, "DataObjectreference")
+
+
+def get_data_object_type(cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2):
+    return get_class_pkg(cls) + "." + get_class_pkg_version(cls, print_dev_version, nb_max_version_digits)
+
+
+def get_qualified_type_from_class(cls: Union[type, Any], print_dev_version=True):
+    return (
+            get_data_object_type(cls, print_dev_version, 2)
+            .replace(".", "") + "." + get_object_type_for_file_path_from_class(cls)
+    )
+
+
+def get_content_type_from_class(cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2):
+    if not isinstance(cls, type):
+        cls = type(cls)
+
+    if ".opc." in cls.__module__:
+        if cls.__name__.lower() == "coreproperties":
+            return "application/vnd.openxmlformats-package.core-properties+xml"
+    else:
+        return ("application/x-" + get_class_pkg(cls)
+                + "+xml;version=" + get_class_pkg_version(cls, print_dev_version, nb_max_version_digits) + ";type="
+                + get_object_type_for_file_path_from_class(cls))
+
+    print(f"@get_content_type_from_class not supported type : {cls}")
+    return None
+
+
+def get_object_type_for_file_path_from_class(cls) -> str:
+    obj_type = get_obj_type(cls)
+    pkg = get_class_pkg(cls)
+    if re.match(r"Obj[A-Z].*", obj_type) is not None and pkg == "resqml":
+        return "obj_" + obj_type[3:]
+    return obj_type
+
+
+def now(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> int:
+    return int(datetime.datetime.timestamp(datetime.datetime.now(time_zone)))
+
+
+def epoch(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> int:
+    return int(now(time_zone))
+
+
+def date_to_epoch(date: str) -> int:
+    """
+    Transform a energyml date into an epoch datetime
+    :return: int
+    """
+    return int(datetime.datetime.fromisoformat(date).timestamp())
+
+
+def epoch_to_date(epoch_value: int, time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> str:
+    date = datetime.datetime.fromtimestamp(epoch_value / 1e3, time_zone)
+    return date.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+
+#  RANDOM
+
+
+def get_class_from_simple_name(simple_name: str, energyml_module_context: Optional[List[str]] = []) -> type:
+    try:
+        return eval(simple_name)
+    except NameError as e:
+        for mod in energyml_module_context:
+            try:
+                exec(f"from {mod} import *")
+                # required to be able to access to type in
+                # typing values like "List[ObjectAlias]"
+            except ModuleNotFoundError:
+                pass
+        return eval(simple_name)
+        # if energyml_module_context is not None:
+        #     for module_name in energyml_module_context:
+        #         print(f"\ttry for {simple_name.replace(e.name, module_name + '.' + e.name)}")
+        #         try:
+        #             return eval(f"{simple_name.replace(e.name, module_name + '.' + e.name)}")
+        #         except Exception as e2:
+        #             print(e2)
+        #             pass
+        # raise e
+
+
+def _gen_str_from_attribute_name(attribute_name: Optional[str]) -> str:
+    attribute_name_lw = attribute_name.lower()
+    if attribute_name is not None:
+        if attribute_name_lw == "uuid" or attribute_name_lw == "uid":
+            return gen_uuid()
+        elif attribute_name_lw == "title":
+            return "A random title (" + str(random_value_from_class(int)) + ")"
+    return "A random str " + (f"[{attribute_name}] " if attribute_name is not None else "") + "(" + str(
+        random_value_from_class(int)) + ")"
+
+
+def random_value_from_class(cls: type):
+    energyml_module_context = []
+    if not is_primitive(cls):
+        # import_related_module(cls.__module__)
+        energyml_module_context = get_related_energyml_modules_name(cls)
+    return _random_value_from_class(cls=cls, energyml_module_context=energyml_module_context, attribute_name=None)
+
+
+def _random_value_from_class(cls: Any, energyml_module_context: List[str], attribute_name: Optional[str] = None):
+    try:
+        if isinstance(cls, str) or cls == str:
+            return _gen_str_from_attribute_name(attribute_name)
+        elif isinstance(cls, int) or cls == int:
+            return random.randint(0, 10000)
+        elif isinstance(cls, float) or cls == float:
+            return random.randint(0, 1000000) / 100.
+        elif isinstance(cls, bool) or cls == bool:
+            return random.randint(0, 1) == 1
+        elif is_enum(cls):
+            return cls[cls._member_names_[random.randint(0, len(cls._member_names_) - 1)]]
+        elif isinstance(cls, typing.Union.__class__):
+            type_list = list(cls.__args__)
+            if type(None) in type_list:
+                type_list.remove(type(None))  # we don't want to generate none value
+            chosen_type = type_list[random.randint(0, len(type_list))]
+            return _random_value_from_class(chosen_type, energyml_module_context, attribute_name)
+        elif cls.__module__ == 'typing':
+            nb_value_for_list = random.randint(2, 3)
+            type_list = list(cls.__args__)
+            if type(None) in type_list:
+                type_list.remove(type(None))  # we don't want to generate none value
+
+            if cls._name == "List":
+                lst = []
+                for i in range(nb_value_for_list):
+                    chosen_type = type_list[random.randint(0, len(type_list) - 1)]
+                    lst.append(_random_value_from_class(chosen_type, energyml_module_context, attribute_name))
+                return lst
+            else:
+                chosen_type = type_list[random.randint(0, len(type_list) - 1)]
+                return _random_value_from_class(chosen_type, energyml_module_context, attribute_name)
+            # if cls._name != "List":
+            #     print(f"{cls} {cls.__dict__}")
+            #     exit(0)
+        else:
+            args = {}
+            for k, v in get_class_fields(cls).items():
+                # print(f"get_class_fields {k} : {v}")
+                args[k] = _random_value_from_class(
+                    cls=get_class_from_simple_name(simple_name=v.type, energyml_module_context=energyml_module_context),
+                    energyml_module_context=energyml_module_context,
+                    attribute_name=k)
+            # print(f"init args {args}")
+            if not isinstance(cls, type):
+                cls = type(cls)
+            return cls(**args)
+
+    except Exception as e:
+        print(f"exception on attribute '{attribute_name}' for class {cls} :")
+        raise e
+
+    print(f"Not supported random class {cls}")
+    return None

@@ -97,23 +97,6 @@ def tests_0():
     print(re.match(r"Obj[A-Z].*", "TriangulatedSetRepresentation"))
 
 
-def ast_test():
-    import ast
-
-    exp = ast.parse("Optional[Union[ExistenceKind, str]]", mode="eval")
-    print(exp.body.__dict__)
-    print(exp.body.value.__dict__)
-    print(exp.body.slice.__dict__)
-    print(tr.__class__.__dataclass_fields__["aliases"])
-    print(tr.__class__.__dataclass_fields__["aliases"].default_factory())
-    print(tr.__class__.__module__)
-    print(get_class_pkg(tr))
-
-    print(tr.__class__.__dict__)
-
-    print(t_get_attribute_type(tr, "citation"))
-
-
 def file_test():
     print(get_class_pkg_version(TriangulatedSetRepresentation))
     print(get_content_type_from_class(TriangulatedSetRepresentation))
@@ -202,6 +185,72 @@ def tests_epc():
     print(epc201)
 
 
+def tests_dor():
+    import json
+
+    epc = Epc.read_file(
+        "D:/Geosiris/Github/energyml/#data/Volve_Horizons_and_Faults_Depth_originEQN_v2.2_colorised.epc"
+    )
+
+    print(EPCRelsRelationshipType.DESTINATION_OBJECT.get_type())
+
+    print(
+        json.dumps(
+            {
+                k: [get_obj_uuid(x) for x in v]
+                for k, v in get_reverse_dor_list(epc.energyml_objects).items()
+            },
+            indent=4,
+        )
+    )
+    print(epc.compute_rels())
+
+
+def test_verif():
+
+    print(get_class_fields(tr))
+    for err in patterns_verification(tr):
+        print(err)
+
+    print("DOR verif no fi")
+    for err in dor_verification([tr]):
+        print(err)
+
+    print("DOR verif with fi")
+    for err in dor_verification([tr, fi]):
+        print(err)
+
+
+def test_ast():
+    import ast
+
+    exp = ast.parse("Optional[Union[ExistenceKind, str]]", mode="eval")
+    print(exp.body.__dict__)
+    print(exp.body.value.__dict__)
+    print(exp.body.slice.__dict__)
+    print(tr.__class__.__dataclass_fields__["aliases"])
+    print(tr.__class__.__dataclass_fields__["aliases"].default_factory())
+    print(tr.__class__.__module__)
+    print(get_class_pkg(tr))
+
+    print(tr.__class__.__dict__)
+
+    print(t_get_attribute_type(tr, "citation"))
+
+    print(get_class_fields(tr))
+    print(ast.parse("TriangulatedSetRepresentation"))
+    print(eval("TriangulatedSetRepresentation"))
+    print(eval("Optional[Union[ExistenceKind, str]]"))
+    print(list(eval("Optional[Union[ExistenceKind, str]]").__args__))
+    ll = list(eval("Optional[Union[ExistenceKind, str]]").__args__)
+    ll.remove(type(None))
+    if type(None) in ll:
+        ll.remove(type(None))
+    print(ll)
+    print(list(eval("List[ObjectAlias]").__args__))
+    print(random_value_from_class(tr))
+
+
 def test_introspection():
     print(search_attribute_matching_type(tr, "int"))
     print(search_attribute_matching_type(tr, "float"))
@@ -234,26 +283,11 @@ def test_introspection():
     print(list(get_class_attributes(tr)))
     print(get_class_fields(tr)["citation"])
 
-
-def tests_dor():
-    import json
-
-    epc = Epc.read_file(
-        "D:/Geosiris/Github/energyml/#data/Volve_Horizons_and_Faults_Depth_originEQN_v2.2_colorised.epc"
-    )
-
-    print(EPCRelsRelationshipType.DESTINATION_OBJECT.get_type())
-
-    print(
-        json.dumps(
-            {
-                k: [get_obj_uuid(x) for x in v]
-                for k, v in get_reverse_dor_list(epc.energyml_objects).items()
-            },
-            indent=4,
-        )
-    )
-    print(epc.compute_rels())
+    print(EPCRelsRelationshipType._member_names_)
+    print(EPCRelsRelationshipType['DESTINATION_OBJECT'].value)
+    print(random_value_from_class(EPCRelsRelationshipType))
+    print(random_value_from_class(EPCRelsRelationshipType))
+    print(TriangulatedSetRepresentation.__dataclass_params__)
 
 
 if __name__ == "__main__":
@@ -262,17 +296,12 @@ if __name__ == "__main__":
     # tests_content_type()
 
     # tests_epc()
-    # test_introspection()
     # tests_dor()
-
-    print(get_class_fields(tr))
-    for err in patterns_verification(tr):
-        print(err)
-
-    print("DOR verif no fi")
-    for err in dor_verification([tr]):
-        print(err)
-
-    print("DOR verif with fi")
-    for err in dor_verification([tr, fi]):
-        print(err)
+    # test_verif()
+    # test_ast()
+    # test_introspection()
+    # print(random_value_from_class(tr))
+    # print(serialize_xml(tr_cit))
+    # print(serialize_xml(tr))
+    print(serialize_xml(random_value_from_class(TriangulatedSetRepresentation)))
+    # print(serialize_json(random_value_from_class(TriangulatedSetRepresentation)))

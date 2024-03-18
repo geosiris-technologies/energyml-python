@@ -1,6 +1,4 @@
 import datetime
-import re
-import uuid as uuid_mod
 import zipfile
 from dataclasses import dataclass, field
 from enum import Enum
@@ -11,9 +9,9 @@ from energyml.opc.opc import CoreProperties, Relationships, Types, Default, Rela
 from xsdata.exceptions import ParserError
 
 from .introspection import (
-    get_object_attribute_rgx,
     get_class_from_content_type,
-    get_obj_type, search_attribute_matching_type, get_object_attribute_no_verif
+    get_obj_type, search_attribute_matching_type, get_obj_version, get_obj_uuid,
+    get_object_type_for_file_path_from_class, get_content_type_from_class, get_direct_dor_list
 )
 from .manager import get_class_pkg, get_class_pkg_version
 from .serialization import (
@@ -365,78 +363,6 @@ class Epc:
 #  / /___/ / / /  __/ /  / /_/ / /_/ / / / / / / /  / __/ /_/ / / / / /__/ /_/ / /_/ / / / (__  )
 # /_____/_/ /_/\___/_/   \__, /\__, /_/ /_/ /_/_/  /_/  \__,_/_/ /_/\___/\__/_/\____/_/ /_/____/
 #                       /____//____/
-
-
-def get_data_object_type(cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2):
-    return get_class_pkg(cls) + "." + get_class_pkg_version(cls, print_dev_version, nb_max_version_digits)
-
-
-def get_qualified_type_from_class(cls: Union[type, Any], print_dev_version=True):
-    return (
-            get_data_object_type(cls, print_dev_version, 2)
-            .replace(".", "") + "." + get_object_type_for_file_path_from_class(cls)
-    )
-
-
-def get_content_type_from_class(cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2):
-    if not isinstance(cls, type):
-        cls = type(cls)
-
-    if ".opc." in cls.__module__:
-        if cls.__name__.lower() == "coreproperties":
-            return "application/vnd.openxmlformats-package.core-properties+xml"
-    else:
-        return ("application/x-" + get_class_pkg(cls)
-                + "+xml;version=" + get_class_pkg_version(cls, print_dev_version, nb_max_version_digits) + ";type="
-                + get_object_type_for_file_path_from_class(cls))
-
-    print(f"@get_content_type_from_class not supported type : {cls}")
-    return None
-
-
-def get_object_type_for_file_path_from_class(cls) -> str:
-    obj_type = get_obj_type(cls)
-    pkg = get_class_pkg(cls)
-    if re.match(r"Obj[A-Z].*", obj_type) is not None and pkg == "resqml":
-        return "obj_" + obj_type[3:]
-    return obj_type
-
-
-def now(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> int:
-    return int(datetime.datetime.timestamp(datetime.datetime.now(time_zone)))
-
-
-def epoch(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> int:
-    return int(now(time_zone))
-
-
-def date_to_epoch(date: str) -> int:
-    """
-    Transform a energyml date into an epoch datetime
-    :return: int
-    """
-    return int(datetime.datetime.fromisoformat(date).timestamp())
-
-
-def epoch_to_date(epoch_value: int, time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> str:
-    date = datetime.datetime.fromtimestamp(epoch_value / 1e3, time_zone)
-    return date.strftime("%Y-%m-%dT%H:%M:%S%z")
-
-
-def gen_uuid() -> str:
-    return str(uuid_mod.uuid4())
-
-
-def get_obj_uuid(obj: Any) -> str:
-    return get_object_attribute_rgx(obj, "[Uu]u?id|UUID")
-
-
-def get_obj_version(obj: Any) -> str:
-    return get_object_attribute_no_verif(obj, "object_version")
-
-
-def get_direct_dor_list(obj: Any) -> List[Any]:
-    return search_attribute_matching_type(obj, "DataObjectreference")
 
 
 def get_obj_identifier(obj: Any) -> str:
