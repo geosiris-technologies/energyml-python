@@ -209,9 +209,9 @@ def validate_attribute(
         min_length = att_field.metadata.get("min_length", None)
         max_length = att_field.metadata.get("max_length", None)
         pattern = att_field.metadata.get("pattern", None)
+        min_occurs = att_field.metadata.get("pattern", None)
+        min_inclusive = att_field.metadata.get("pattern", None)
         # white_space
-        # min_occurs
-        # min_inclusive
 
         if max_length is not None:
             length = len(value)
@@ -236,6 +236,32 @@ def validate_attribute(
                         msg=f"Max length was {min_length} but found {length}",
                     )
                 )
+
+        if min_occurs is not None:
+            if isinstance(value, list) and min_occurs > len(value):
+                errs.append(
+                    ValidationObjectError(
+                        error_type=ErrorType.CRITICAL,
+                        target_obj=root_obj,
+                        attribute_dot_path=path,
+                        msg=f"Min occurs was {min_occurs} but found {len(value)}",
+                    )
+                )
+
+        if min_inclusive is not None:
+            potential_err = ValidationObjectError(
+                error_type=ErrorType.CRITICAL,
+                target_obj=root_obj,
+                attribute_dot_path=path,
+                msg=f"Min occurs was {min_inclusive} but found {len(value)}",
+            )
+            if isinstance(value, list):
+                for val in value:
+                    if (
+                            (isinstance(val, str) and len(val) > min_inclusive)
+                            or ((isinstance(val, int) or isinstance(val, float)) and val > min_inclusive)
+                    ):
+                        errs.append(potential_err)
 
         if pattern is not None:
             if re.match(pattern, value) is None:

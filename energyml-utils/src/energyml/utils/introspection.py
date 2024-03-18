@@ -1,14 +1,13 @@
 import datetime
 import random
+import re
+import sys
 import typing
+import uuid as uuid_mod
 from dataclasses import Field
 from enum import Enum
-import uuid as uuid_mod
 from importlib import import_module
 from typing import Any, List, Optional, Union, Dict, Tuple
-import re
-import ast
-import sys
 
 from src.energyml.utils.manager import get_class_pkg, get_class_pkg_version
 from src.energyml.utils.xml import parse_content_type, ENERGYML_NAMESPACES

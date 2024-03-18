@@ -289,6 +289,10 @@ def test_introspection():
     print(random_value_from_class(EPCRelsRelationshipType))
     print(TriangulatedSetRepresentation.__dataclass_params__)
 
+    # print(random_value_from_class(int))
+    print(serialize_xml(random_value_from_class(TriangulatedSetRepresentation)))
+    # print(serialize_json(random_value_from_class(TriangulatedSetRepresentation)))
+
 
 if __name__ == "__main__":
     # tests_0()
@@ -297,11 +301,6 @@ if __name__ == "__main__":
 
     # tests_epc()
     # tests_dor()
-    # test_verif()
+    test_verif()
     # test_ast()
     # test_introspection()
-    # print(random_value_from_class(tr))
-    # print(serialize_xml(tr_cit))
-    # print(serialize_xml(tr))
-    print(serialize_xml(random_value_from_class(TriangulatedSetRepresentation)))
-    # print(serialize_json(random_value_from_class(TriangulatedSetRepresentation)))
