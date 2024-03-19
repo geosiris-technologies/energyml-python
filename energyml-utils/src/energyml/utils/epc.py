@@ -257,6 +257,7 @@ class Epc:
                 return o
         return None
 
+
     # Class methods
 
     @classmethod
@@ -324,7 +325,7 @@ class Epc:
                                 except IOError as e:
                                     print(e)
                             else:  # rels
-                                print(f"reading rels {f_info.filename}")
+                                # print(f"reading rels {f_info.filename}")
                                 rels_folder, rels_file_name = get_file_folder_and_name_from_path(f_info.filename)
                                 while rels_folder.endswith("/"):
                                     rels_folder = rels_folder[:-1]
@@ -335,9 +336,9 @@ class Epc:
                                     Relationships
                                 )
                                 additional_rels_key = obj_folder + obj_file_name
-                                print(f"\t{additional_rels_key}")
+                                # print(f"\t{additional_rels_key}")
                                 for rel in rels_file.relationship:
-                                    print(f"\t\t{rel.type_value}")
+                                    # print(f"\t\t{rel.type_value}")
                                     if (rel.type_value != EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
                                             and rel.type_value != EPCRelsRelationshipType.SOURCE_OBJECT.get_type()
                                             and rel.type_value != EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES.get_type()

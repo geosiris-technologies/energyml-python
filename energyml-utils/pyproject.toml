@@ -48,11 +48,11 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.9"
 xsdata = {version = "^24.0", extras = ["cli", "lxml"]}
-energyml-opc = "^1.10.0"
-energyml-common2-3 = "1.10.0"
-energyml-common2-0 = "1.10.0"
-energyml-resqml2-2 = "^1.10.0"
-energyml-resqml2-0-1 = "^1.10.0"
+energyml-opc = "^1.12.0"
+energyml-common2-3 = "1.12.0"
+energyml-common2-0 = "1.12.0"
+energyml-resqml2-2 = "^1.12.0"
+energyml-resqml2-0-1 = "^1.12.0"
 h5py = "^3.7.0"
 
 [tool.poetry.dev-dependencies]

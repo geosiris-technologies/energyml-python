@@ -9,7 +9,7 @@ from energyml.resqml.v2_2.resqmlv2 import (
 
 from src.energyml.utils.validation import (
     patterns_verification,
-    dor_verification,
+    dor_verification, validate_epc, correct_dor,
 )
 from utils.epc import *
 from utils.introspection import *
@@ -184,6 +184,16 @@ def tests_epc():
     )
     print(epc201)
 
+    print(f"NB errors {len(validate_epc(epc201))}")
+
+    correct_dor(epc201.energyml_objects)
+
+    err_after_correction = validate_epc(epc201)
+    print(f"NB errors after correction {len(err_after_correction)}")
+
+    for err in err_after_correction:
+        print(err)
+
 
 def tests_dor():
     import json
@@ -299,8 +309,8 @@ if __name__ == "__main__":
     # ast_test()
     # tests_content_type()
 
-    # tests_epc()
+    tests_epc()
     # tests_dor()
-    test_verif()
+    # test_verif()
     # test_ast()
     # test_introspection()

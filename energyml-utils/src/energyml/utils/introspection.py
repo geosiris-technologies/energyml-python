@@ -416,7 +416,13 @@ def get_obj_uuid(obj: Any) -> str:
 
 
 def get_obj_version(obj: Any) -> str:
-    return get_object_attribute_no_verif(obj, "object_version")
+    try:
+        return get_object_attribute_no_verif(obj, "object_version")
+    except AttributeError as e:
+        try:
+            return get_object_attribute_no_verif(obj, "version_string")
+        except Exception:
+            raise e
 
 
 def get_direct_dor_list(obj: Any) -> List[Any]:
@@ -451,11 +457,17 @@ def get_content_type_from_class(cls: Union[type, Any], print_dev_version=True, n
 
 
 def get_object_type_for_file_path_from_class(cls) -> str:
-    obj_type = get_obj_type(cls)
-    pkg = get_class_pkg(cls)
-    if re.match(r"Obj[A-Z].*", obj_type) is not None and pkg == "resqml":
-        return "obj_" + obj_type[3:]
-    return obj_type
+    # obj_type = get_obj_type(cls)
+    # pkg = get_class_pkg(cls)
+    # if re.match(r"Obj[A-Z].*", obj_type) is not None and pkg == "resqml":
+    #     return "obj_" + obj_type[3:]
+    # return obj_type
+
+    try:
+        return cls.Meta.name  # to work with 3d transformed in 3D and Obj[A-Z] in obj_[A-Z]
+    except AttributeError:
+        pkg = get_class_pkg(cls)
+        return get_obj_type(cls)
 
 
 def now(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> int:

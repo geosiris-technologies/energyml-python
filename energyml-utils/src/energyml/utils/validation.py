@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Any, List
 
 from src.energyml.utils.epc import (
-    get_obj_identifier,
+    get_obj_identifier, Epc,
 )
 from src.energyml.utils.introspection import (
     get_class_fields,
@@ -50,6 +50,16 @@ class ValidationObjectError(ValidationError):
 class MandatoryError(ValidationObjectError):
     def __str__(self):
         return f"{ValidationError.__str__(self)}\n\tMandatory value is None for {get_obj_identifier(self.target_obj)} : '{self.attribute_dot_path}'"
+
+
+def validate_epc(epc: Epc) -> List[ValidationError]:
+    errs = []
+    for obj in epc.energyml_objects:
+        errs = errs + patterns_verification(obj)
+
+    errs = errs + dor_verification(epc.energyml_objects)
+
+    return errs
 
 
 def dor_verification(energyml_objects: List[Any]) -> List[ValidationError]:
@@ -279,3 +289,56 @@ def validate_attribute(
         root_obj=root_obj,
         current_attribute_dot_path=path,
     )
+
+
+def correct_dor(energyml_objects: List[Any]) -> None:
+    dict_obj_identifier = {
+        get_obj_identifier(obj): obj for obj in energyml_objects
+    }
+    dict_obj_uuid = {}
+    for obj in energyml_objects:
+        uuid = get_obj_uuid(obj)
+        if uuid not in dict_obj_uuid:
+            dict_obj_uuid[uuid] = []
+        dict_obj_uuid[uuid].append(obj)
+
+    # TODO: chercher dans les objets les AbstractObject (en Witsml des sous objet peuvent etre aussi references)
+
+    for obj in energyml_objects:
+        dor_list = search_attribute_matching_type_with_path(
+            obj, "DataObjectReference"
+        )
+        for dor_path, dor in dor_list:
+            dor_target_id = get_obj_identifier(dor)
+            if dor_target_id in dict_obj_identifier:
+                target = dict_obj_identifier[dor_target_id]
+                target_title = get_object_attribute_rgx(
+                    target, "citation.title"
+                )
+                target_content_type = get_content_type_from_class(target)
+                target_qualified_type = get_qualified_type_from_class(target)
+
+                dor_title = get_object_attribute_rgx(dor, "title")
+
+                if dor_title != target_title:
+                    dor.title = target_title
+
+                if (
+                    get_matching_class_attribute_name(dor, "content_type")
+                    is not None
+                ):
+                    dor_content_type = get_object_attribute_no_verif(
+                        dor, "content_type"
+                    )
+                    if dor_content_type != target_content_type:
+                        dor.content_type = target_content_type
+
+                if (
+                    get_matching_class_attribute_name(dor, "qualified_type")
+                    is not None
+                ):
+                    dor_qualified_type = get_object_attribute_no_verif(
+                        dor, "qualified_type"
+                    )
+                    if dor_qualified_type != target_qualified_type:
+                        dor.qualified_type = target_qualified_type

@@ -4,7 +4,7 @@ import pkgutil
 import re
 from typing import List
 
-REGEX_ENERGYML_MODULE_NAME = r"energyml\.(?P<pkg>.*)\.v(?P<version>(?P<versionNumber>\d+(_\d+)?)(_dev(?P<versionDev>.*))?)\..*"
+REGEX_ENERGYML_MODULE_NAME = r"energyml\.(?P<pkg>.*)\.v(?P<version>(?P<versionNumber>\d+(_\d+)*)(_dev(?P<versionDev>.*))?)\..*"
 REGEX_PROJECT_VERSION = r"(?P<n0>[\d]+)(.(?P<n1>[\d]+)(.(?P<n2>[\d]+))?)?"
 
 ENERGYML_MODULES_NAMES = ["eml", "prodml", "witsml", "resqml"]
@@ -85,9 +85,13 @@ def get_all_classes(module_name: str, version: str) -> dict:
 
 
 def get_class_pkg(cls):
-    p = re.compile(REGEX_ENERGYML_MODULE_NAME)
-    m = p.search(cls.__module__)
-    return m.group("pkg")
+    try:
+        p = re.compile(REGEX_ENERGYML_MODULE_NAME)
+        m = p.search(cls.__module__)
+        return m.group("pkg")
+    except AttributeError as e:
+        print(f"Exception to get class package for '{cls}'")
+        raise e
 
 
 def reshape_version(version: str, nb_digit: int) -> str:
