@@ -1,3 +1,5 @@
+# Copyright (c) 2023-2024 Geosiris.
+# SPDX-License-Identifier: Apache-2.0
 import re
 from dataclasses import dataclass, field, Field
 from enum import Enum

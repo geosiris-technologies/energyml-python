@@ -1,3 +1,5 @@
+# Copyright (c) 2023-2024 Geosiris.
+# SPDX-License-Identifier: Apache-2.0
 from dataclasses import fields
 
 from energyml.eml.v2_3.commonv2 import *
@@ -16,6 +18,7 @@ from utils.introspection import *
 from utils.manager import *
 from utils.serialization import *
 from utils.xml import *
+from utils.hdf import *
 
 
 fi_cit = Citation(
@@ -86,7 +89,7 @@ def tests_0():
     print("==>", get_object_attribute(tr, "citation.title"))
 
     print(re.split(r"(?<!\\)\.+", "[Cc]itation.[Tt]it\.*"))
-    print("==>", get_object_attribute_rgx(tr, "[Cc]itation.[Tt]it\.*"))
+    print("==>", get_object_attribute_rgx(fi, "[Cc]itation.[Tt]it\.*"))
 
     # print("==>", type(cit), type(Citation))
     # print("==>", type(cit) == type, type(Citation) == type)
@@ -245,8 +248,6 @@ def test_ast():
 
     print(tr.__class__.__dict__)
 
-    print(t_get_attribute_type(tr, "citation"))
-
     print(get_class_fields(tr))
     print(ast.parse("TriangulatedSetRepresentation"))
     print(eval("TriangulatedSetRepresentation"))
@@ -303,14 +304,35 @@ def test_introspection():
     print(serialize_xml(random_value_from_class(TriangulatedSetRepresentation)))
     # print(serialize_json(random_value_from_class(TriangulatedSetRepresentation)))
 
+    print(search_attribute_matching_name_with_path(tr, "[tT]it.*"))
+    print(search_attribute_matching_name(tr, "[tT]it.*"))
+
+
+def tests_hdf():
+    epc = Epc.read_file(
+        "D:/Geosiris/Github/energyml/#data/Volve_Horizons_and_Faults_Depth_originEQN_v2.2_colorised.epc"
+    )
+
+    tr_list = list(filter(lambda e: e.__class__.__name__ == "TriangulatedSetRepresentation",  epc.energyml_objects))
+    print(len(epc.energyml_objects))
+    # print(tr_list)
+
+    for o in tr_list:
+        print(o.__class__)
+        print(get_hdf_reference_with_path(o))
+        exit(0)
+
 
 if __name__ == "__main__":
     # tests_0()
     # ast_test()
     # tests_content_type()
 
-    tests_epc()
+    # tests_epc()
     # tests_dor()
     # test_verif()
     # test_ast()
     # test_introspection()
+
+    tests_hdf()
+    # print(get_matching_class_attribute_name(ExternalDataArrayPart, "(PathInHdfFile|PathInExternalFile)"))

@@ -1,3 +1,5 @@
+# Copyright (c) 2023-2024 Geosiris.
+# SPDX-License-Identifier: Apache-2.0
 import datetime
 import random
 import re
@@ -32,12 +34,22 @@ primitives = (bool, str, int, float, type(None))
 
 
 def is_enum(cls: Union[type, Any]):
+    """
+    Returns True if @cls is an Enum
+    :param cls:
+    :return:
+    """
     if isinstance(cls, type):
         return Enum in cls.__bases__
     return is_enum(type(cls))
 
 
 def is_primitive(cls: Union[type, Any]) -> bool:
+    """
+    Returns True if @cls is a primitiv type or extends Enum
+    :param cls:
+    :return: bool
+    """
     if isinstance(cls, type):
         return cls in primitives or Enum in cls.__bases__
     return is_primitive(type(cls))
@@ -103,17 +115,10 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
 
 
 def snake_case(s: str) -> str:
-    """
-    Replace hyphens with spaces, then apply regular expression substitutions for title case conversion
-    and add an underscore between words, finally convert the result to lowercase
-    """
-    return "_".join(
-        re.sub(
-            "([A-Z][a-z]+)",
-            r" \1",
-            re.sub("([A-Z]+)", r" \1", s.replace("-", " ")),
-        ).split()
-    ).lower()
+    s = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', s)
+    s = re.sub('__([A-Z])', r'_\1', s)
+    s = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s)
+    return s.lower()
 
 
 def pascal_case(s: str) -> str:
@@ -127,7 +132,8 @@ def import_related_module(energyml_module_name: str) -> None:
                 try:
                     import_module(m)
                 except Exception as e:
-                    print(e)
+                    pass
+                    # print(e)
 
 
 def get_related_energyml_modules_name(cls: Union[type, Any]):
@@ -165,22 +171,21 @@ def get_matching_class_attribute_name(
     Example : "ObjectVersion" --> object_version.
     This method doesn't only transform to snake case but search into the obj class attributes
     """
-    class_attr = get_class_attributes(cls)
+    class_fields = get_class_fields(cls)
 
     # a search with the exact value
-    if attribute_name in class_attr:
-        return attribute_name
+    for name, cf in class_fields.items():
+        if (
+                snake_case(name) == snake_case(attribute_name)
+                or ('name' in cf.metadata and cf.metadata['name'] == attribute_name)
+        ):
+            return name
 
-    # now search with little differences
-    for an in class_attr:
-        if snake_case(an) == snake_case(attribute_name):
-            return an
-
-    # search regex
+    # search regex after to avoid shadowing perfect match
     pattern = re.compile(attribute_name)
-    for an in class_attr:
-        if pattern.match(an):
-            return an
+    for name, cf in class_fields.items():
+        if pattern.match(name) or ('name' in cf.metadata and pattern.match(cf.metadata['name'])):
+            return name
 
     return None
 
@@ -257,7 +262,7 @@ def get_object_attribute_no_verif(obj: Any, attr_name: str) -> Any:
 def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:
     """
     see @get_object_attribute. Search the attribute name using regex for values between dots.
-    Example : [Cc]itation.[Tt]it\.*
+    Example : [Cc]itation.[Tt]it\\.*
     """
     current_attrib_name = attr_dot_path_rgx
 
@@ -272,24 +277,16 @@ def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:
     real_attrib_name = get_matching_class_attribute_name(
         obj, current_attrib_name
     )
+    if real_attrib_name is not None:
+        value = get_object_attribute_no_verif(obj, real_attrib_name)
 
-    value = get_object_attribute_no_verif(obj, real_attrib_name)
-
-    if len(attrib_list) > 1:
-        return get_object_attribute_rgx(
-            value, attr_dot_path_rgx[len(current_attrib_name) + 1:]
-        )
-    else:
-        return value
-
-
-def t_get_attribute_type(cls: Union[type, Any], attribute_name: str):
-    if not isinstance(cls, type):  # if cls is an instance
-        cls = type(cls)
-
-    attrib_as_field = cls.__dataclass_fields__[attribute_name]
-
-    # TODO : retourner le type sans les Optional,
+        if len(attrib_list) > 1:
+            return get_object_attribute_rgx(
+                value, attr_dot_path_rgx[len(current_attrib_name) + 1:]
+            )
+        else:
+            return value
+    return None
 
 
 def get_obj_type(obj: Any) -> str:
@@ -357,6 +354,7 @@ def search_attribute_matching_type_with_path(
                 return_self=True,
                 deep_search=deep_search,
                 current_path=f"{current_path}.{cpt}",
+                super_class_search=super_class_search,
             )
             cpt = cpt + 1
     elif isinstance(obj, dict):
@@ -368,6 +366,7 @@ def search_attribute_matching_type_with_path(
                 return_self=True,
                 deep_search=deep_search,
                 current_path=f"{current_path}.{k}",
+                super_class_search=super_class_search,
             )
     elif not is_primitive(obj):
         for att_name in get_class_attributes(obj):
@@ -378,6 +377,7 @@ def search_attribute_matching_type_with_path(
                 return_self=True,
                 deep_search=deep_search,
                 current_path=f"{current_path}.{att_name}",
+                super_class_search=super_class_search,
             )
 
     return res
@@ -400,6 +400,84 @@ def search_attribute_matching_type(
             return_self=return_self,
             deep_search=deep_search,
             super_class_search=super_class_search,
+        )
+    ]
+
+
+def search_attribute_matching_name_with_path(
+        obj: Any,
+        name_rgx: str,
+        re_flags=re.IGNORECASE,
+        deep_search: bool = True,  # Search inside a matching object
+        current_path: str = "",
+) -> List[Tuple[str, Any]]:
+    """
+    Returns a list of tuple (path, value) for each sub attribute with type matching param "name_rgx".
+    The path is a dot-version like ".Citation.Title"
+    :param obj:
+    :param name_rgx:
+    :param re_flags:
+    :param deep_search:
+    :param current_path:
+    :return:
+    """
+    res = []
+    if isinstance(obj, list):
+        cpt = 0
+        for s_o in obj:
+            match = re.match(name_rgx, str(cpt))
+            if match is not None:
+                res.append((f"{current_path}.{match}", get_object_attribute_no_verif(obj, match.group(0))))
+            res = res + search_attribute_matching_name_with_path(
+                obj=s_o,
+                name_rgx=name_rgx,
+                re_flags=re_flags,
+                deep_search=deep_search,
+                current_path=f"{current_path}.{cpt}",
+            )
+            cpt = cpt + 1
+    elif isinstance(obj, dict):
+        for k, s_o in obj.items():
+            match = re.match(name_rgx, k)
+            if match is not None:
+                res.append((f"{current_path}.{match}", get_object_attribute_no_verif(obj, match.group(0))))
+            res = res + search_attribute_matching_name_with_path(
+                obj=s_o,
+                name_rgx=name_rgx,
+                re_flags=re_flags,
+                deep_search=deep_search,
+                current_path=f"{current_path}.{k}",
+            )
+    elif not is_primitive(obj):
+        match = get_matching_class_attribute_name(obj, name_rgx)
+        if match is not None:
+            res.append((f"{current_path}.{match}", get_object_attribute_no_verif(obj, match)))
+
+        for att_name in get_class_attributes(obj):
+            res = res + search_attribute_matching_name_with_path(
+                obj=get_object_attribute_rgx(obj, att_name),
+                name_rgx=name_rgx,
+                re_flags=re_flags,
+                deep_search=deep_search,
+                current_path=f"{current_path}.{att_name}",
+            )
+
+    return res
+
+
+def search_attribute_matching_name(
+        obj: Any,
+        name_rgx: str,
+        re_flags=re.IGNORECASE,
+        deep_search: bool = True,  # Search inside a matching object
+) -> List[Any]:
+    return [
+        val
+        for path, val in search_attribute_matching_name_with_path(
+            obj=obj,
+            name_rgx=name_rgx,
+            re_flags=re_flags,
+            deep_search=deep_search,
         )
     ]
 
