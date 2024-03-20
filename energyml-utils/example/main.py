@@ -6,19 +6,19 @@ from energyml.eml.v2_3.commonv2 import *
 from energyml.resqml.v2_2.resqmlv2 import (
     TriangulatedSetRepresentation,
     FaultInterpretation,
-    ContactElement,
+    ContactElement, PointSetRepresentation, AbstractPoint3DArray, AbstractSurfaceFrameworkContact, AbstractColorMap,
 )
 
 from src.energyml.utils.validation import (
     patterns_verification,
     dor_verification, validate_epc, correct_dor,
 )
-from utils.epc import *
-from utils.introspection import *
-from utils.manager import *
-from utils.serialization import *
-from utils.xml import *
-from utils.hdf import *
+from src.energyml.utils.epc import *
+from src.energyml.utils.introspection import *
+from src.energyml.utils.manager import *
+from src.energyml.utils.serialization import *
+from src.energyml.utils.xml import *
+from src.energyml.utils.data.hdf import *
 
 
 fi_cit = Citation(
@@ -307,6 +307,35 @@ def test_introspection():
     print(search_attribute_matching_name_with_path(tr, "[tT]it.*"))
     print(search_attribute_matching_name(tr, "[tT]it.*"))
 
+    print(AbstractPoint3DArray.__dict__)
+    print(TriangulatedSetRepresentation.__dict__)
+    print(get_sub_classes(AbstractObject))
+    print(list(filter(lambda _c: not is_abstract(_c), get_sub_classes(AbstractObject))))
+    print(AbstractColorMap.__name__.startswith("Abstract"))
+    print(is_abstract(AbstractColorMap))
+
+    # print(object.__dict__)
+    # print(hasattr(object, "__dataclass_fields__"))
+    # print(get_class_methods(TriangulatedSetRepresentation))
+    # print(get_class_methods(object))
+    # print(len(object.__class__))
+    # print(type(TriangulatedSetRepresentation.Meta), isinstance(TriangulatedSetRepresentation.Meta, type))
+    # print(type(HDF5FileReader.read_array), isinstance(HDF5FileReader.read_array, type))
+
+    print(get_class_methods(object))
+    print(get_class_methods(HDF5FileReader))
+    print(get_class_methods(TriangulatedSetRepresentation))
+
+    print(f"object: {is_abstract(object)}")
+    print(f"HDF5FileReader: {is_abstract(HDF5FileReader)}")
+    print(f"TriangulatedSetRepresentation: {is_abstract(TriangulatedSetRepresentation)}")
+
+    # print("HDF5FileReader")
+    # for func in dir(HDF5FileReader):
+    #     if callable(getattr(HDF5FileReader, func)) and not func.startswith("__"):
+    #         print(f"\t{func} {type(getattr(HDF5FileReader, func))}")
+    print(get_classes_matching_name(TriangulatedSetRepresentation, "Abstract.*"))
+
 
 def tests_hdf():
     epc = Epc.read_file(
@@ -334,5 +363,7 @@ if __name__ == "__main__":
     # test_ast()
     # test_introspection()
 
-    tests_hdf()
+    # tests_hdf()
     # print(get_matching_class_attribute_name(ExternalDataArrayPart, "(PathInHdfFile|PathInExternalFile)"))
+    # print(object.__module__)
+    print(serialize_xml(random_value_from_class(PointSetRepresentation)))

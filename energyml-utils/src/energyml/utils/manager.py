@@ -4,12 +4,38 @@ import importlib
 import inspect
 import pkgutil
 import re
-from typing import List
+from typing import List, Union, Any
 
 REGEX_ENERGYML_MODULE_NAME = r"energyml\.(?P<pkg>.*)\.v(?P<version>(?P<versionNumber>\d+(_\d+)*)(_dev(?P<versionDev>.*))?)\..*"
 REGEX_PROJECT_VERSION = r"(?P<n0>[\d]+)(.(?P<n1>[\d]+)(.(?P<n2>[\d]+))?)?"
 
 ENERGYML_MODULES_NAMES = ["eml", "prodml", "witsml", "resqml"]
+
+RELATED_MODULES = [
+    ["energyml.eml.v2_0.commonv2", "energyml.resqml.v2_0_1.resqmlv2"],
+    [
+        "energyml.eml.v2_1.commonv2",
+        "energyml.prodml.v2_0.prodmlv2",
+        "energyml.witsml.v2_0.witsmlv2",
+    ],
+    ["energyml.eml.v2_2.commonv2", "energyml.resqml.v2_2_dev3.resqmlv2"],
+    [
+        "energyml.eml.v2_3.commonv2",
+        "energyml.resqml.v2_2.resqmlv2",
+        "energyml.prodml.v2_2.prodmlv2",
+        "energyml.witsml.v2_1.witsmlv2",
+    ],
+]
+
+
+def get_related_energyml_modules_name(cls: Union[type, Any]) -> List[str]:
+    if isinstance(cls, type):
+        for related in RELATED_MODULES:
+            if cls.__module__ in related:
+                return related
+    else:
+        return get_related_energyml_modules_name(type(cls))
+    return []
 
 
 def dict_energyml_modules():
@@ -57,6 +83,40 @@ def list_classes(module_path: str) -> List:
     except ModuleNotFoundError:
         print(f"Err : module {module_path} not found")
         return []
+
+
+def get_sub_classes(cls: type) -> List[type]:
+    sub_classes = []
+    for related in get_related_energyml_modules_name(cls):
+        try:
+            module = importlib.import_module(related)
+            for _, obj in inspect.getmembers(module):
+                if inspect.isclass(obj) and cls in obj.__bases__:
+                    sub_classes.append(obj)
+                    sub_classes = sub_classes + get_sub_classes(obj)
+        except ModuleNotFoundError:
+            pass
+    return list(dict.fromkeys(sub_classes))
+
+
+def get_classes_matching_name(cls: type, name_rgx: str, re_flags=re.IGNORECASE,) -> List[type]:
+    """
+    Search a class matching the regex @re_flags. The search is the energyml packages related to the objet type @cls.
+    :param cls:
+    :param name_rgx:
+    :param re_flags:
+    :return:
+    """
+    match_classes = []
+    for related in get_related_energyml_modules_name(cls):
+        try:
+            module = importlib.import_module(related)
+            for _, obj in inspect.getmembers(module):
+                if inspect.isclass(obj) and re.match(name_rgx, obj.__name__, re_flags):
+                    match_classes.append(obj)
+        except ModuleNotFoundError:
+            pass
+    return list(dict.fromkeys(match_classes))
 
 
 def get_all_energyml_classes() -> dict:

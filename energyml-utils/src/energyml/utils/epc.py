@@ -118,6 +118,13 @@ class Epc:
         default_factory=lambda: {}
     )
 
+    """
+    Epc file path. Used when loaded from a local file or for export
+    """
+    epc_file_path: Optional[str] = field(
+        default=None
+    )
+
     def __str__(self):
         return (
                 "EPC file (" + str(self.export_version) + ") "
@@ -150,7 +157,14 @@ class Epc:
 
         return ct
 
-    def export_file(self, path: str) -> None:
+    def export_file(self, path: Optional[str] = None) -> None:
+        """
+        Export the epc file. If :param path is None, the epc 'self.epc_file_path' is used
+        :param path:
+        :return:
+        """
+        if path is None:
+            path = self.epc_file_path
         epc_io = self.export_io()
         with open(path, "wb") as f:
             f.write(epc_io.getbuffer())

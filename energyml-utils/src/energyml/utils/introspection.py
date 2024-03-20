@@ -11,24 +11,10 @@ from enum import Enum
 from importlib import import_module
 from typing import Any, List, Optional, Union, Dict, Tuple
 
-from src.energyml.utils.manager import get_class_pkg, get_class_pkg_version
+from src.energyml.utils.manager import get_class_pkg, get_class_pkg_version, RELATED_MODULES, \
+    get_related_energyml_modules_name, get_sub_classes, get_classes_matching_name
 from src.energyml.utils.xml import parse_content_type, ENERGYML_NAMESPACES
 
-RELATED_MODULES = [
-    ["energyml.eml.v2_0.commonv2", "energyml.resqml.v2_0_1.resqmlv2"],
-    [
-        "energyml.eml.v2_1.commonv2",
-        "energyml.prodml.v2_0.prodmlv2",
-        "energyml.witsml.v2_0.witsmlv2",
-    ],
-    ["energyml.eml.v2_2.commonv2", "energyml.resqml.v2_2_dev3.resqmlv2"],
-    [
-        "energyml.eml.v2_3.commonv2",
-        "energyml.resqml.v2_2.resqmlv2",
-        "energyml.prodml.v2_2.prodmlv2",
-        "energyml.witsml.v2_1.witsmlv2",
-    ],
-]
 
 primitives = (bool, str, int, float, type(None))
 
@@ -53,6 +39,21 @@ def is_primitive(cls: Union[type, Any]) -> bool:
     if isinstance(cls, type):
         return cls in primitives or Enum in cls.__bases__
     return is_primitive(type(cls))
+
+
+def is_abstract(cls: Union[type, Any]) -> bool:
+    """
+    Returns True if @cls is an abstract class
+    :param cls:
+    :return: bool
+    """
+    if isinstance(cls, type):
+        return not is_primitive(cls) and (cls.__name__.startswith("Abstract") or (hasattr(cls, "__dataclass_fields__") and len(cls.__dataclass_fields__)) == 0) and len(get_class_methods(cls)) == 0
+    return is_abstract(type(cls))
+
+
+def get_class_methods(cls: Union[type, Any]):
+    return [func for func in dir(cls) if callable(getattr(cls, func)) and not func.startswith("__") and not isinstance(getattr(cls, func), type)]
 
 
 def get_class_from_name(class_name_and_module: str) -> Optional[type]:
@@ -134,14 +135,6 @@ def import_related_module(energyml_module_name: str) -> None:
                 except Exception as e:
                     pass
                     # print(e)
-
-
-def get_related_energyml_modules_name(cls: Union[type, Any]):
-    if isinstance(cls, type):
-        for related in RELATED_MODULES:
-            if cls.__module__ in related:
-                return related
-    return get_related_energyml_modules_name(type(cls))
 
 
 def get_class_fields(cls: Union[type, Any]) -> Dict[str, Field]:
@@ -572,7 +565,9 @@ def epoch_to_date(epoch_value: int, time_zone=datetime.timezone(datetime.timedel
 #  RANDOM
 
 
-def get_class_from_simple_name(simple_name: str, energyml_module_context: Optional[List[str]] = []) -> type:
+def get_class_from_simple_name(simple_name: str, energyml_module_context=None) -> type:
+    if energyml_module_context is None:
+        energyml_module_context = []
     try:
         return eval(simple_name)
     except NameError as e:
@@ -595,13 +590,28 @@ def get_class_from_simple_name(simple_name: str, energyml_module_context: Option
         # raise e
 
 
-def _gen_str_from_attribute_name(attribute_name: Optional[str]) -> str:
+def _gen_str_from_attribute_name(attribute_name: Optional[str], _parent_class: Optional[type]=None) -> str:
     attribute_name_lw = attribute_name.lower()
     if attribute_name is not None:
         if attribute_name_lw == "uuid" or attribute_name_lw == "uid":
             return gen_uuid()
         elif attribute_name_lw == "title":
-            return "A random title (" + str(random_value_from_class(int)) + ")"
+            return f"{_parent_class.__name__} title (" + str(random_value_from_class(int)) + ")"
+        elif attribute_name_lw == "schema_version" and get_class_pkg_version(_parent_class) is not None:
+            return get_class_pkg_version(_parent_class)
+        elif re.match(r"\w*version$", attribute_name_lw):
+            return str(random_value_from_class(int))
+        elif re.match(r"\w*date_.*", attribute_name_lw):
+            return epoch_to_date(epoch())
+        elif re.match(r"path_in_.*", attribute_name_lw):
+            return f"/FOLDER/{gen_uuid()}/a_patch{random.randint(0, 30)}"
+        elif "mime_type" in attribute_name_lw and ("external" in _parent_class.__name__.lower() and "part" in _parent_class.__name__.lower()):
+            return f"application/x-hdf5"
+        elif "type" in attribute_name_lw:
+            if attribute_name_lw.startswith("qualified"):
+                return get_qualified_type_from_class(get_classes_matching_name(_parent_class, "Abstract")[0])
+            if attribute_name_lw.startswith("content"):
+                return get_content_type_from_class(get_classes_matching_name(_parent_class, "Abstract")[0])
     return "A random str " + (f"[{attribute_name}] " if attribute_name is not None else "") + "(" + str(
         random_value_from_class(int)) + ")"
 
@@ -614,10 +624,10 @@ def random_value_from_class(cls: type):
     return _random_value_from_class(cls=cls, energyml_module_context=energyml_module_context, attribute_name=None)
 
 
-def _random_value_from_class(cls: Any, energyml_module_context: List[str], attribute_name: Optional[str] = None):
+def _random_value_from_class(cls: Any, energyml_module_context: List[str], attribute_name: Optional[str] = None, _parent_class: Optional[type]=None):
     try:
         if isinstance(cls, str) or cls == str:
-            return _gen_str_from_attribute_name(attribute_name)
+            return _gen_str_from_attribute_name(attribute_name, _parent_class)
         elif isinstance(cls, int) or cls == int:
             return random.randint(0, 10000)
         elif isinstance(cls, float) or cls == float:
@@ -631,7 +641,7 @@ def _random_value_from_class(cls: Any, energyml_module_context: List[str], attri
             if type(None) in type_list:
                 type_list.remove(type(None))  # we don't want to generate none value
             chosen_type = type_list[random.randint(0, len(type_list))]
-            return _random_value_from_class(chosen_type, energyml_module_context, attribute_name)
+            return _random_value_from_class(chosen_type, energyml_module_context, attribute_name, cls)
         elif cls.__module__ == 'typing':
             nb_value_for_list = random.randint(2, 3)
             type_list = list(cls.__args__)
@@ -642,30 +652,31 @@ def _random_value_from_class(cls: Any, energyml_module_context: List[str], attri
                 lst = []
                 for i in range(nb_value_for_list):
                     chosen_type = type_list[random.randint(0, len(type_list) - 1)]
-                    lst.append(_random_value_from_class(chosen_type, energyml_module_context, attribute_name))
+                    lst.append(_random_value_from_class(chosen_type, energyml_module_context, attribute_name, list))
                 return lst
             else:
                 chosen_type = type_list[random.randint(0, len(type_list) - 1)]
-                return _random_value_from_class(chosen_type, energyml_module_context, attribute_name)
-            # if cls._name != "List":
-            #     print(f"{cls} {cls.__dict__}")
-            #     exit(0)
+                return _random_value_from_class(chosen_type, energyml_module_context, attribute_name, _parent_class)
         else:
-            args = {}
-            for k, v in get_class_fields(cls).items():
-                # print(f"get_class_fields {k} : {v}")
-                args[k] = _random_value_from_class(
-                    cls=get_class_from_simple_name(simple_name=v.type, energyml_module_context=energyml_module_context),
-                    energyml_module_context=energyml_module_context,
-                    attribute_name=k)
-            # print(f"init args {args}")
-            if not isinstance(cls, type):
-                cls = type(cls)
-            return cls(**args)
+            potential_classes = list(filter(lambda _c: not is_abstract(_c), [cls] + get_sub_classes(cls)))
+            if len(potential_classes) > 0:
+                chosen_type = potential_classes[random.randint(0, len(potential_classes) - 1)]
+                args = {}
+                for k, v in get_class_fields(chosen_type).items():
+                    # print(f"get_class_fields {k} : {v}")
+                    args[k] = _random_value_from_class(
+                        cls=get_class_from_simple_name(simple_name=v.type, energyml_module_context=energyml_module_context),
+                        energyml_module_context=energyml_module_context,
+                        attribute_name=k,
+                        _parent_class=chosen_type)
+
+                if not isinstance(chosen_type, type):
+                    chosen_type = type(chosen_type)
+                return chosen_type(**args)
 
     except Exception as e:
         print(f"exception on attribute '{attribute_name}' for class {cls} :")
         raise e
 
-    print(f"Not supported random class {cls}")
+    print(f"@_random_value_from_class Not supported object type generation {cls}")
     return None
