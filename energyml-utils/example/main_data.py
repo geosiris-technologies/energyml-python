@@ -1,19 +1,17 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
-import inspect
 import os
-import re
-import sys
 
-from energyml.eml.v2_3.commonv2 import JaggedArray, AbstractValueArray, AbstractIntegerArray, IntegerConstantArray, \
-    StringXmlArray, IntegerXmlArray
+from energyml.eml.v2_3.commonv2 import JaggedArray, AbstractValueArray, AbstractIntegerArray, StringXmlArray, \
+    IntegerXmlArray
 
-from src.energyml.utils.data.helper import read_array, testall, get_array_reader_function
-from src.energyml.utils.data.mesh import *
 from src.energyml.utils.data.hdf import *
+from src.energyml.utils.data.helper import read_array, get_array_reader_function, get_supported_array, \
+    get_not_supported_array
+from src.energyml.utils.data.mesh import *
 from src.energyml.utils.introspection import is_abstract
 from src.energyml.utils.manager import get_sub_classes
-from src.energyml.utils.serialization import read_energyml_xml_file, serialize_xml
+from src.energyml.utils.serialization import read_energyml_xml_file
 
 
 def test_off():
@@ -164,7 +162,6 @@ def read_arrays():
 
     poly = read_energyml_xml_file("../rc/polyline_set_for_array_tests.xml")
 
-    print(testall())
     print(get_array_reader_function("BooleanConstantArray"))
 
     print("=====] ", r"LinePatch.\d+")
@@ -211,3 +208,6 @@ if __name__ == "__main__":
     # read_h5_datasets()
     # read_h5_polyline()
     read_arrays()
+
+    print("Supported : ", get_supported_array())
+    print("Not supported : ", get_not_supported_array())

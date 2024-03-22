@@ -9,12 +9,45 @@ from src.energyml.utils.epc import Epc
 from src.energyml.utils.introspection import snake_case, get_object_attribute_no_verif
 
 
-def testall():
-    return [(name, inspect.isfunction(obj)) for name, obj in inspect.getmembers(sys.modules[__name__])
-                     if inspect.isfunction(obj)# and
-                     #     name.startswith('read_'))
-            ]
-    # return any(f(arg) for f in testfunctions)
+_ARRAY_NAMES_ = [
+    "BooleanArrayFromDiscretePropertyArray",
+    "BooleanArrayFromIndexArray",
+    "BooleanConstantArray",
+    "BooleanExternalArray",
+    "BooleanHdf5Array",
+    "BooleanXmlArray",
+    "CompoundExternalArray",
+    "DasTimeArray",
+    "DoubleConstantArray",
+    "DoubleHdf5Array",
+    "DoubleLatticeArray",
+    "ExternalDataArray",
+    "FloatingPointConstantArray",
+    "FloatingPointExternalArray",
+    "FloatingPointLatticeArray",
+    "FloatingPointXmlArray",
+    "IntegerArrayFromBooleanMaskArray",
+    "IntegerConstantArray",
+    "IntegerExternalArray",
+    "IntegerHdf5Array",
+    "IntegerLatticeArray",
+    "IntegerRangeArray",
+    "IntegerXmlArray",
+    "JaggedArray",
+    "ParametricLineArray",
+    "ParametricLineFromRepresentationLatticeArray",
+    "Point2DHdf5Array",
+    "Point3DFromRepresentationLatticeArray",
+    "Point3DHdf5Array",
+    "Point3DLatticeArray",
+    "Point3DParametricArray",
+    "Point3DZvalueArray",
+    "ResqmlJaggedArray",
+    "StringConstantArray",
+    "StringExternalArray",
+    "StringHdf5Array",
+    "StringXmlArray"
+]
 
 
 def get_array_reader_function(array_type_name: str) -> Optional[Callable]:
@@ -22,6 +55,18 @@ def get_array_reader_function(array_type_name: str) -> Optional[Callable]:
         if name == f"read_{snake_case(array_type_name)}":
             return obj
     return None
+
+
+def _array_name_mapping(array_type_name: str) -> str:
+    if array_type_name.endswith("ConstantArray"):
+        return "ConstantArray"
+    elif "External" in array_type_name or "Hdf5" in array_type_name:
+        return "ExternalArray"
+    elif array_type_name.endswith("XmlArray"):
+        return "XmlArray"
+    elif "Jagged" in array_type_name:
+        return "JaggedArray"
+    return array_type_name
 
 
 def read_array(
@@ -32,14 +77,7 @@ def read_array(
 ):
     if isinstance(energyml_array, list):
         return energyml_array
-    array_type_name = type(energyml_array).__name__
-
-    if array_type_name.endswith("ConstantArray"):
-        array_type_name = "ConstantArray"
-    elif array_type_name.endswith("ExternalArray"):
-        array_type_name = "ExternalArray"
-    elif array_type_name.endswith("XmlArray"):
-        array_type_name = "XmlArray"
+    array_type_name = _array_name_mapping(type(energyml_array).__name__)
 
     reader_func = get_array_reader_function(array_type_name)
     if reader_func is not None:
@@ -53,46 +91,12 @@ def read_array(
         raise Exception(f"Type {array_type_name} is not supported\n\t{energyml_array}")
 
 
-#  TODO :
-# [
-#     "BooleanArrayFromDiscretePropertyArray",
-#     "BooleanArrayFromIndexArray",
-#     "BooleanConstantArray",
-#     "BooleanExternalArray",
-#     "BooleanHdf5Array",
-#     "BooleanXmlArray",
-#     "CompoundExternalArray",
-#     "DasTimeArray",
-#     "DoubleConstantArray",
-#     "DoubleHdf5Array",
-#     "DoubleLatticeArray",
-#     "ExternalDataArray",
-#     "FloatingPointConstantArray",
-#     "FloatingPointExternalArray",
-#     "FloatingPointLatticeArray",
-#     "FloatingPointXmlArray",
-#     "IntegerArrayFromBooleanMaskArray",
-#     "IntegerConstantArray",
-#     "IntegerExternalArray",
-#     "IntegerHdf5Array",
-#     "IntegerLatticeArray",
-#     "IntegerRangeArray",
-#     "IntegerXmlArray",
-#     "JaggedArray",
-#     "ParametricLineArray",
-#     "ParametricLineFromRepresentationLatticeArray",
-#     "Point2DHdf5Array",
-#     "Point3DFromRepresentationLatticeArray",
-#     "Point3DHdf5Array",
-#     "Point3DLatticeArray",
-#     "Point3DParametricArray",
-#     "Point3DZvalueArray",
-#     "ResqmlJaggedArray",
-#     "StringConstantArray",
-#     "StringExternalArray",
-#     "StringHdf5Array",
-#     "StringXmlArray"
-# ]
+def get_supported_array():
+    return [x for x in _ARRAY_NAMES_ if get_array_reader_function(_array_name_mapping(x)) is not None]
+
+
+def get_not_supported_array():
+    return [x for x in _ARRAY_NAMES_ if get_array_reader_function(_array_name_mapping(x)) is None]
 
 
 def read_constant_array(
