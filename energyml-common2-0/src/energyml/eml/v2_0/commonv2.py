@@ -1,14 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional
-from xsdata.models.datatype import XmlDateTime
-from generated.eml.v2_0.mod_3 import (
-    ProjectedCrstype,
-    VerticalCrstype,
-)
-
-__NAMESPACE__ = "http://www.energistics.org/energyml/data/commonv2"
+from typing import List, Optional, Union, Any
+from xsdata.models.datatype import XmlDate, XmlDateTime, XmlPeriod
 
 
 class ApigammaRayUom(Enum):
@@ -95,12 +89,14 @@ class AbsorbedDoseUom(Enum):
 
 @dataclass
 class AbstractProjectedCrs:
-    pass
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
 
 
 @dataclass
 class AbstractVerticalCrs:
-    pass
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
 
 
 class ActivityOfRadioactivityUom(Enum):
@@ -526,6 +522,9 @@ class Citation:
         descriptiveKeywords.MD_Keywords Legacy DCGroup - subject
     """
 
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     title: Optional[str] = field(
         default=None,
         metadata={
@@ -623,6 +622,31 @@ class Citation:
 
 
 @dataclass
+class CommentString:
+    """The intended abstract supertype of all comments or remarks intended for
+    human consumption.
+
+    There should be no assumption that semantics can be extracted from
+    the field by a computer. Neither should there be an assumption that
+    any two humans will interpret the information in the same way (i.e.,
+    it may not be interoperable).
+    """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "min_length": 1,
+            "max_length": 4000,
+            "white_space": "collapse",
+        },
+    )
+
+
+@dataclass
 class CustomData:
     """WITSML - Custom or User Defined Element and Attributes Component Schema.
     Specify custom element, attributes, and types in the custom data area.
@@ -631,6 +655,9 @@ class CustomData:
         strongly recommended that all custom data definitions be added
         to a unique namespace.
     """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
 
     any_element: List[object] = field(
         default_factory=list,
@@ -654,6 +681,9 @@ class DataObjectReference:
     :ivar version_string: Indicates the version of the object which is
         referenced.
     """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
 
     content_type: Optional[str] = field(
         default=None,
@@ -715,6 +745,26 @@ class DataTransferSpeedUom(Enum):
 
     BIT_S = "bit/s"
     BYTE_S = "byte/s"
+
+
+@dataclass
+class DescriptionString:
+    """
+    A textual description of something.
+    """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "min_length": 1,
+            "max_length": 256,
+            "white_space": "collapse",
+        },
+    )
 
 
 class DiffusionCoefficientUom(Enum):
@@ -2729,6 +2779,48 @@ class MassUom(Enum):
     UG = "ug"
 
 
+@dataclass
+class MaximumLengthString:
+    """
+    This defines the maximum acceptable length of a string that can be stored in a
+    data base.
+    """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "min_length": 1,
+            "max_length": 4000,
+            "white_space": "collapse",
+        },
+    )
+
+
+@dataclass
+class Measure:
+    """The intended abstract supertype of all quantities that have a value with a
+    unit of measure.
+
+    The unit of measure is in the uom attribute of the subtypes. This
+    type allows all quantities to be profiled to be a 'float' instead of
+    a 'double'.
+    """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
 class MobilityUom(Enum):
     """
     :cvar D_PA_S: darcy per pascal second
@@ -2861,6 +2953,31 @@ class MomentumUom(Enum):
     LBM_FT_S = "lbm.ft/s"
 
 
+@dataclass
+class NameString:
+    """The intended abstract supertype of all user assigned human recognizable
+    contextual name types.
+
+    There should be no assumption that (interoperable) semantic
+    information will be extracted from the name by a third party. This
+    type of value is generally not guaranteed to be unique and is not a
+    candidate to be replaced by an enumeration.
+    """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "min_length": 1,
+            "max_length": 64,
+            "white_space": "collapse",
+        },
+    )
+
+
 class NormalizedPowerUom(Enum):
     """
     :cvar B_W: bel watt
@@ -2877,6 +2994,9 @@ class NormalizedPowerUom(Enum):
 
 @dataclass
 class ObjectAlias:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     identifier: Optional[str] = field(
         default=None,
         metadata={
@@ -3499,6 +3619,28 @@ class SpecificHeatCapacityUom(Enum):
     K_W_H_KG_DELTA_C = "kW.h/(kg.deltaC)"
 
 
+@dataclass
+class String:
+    """The intended abstract supertype of all strings.
+
+    This abstract type allows the control over whitespace for all
+    strings to be defined at a high level. This type should not be used
+    directly except to derive another type.
+    """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "min_length": 1,
+            "white_space": "collapse",
+        },
+    )
+
+
 class TemperatureIntervalPerLengthUom(Enum):
     """
     :cvar VALUE_0_01_DELTA_F_FT: delta Fahrenheit per hundred foot
@@ -3795,6 +3937,112 @@ class TimeUom(Enum):
     TA_T = "Ta[t]"
     US = "us"
     WK = "wk"
+
+
+@dataclass
+class TypeEnum:
+    """The intended abstract supertype of all enumerated "types".
+
+    This abstract type allows the maximum length of a type enumeration
+    to be centrally defined. This type should not be used directly
+    except to derive another type. It should also be used for
+    uncontrolled strings which are candidates to become enumerations at
+    a future date.
+    """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "min_length": 1,
+            "max_length": 40,
+            "white_space": "collapse",
+        },
+    )
+
+
+@dataclass
+class UidString:
+    """The intended abstract supertype of all locally unique identifiers.
+
+    The value is not intended to convey any semantic content (e.g., it
+    may be computer generated). The value is only required to be unique
+    within a context in a document (e.g., defined via key and keyref).
+    There is no guarantee that the same data in multiple documents will
+    utilize the same uid value unless enforced by the source of the
+    document (e.g., a document server). Spaces are not allowed.
+    """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "min_length": 1,
+            "max_length": 64,
+            "white_space": "collapse",
+            "pattern": r"[^ ]*",
+        },
+    )
+
+
+@dataclass
+class UomEnum:
+    """The intended abstract supertype of all "units of measure".
+
+    This abstract type allows the maximum length of a UOM enumeration to
+    be centrally defined. This type is abstract in the sense that it
+    should not be used directly except to derive another type.
+    """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "min_length": 1,
+            "max_length": 32,
+            "white_space": "collapse",
+        },
+    )
+
+
+@dataclass
+class UuidString:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "pattern": r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}",
+        },
+    )
+
+
+class VerticalCoordinateUom(Enum):
+    """
+    The units of measure that are valid for vertical gravity based coordinates
+    (i.e., elevation or vertical depth).
+
+    :cvar M: meter
+    :cvar FT: International Foot
+    :cvar FT_US: US Survey Foot
+    :cvar FT_BR_65: British Foot 1865
+    """
+
+    M = "m"
+    FT = "ft"
+    FT_US = "ftUS"
+    FT_BR_65 = "ftBr(65)"
 
 
 class VerticalDirection(Enum):
@@ -4401,9 +4649,650 @@ class VolumetricThermalExpansionUom(Enum):
 
 
 @dataclass
+class AbstractObjectType:
+    class Meta:
+        name = "AbstractObject_Type"
+        target_namespace = "http://www.isotc211.org/2005/gco"
+
+    id: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    uuid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+
+
+@dataclass
+class Boolean:
+    class Meta:
+        namespace = "http://www.isotc211.org/2005/gco"
+
+    value: Optional[bool] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class CharacterString:
+    class Meta:
+        namespace = "http://www.isotc211.org/2005/gco"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class CodeListValueType:
+    class Meta:
+        name = "CodeListValue_Type"
+        target_namespace = "http://www.isotc211.org/2005/gco"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+    code_list: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "codeList",
+            "type": "Attribute",
+            "required": True,
+        },
+    )
+    code_list_value: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "codeListValue",
+            "type": "Attribute",
+            "required": True,
+        },
+    )
+    code_space: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "codeSpace",
+            "type": "Attribute",
+        },
+    )
+
+
+@dataclass
+class Date:
+    class Meta:
+        nillable = True
+        namespace = "http://www.isotc211.org/2005/gco"
+
+    value: Optional[Union[XmlDate, XmlPeriod]] = field(
+        default=None,
+        metadata={
+            "nillable": True,
+        },
+    )
+
+
+@dataclass
+class DateTime:
+    class Meta:
+        namespace = "http://www.isotc211.org/2005/gco"
+
+    value: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class DateType:
+    class Meta:
+        name = "Date_Type"
+        target_namespace = "http://www.isotc211.org/2005/gco"
+
+    value: Optional[Union[XmlDate, XmlPeriod]] = field(default=None)
+
+
+@dataclass
+class Real:
+    class Meta:
+        namespace = "http://www.isotc211.org/2005/gco"
+
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class Url:
+    class Meta:
+        name = "URL"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class AbstractObject:
+    """This element has no type defined, and is therefore implicitly (according to
+    the rules of W3C XML Schema) an XML Schema anyType.
+
+    It is used as the head of an XML Schema substitution group which
+    unifies complex content and certain simple content elements used for
+    datatypes in GML, including the gml:AbstractGML substitution group.
+    """
+
+    class Meta:
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+class AggregationType(Enum):
+    SET = "set"
+    BAG = "bag"
+    SEQUENCE = "sequence"
+    ARRAY = "array"
+    RECORD = "record"
+    TABLE = "table"
+
+
+@dataclass
+class AngleType:
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class CodeType:
+    """Gml:CodeType is a generalized type to be used for a term, keyword or name.
+
+    It adds a XML attribute codeSpace to a term, where the value of the
+    codeSpace attribute (if present) shall indicate a dictionary,
+    thesaurus, classification scheme, authority, or pattern for the
+    term.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+    code_space: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "codeSpace",
+            "type": "Attribute",
+        },
+    )
+
+
+@dataclass
+class LengthType:
+    """This is a prototypical definition for a specific measure type defined as a
+    vacuous extension (i.e. aliases) of gml:MeasureType.
+
+    In this case, the content model supports the description of a length
+    (or distance) quantity, with its units. The unit of measure
+    referenced by uom shall be suitable for a length, such as metres or
+    feet.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class MeasureType:
+    """Gml:MeasureType supports recording an amount encoded as a value of XML
+    Schema double, together with a units of measure indicated by an attribute uom,
+    short for "units Of measure".
+
+    The value of the uom attribute identifies a reference system for the
+    amount, usually a ratio or interval scale.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
+class NilReasonEnumerationValue(Enum):
+    INAPPLICABLE = "inapplicable"
+    MISSING = "missing"
+    TEMPLATE = "template"
+    UNKNOWN = "unknown"
+    WITHHELD = "withheld"
+
+
+class RelatedTimeTypeRelativePosition(Enum):
+    BEFORE = "Before"
+    AFTER = "After"
+    BEGINS = "Begins"
+    ENDS = "Ends"
+    DURING = "During"
+    EQUALS = "Equals"
+    CONTAINS = "Contains"
+    OVERLAPS = "Overlaps"
+    MEETS = "Meets"
+    OVERLAPPED_BY = "OverlappedBy"
+    MET_BY = "MetBy"
+    BEGUN_BY = "BegunBy"
+    ENDED_BY = "EndedBy"
+
+
+@dataclass
+class SecondDefiningParameter1:
+    class Meta:
+        name = "SecondDefiningParameter"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+    inverse_flattening: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "inverseFlattening",
+            "type": "Element",
+        },
+    )
+    semi_minor_axis: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "semiMinorAxis",
+            "type": "Element",
+        },
+    )
+    is_sphere: bool = field(
+        default=True,
+        metadata={
+            "name": "isSphere",
+            "type": "Element",
+        },
+    )
+
+
+@dataclass
+class UomIdentifier:
+    """
+    The simple type gml:UomIdentifer defines the syntax and value space of the unit
+    of measure identifier.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "pattern": r"[^: \n\r\t]+",
+        },
+    )
+
+
+@dataclass
+class UomSymbol:
+    """This type specifies a character string of length at least one, and
+    restricted such that it must not contain any of the following characters: ":"
+    (colon), " " (space), (newline), (carriage return), (tab).
+
+    This allows values corresponding to familiar abbreviations, such as
+    "kg", "m/s", etc. It is recommended that the symbol be an identifier
+    for a unit of measure as specified in the "Unified Code of Units of
+    Measure" (UCUM) (
+    http://aurora.regenstrief.org/UCUM).
+    This provides a set of symbols and a grammar for constructing identifiers for units of measure that are unique, and may be easily entered with a keyboard supporting the limited character set known as 7-bit ASCII. ISO 2955 formerly provided a specification with this scope, but was withdrawn in 2001. UCUM largely follows ISO 2955 with modifications to remove ambiguities and other problems.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "pattern": r"[^: \n\r\t]+",
+        },
+    )
+
+
+@dataclass
+class UomUri:
+    """This type specifies a URI, restricted such that it must start with one of
+    the following sequences: "#", "./", "../", or a string of characters followed
+    by a ":". These patterns ensure that the most common URI forms are supported,
+    including absolute and relative URIs and URIs that are simple fragment
+    identifiers, but prohibits certain forms of relative URI that could be mistaken
+    for unit of measure symbol . NOTE  It is possible to re-write such a relative
+    URI to conform to the restriction (e.g. "./m/s").
+
+    In an instance document, on elements of type gml:MeasureType the mandatory uom attribute shall carry a value corresponding to either
+    -       a conventional unit of measure symbol,
+    -       a link to a definition of a unit of measure that does not have a conventional symbol, or when it is desired to indicate a precise or variant definition.
+    """
+
+    class Meta:
+        name = "UomURI"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "pattern": r"([a-zA-Z][a-zA-Z0-9\-\+\.]*:|\.\./|\./|#).*",
+        },
+    )
+
+
+@dataclass
+class GreenwichLongitude:
+    """Gml:greenwichLongitude is the longitude of the prime meridian measured from
+    the Greenwich meridian, positive eastward.
+
+    If the value of the prime meridian "name" is "Greenwich" then the
+    value of greenwichLongitude shall be 0 degrees.
+    """
+
+    class Meta:
+        name = "greenwichLongitude"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class Id:
+    """The attribute gml:id supports provision of a handle for the XML element
+    representing a GML Object.
+
+    Its use is mandatory for all GML objects. It is of XML type ID, so
+    is constrained to be unique in the XML document within which it
+    occurs.
+    """
+
+    class Meta:
+        name = "id"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class MaximumValue:
+    """The gml:minimumValue and gml:maximumValue properties allow the specification
+    of minimum and maximum value normally allowed for this axis, in the unit of
+    measure for the axis.
+
+    For a continuous angular axis such as longitude, the values wrap-
+    around at this value. Also, values beyond this minimum/maximum can
+    be used for specified purposes, such as in a bounding box. A value
+    of minus infinity shall be allowed for the gml:minimumValue element,
+    a value of plus infiniy for the gml:maximumValue element. If these
+    elements are omitted, the value is unspecified.
+    """
+
+    class Meta:
+        name = "maximumValue"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class MinimumValue:
+    """The gml:minimumValue and gml:maximumValue properties allow the specification
+    of minimum and maximum value normally allowed for this axis, in the unit of
+    measure for the axis.
+
+    For a continuous angular axis such as longitude, the values wrap-
+    around at this value. Also, values beyond this minimum/maximum can
+    be used for specified purposes, such as in a bounding box. A value
+    of minus infinity shall be allowed for the gml:minimumValue element,
+    a value of plus infiniy for the gml:maximumValue element. If these
+    elements are omitted, the value is unspecified.
+    """
+
+    class Meta:
+        name = "minimumValue"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class OperationVersion:
+    """Gml:operationVersion is the version of the coordinate transformation (i.e.,
+    instantiation due to the stochastic nature of the parameters).
+
+    Mandatory when describing a transformation, and should not be
+    supplied for a conversion.
+    """
+
+    class Meta:
+        name = "operationVersion"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class RealizationEpoch:
+    """Gml:realizationEpoch is the time after which this datum definition is valid.
+
+    See ISO 19111 Table 32 for details.
+    """
+
+    class Meta:
+        name = "realizationEpoch"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+    value: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class Remarks:
+    class Meta:
+        name = "remarks"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class Scope:
+    """The gml:scope property provides a description of the usage, or limitations
+    of usage, for which this CRS-related object is valid.
+
+    If unknown, enter "not known".
+    """
+
+    class Meta:
+        name = "scope"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class SemiMajorAxis:
+    """Gml:semiMajorAxis specifies the length of the semi-major axis of the
+    ellipsoid, with its units.
+
+    Uses the MeasureType with the restriction that the unit of measure
+    referenced by uom must be suitable for a length, such as metres or
+    feet.
+    """
+
+    class Meta:
+        name = "semiMajorAxis"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
+class ActuateValue(Enum):
+    ON_LOAD = "onLoad"
+    ON_REQUEST = "onRequest"
+    OTHER = "other"
+    NONE = "none"
+
+
+@dataclass
+class Arcrole:
+    class Meta:
+        name = "arcrole"
+        namespace = "http://www.w3.org/1999/xlink"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class Href:
+    class Meta:
+        name = "href"
+        namespace = "http://www.w3.org/1999/xlink"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class Role:
+    class Meta:
+        name = "role"
+        namespace = "http://www.w3.org/1999/xlink"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+
+
+class ShowValue(Enum):
+    NEW = "new"
+    REPLACE = "replace"
+    EMBED = "embed"
+    OTHER = "other"
+    NONE = "none"
+
+
+@dataclass
+class Title:
+    class Meta:
+        name = "title"
+        namespace = "http://www.w3.org/1999/xlink"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
 class ApigammaRayMeasure:
     class Meta:
         name = "APIGammaRayMeasure"
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
 
     value: Optional[float] = field(
         default=None,
@@ -4424,6 +5313,7 @@ class ApigammaRayMeasure:
 class ApigravityMeasure:
     class Meta:
         name = "APIGravityMeasure"
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
 
     value: Optional[float] = field(
         default=None,
@@ -4444,6 +5334,7 @@ class ApigravityMeasure:
 class ApineutronMeasure:
     class Meta:
         name = "APINeutronMeasure"
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
 
     value: Optional[float] = field(
         default=None,
@@ -4462,6 +5353,9 @@ class ApineutronMeasure:
 
 @dataclass
 class AbsorbedDoseMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4478,7 +5372,7 @@ class AbsorbedDoseMeasure:
 
 
 @dataclass
-class AbstractObject:
+class AbstractObject1:
     """The intended abstract supertype of all schema roots that may be a member of
     a substitution group (whether contextual or data).
 
@@ -4497,6 +5391,10 @@ class AbstractObject:
     :ivar uuid:
     :ivar object_version:
     """
+
+    class Meta:
+        name = "AbstractObject"
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
 
     citation: Optional[Citation] = field(
         default=None,
@@ -4552,6 +5450,9 @@ class AbstractObject:
 
 @dataclass
 class ActivityOfRadioactivityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4569,6 +5470,9 @@ class ActivityOfRadioactivityMeasure:
 
 @dataclass
 class AmountOfSubstanceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4586,6 +5490,9 @@ class AmountOfSubstanceMeasure:
 
 @dataclass
 class AmountOfSubstancePerAmountOfSubstanceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4603,6 +5510,9 @@ class AmountOfSubstancePerAmountOfSubstanceMeasure:
 
 @dataclass
 class AmountOfSubstancePerAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4620,6 +5530,9 @@ class AmountOfSubstancePerAreaMeasure:
 
 @dataclass
 class AmountOfSubstancePerTimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4637,6 +5550,9 @@ class AmountOfSubstancePerTimeMeasure:
 
 @dataclass
 class AmountOfSubstancePerTimePerAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4654,6 +5570,9 @@ class AmountOfSubstancePerTimePerAreaMeasure:
 
 @dataclass
 class AmountOfSubstancePerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4671,6 +5590,9 @@ class AmountOfSubstancePerVolumeMeasure:
 
 @dataclass
 class AnglePerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4688,6 +5610,9 @@ class AnglePerLengthMeasure:
 
 @dataclass
 class AnglePerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4705,6 +5630,9 @@ class AnglePerVolumeMeasure:
 
 @dataclass
 class AngularAccelerationMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4722,6 +5650,9 @@ class AngularAccelerationMeasure:
 
 @dataclass
 class AngularVelocityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4739,6 +5670,9 @@ class AngularVelocityMeasure:
 
 @dataclass
 class AreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4756,6 +5690,9 @@ class AreaMeasure:
 
 @dataclass
 class AreaPerAmountOfSubstanceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4773,6 +5710,9 @@ class AreaPerAmountOfSubstanceMeasure:
 
 @dataclass
 class AreaPerAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4790,6 +5730,9 @@ class AreaPerAreaMeasure:
 
 @dataclass
 class AreaPerMassMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4807,6 +5750,9 @@ class AreaPerMassMeasure:
 
 @dataclass
 class AreaPerTimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4824,6 +5770,9 @@ class AreaPerTimeMeasure:
 
 @dataclass
 class AreaPerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4841,6 +5790,9 @@ class AreaPerVolumeMeasure:
 
 @dataclass
 class AttenuationPerFrequencyIntervalMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4858,6 +5810,9 @@ class AttenuationPerFrequencyIntervalMeasure:
 
 @dataclass
 class CapacitanceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4875,6 +5830,9 @@ class CapacitanceMeasure:
 
 @dataclass
 class DataTransferSpeedMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4892,6 +5850,9 @@ class DataTransferSpeedMeasure:
 
 @dataclass
 class DiffusionCoefficientMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4909,6 +5870,9 @@ class DiffusionCoefficientMeasure:
 
 @dataclass
 class DigitalStorageMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4926,6 +5890,9 @@ class DigitalStorageMeasure:
 
 @dataclass
 class DimensionlessMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4943,6 +5910,9 @@ class DimensionlessMeasure:
 
 @dataclass
 class DipoleMomentMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4960,6 +5930,9 @@ class DipoleMomentMeasure:
 
 @dataclass
 class DoseEquivalentMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4977,6 +5950,9 @@ class DoseEquivalentMeasure:
 
 @dataclass
 class DynamicViscosityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -4994,6 +5970,9 @@ class DynamicViscosityMeasure:
 
 @dataclass
 class ElectricChargeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5011,6 +5990,9 @@ class ElectricChargeMeasure:
 
 @dataclass
 class ElectricChargePerAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5028,6 +6010,9 @@ class ElectricChargePerAreaMeasure:
 
 @dataclass
 class ElectricChargePerMassMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5045,6 +6030,9 @@ class ElectricChargePerMassMeasure:
 
 @dataclass
 class ElectricChargePerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5062,6 +6050,9 @@ class ElectricChargePerVolumeMeasure:
 
 @dataclass
 class ElectricConductanceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5079,6 +6070,9 @@ class ElectricConductanceMeasure:
 
 @dataclass
 class ElectricConductivityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5096,6 +6090,9 @@ class ElectricConductivityMeasure:
 
 @dataclass
 class ElectricCurrentDensityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5113,6 +6110,9 @@ class ElectricCurrentDensityMeasure:
 
 @dataclass
 class ElectricCurrentMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5130,6 +6130,9 @@ class ElectricCurrentMeasure:
 
 @dataclass
 class ElectricFieldStrengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5147,6 +6150,9 @@ class ElectricFieldStrengthMeasure:
 
 @dataclass
 class ElectricPotentialDifferenceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5164,6 +6170,9 @@ class ElectricPotentialDifferenceMeasure:
 
 @dataclass
 class ElectricResistanceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5181,6 +6190,9 @@ class ElectricResistanceMeasure:
 
 @dataclass
 class ElectricResistancePerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5198,6 +6210,9 @@ class ElectricResistancePerLengthMeasure:
 
 @dataclass
 class ElectricalResistivityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5215,6 +6230,9 @@ class ElectricalResistivityMeasure:
 
 @dataclass
 class ElectromagneticMomentMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5232,6 +6250,9 @@ class ElectromagneticMomentMeasure:
 
 @dataclass
 class EnergyLengthPerAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5249,6 +6270,9 @@ class EnergyLengthPerAreaMeasure:
 
 @dataclass
 class EnergyLengthPerTimeAreaTemperatureMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5266,6 +6290,9 @@ class EnergyLengthPerTimeAreaTemperatureMeasure:
 
 @dataclass
 class EnergyMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5283,6 +6310,9 @@ class EnergyMeasure:
 
 @dataclass
 class EnergyPerAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5300,6 +6330,9 @@ class EnergyPerAreaMeasure:
 
 @dataclass
 class EnergyPerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5317,6 +6350,9 @@ class EnergyPerLengthMeasure:
 
 @dataclass
 class EnergyPerMassMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5334,6 +6370,9 @@ class EnergyPerMassMeasure:
 
 @dataclass
 class EnergyPerMassPerTimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5351,6 +6390,9 @@ class EnergyPerMassPerTimeMeasure:
 
 @dataclass
 class EnergyPerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5368,6 +6410,9 @@ class EnergyPerVolumeMeasure:
 
 @dataclass
 class ForceAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5385,6 +6430,9 @@ class ForceAreaMeasure:
 
 @dataclass
 class ForceLengthPerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5402,6 +6450,9 @@ class ForceLengthPerLengthMeasure:
 
 @dataclass
 class ForceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5419,6 +6470,9 @@ class ForceMeasure:
 
 @dataclass
 class ForcePerForceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5436,6 +6490,9 @@ class ForcePerForceMeasure:
 
 @dataclass
 class ForcePerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5453,6 +6510,9 @@ class ForcePerLengthMeasure:
 
 @dataclass
 class ForcePerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5470,6 +6530,9 @@ class ForcePerVolumeMeasure:
 
 @dataclass
 class FrequencyIntervalMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5487,6 +6550,9 @@ class FrequencyIntervalMeasure:
 
 @dataclass
 class FrequencyMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5503,40 +6569,6 @@ class FrequencyMeasure:
 
 
 @dataclass
-class GmlProjectedCrsDefinition(AbstractProjectedCrs):
-    """
-    This is the Energistics encapsulation of the ProjectedCrs type from GML.
-    """
-
-    gml_projected_crs_definition: Optional[ProjectedCrstype] = field(
-        default=None,
-        metadata={
-            "name": "GmlProjectedCrsDefinition",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/commonv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class GmlVerticalCrsDefinition(AbstractVerticalCrs):
-    """
-    This is the Energistics encapsulation of the ProjectedCrs type from GML.
-    """
-
-    gml_vertical_crs_definition: Optional[VerticalCrstype] = field(
-        default=None,
-        metadata={
-            "name": "GmlVerticalCrsDefinition",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/commonv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
 class Hdf5Dataset:
     """
     :ivar path_in_hdf_file: The path of the referenced dataset in the
@@ -5544,6 +6576,9 @@ class Hdf5Dataset:
         slash '/'
     :ivar hdf_proxy:
     """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
 
     path_in_hdf_file: Optional[str] = field(
         default=None,
@@ -5567,6 +6602,9 @@ class Hdf5Dataset:
 
 @dataclass
 class HeatCapacityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5584,6 +6622,9 @@ class HeatCapacityMeasure:
 
 @dataclass
 class HeatFlowRateMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5601,6 +6642,9 @@ class HeatFlowRateMeasure:
 
 @dataclass
 class HeatTransferCoefficientMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5618,6 +6662,9 @@ class HeatTransferCoefficientMeasure:
 
 @dataclass
 class IlluminanceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5635,6 +6682,9 @@ class IlluminanceMeasure:
 
 @dataclass
 class InductanceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5652,6 +6702,9 @@ class InductanceMeasure:
 
 @dataclass
 class IsothermalCompressibilityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5669,6 +6722,9 @@ class IsothermalCompressibilityMeasure:
 
 @dataclass
 class KinematicViscosityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5686,6 +6742,9 @@ class KinematicViscosityMeasure:
 
 @dataclass
 class LengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5703,6 +6762,9 @@ class LengthMeasure:
 
 @dataclass
 class LengthPerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5720,6 +6782,9 @@ class LengthPerLengthMeasure:
 
 @dataclass
 class LengthPerMassMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5737,6 +6802,9 @@ class LengthPerMassMeasure:
 
 @dataclass
 class LengthPerPressureMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5754,6 +6822,9 @@ class LengthPerPressureMeasure:
 
 @dataclass
 class LengthPerTemperatureMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5771,6 +6842,9 @@ class LengthPerTemperatureMeasure:
 
 @dataclass
 class LengthPerTimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5788,6 +6862,9 @@ class LengthPerTimeMeasure:
 
 @dataclass
 class LengthPerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5805,6 +6882,9 @@ class LengthPerVolumeMeasure:
 
 @dataclass
 class LightExposureMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5822,6 +6902,9 @@ class LightExposureMeasure:
 
 @dataclass
 class LinearAccelerationMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5839,6 +6922,9 @@ class LinearAccelerationMeasure:
 
 @dataclass
 class LinearThermalExpansionMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5856,6 +6942,9 @@ class LinearThermalExpansionMeasure:
 
 @dataclass
 class LogarithmicPowerRatioMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5873,6 +6962,9 @@ class LogarithmicPowerRatioMeasure:
 
 @dataclass
 class LogarithmicPowerRatioPerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5890,6 +6982,9 @@ class LogarithmicPowerRatioPerLengthMeasure:
 
 @dataclass
 class LuminanceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5907,6 +7002,9 @@ class LuminanceMeasure:
 
 @dataclass
 class LuminousEfficacyMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5924,6 +7022,9 @@ class LuminousEfficacyMeasure:
 
 @dataclass
 class LuminousFluxMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5941,6 +7042,9 @@ class LuminousFluxMeasure:
 
 @dataclass
 class LuminousIntensityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5958,6 +7062,9 @@ class LuminousIntensityMeasure:
 
 @dataclass
 class MagneticDipoleMomentMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5975,6 +7082,9 @@ class MagneticDipoleMomentMeasure:
 
 @dataclass
 class MagneticFieldStrengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -5992,6 +7102,9 @@ class MagneticFieldStrengthMeasure:
 
 @dataclass
 class MagneticFluxDensityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6009,6 +7122,9 @@ class MagneticFluxDensityMeasure:
 
 @dataclass
 class MagneticFluxDensityPerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6026,6 +7142,9 @@ class MagneticFluxDensityPerLengthMeasure:
 
 @dataclass
 class MagneticFluxMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6043,6 +7162,9 @@ class MagneticFluxMeasure:
 
 @dataclass
 class MagneticPermeabilityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6060,6 +7182,9 @@ class MagneticPermeabilityMeasure:
 
 @dataclass
 class MagneticVectorPotentialMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6077,6 +7202,9 @@ class MagneticVectorPotentialMeasure:
 
 @dataclass
 class MassLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6094,6 +7222,9 @@ class MassLengthMeasure:
 
 @dataclass
 class MassMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6111,6 +7242,9 @@ class MassMeasure:
 
 @dataclass
 class MassPerAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6128,6 +7262,9 @@ class MassPerAreaMeasure:
 
 @dataclass
 class MassPerEnergyMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6145,6 +7282,9 @@ class MassPerEnergyMeasure:
 
 @dataclass
 class MassPerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6162,6 +7302,9 @@ class MassPerLengthMeasure:
 
 @dataclass
 class MassPerMassMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6179,6 +7322,9 @@ class MassPerMassMeasure:
 
 @dataclass
 class MassPerTimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6196,6 +7342,9 @@ class MassPerTimeMeasure:
 
 @dataclass
 class MassPerTimePerAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6213,6 +7362,9 @@ class MassPerTimePerAreaMeasure:
 
 @dataclass
 class MassPerTimePerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6230,6 +7382,9 @@ class MassPerTimePerLengthMeasure:
 
 @dataclass
 class MassPerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6247,6 +7402,9 @@ class MassPerVolumeMeasure:
 
 @dataclass
 class MassPerVolumePerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6264,6 +7422,9 @@ class MassPerVolumePerLengthMeasure:
 
 @dataclass
 class MobilityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6281,6 +7442,9 @@ class MobilityMeasure:
 
 @dataclass
 class MolarEnergyMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6298,6 +7462,9 @@ class MolarEnergyMeasure:
 
 @dataclass
 class MolarHeatCapacityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6315,6 +7482,9 @@ class MolarHeatCapacityMeasure:
 
 @dataclass
 class MolarVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6332,6 +7502,9 @@ class MolarVolumeMeasure:
 
 @dataclass
 class MolecularWeightMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6349,6 +7522,9 @@ class MolecularWeightMeasure:
 
 @dataclass
 class MomentOfForceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6366,6 +7542,9 @@ class MomentOfForceMeasure:
 
 @dataclass
 class MomentOfInertiaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6383,6 +7562,9 @@ class MomentOfInertiaMeasure:
 
 @dataclass
 class MomentumMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6400,6 +7582,9 @@ class MomentumMeasure:
 
 @dataclass
 class NormalizedPowerMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6417,6 +7602,9 @@ class NormalizedPowerMeasure:
 
 @dataclass
 class PermeabilityLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6434,6 +7622,9 @@ class PermeabilityLengthMeasure:
 
 @dataclass
 class PermeabilityRockMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6451,6 +7642,9 @@ class PermeabilityRockMeasure:
 
 @dataclass
 class PermittivityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6468,6 +7662,9 @@ class PermittivityMeasure:
 
 @dataclass
 class PlaneAngleMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6485,6 +7682,9 @@ class PlaneAngleMeasure:
 
 @dataclass
 class PotentialDifferencePerPowerDropMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6502,6 +7702,9 @@ class PotentialDifferencePerPowerDropMeasure:
 
 @dataclass
 class PowerMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6519,6 +7722,9 @@ class PowerMeasure:
 
 @dataclass
 class PowerPerAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6536,6 +7742,9 @@ class PowerPerAreaMeasure:
 
 @dataclass
 class PowerPerPowerMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6553,6 +7762,9 @@ class PowerPerPowerMeasure:
 
 @dataclass
 class PowerPerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6570,6 +7782,9 @@ class PowerPerVolumeMeasure:
 
 @dataclass
 class PressureMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6587,6 +7802,9 @@ class PressureMeasure:
 
 @dataclass
 class PressurePerTimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6604,6 +7822,9 @@ class PressurePerTimeMeasure:
 
 @dataclass
 class PressurePerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6621,6 +7842,9 @@ class PressurePerVolumeMeasure:
 
 @dataclass
 class PressureSquaredMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6638,6 +7862,9 @@ class PressureSquaredMeasure:
 
 @dataclass
 class PressureSquaredPerForceTimePerAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6655,6 +7882,9 @@ class PressureSquaredPerForceTimePerAreaMeasure:
 
 @dataclass
 class PressureTimePerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6676,6 +7906,9 @@ class ProjectedCrsEpsgCode(AbstractProjectedCrs):
     This is the Energistics encapsulation of the ProjectedCrs type from GML.
     """
 
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     epsg_code: Optional[int] = field(
         default=None,
         metadata={
@@ -6693,6 +7926,9 @@ class ProjectedUnknownCrs(AbstractProjectedCrs):
     This is the Energistics encapsulation of the ProjectedCrs type from GML.
     """
 
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     unknown: Optional[str] = field(
         default=None,
         metadata={
@@ -6709,6 +7945,9 @@ class ProjectedUnknownCrs(AbstractProjectedCrs):
 
 @dataclass
 class QuantityOfLightMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6726,6 +7965,9 @@ class QuantityOfLightMeasure:
 
 @dataclass
 class RadianceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6743,6 +7985,9 @@ class RadianceMeasure:
 
 @dataclass
 class RadiantIntensityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6760,6 +8005,9 @@ class RadiantIntensityMeasure:
 
 @dataclass
 class ReciprocalAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6777,6 +8025,9 @@ class ReciprocalAreaMeasure:
 
 @dataclass
 class ReciprocalElectricPotentialDifferenceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6794,6 +8045,9 @@ class ReciprocalElectricPotentialDifferenceMeasure:
 
 @dataclass
 class ReciprocalForceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6811,6 +8065,9 @@ class ReciprocalForceMeasure:
 
 @dataclass
 class ReciprocalLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6828,6 +8085,9 @@ class ReciprocalLengthMeasure:
 
 @dataclass
 class ReciprocalMassMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6845,6 +8105,9 @@ class ReciprocalMassMeasure:
 
 @dataclass
 class ReciprocalMassTimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6862,6 +8125,9 @@ class ReciprocalMassTimeMeasure:
 
 @dataclass
 class ReciprocalPressureMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6879,6 +8145,9 @@ class ReciprocalPressureMeasure:
 
 @dataclass
 class ReciprocalTimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6896,6 +8165,9 @@ class ReciprocalTimeMeasure:
 
 @dataclass
 class ReciprocalVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6913,6 +8185,9 @@ class ReciprocalVolumeMeasure:
 
 @dataclass
 class ReluctanceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6930,6 +8205,9 @@ class ReluctanceMeasure:
 
 @dataclass
 class SecondMomentOfAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6947,6 +8225,9 @@ class SecondMomentOfAreaMeasure:
 
 @dataclass
 class SignalingEventPerTimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6964,6 +8245,9 @@ class SignalingEventPerTimeMeasure:
 
 @dataclass
 class SolidAngleMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6981,6 +8265,9 @@ class SolidAngleMeasure:
 
 @dataclass
 class SpecificHeatCapacityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -6998,6 +8285,9 @@ class SpecificHeatCapacityMeasure:
 
 @dataclass
 class TemperatureIntervalMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7015,6 +8305,9 @@ class TemperatureIntervalMeasure:
 
 @dataclass
 class TemperatureIntervalPerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7032,6 +8325,9 @@ class TemperatureIntervalPerLengthMeasure:
 
 @dataclass
 class TemperatureIntervalPerPressureMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7049,6 +8345,9 @@ class TemperatureIntervalPerPressureMeasure:
 
 @dataclass
 class TemperatureIntervalPerTimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7066,6 +8365,9 @@ class TemperatureIntervalPerTimeMeasure:
 
 @dataclass
 class ThermalConductanceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7083,6 +8385,9 @@ class ThermalConductanceMeasure:
 
 @dataclass
 class ThermalConductivityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7100,6 +8405,9 @@ class ThermalConductivityMeasure:
 
 @dataclass
 class ThermalDiffusivityMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7117,6 +8425,9 @@ class ThermalDiffusivityMeasure:
 
 @dataclass
 class ThermalInsulanceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7134,6 +8445,9 @@ class ThermalInsulanceMeasure:
 
 @dataclass
 class ThermalResistanceMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7151,6 +8465,9 @@ class ThermalResistanceMeasure:
 
 @dataclass
 class ThermodynamicTemperatureMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7168,6 +8485,9 @@ class ThermodynamicTemperatureMeasure:
 
 @dataclass
 class TimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7185,6 +8505,9 @@ class TimeMeasure:
 
 @dataclass
 class TimePerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7202,6 +8525,9 @@ class TimePerLengthMeasure:
 
 @dataclass
 class TimePerMassMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7219,6 +8545,9 @@ class TimePerMassMeasure:
 
 @dataclass
 class TimePerTimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7236,6 +8565,9 @@ class TimePerTimeMeasure:
 
 @dataclass
 class TimePerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7257,6 +8589,9 @@ class VerticalCrsEpsgCode(AbstractVerticalCrs):
     This is the Energistics encapsulation of the ProjectedCrs type from GML.
     """
 
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     epsg_code: Optional[int] = field(
         default=None,
         metadata={
@@ -7274,6 +8609,9 @@ class VerticalUnknownCrs(AbstractVerticalCrs):
     This is the Energistics encapsulation of the ProjectedCrs type from GML.
     """
 
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     unknown: Optional[str] = field(
         default=None,
         metadata={
@@ -7290,6 +8628,9 @@ class VerticalUnknownCrs(AbstractVerticalCrs):
 
 @dataclass
 class VolumeFlowRatePerVolumeFlowRateMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7307,6 +8648,9 @@ class VolumeFlowRatePerVolumeFlowRateMeasure:
 
 @dataclass
 class VolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7324,6 +8668,9 @@ class VolumeMeasure:
 
 @dataclass
 class VolumePerAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7341,6 +8688,9 @@ class VolumePerAreaMeasure:
 
 @dataclass
 class VolumePerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7358,6 +8708,9 @@ class VolumePerLengthMeasure:
 
 @dataclass
 class VolumePerMassMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7375,6 +8728,9 @@ class VolumePerMassMeasure:
 
 @dataclass
 class VolumePerPressureMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7392,6 +8748,9 @@ class VolumePerPressureMeasure:
 
 @dataclass
 class VolumePerRotationMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7409,6 +8768,9 @@ class VolumePerRotationMeasure:
 
 @dataclass
 class VolumePerTimeLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7426,6 +8788,9 @@ class VolumePerTimeLengthMeasure:
 
 @dataclass
 class VolumePerTimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7443,6 +8808,9 @@ class VolumePerTimeMeasure:
 
 @dataclass
 class VolumePerTimePerAreaMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7460,6 +8828,9 @@ class VolumePerTimePerAreaMeasure:
 
 @dataclass
 class VolumePerTimePerLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7477,6 +8848,9 @@ class VolumePerTimePerLengthMeasure:
 
 @dataclass
 class VolumePerTimePerPressureLengthMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7494,6 +8868,9 @@ class VolumePerTimePerPressureLengthMeasure:
 
 @dataclass
 class VolumePerTimePerPressureMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7511,6 +8888,9 @@ class VolumePerTimePerPressureMeasure:
 
 @dataclass
 class VolumePerTimePerTimeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7528,6 +8908,9 @@ class VolumePerTimePerTimeMeasure:
 
 @dataclass
 class VolumePerTimePerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7545,6 +8928,9 @@ class VolumePerTimePerVolumeMeasure:
 
 @dataclass
 class VolumePerVolumeMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7562,6 +8948,9 @@ class VolumePerVolumeMeasure:
 
 @dataclass
 class VolumetricHeatTransferCoefficientMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7579,6 +8968,9 @@ class VolumetricHeatTransferCoefficientMeasure:
 
 @dataclass
 class VolumetricThermalExpansionMeasure:
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     value: Optional[float] = field(
         default=None,
         metadata={
@@ -7595,13 +8987,991 @@ class VolumetricThermalExpansionMeasure:
 
 
 @dataclass
-class AbstractCitedDataObject(AbstractObject):
+class BooleanPropertyType:
+    class Meta:
+        name = "Boolean_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gco"
+
+    boolean: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "Boolean",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gco",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class DateTimePropertyType:
+    class Meta:
+        name = "DateTime_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gco"
+
+    date_time: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DateTime",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gco",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class DatePropertyType:
+    class Meta:
+        name = "Date_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gco"
+
+    date: Optional[Union[XmlDate, XmlPeriod]] = field(
+        default=None,
+        metadata={
+            "name": "Date",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "nillable": True,
+        },
+    )
+    date_time: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DateTime",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gco",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class RealPropertyType:
+    class Meta:
+        name = "Real_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gco"
+
+    real: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "Real",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gco",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class NilReason:
+    class Meta:
+        name = "nilReason"
+        namespace = "http://www.isotc211.org/2005/gco"
+
+    value: Union[str, NilReasonEnumerationValue] = field(
+        default="",
+        metadata={
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class AbstractDqResultType(AbstractObjectType):
+    class Meta:
+        name = "AbstractDQ_Result_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class CiDateTypeCode(CodeListValueType):
+    class Meta:
+        name = "CI_DateTypeCode"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class CiOnLineFunctionCode(CodeListValueType):
+    class Meta:
+        name = "CI_OnLineFunctionCode"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class CiPresentationFormCode(CodeListValueType):
+    class Meta:
+        name = "CI_PresentationFormCode"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class CiRoleCode(CodeListValueType):
+    class Meta:
+        name = "CI_RoleCode"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class DqEvaluationMethodTypeCode(CodeListValueType):
+    class Meta:
+        name = "DQ_EvaluationMethodTypeCode"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class DqResultPropertyType:
+    class Meta:
+        name = "DQ_Result_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class ExGeographicExtentPropertyType:
+    class Meta:
+        name = "EX_GeographicExtent_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class UrlPropertyType:
+    class Meta:
+        name = "URL_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    url: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "URL",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class TmPrimitivePropertyType:
+    class Meta:
+        name = "TM_Primitive_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gts"
+
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class CodeWithAuthorityType(CodeType):
+    """
+    Gml:CodeWithAuthorityType requires that the codeSpace attribute is provided in
+    an instance.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    code_space: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "codeSpace",
+            "type": "Attribute",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class GeneralConversionPropertyType:
+    """
+    Gml:GeneralConversionPropertyType is a property type for association roles to a
+    general conversion, either referencing or containing the definition of that
+    conversion.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class NilReasonEnumeration:
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    value: Union[str, NilReasonEnumerationValue] = field(
+        default="",
+        metadata={
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class NilReasonType:
+    """Gml:NilReasonType defines a content model that allows recording of an
+    explanation for a void value or other exception.
+
+    gml:NilReasonType is a union of the following enumerated values:
+    -       inapplicable there is no value
+    -       missing the correct value is not readily available to the sender of this data. Furthermore, a correct value may not exist
+    -       template the value will be available later
+    -       unknown the correct value is not known to, and not computable by, the sender of this data. However, a correct value probably exists
+    -       withheld the value is not divulged
+    -       other:text other brief explanation, where text is a string of two or more characters with no included spaces
+    and
+    -       anyURI which should refer to a resource which describes the reason for the exception
+    A particular community may choose to assign more detailed semantics to the standard values provided. Alternatively, the URI method enables a specific or more complete explanation for the absence of a value to be provided elsewhere and indicated by-reference in an instance document.
+    gml:NilReasonType is used as a member of a union in a number of simple content types where it is necessary to permit a value from the NilReasonType union as an alternative to the primary type.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    value: Union[str, NilReasonEnumerationValue] = field(
+        default="",
+        metadata={
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class ReferenceType:
+    """
+    Gml:ReferenceType is intended to be used in application schemas directly, if a
+    property element shall use a "by-reference only" encoding.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    owns: bool = field(
+        default=False,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class StringOrRefType:
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class TimePrimitivePropertyType:
+    """
+    Gml:TimePrimitivePropertyType provides a standard content model for
+    associations between an arbitrary member of the substitution group whose head
+    is gml:AbstractTimePrimitive and another object.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+    owns: bool = field(
+        default=False,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+
+
+@dataclass
+class AnchorDefinition(CodeType):
+    """Gml:anchorDefinition is a description, possibly including coordinates, of
+    the definition used to anchor the datum to the Earth. Also known as the
+    "origin", especially for engineering and image datums. The codeSpace attribute
+    may be used to reference a source of more detailed on this point or surface, or
+    on a set of such descriptions.
+
+    -       For a geodetic datum, this point is also known as the fundamental point, which is traditionally the point where the relationship between geoid and ellipsoid is defined. In some cases, the "fundamental point" may consist of a number of points. In those cases, the parameters defining the geoid/ellipsoid relationship have been averaged for these points, and the averages adopted as the datum definition.
+    -       For an engineering datum, the anchor definition may be a physical point, or it may be a point with defined coordinates in another CRS.may
+    -       For an image datum, the anchor definition is usually either the centre of the image or the corner of the image.
+    -       For a temporal datum, this attribute is not defined. Instead of the anchor definition, a temporal datum carries a separate time origin of type DateTime.
+    """
+
+    class Meta:
+        name = "anchorDefinition"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class AxisAbbrev(CodeType):
+    """Gml:axisAbbrev is the abbreviation used for this coordinate system axis;
+    this abbreviation is also used to identify the coordinates in the coordinate
+    tuple.
+
+    The codeSpace attribute may reference a source of more information
+    on a set of standardized abbreviations, or on this abbreviation.
+    """
+
+    class Meta:
+        name = "axisAbbrev"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class CoordinateOperationAccuracy:
+    """Gml:coordinateOperationAccuracy is an association role to a
+    DQ_PositionalAccuracy object as encoded in ISO/TS 19139, either referencing or
+    containing the definition of that positional accuracy.
+
+    That object contains an estimate of the impact of this coordinate
+    operation on point accuracy. That is, it gives position error
+    estimates for the target coordinates of this coordinate operation,
+    assuming no errors in the source coordinates.
+    """
+
+    class Meta:
+        name = "coordinateOperationAccuracy"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class Name(CodeType):
+    """The gml:name property provides a label or identifier for the object,
+    commonly a descriptive name.
+
+    An object may have several names, typically assigned by different
+    authorities. gml:name uses the gml:CodeType content model.  The
+    authority for a name is indicated by the value of its (optional)
+    codeSpace attribute.  The name may or may not be unique, as
+    determined by the rules of the organization responsible for the
+    codeSpace.  In common usage there will be one name per authority, so
+    a processing application may select the name from its preferred
+    codeSpace.
+    """
+
+    class Meta:
+        name = "name"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class SecondDefiningParameter2:
+    """Gml:secondDefiningParameter is a property containing the definition of the
+    second parameter that defines the shape of an ellipsoid.
+
+    An ellipsoid requires two defining parameters: semi-major axis and inverse flattening or semi-major axis and semi-minor axis. When the reference body is a sphere rather than an ellipsoid, only a single defining parameter is required, namely the radius of the sphere; in that case, the semi-major axis "degenerates" into the radius of the sphere.
+    The inverseFlattening element contains the inverse flattening value of the ellipsoid. This value is a scale factor (or ratio). It uses gml:LengthType with the restriction that the unit of measure referenced by the uom attribute must be suitable for a scale factor, such as percent, permil, or parts-per-million.
+    The semiMinorAxis element contains the length of the semi-minor axis of the ellipsoid. When the isSphere element is included, the ellipsoid is degenerate and is actually a sphere. The sphere is completely defined by the semi-major axis, which is the radius of the sphere.
+    """
+
+    class Meta:
+        name = "secondDefiningParameter"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+    second_defining_parameter: Optional[SecondDefiningParameter1] = field(
+        default=None,
+        metadata={
+            "name": "SecondDefiningParameter",
+            "type": "Element",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class Actuate:
+    """The 'actuate' attribute is used to communicate the desired timing of
+    traversal from the starting resource to the ending resource;
+
+    it's value should be treated as follows:
+    onLoad - traverse to the ending resource immediately on loading
+    the starting resource
+    onRequest - traverse from the starting resource to the ending
+    resource only on a post-loading event triggered for
+    this purpose
+    other - behavior is unconstrained; examine other markup in link
+    for hints
+    none - behavior is unconstrained
+    """
+
+    class Meta:
+        name = "actuate"
+        namespace = "http://www.w3.org/1999/xlink"
+
+    value: Optional[ActuateValue] = field(default=None)
+
+
+@dataclass
+class Show:
+    """The 'show' attribute is used to communicate the desired presentation of the
+    ending resource on traversal from the starting resource; it's.
+
+    value should be treated as follows:
+    new - load ending resource in a new window, frame, pane, or other
+    presentation context
+    replace - load the resource in the same window, frame, pane, or
+    other presentation context
+    embed - load ending resource in place of the presentation of the
+    starting resource
+    other - behavior is unconstrained; examine other markup in the
+    link for hints
+    none - behavior is unconstrained
+    """
+
+    class Meta:
+        name = "show"
+        namespace = "http://www.w3.org/1999/xlink"
+
+    value: Optional[ShowValue] = field(default=None)
+
+
+@dataclass
+class AbstractCitedDataObject(AbstractObject1):
     """The Mother Class for all Top Level Elements in RESQML.
 
     Inherits from the commonv2 AbstractDataObject. The purpose of this
     derivation is simply to make the Citation element mandatory.
     Appropriate to use as a base class in any ML where this is desired.
     """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
 
     citation: Optional[Citation] = field(
         default=None,
@@ -7615,7 +9985,7 @@ class AbstractCitedDataObject(AbstractObject):
 
 
 @dataclass
-class AbstractContextualObject(AbstractObject):
+class AbstractContextualObject(AbstractObject1):
     """
     Substitution group for contextual objects.
     """
@@ -7625,7 +9995,7 @@ class AbstractContextualObject(AbstractObject):
 
 
 @dataclass
-class AbstractDataObject(AbstractObject):
+class AbstractDataObject(AbstractObject1):
     """
     Substitution group for normative data objects.
     """
@@ -7635,10 +10005,414 @@ class AbstractDataObject(AbstractObject):
 
 
 @dataclass
-class ProjectedCrs(AbstractCitedDataObject):
+class CharacterStringPropertyType:
+    class Meta:
+        name = "CharacterString_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gco"
+
+    dq_evaluation_method_type_code: Optional[
+        DqEvaluationMethodTypeCode
+    ] = field(
+        default=None,
+        metadata={
+            "name": "DQ_EvaluationMethodTypeCode",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    ci_presentation_form_code: Optional[CiPresentationFormCode] = field(
+        default=None,
+        metadata={
+            "name": "CI_PresentationFormCode",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    ci_role_code: Optional[CiRoleCode] = field(
+        default=None,
+        metadata={
+            "name": "CI_RoleCode",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    ci_on_line_function_code: Optional[CiOnLineFunctionCode] = field(
+        default=None,
+        metadata={
+            "name": "CI_OnLineFunctionCode",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    ci_date_type_code: Optional[CiDateTypeCode] = field(
+        default=None,
+        metadata={
+            "name": "CI_DateTypeCode",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    character_string: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "CharacterString",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gco",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class AbstractDqResult(AbstractDqResultType):
+    class Meta:
+        name = "AbstractDQ_Result"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class AbstractExGeographicExtentType(AbstractObjectType):
+    """
+    Geographic area of the dataset.
+    """
+
+    class Meta:
+        name = "AbstractEX_GeographicExtent_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    extent_type_code: Optional[BooleanPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "extentTypeCode",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+
+
+@dataclass
+class CiDateTypeCodePropertyType:
+    class Meta:
+        name = "CI_DateTypeCode_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ci_date_type_code: Optional[CiDateTypeCode] = field(
+        default=None,
+        metadata={
+            "name": "CI_DateTypeCode",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class CiOnLineFunctionCodePropertyType:
+    class Meta:
+        name = "CI_OnLineFunctionCode_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ci_on_line_function_code: Optional[CiOnLineFunctionCode] = field(
+        default=None,
+        metadata={
+            "name": "CI_OnLineFunctionCode",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class CiPresentationFormCodePropertyType:
+    class Meta:
+        name = "CI_PresentationFormCode_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ci_presentation_form_code: Optional[CiPresentationFormCode] = field(
+        default=None,
+        metadata={
+            "name": "CI_PresentationFormCode",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class CiRoleCodePropertyType:
+    class Meta:
+        name = "CI_RoleCode_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ci_role_code: Optional[CiRoleCode] = field(
+        default=None,
+        metadata={
+            "name": "CI_RoleCode",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class DqEvaluationMethodTypeCodePropertyType:
+    class Meta:
+        name = "DQ_EvaluationMethodTypeCode_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    dq_evaluation_method_type_code: Optional[
+        DqEvaluationMethodTypeCode
+    ] = field(
+        default=None,
+        metadata={
+            "name": "DQ_EvaluationMethodTypeCode",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class ExTemporalExtentType(AbstractObjectType):
+    """
+    Time period covered by the content of the dataset.
+    """
+
+    class Meta:
+        name = "EX_TemporalExtent_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    extent: Optional[TmPrimitivePropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class ExVerticalExtentType(AbstractObjectType):
+    """
+    Vertical domain of dataset.
+    """
+
+    class Meta:
+        name = "EX_VerticalExtent_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    minimum_value: Optional[RealPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "minimumValue",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+            "required": True,
+        },
+    )
+    maximum_value: Optional[RealPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "maximumValue",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+            "required": True,
+        },
+    )
+    vertical_crs: Optional[ScCrsPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "verticalCRS",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class RelatedTimeType(TimePrimitivePropertyType):
+    """Gml:RelatedTimeType provides a content model for indicating the relative
+    position of an arbitrary member of the substitution group whose head is
+    gml:AbstractTimePrimitive.
+
+    It extends the generic gml:TimePrimitivePropertyType with an XML
+    attribute relativePosition, whose value is selected from the set of
+    13 temporal relationships identified by Allen (1983)
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    relative_position: Optional[RelatedTimeTypeRelativePosition] = field(
+        default=None,
+        metadata={
+            "name": "relativePosition",
+            "type": "Attribute",
+        },
+    )
+
+
+@dataclass
+class AxisDirection(CodeWithAuthorityType):
+    """Gml:axisDirection is the direction of this coordinate system axis (or in the
+    case of Cartesian projected coordinates, the direction of this coordinate
+    system axis at the origin).
+
+    Within any set of coordinate system axes, only one of each pair of
+    terms may be used. For earth-fixed CRSs, this direction is often
+    approximate and intended to provide a human interpretable meaning to
+    the axis. When a geodetic datum is used, the precise directions of
+    the axes may therefore vary slightly from this approximate
+    direction. The codeSpace attribute shall reference a source of
+    information specifying the values and meanings of all the allowed
+    string values for this property.
+    """
+
+    class Meta:
+        name = "axisDirection"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class Conversion(GeneralConversionPropertyType):
+    """
+    Gml:conversion is an association role to the coordinate conversion used to
+    define the derived CRS.
+    """
+
+    class Meta:
+        name = "conversion"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class Description(StringOrRefType):
+    """The value of this property is a text description of the object.
+
+    gml:description uses gml:StringOrRefType as its content model, so it
+    may contain a simple text string content, or carry a reference to an
+    external description. The use of gml:description to reference an
+    external description has been deprecated and replaced by the
+    gml:descriptionReference property.
+    """
+
+    class Meta:
+        name = "description"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class DescriptionReference(ReferenceType):
+    """The value of this property is a remote text description of the object.
+
+    The xlink:href attribute of the gml:descriptionReference property
+    references the external description.
+    """
+
+    class Meta:
+        name = "descriptionReference"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class Identifier(CodeWithAuthorityType):
+    """Often, a special identifier is assigned to an object by the maintaining
+    authority with the intention that it is used in references to the object For
+    such cases, the codeSpace shall be provided.
+
+    That identifier is usually unique either globally or within an
+    application domain. gml:identifier is a pre-defined property for
+    such identifiers.
+    """
+
+    class Meta:
+        name = "identifier"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class RangeMeaning(CodeWithAuthorityType):
+    """Gml:rangeMeaning describes the meaning of axis value range specified by
+    gml:minimumValue and gml:maximumValue.
+
+    This element shall be omitted when both gml:minimumValue and
+    gml:maximumValue are omitted. This element should be included when
+    gml:minimumValue and/or gml:maximumValue are included. If this
+    element is omitted when the gml:minimumValue and/or gml:maximumValue
+    are included, the meaning is unspecified. The codeSpace attribute
+    shall reference a source of information specifying the values and
+    meanings of all the allowed string values for this property.
+    """
+
+    class Meta:
+        name = "rangeMeaning"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class ProjectedCrs1(AbstractCitedDataObject):
     """
     This is the Energistics encapsulation of the ProjectedCrs type from GML.
     """
+
+    class Meta:
+        name = "ProjectedCrs"
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
 
     axis_order: Optional[AxisOrder2D] = field(
         default=None,
@@ -7667,7 +10441,11 @@ class ProjectedCrs(AbstractCitedDataObject):
 
 
 @dataclass
-class VerticalCrs(AbstractCitedDataObject):
+class VerticalCrs1(AbstractCitedDataObject):
+    class Meta:
+        name = "VerticalCrs"
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
     direction: Optional[VerticalDirection] = field(
         default=None,
         metadata={
@@ -7708,6 +10486,7 @@ class ObjEpcExternalPartReference(AbstractCitedDataObject):
 
     class Meta:
         name = "obj_EpcExternalPartReference"
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
 
     mime_type: Optional[str] = field(
         default=None,
@@ -7721,6 +10500,3761 @@ class ObjEpcExternalPartReference(AbstractCitedDataObject):
 
 
 @dataclass
+class AbstractExGeographicExtent(AbstractExGeographicExtentType):
+    class Meta:
+        name = "AbstractEX_GeographicExtent"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class CiAddressType(AbstractObjectType):
+    """
+    Location of the responsible individual or organisation.
+    """
+
+    class Meta:
+        name = "CI_Address_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    delivery_point: List[CharacterStringPropertyType] = field(
+        default_factory=list,
+        metadata={
+            "name": "deliveryPoint",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    city: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    administrative_area: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "administrativeArea",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    postal_code: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "postalCode",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    country: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    electronic_mail_address: List[CharacterStringPropertyType] = field(
+        default_factory=list,
+        metadata={
+            "name": "electronicMailAddress",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+
+
+@dataclass
+class CiDateType(AbstractObjectType):
+    class Meta:
+        name = "CI_Date_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    date: Optional[DatePropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+            "required": True,
+        },
+    )
+    date_type: Optional[CiDateTypeCodePropertyType] = field(
+        default=None,
+        metadata={
+            "name": "dateType",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class CiOnlineResourceType(AbstractObjectType):
+    """
+    Information about online sources from which the dataset, specification, or
+    community profile name and extended metadata elements can be obtained.
+    """
+
+    class Meta:
+        name = "CI_OnlineResource_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    linkage: Optional[UrlPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+            "required": True,
+        },
+    )
+    protocol: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    application_profile: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "applicationProfile",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    name: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    description: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    function: Optional[CiOnLineFunctionCodePropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+
+
+@dataclass
+class CiSeriesType(AbstractObjectType):
+    class Meta:
+        name = "CI_Series_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    name: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    issue_identification: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "issueIdentification",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    page: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+
+
+@dataclass
+class CiTelephoneType(AbstractObjectType):
+    """
+    Telephone numbers for contacting the responsible individual or organisation.
+    """
+
+    class Meta:
+        name = "CI_Telephone_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    voice: List[CharacterStringPropertyType] = field(
+        default_factory=list,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    facsimile: List[CharacterStringPropertyType] = field(
+        default_factory=list,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+
+
+@dataclass
+class ExTemporalExtent(ExTemporalExtentType):
+    class Meta:
+        name = "EX_TemporalExtent"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class ExVerticalExtent(ExVerticalExtentType):
+    class Meta:
+        name = "EX_VerticalExtent"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class AbstractGmltype:
+    class Meta:
+        name = "AbstractGMLType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    description: Optional[Description] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    description_reference: Optional[DescriptionReference] = field(
+        default=None,
+        metadata={
+            "name": "descriptionReference",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    identifier: Optional[Identifier] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    name: List[Name] = field(
+        default_factory=list,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    id: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
 class EpcExternalPartReference(ObjEpcExternalPartReference):
     class Meta:
         namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+
+@dataclass
+class CiAddress(CiAddressType):
+    class Meta:
+        name = "CI_Address"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class CiDate(CiDateType):
+    class Meta:
+        name = "CI_Date"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class CiOnlineResource(CiOnlineResourceType):
+    class Meta:
+        name = "CI_OnlineResource"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class CiSeries(CiSeriesType):
+    class Meta:
+        name = "CI_Series"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class CiTelephone(CiTelephoneType):
+    class Meta:
+        name = "CI_Telephone"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class ExTemporalExtentPropertyType:
+    class Meta:
+        name = "EX_TemporalExtent_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ex_temporal_extent: Optional[ExTemporalExtent] = field(
+        default=None,
+        metadata={
+            "name": "EX_TemporalExtent",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class ExVerticalExtentPropertyType:
+    class Meta:
+        name = "EX_VerticalExtent_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ex_vertical_extent: Optional[ExVerticalExtent] = field(
+        default=None,
+        metadata={
+            "name": "EX_VerticalExtent",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class AbstractGml(AbstractGmltype):
+    """The abstract element gml:AbstractGML is "any GML object having identity".
+
+    It acts as the head of an XML Schema substitution group, which may
+    include any element which is a GML feature, or other object, with
+    identity.  This is used as a variable in content models in GML core
+    and application schemas.  It is effectively an abstract superclass
+    for all GML objects.
+    """
+
+    class Meta:
+        name = "AbstractGML"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class AbstractTimeObjectType(AbstractGmltype):
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class DefinitionBaseType(AbstractGmltype):
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    identifier: Optional[Identifier] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class CiAddressPropertyType:
+    class Meta:
+        name = "CI_Address_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ci_address: Optional[CiAddress] = field(
+        default=None,
+        metadata={
+            "name": "CI_Address",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class CiDatePropertyType:
+    class Meta:
+        name = "CI_Date_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ci_date: Optional[CiDate] = field(
+        default=None,
+        metadata={
+            "name": "CI_Date",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class CiOnlineResourcePropertyType:
+    class Meta:
+        name = "CI_OnlineResource_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ci_online_resource: Optional[CiOnlineResource] = field(
+        default=None,
+        metadata={
+            "name": "CI_OnlineResource",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class CiSeriesPropertyType:
+    class Meta:
+        name = "CI_Series_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ci_series: Optional[CiSeries] = field(
+        default=None,
+        metadata={
+            "name": "CI_Series",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class CiTelephonePropertyType:
+    class Meta:
+        name = "CI_Telephone_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ci_telephone: Optional[CiTelephone] = field(
+        default=None,
+        metadata={
+            "name": "CI_Telephone",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class ExExtentType(AbstractObjectType):
+    """
+    Information about spatial, vertical, and temporal extent.
+    """
+
+    class Meta:
+        name = "EX_Extent_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    description: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    geographic_element: List[ExGeographicExtentPropertyType] = field(
+        default_factory=list,
+        metadata={
+            "name": "geographicElement",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    temporal_element: List[ExTemporalExtentPropertyType] = field(
+        default_factory=list,
+        metadata={
+            "name": "temporalElement",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    vertical_element: List[ExVerticalExtentPropertyType] = field(
+        default_factory=list,
+        metadata={
+            "name": "verticalElement",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+
+
+@dataclass
+class AbstractTimeObject(AbstractTimeObjectType):
+    """
+    Gml:AbstractTimeObject acts as the head of a substitution group for all
+    temporal primitives and complexes.
+    """
+
+    class Meta:
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class AbstractTimePrimitiveType(AbstractTimeObjectType):
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    related_time: List[RelatedTimeType] = field(
+        default_factory=list,
+        metadata={
+            "name": "relatedTime",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+
+
+@dataclass
+class DefinitionType(DefinitionBaseType):
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    remarks: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+
+
+@dataclass
+class CiContactType(AbstractObjectType):
+    """
+    Information required enabling contact with the  responsible person and/or
+    organisation.
+    """
+
+    class Meta:
+        name = "CI_Contact_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    phone: Optional[CiTelephonePropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    address: Optional[CiAddressPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    online_resource: Optional[CiOnlineResourcePropertyType] = field(
+        default=None,
+        metadata={
+            "name": "onlineResource",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    hours_of_service: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "hoursOfService",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    contact_instructions: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "contactInstructions",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+
+
+@dataclass
+class ExExtent(ExExtentType):
+    class Meta:
+        name = "EX_Extent"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class AbstractTimePrimitive(AbstractTimePrimitiveType):
+    """
+    Gml:AbstractTimePrimitive acts as the head of a substitution group for
+    geometric and topological temporal primitives.
+    """
+
+    class Meta:
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class Definition(DefinitionType):
+    """The basic gml:Definition element specifies a definition, which can be
+    included in or referenced by a dictionary.
+
+    The content model for a generic definition is a derivation from
+    gml:AbstractGMLType. The gml:description property element shall hold
+    the definition if this can be captured in a simple text string, or
+    the gml:descriptionReference property element may carry a link to a
+    description elsewhere. The gml:identifier element shall provide one
+    identifier identifying this definition. The identifier shall be
+    unique within the dictionaries using this definition. The gml:name
+    elements shall provide zero or more terms and synonyms for which
+    this is the definition. The gml:remarks element shall be used to
+    hold additional textual information that is not conceptually part of
+    the definition but is useful in understanding the definition.
+    """
+
+    class Meta:
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class IdentifiedObjectType(DefinitionType):
+    """Gml:IdentifiedObjectType provides identification properties of a CRS-related
+    object.
+
+    In gml:DefinitionType, the gml:identifier element shall be the
+    primary name by which this object is identified, encoding the "name"
+    attribute in the UML model. Zero or more of the gml:name elements
+    can be an unordered set of "identifiers", encoding the "identifier"
+    attribute in the UML model. Each of these gml:name elements can
+    reference elsewhere the object's defining information or be an
+    identifier by which this object can be referenced. Zero or more
+    other gml:name elements can be an unordered set of "alias"
+    alternative names by which this CRS related object is identified,
+    encoding the "alias" attributes in the UML model. An object may have
+    several aliases, typically used in different contexts. The context
+    for an alias is indicated by the value of its (optional) codeSpace
+    attribute. Any needed version information shall be included in the
+    codeSpace attribute of a gml:identifier and gml:name elements. In
+    this use, the gml:remarks element in the gml:DefinitionType shall
+    contain comments on or information about this object, including data
+    source information.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class CiContact(CiContactType):
+    class Meta:
+        name = "CI_Contact"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class CoordinateSystemAxisType(IdentifiedObjectType):
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    axis_abbrev: Optional[AxisAbbrev] = field(
+        default=None,
+        metadata={
+            "name": "axisAbbrev",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+    axis_direction: Optional[AxisDirection] = field(
+        default=None,
+        metadata={
+            "name": "axisDirection",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+    minimum_value: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "minimumValue",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    maximum_value: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "maximumValue",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    range_meaning: Optional[RangeMeaning] = field(
+        default=None,
+        metadata={
+            "name": "rangeMeaning",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+
+
+@dataclass
+class EllipsoidType(IdentifiedObjectType):
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    semi_major_axis: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "semiMajorAxis",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+    second_defining_parameter: Optional[SecondDefiningParameter2] = field(
+        default=None,
+        metadata={
+            "name": "secondDefiningParameter",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class PrimeMeridianType(IdentifiedObjectType):
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    greenwich_longitude: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "greenwichLongitude",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class DomainOfValidity:
+    """
+    The gml:domainOfValidity property implements an association role to an
+    EX_Extent object as encoded in ISO/TS 19139, either referencing or containing
+    the definition of that extent.
+    """
+
+    class Meta:
+        name = "domainOfValidity"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+    ex_extent: Optional[ExExtent] = field(
+        default=None,
+        metadata={
+            "name": "EX_Extent",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class CiContactPropertyType:
+    class Meta:
+        name = "CI_Contact_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ci_contact: Optional[CiContact] = field(
+        default=None,
+        metadata={
+            "name": "CI_Contact",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class AbstractCrstype(IdentifiedObjectType):
+    class Meta:
+        name = "AbstractCRSType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    domain_of_validity: List[DomainOfValidity] = field(
+        default_factory=list,
+        metadata={
+            "name": "domainOfValidity",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    scope: List[str] = field(
+        default_factory=list,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "min_occurs": 1,
+        },
+    )
+
+
+@dataclass
+class AbstractDatumType(IdentifiedObjectType):
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    domain_of_validity: Optional[DomainOfValidity] = field(
+        default=None,
+        metadata={
+            "name": "domainOfValidity",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    scope: List[str] = field(
+        default_factory=list,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "min_occurs": 1,
+        },
+    )
+    anchor_definition: Optional[AnchorDefinition] = field(
+        default=None,
+        metadata={
+            "name": "anchorDefinition",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    realization_epoch: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "realizationEpoch",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+
+
+@dataclass
+class CoordinateSystemAxis(CoordinateSystemAxisType):
+    """
+    Gml:CoordinateSystemAxis is a definition of a coordinate system axis.
+    """
+
+    class Meta:
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class Ellipsoid1(EllipsoidType):
+    """A gml:Ellipsoid is a geometric figure that may be used to describe the
+    approximate shape of the earth.
+
+    In mathematical terms, it is a surface formed by the rotation of an
+    ellipse about its minor axis.
+    """
+
+    class Meta:
+        name = "Ellipsoid"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class PrimeMeridian1(PrimeMeridianType):
+    """A gml:PrimeMeridian defines the origin from which longitude values are
+    determined.
+
+    The default value for the prime meridian gml:identifier value is
+    "Greenwich".
+    """
+
+    class Meta:
+        name = "PrimeMeridian"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class CiResponsiblePartyType(AbstractObjectType):
+    """
+    Identification of, and means of communication with, person(s) and organisations
+    associated with the dataset.
+    """
+
+    class Meta:
+        name = "CI_ResponsibleParty_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    individual_name: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "individualName",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    organisation_name: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "organisationName",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    position_name: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "positionName",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    contact_info: Optional[CiContactPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "contactInfo",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    role: Optional[CiRoleCodePropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class AbstractCrs(AbstractCrstype):
+    """Gml:AbstractCRS specifies a coordinate reference system which is usually
+    single but may be compound.
+
+    This abstract complex type shall not be used, extended, or
+    restricted, in a GML Application Schema, to define a concrete
+    subtype with a meaning equivalent to a concrete subtype specified in
+    this document.
+    """
+
+    class Meta:
+        name = "AbstractCRS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class AbstractDatum(AbstractDatumType):
+    """A gml:AbstractDatum specifies the relationship of a coordinate system to the
+    earth, thus creating a coordinate reference system.
+
+    A datum uses a parameter or set of parameters that determine the
+    location of the origin of the coordinate reference system. Each
+    datum subtype may be associated with only specific types of
+    coordinate systems. This abstract complex type shall not be used,
+    extended, or restricted, in a GML Application Schema, to define a
+    concrete subtype with a meaning equivalent to a concrete subtype
+    specified in this document.
+    """
+
+    class Meta:
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class AbstractGeneralDerivedCrstype(AbstractCrstype):
+    class Meta:
+        name = "AbstractGeneralDerivedCRSType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    conversion: Optional[Conversion] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class AbstractSingleCrs(AbstractCrstype):
+    """
+    Gml:AbstractSingleCRS implements a coordinate reference system consisting of
+    one coordinate system and one datum (as opposed to a Compound CRS).
+    """
+
+    class Meta:
+        name = "AbstractSingleCRS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class CoordinateSystemAxisPropertyType:
+    """
+    Gml:CoordinateSystemAxisPropertyType is a property type for association roles
+    to a coordinate system axis, either referencing or containing the definition of
+    that axis.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    coordinate_system_axis: Optional[CoordinateSystemAxis] = field(
+        default=None,
+        metadata={
+            "name": "CoordinateSystemAxis",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class EllipsoidPropertyType:
+    """
+    Gml:EllipsoidPropertyType is a property type for association roles to an
+    ellipsoid, either referencing or containing the definition of that ellipsoid.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    ellipsoid: Optional[Ellipsoid1] = field(
+        default=None,
+        metadata={
+            "name": "Ellipsoid",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class PrimeMeridianPropertyType:
+    """
+    Gml:PrimeMeridianPropertyType is a property type for association roles to a
+    prime meridian, either referencing or containing the definition of that
+    meridian.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    prime_meridian: Optional[PrimeMeridian1] = field(
+        default=None,
+        metadata={
+            "name": "PrimeMeridian",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class VerticalDatumType(AbstractDatumType):
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class CiResponsibleParty(CiResponsiblePartyType):
+    class Meta:
+        name = "CI_ResponsibleParty"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class AbstractGeneralDerivedCrs(AbstractGeneralDerivedCrstype):
+    """Gml:AbstractGeneralDerivedCRS is a coordinate reference system that is
+    defined by its coordinate conversion from another coordinate reference system.
+
+    This abstract complex type shall not be used, extended, or
+    restricted, in a GML Application Schema, to define a concrete
+    subtype with a meaning equivalent to a concrete subtype specified in
+    this document.
+    """
+
+    class Meta:
+        name = "AbstractGeneralDerivedCRS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class VerticalDatum1(VerticalDatumType):
+    """
+    Gml:VerticalDatum is a textual description and/or a set of parameters
+    identifying a particular reference level surface used as a zero-height surface,
+    including its position with respect to the Earth for any of the height types
+    recognized by this International Standard.
+    """
+
+    class Meta:
+        name = "VerticalDatum"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class Axis(CoordinateSystemAxisPropertyType):
+    """The gml:axis property is an association role (ordered sequence) to the
+    coordinate system axes included in this coordinate system.
+
+    The coordinate values in a coordinate tuple shall be recorded in the
+    order in which the coordinate system axes associations are recorded,
+    whenever those coordinates use a coordinate reference system that
+    uses this coordinate system. The gml:AggregationAttributeGroup
+    should be used to specify that the axis objects are ordered.
+    """
+
+    class Meta:
+        name = "axis"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class Ellipsoid2(EllipsoidPropertyType):
+    """
+    Gml:ellipsoid is an association role to the ellipsoid used by this geodetic
+    datum.
+    """
+
+    class Meta:
+        name = "ellipsoid"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class PrimeMeridian2(PrimeMeridianPropertyType):
+    """
+    Gml:primeMeridian is an association role to the prime meridian used by this
+    geodetic datum.
+    """
+
+    class Meta:
+        name = "primeMeridian"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class CiResponsiblePartyPropertyType:
+    class Meta:
+        name = "CI_ResponsibleParty_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ci_responsible_party: Optional[CiResponsibleParty] = field(
+        default=None,
+        metadata={
+            "name": "CI_ResponsibleParty",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class AbstractCoordinateSystemType(IdentifiedObjectType):
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    axis: List[Axis] = field(
+        default_factory=list,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "min_occurs": 1,
+        },
+    )
+    aggregation_type: Optional[AggregationType] = field(
+        default=None,
+        metadata={
+            "name": "aggregationType",
+            "type": "Attribute",
+        },
+    )
+
+
+@dataclass
+class GeodeticDatumType(AbstractDatumType):
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    prime_meridian: Optional[PrimeMeridian2] = field(
+        default=None,
+        metadata={
+            "name": "primeMeridian",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+    ellipsoid: Optional[Ellipsoid2] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class VerticalDatumPropertyType:
+    """
+    Gml:VerticalDatumPropertyType is property type for association roles to a
+    vertical datum, either referencing or containing the definition of that datum.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    vertical_datum: Optional[VerticalDatum1] = field(
+        default=None,
+        metadata={
+            "name": "VerticalDatum",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class CiCitationType(AbstractObjectType):
+    """
+    Standardized resource reference.
+    """
+
+    class Meta:
+        name = "CI_Citation_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    title: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+            "required": True,
+        },
+    )
+    alternate_title: List[CharacterStringPropertyType] = field(
+        default_factory=list,
+        metadata={
+            "name": "alternateTitle",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    date: List[CiDatePropertyType] = field(
+        default_factory=list,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+            "min_occurs": 1,
+        },
+    )
+    edition: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    edition_date: Optional[DatePropertyType] = field(
+        default=None,
+        metadata={
+            "name": "editionDate",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    identifier: List[MdIdentifierPropertyType] = field(
+        default_factory=list,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    cited_responsible_party: List[CiResponsiblePartyPropertyType] = field(
+        default_factory=list,
+        metadata={
+            "name": "citedResponsibleParty",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    presentation_form: List[CiPresentationFormCodePropertyType] = field(
+        default_factory=list,
+        metadata={
+            "name": "presentationForm",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    series: Optional[CiSeriesPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    other_citation_details: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "otherCitationDetails",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    collective_title: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "collectiveTitle",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    isbn: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "ISBN",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    issn: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "ISSN",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+
+
+@dataclass
+class AbstractCoordinateSystem(AbstractCoordinateSystemType):
+    """Gml:AbstractCoordinateSystem is a coordinate system (CS) is the non-
+    repeating sequence of coordinate system axes that spans a given coordinate
+    space.
+
+    A CS is derived from a set of mathematical rules for specifying how
+    coordinates in a given space are to be assigned to points. The
+    coordinate values in a coordinate tuple shall be recorded in the
+    order in which the coordinate system axes associations are recorded.
+    This abstract complex type shall not be used, extended, or
+    restricted, in an Application Schema, to define a concrete subtype
+    with a meaning equivalent to a concrete subtype specified in this
+    document.
+    """
+
+    class Meta:
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class CartesianCstype(AbstractCoordinateSystemType):
+    class Meta:
+        name = "CartesianCSType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class EllipsoidalCstype(AbstractCoordinateSystemType):
+    class Meta:
+        name = "EllipsoidalCSType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class GeodeticDatum1(GeodeticDatumType):
+    """
+    Gml:GeodeticDatum is a geodetic datum defines the precise location and
+    orientation in 3-dimensional space of a defined ellipsoid (or sphere), or of a
+    Cartesian coordinate system centered in this ellipsoid (or sphere).
+    """
+
+    class Meta:
+        name = "GeodeticDatum"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class SphericalCstype(AbstractCoordinateSystemType):
+    class Meta:
+        name = "SphericalCSType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class VerticalCstype(AbstractCoordinateSystemType):
+    class Meta:
+        name = "VerticalCSType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class VerticalDatum2(VerticalDatumPropertyType):
+    """
+    Gml:verticalDatum is an association role to the vertical datum used by this
+    CRS.
+    """
+
+    class Meta:
+        name = "verticalDatum"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class CiCitation(CiCitationType):
+    class Meta:
+        name = "CI_Citation"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class CartesianCs1(CartesianCstype):
+    """Gml:CartesianCS is a 1-, 2-, or 3-dimensional coordinate system.
+
+    In the 1-dimensional case, it contains a single straight coordinate
+    axis. In the 2- and 3-dimensional cases gives the position of points
+    relative to orthogonal straight axes. In the multi-dimensional case,
+    all axes shall have the same length unit of measure. A CartesianCS
+    shall have one, two, or three gml:axis property elements.
+    """
+
+    class Meta:
+        name = "CartesianCS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class EllipsoidalCs1(EllipsoidalCstype):
+    """Gml:EllipsoidalCS is a two- or three-dimensional coordinate system in which
+    position is specified by geodetic latitude, geodetic longitude, and (in the
+    three-dimensional case) ellipsoidal height.
+
+    An EllipsoidalCS shall have two or three gml:axis property elements;
+    the number of associations shall equal the dimension of the CS.
+    """
+
+    class Meta:
+        name = "EllipsoidalCS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class GeodeticDatumPropertyType:
+    """
+    Gml:GeodeticDatumPropertyType is a property type for association roles to a
+    geodetic datum, either referencing or containing the definition of that datum.
+    """
+
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    geodetic_datum: Optional[GeodeticDatum1] = field(
+        default=None,
+        metadata={
+            "name": "GeodeticDatum",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class SphericalCs1(SphericalCstype):
+    """Gml:SphericalCS is a three-dimensional coordinate system with one distance
+    measured from the origin and two angular coordinates.
+
+    A SphericalCS shall have three gml:axis property elements.
+    """
+
+    class Meta:
+        name = "SphericalCS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class VerticalCs1(VerticalCstype):
+    """Gml:VerticalCS is a one-dimensional coordinate system used to record the
+    heights or depths of points.
+
+    Such a coordinate system is usually dependent on the Earth's gravity
+    field, perhaps loosely as when atmospheric pressure is the basis for
+    the vertical coordinate system axis. A VerticalCS shall have one
+    gml:axis property element.
+    """
+
+    class Meta:
+        name = "VerticalCS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class CiCitationPropertyType:
+    class Meta:
+        name = "CI_Citation_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    ci_citation: Optional[CiCitation] = field(
+        default=None,
+        metadata={
+            "name": "CI_Citation",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class CartesianCspropertyType:
+    """
+    Gml:CartesianCSPropertyType is a property type for association roles to a
+    Cartesian coordinate system, either referencing or containing the definition of
+    that coordinate system.
+    """
+
+    class Meta:
+        name = "CartesianCSPropertyType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    cartesian_cs: Optional[CartesianCs1] = field(
+        default=None,
+        metadata={
+            "name": "CartesianCS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class EllipsoidalCspropertyType:
+    """
+    Gml:EllipsoidalCSPropertyType is a property type for association roles to an
+    ellipsoidal coordinate system, either referencing or containing the definition
+    of that coordinate system.
+    """
+
+    class Meta:
+        name = "EllipsoidalCSPropertyType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    ellipsoidal_cs: Optional[EllipsoidalCs1] = field(
+        default=None,
+        metadata={
+            "name": "EllipsoidalCS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class SphericalCspropertyType:
+    """
+    Gml:SphericalCSPropertyType is property type for association roles to a
+    spherical coordinate system, either referencing or containing the definition of
+    that coordinate system.
+    """
+
+    class Meta:
+        name = "SphericalCSPropertyType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    spherical_cs: Optional[SphericalCs1] = field(
+        default=None,
+        metadata={
+            "name": "SphericalCS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class VerticalCspropertyType:
+    """
+    Gml:VerticalCSPropertyType is a property type for association roles to a
+    vertical coordinate system, either referencing or containing the definition of
+    that coordinate system.
+    """
+
+    class Meta:
+        name = "VerticalCSPropertyType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    vertical_cs: Optional[VerticalCs1] = field(
+        default=None,
+        metadata={
+            "name": "VerticalCS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class GeodeticDatum2(GeodeticDatumPropertyType):
+    """
+    Gml:geodeticDatum is an association role to the geodetic datum used by this
+    CRS.
+    """
+
+    class Meta:
+        name = "geodeticDatum"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class MdIdentifierType(AbstractObjectType):
+    class Meta:
+        name = "MD_Identifier_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    authority: Optional[CiCitationPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    code: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class CartesianCs2(CartesianCspropertyType):
+    """
+    Gml:cartesianCS is an association role to the Cartesian coordinate system used
+    by this CRS.
+    """
+
+    class Meta:
+        name = "cartesianCS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class EllipsoidalCs2(EllipsoidalCspropertyType):
+    """
+    Gml:ellipsoidalCS is an association role to the ellipsoidal coordinate system
+    used by this CRS.
+    """
+
+    class Meta:
+        name = "ellipsoidalCS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class SphericalCs2(SphericalCspropertyType):
+    """
+    Gml:sphericalCS is an association role to the spherical coordinate system used
+    by this CRS.
+    """
+
+    class Meta:
+        name = "sphericalCS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class VerticalCs2(VerticalCspropertyType):
+    """
+    Gml:verticalCS is an association role to the vertical coordinate system used by
+    this CRS.
+    """
+
+    class Meta:
+        name = "verticalCS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class MdIdentifier(MdIdentifierType):
+    class Meta:
+        name = "MD_Identifier"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class GeodeticCrstype(AbstractCrstype):
+    """
+    Gml:GeodeticCRS is a coordinate reference system based on a geodetic datum.
+    """
+
+    class Meta:
+        name = "GeodeticCRSType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    ellipsoidal_cs: Optional[EllipsoidalCs2] = field(
+        default=None,
+        metadata={
+            "name": "ellipsoidalCS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    cartesian_cs: Optional[CartesianCs2] = field(
+        default=None,
+        metadata={
+            "name": "cartesianCS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    spherical_cs: Optional[SphericalCs2] = field(
+        default=None,
+        metadata={
+            "name": "sphericalCS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    geodetic_datum: Optional[GeodeticDatum2] = field(
+        default=None,
+        metadata={
+            "name": "geodeticDatum",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class VerticalCrstype(AbstractCrstype):
+    class Meta:
+        name = "VerticalCRSType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    vertical_cs: Optional[VerticalCs2] = field(
+        default=None,
+        metadata={
+            "name": "verticalCS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+    vertical_datum: Optional[VerticalDatum2] = field(
+        default=None,
+        metadata={
+            "name": "verticalDatum",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class GmlVerticalCrsDefinition(AbstractVerticalCrs):
+    """
+    This is the Energistics encapsulation of the ProjectedCrs type from GML.
+    """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+    gml_vertical_crs_definition: Optional[VerticalCrstype] = field(
+        default=None,
+        metadata={
+            "name": "GmlVerticalCrsDefinition",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/commonv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class MdIdentifierPropertyType:
+    class Meta:
+        name = "MD_Identifier_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    md_identifier: Optional[MdIdentifier] = field(
+        default=None,
+        metadata={
+            "name": "MD_Identifier",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class GeodeticCrs(GeodeticCrstype):
+    class Meta:
+        name = "GeodeticCRS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class VerticalCrs(VerticalCrstype):
+    """Gml:VerticalCRS is a 1D coordinate reference system used for recording
+    heights or depths.
+
+    Vertical CRSs make use of the direction of gravity to define the
+    concept of height or depth, but the relationship with gravity may
+    not be straightforward. By implication, ellipsoidal heights (h)
+    cannot be captured in a vertical coordinate reference system.
+    Ellipsoidal heights cannot exist independently, but only as an
+    inseparable part of a 3D coordinate tuple defined in a geographic 3D
+    coordinate reference system.
+    """
+
+    class Meta:
+        name = "VerticalCRS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class AbstractDqElementType(AbstractObjectType):
+    class Meta:
+        name = "AbstractDQ_Element_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+    name_of_measure: List[CharacterStringPropertyType] = field(
+        default_factory=list,
+        metadata={
+            "name": "nameOfMeasure",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    measure_identification: Optional[MdIdentifierPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "measureIdentification",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    measure_description: Optional[CharacterStringPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "measureDescription",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    evaluation_method_type: Optional[
+        DqEvaluationMethodTypeCodePropertyType
+    ] = field(
+        default=None,
+        metadata={
+            "name": "evaluationMethodType",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    evaluation_method_description: Optional[
+        CharacterStringPropertyType
+    ] = field(
+        default=None,
+        metadata={
+            "name": "evaluationMethodDescription",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    evaluation_procedure: Optional[CiCitationPropertyType] = field(
+        default=None,
+        metadata={
+            "name": "evaluationProcedure",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    date_time: List[DateTimePropertyType] = field(
+        default_factory=list,
+        metadata={
+            "name": "dateTime",
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+        },
+    )
+    result: List[DqResultPropertyType] = field(
+        default_factory=list,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.isotc211.org/2005/gmd",
+            "min_occurs": 1,
+            "max_occurs": 2,
+        },
+    )
+
+
+@dataclass
+class CrspropertyType:
+    """
+    Gml:CRSPropertyType is a property type for association roles to a CRS abstract
+    coordinate reference system, either referencing or containing the definition of
+    that CRS.
+    """
+
+    class Meta:
+        name = "CRSPropertyType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    vertical_crs: Optional[VerticalCrs] = field(
+        default=None,
+        metadata={
+            "name": "VerticalCRS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    projected_crs: Optional[ProjectedCrs] = field(
+        default=None,
+        metadata={
+            "name": "ProjectedCRS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    geodetic_crs: Optional[GeodeticCrs] = field(
+        default=None,
+        metadata={
+            "name": "GeodeticCRS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class GeodeticCrspropertyType:
+    """
+    Gml:GeodeticCRSPropertyType is a property type for association roles to a
+    geodetic coordinate reference system, either referencing or containing the
+    definition of that reference system.
+    """
+
+    class Meta:
+        name = "GeodeticCRSPropertyType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    geodetic_crs: Optional[GeodeticCrs] = field(
+        default=None,
+        metadata={
+            "name": "GeodeticCRS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class AbstractDqElement(AbstractDqElementType):
+    class Meta:
+        name = "AbstractDQ_Element"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class AbstractDqPositionalAccuracyType(AbstractDqElementType):
+    class Meta:
+        name = "AbstractDQ_PositionalAccuracy_Type"
+        target_namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class BaseGeodeticCrs(GeodeticCrspropertyType):
+    """
+    Gml:baseGeodeticCRS is an association role to the geodetic coordinate reference
+    system used by this projected CRS.
+    """
+
+    class Meta:
+        name = "baseGeodeticCRS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class SourceCrs(CrspropertyType):
+    """
+    Gml:sourceCRS is an association role to the source CRS (coordinate reference
+    system) of this coordinate operation.
+    """
+
+    class Meta:
+        name = "sourceCRS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class TargetCrs(CrspropertyType):
+    """
+    Gml:targetCRS is an association role to the target CRS (coordinate reference
+    system) of this coordinate operation.
+    """
+
+    class Meta:
+        name = "targetCRS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class AbstractDqPositionalAccuracy(AbstractDqPositionalAccuracyType):
+    class Meta:
+        name = "AbstractDQ_PositionalAccuracy"
+        namespace = "http://www.isotc211.org/2005/gmd"
+
+
+@dataclass
+class AbstractCoordinateOperationType(IdentifiedObjectType):
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    domain_of_validity: Optional[DomainOfValidity] = field(
+        default=None,
+        metadata={
+            "name": "domainOfValidity",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    scope: List[str] = field(
+        default_factory=list,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "min_occurs": 1,
+        },
+    )
+    operation_version: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "operationVersion",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    coordinate_operation_accuracy: List[CoordinateOperationAccuracy] = field(
+        default_factory=list,
+        metadata={
+            "name": "coordinateOperationAccuracy",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    source_crs: Optional[SourceCrs] = field(
+        default=None,
+        metadata={
+            "name": "sourceCRS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    target_crs: Optional[TargetCrs] = field(
+        default=None,
+        metadata={
+            "name": "targetCRS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+
+
+@dataclass
+class ProjectedCrstype(AbstractGeneralDerivedCrstype):
+    class Meta:
+        name = "ProjectedCRSType"
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    base_geodetic_crs: Optional[BaseGeodeticCrs] = field(
+        default=None,
+        metadata={
+            "name": "baseGeodeticCRS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+    cartesian_cs: Optional[CartesianCs2] = field(
+        default=None,
+        metadata={
+            "name": "cartesianCS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class GmlProjectedCrsDefinition(AbstractProjectedCrs):
+    """
+    This is the Energistics encapsulation of the ProjectedCrs type from GML.
+    """
+
+    class Meta:
+        target_namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+    gml_projected_crs_definition: Optional[ProjectedCrstype] = field(
+        default=None,
+        metadata={
+            "name": "GmlProjectedCrsDefinition",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/commonv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class AbstractCoordinateOperation(AbstractCoordinateOperationType):
+    """Gml:AbstractCoordinateOperation is a mathematical operation on coordinates
+    that transforms or converts coordinates to another coordinate reference system.
+
+    Many but not all coordinate operations (from CRS A to CRS B) also
+    uniquely define the inverse operation (from CRS B to CRS A). In some
+    cases, the operation method algorithm for the inverse operation is
+    the same as for the forward algorithm, but the signs of some
+    operation parameter values shall be reversed. In other cases,
+    different algorithms are required for the forward and inverse
+    operations, but the same operation parameter values are used. If
+    (some) entirely different parameter values are needed, a different
+    coordinate operation shall be defined. The optional
+    coordinateOperationAccuracy property elements provide estimates of
+    the impact of this coordinate operation on point position accuracy.
+    """
+
+    class Meta:
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class AbstractGeneralConversionType(AbstractCoordinateOperationType):
+    class Meta:
+        target_namespace = "http://www.opengis.net/gml/3.2"
+
+    operation_version: Any = field(
+        init=False,
+        metadata={
+            "type": "Ignore",
+        },
+    )
+    source_crs: Any = field(
+        init=False,
+        metadata={
+            "type": "Ignore",
+        },
+    )
+    target_crs: Any = field(
+        init=False,
+        metadata={
+            "type": "Ignore",
+        },
+    )
+    identifier: Optional[Identifier] = field(
+        default=None,
+        metadata={
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class AbstractOperation(AbstractCoordinateOperationType):
+    class Meta:
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class AbstractSingleOperation(AbstractCoordinateOperationType):
+    """
+    Gml:AbstractSingleOperation is a single (not concatenated) coordinate
+    operation.
+    """
+
+    class Meta:
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class ProjectedCrs(ProjectedCrstype):
+    """Gml:ProjectedCRS is a 2D coordinate reference system used to approximate the
+    shape of the earth on a planar surface, but in such a way that the distortion
+    that is inherent to the approximation is carefully controlled and known.
+
+    Distortion correction is commonly applied to calculated bearings and
+    distances to produce values that are a close match to actual field
+    values.
+    """
+
+    class Meta:
+        name = "ProjectedCRS"
+        namespace = "http://www.opengis.net/gml/3.2"
+
+
+@dataclass
+class ScCrsPropertyType:
+    class Meta:
+        name = "SC_CRS_PropertyType"
+        target_namespace = "http://www.isotc211.org/2005/gsr"
+
+    vertical_crs: Optional[VerticalCrs] = field(
+        default=None,
+        metadata={
+            "name": "VerticalCRS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    projected_crs: Optional[ProjectedCrs] = field(
+        default=None,
+        metadata={
+            "name": "ProjectedCRS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    geodetic_crs: Optional[GeodeticCrs] = field(
+        default=None,
+        metadata={
+            "name": "GeodeticCRS",
+            "type": "Element",
+            "namespace": "http://www.opengis.net/gml/3.2",
+        },
+    )
+    type_value: str = field(
+        init=False,
+        default="simple",
+        metadata={
+            "name": "type",
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    href: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    role: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    arcrole: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    title: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    show: Optional[ShowValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    actuate: Optional[ActuateValue] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "namespace": "http://www.w3.org/1999/xlink",
+        },
+    )
+    uuidref: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+        },
+    )
+    nil_reason: Optional[Union[str, NilReasonEnumerationValue]] = field(
+        default=None,
+        metadata={
+            "name": "nilReason",
+            "type": "Attribute",
+            "namespace": "http://www.isotc211.org/2005/gco",
+            "pattern": r"other:\w{2,}",
+        },
+    )
+
+
+@dataclass
+class AbstractGeneralConversion(AbstractGeneralConversionType):
+    """Gm:AbstractGeneralConversion is an abstract operation on coordinates that
+    does not include any change of datum.
+
+    The best-known example of a coordinate conversion is a map projection. The parameters describing coordinate conversions are defined rather than empirically derived. Note that some conversions have no parameters. The operationVersion, sourceCRS, and targetCRS elements are omitted in a coordinate conversion.
+    This abstract complex type is expected to be extended for well-known operation methods with many Conversion instances, in GML Application Schemas that define operation-method-specialized element names and contents. This conversion uses an operation method, usually with associated parameter values. However, operation methods and parameter values are directly associated with concrete subtypes, not with this abstract type. All concrete types derived from this type shall extend this type to include a "usesMethod" element that references the "OperationMethod" element. Similarly, all concrete types derived from this type shall extend this type to include zero or more elements each named "uses...Value" that each use the type of an element substitutable for the "AbstractGeneralParameterValue" element.
+    """
+
+    class Meta:
+        namespace = "http://www.opengis.net/gml/3.2"

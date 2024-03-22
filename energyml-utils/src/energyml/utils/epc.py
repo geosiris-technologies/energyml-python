@@ -1,6 +1,7 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import datetime
+import re
 import zipfile
 from dataclasses import dataclass, field
 from enum import Enum
@@ -23,6 +24,17 @@ from .xml import is_energyml_content_type
 
 RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
 RELS_FOLDER_NAME = "_rels"
+
+
+class NoCrsException(Exception):
+    pass
+
+
+@dataclass
+class ObjectNotFoundNotException(Exception):
+    obj_id: str = field(
+        default=None
+    )
 
 
 class EpcExportVersion(Enum):
@@ -273,13 +285,23 @@ class Epc:
                 return o
         return None
 
+    def get_epc_file_foler(self) -> Optional[str]:
+        if self.epc_file_path is not None and len(self.epc_file_path) > 0:
+            folders_and_name = re.split(r"[\\/]", self.epc_file_path)
+            if len(folders_and_name) > 1:
+                return "/".join(folders_and_name[:-1])
+            else:
+                return ""
+        return None
 
     # Class methods
 
     @classmethod
     def read_file(cls, epc_file_path: str):
         with open(epc_file_path, "rb") as f:
-            return cls.read_stream(BytesIO(f.read()))
+            epc = cls.read_stream(BytesIO(f.read()))
+            epc.epc_file_path = epc_file_path
+            return epc
 
     @classmethod
     def read_stream(cls, epc_file_io: BytesIO):  # returns an Epc instance
@@ -306,6 +328,7 @@ class Epc:
                     print(f"No {content_type_file_name} file found")
                 else:
                     content_type_obj: Types = read_energyml_xml_bytes(epc_file.read(content_type_file_name))
+                    path_to_obj = {}
                     for ov in content_type_obj.override:
                         ov_ct = ov.content_type
                         ov_path = ov.part_name
@@ -314,12 +337,12 @@ class Epc:
                         if is_energyml_content_type(ov_ct):
                             _read_files.append(ov_path)
                             try:
-                                obj_list.append(
-                                    read_energyml_xml_bytes_as_class(
-                                        epc_file.read(ov_path),
-                                        get_class_from_content_type(ov_ct)
-                                    )
+                                ov_obj = read_energyml_xml_bytes_as_class(
+                                    epc_file.read(ov_path),
+                                    get_class_from_content_type(ov_ct)
                                 )
+                                path_to_obj[ov_path] = ov_obj
+                                obj_list.append(ov_obj)
                             except ParserError as e:
                                 print(f"Epc.@read_stream failed to parse file {ov_path} for content-type: {ov_ct} => {get_class_from_content_type(ov_ct)}")
                                 raise e
@@ -351,17 +374,20 @@ class Epc:
                                     epc_file.read(f_info.filename),
                                     Relationships
                                 )
-                                additional_rels_key = obj_folder + obj_file_name
-                                # print(f"\t{additional_rels_key}")
-                                for rel in rels_file.relationship:
-                                    # print(f"\t\t{rel.type_value}")
-                                    if (rel.type_value != EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
-                                            and rel.type_value != EPCRelsRelationshipType.SOURCE_OBJECT.get_type()
-                                            and rel.type_value != EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES.get_type()
-                                    ):  # not a computable relation
-                                        if additional_rels_key not in additional_rels:
-                                            additional_rels[additional_rels_key] = []
-                                        additional_rels[additional_rels_key].append(rel)
+                                obj_path = obj_folder + obj_file_name
+                                if obj_path in path_to_obj:
+                                    additional_rels_key = get_obj_identifier(path_to_obj[obj_path])
+                                    for rel in rels_file.relationship:
+                                        # print(f"\t\t{rel.type_value}")
+                                        if (rel.type_value != EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
+                                                and rel.type_value != EPCRelsRelationshipType.SOURCE_OBJECT.get_type()
+                                                and rel.type_value != EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES.get_type()
+                                        ):  # not a computable relation
+                                            if additional_rels_key not in additional_rels:
+                                                additional_rels[additional_rels_key] = []
+                                            additional_rels[additional_rels_key].append(rel)
+                                else:
+                                    print(f"xml file {obj_path} not found in EPC (rels is not associate to any object)")
 
             return Epc(energyml_objects=obj_list,
                        raw_files=raw_file_list,

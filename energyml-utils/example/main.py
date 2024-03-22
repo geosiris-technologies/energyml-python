@@ -335,6 +335,29 @@ def test_introspection():
     #     if callable(getattr(HDF5FileReader, func)) and not func.startswith("__"):
     #         print(f"\t{func} {type(getattr(HDF5FileReader, func))}")
     print(get_classes_matching_name(TriangulatedSetRepresentation, "Abstract.*"))
+    # print(get_matching_class_attribute_name(ExternalDataArrayPart, "(PathInHdfFile|PathInExternalFile)"))
+    # print(object.__module__)
+    # print(serialize_xml(random_value_from_class(PointSetRepresentation)))
+    # print(search_attribute_matching_type(random_value_from_class(PointSetRepresentation), "AbstractGeometry"))
+    print(get_sub_classes(AbstractPoint3DArray))
+
+    # =====================================================================
+
+    poly = read_energyml_xml_file("../rc/polyline_set_for_array_tests.xml")
+
+    # print(serialize_xml(poly))
+
+    print("=====] ", r"ClosedPolylines.\d+")
+    for array_path, array_value in search_attribute_matching_name_with_path(poly, r"ClosedPolylines.\d+"):
+        print(f"{array_path}\n\t{array_value}")
+
+    print("=====] ", r"ClosedPolylines.values.\d+")
+    for array_path, array_value in search_attribute_matching_name_with_path(poly, r"ClosedPolylines.values.\d+"):
+        print(f"{array_path}\n\t{array_value}")
+
+    print("=====] ", r"LinePatch.\d+")
+    for array_path, array_value in search_attribute_matching_name_with_path(poly, r"LinePatch.\d+"):
+        print(f"{array_path}\n\t{array_value}")
 
 
 def tests_hdf():
@@ -364,6 +387,4 @@ if __name__ == "__main__":
     # test_introspection()
 
     # tests_hdf()
-    # print(get_matching_class_attribute_name(ExternalDataArrayPart, "(PathInHdfFile|PathInExternalFile)"))
-    # print(object.__module__)
-    print(serialize_xml(random_value_from_class(PointSetRepresentation)))
+    print(get_object_attribute(""))

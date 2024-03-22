@@ -190,6 +190,9 @@ def get_object_attribute(
     returns the value of an attribute given by a dot representation of its path in the object
     example "Citation.Title"
     """
+    while attr_dot_path.startswith("."):  # avoid '.Citation.Title' to take an empty attribute name before the first '.'
+        attr_dot_path = attr_dot_path[1:]
+
     current_attrib_name = attr_dot_path
 
     if "." in attr_dot_path:
@@ -401,8 +404,9 @@ def search_attribute_matching_name_with_path(
         obj: Any,
         name_rgx: str,
         re_flags=re.IGNORECASE,
-        deep_search: bool = True,  # Search inside a matching object
         current_path: str = "",
+        deep_search: bool = True,  # Search inside a matching object
+        search_in_sub_obj: bool = True,  # Search in obj attributes
 ) -> List[Tuple[str, Any]]:
     """
     Returns a list of tuple (path, value) for each sub attribute with type matching param "name_rgx".
@@ -414,45 +418,78 @@ def search_attribute_matching_name_with_path(
     :param current_path:
     :return:
     """
+    while name_rgx.startswith("."):
+        name_rgx = name_rgx[1:]
+    current_match = name_rgx
+    next_match = current_match
+    if '.' in current_match:
+        attrib_list = re.split(r"(?<!\\)\.+", name_rgx)
+        current_match = attrib_list[0]
+        next_match = '.'.join(attrib_list[1:])
+
+    # print(f"{current_path}\n\t{current_match}\n\t{next_match}")
     res = []
+
+    match_value = None
+    match_path_and_obj = []
+    not_match_path_and_obj = []
     if isinstance(obj, list):
         cpt = 0
         for s_o in obj:
-            match = re.match(name_rgx, str(cpt))
+            match = re.match(current_match, str(cpt))
             if match is not None:
-                res.append((f"{current_path}.{match}", get_object_attribute_no_verif(obj, match.group(0))))
-            res = res + search_attribute_matching_name_with_path(
-                obj=s_o,
-                name_rgx=name_rgx,
-                re_flags=re_flags,
-                deep_search=deep_search,
-                current_path=f"{current_path}.{cpt}",
-            )
+                match_value = match.group(0)
+                match_path_and_obj.append( (f"{current_path}.{cpt}", s_o) )
+            else:
+                not_match_path_and_obj.append( (f"{current_path}.{cpt}", s_o) )
             cpt = cpt + 1
     elif isinstance(obj, dict):
         for k, s_o in obj.items():
-            match = re.match(name_rgx, k)
+            match = re.match(current_match, k)
             if match is not None:
-                res.append((f"{current_path}.{match}", get_object_attribute_no_verif(obj, match.group(0))))
-            res = res + search_attribute_matching_name_with_path(
-                obj=s_o,
-                name_rgx=name_rgx,
-                re_flags=re_flags,
-                deep_search=deep_search,
-                current_path=f"{current_path}.{k}",
-            )
+                match_value = match.group(0)
+                match_path_and_obj.append( (f"{current_path}.{k}", s_o) )
+            else:
+                not_match_path_and_obj.append( (f"{current_path}.{k}", s_o) )
+            cpt = cpt + 1
     elif not is_primitive(obj):
-        match = get_matching_class_attribute_name(obj, name_rgx)
-        if match is not None:
-            res.append((f"{current_path}.{match}", get_object_attribute_no_verif(obj, match)))
-
+        match_value = get_matching_class_attribute_name(obj, current_match)
+        if match_value is not None:
+            match_path_and_obj.append( (f"{current_path}.{match_value}", get_object_attribute_no_verif(obj, match_value)) )
         for att_name in get_class_attributes(obj):
+            if att_name != match_value:
+                not_match_path_and_obj.append( (f"{current_path}.{att_name}", get_object_attribute_no_verif(obj, att_name)) )
+
+    for matched_path, matched in match_path_and_obj:
+        if next_match != current_match:  # next_match is different, match is not final
             res = res + search_attribute_matching_name_with_path(
-                obj=get_object_attribute_rgx(obj, att_name),
+                obj=matched,
+                name_rgx=next_match,
+                re_flags=re_flags,
+                current_path=matched_path,
+                deep_search=False,  # no deep with partial
+                search_in_sub_obj=False,  # no partial search in sub obj with no match
+            )
+        else:  # a complete match
+            res.append( (matched_path, matched) )
+            if deep_search:
+                res = res + search_attribute_matching_name_with_path(
+                    obj=matched,
+                    name_rgx=name_rgx,
+                    re_flags=re_flags,
+                    current_path=matched_path,
+                    deep_search=deep_search,  # no deep with partial
+                    search_in_sub_obj=True,
+                )
+    if search_in_sub_obj:
+        for not_matched_path, not_matched in not_match_path_and_obj:
+            res = res + search_attribute_matching_name_with_path(
+                obj=not_matched,
                 name_rgx=name_rgx,
                 re_flags=re_flags,
+                current_path=not_matched_path,
                 deep_search=deep_search,
-                current_path=f"{current_path}.{att_name}",
+                search_in_sub_obj=True,
             )
 
     return res
