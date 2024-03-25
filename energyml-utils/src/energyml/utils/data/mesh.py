@@ -6,6 +6,7 @@ from typing import List, Optional, Any
 
 from src.energyml.utils.data.hdf import get_hdf_reference, get_hdf_reference_with_path, \
     get_hdf5_path_from_external_path, HDF5FileReader, get_crs_obj
+from src.energyml.utils.data.helper import read_array
 from src.energyml.utils.epc import Epc, get_obj_identifier
 from src.energyml.utils.introspection import search_attribute_matching_type, search_attribute_matching_name, \
     get_obj_uuid, get_object_attribute, get_object_attribute_rgx, search_attribute_matching_type_with_path, \
@@ -138,7 +139,7 @@ def read_polyline_set_representation(polyline_set: Any, epc: Epc) -> List[PointS
                     )
                     crs = get_crs_obj(
                                 context_obj=refer_value,
-                                path_in_root= patch_part_full_path_in_obj + refer_path,
+                                path_in_root=patch_part_full_path_in_obj + refer_path,
                                 root_obj=polyline_set,
                                 epc=epc,
                     )
@@ -147,22 +148,33 @@ def read_polyline_set_representation(polyline_set: Any, epc: Epc) -> List[PointS
                         point_per_elt = point_per_elt + h5_reader.read_array(hdf5_path, refer_value)
 
             # Reading polyline indices
-            for patch_part_path, patchPart_value in node_count_ext_array:
-                patch_part_full_path_in_obj = path_path_in_obj + node_count_per_poly_path_in_obj + patch_part_path
-                for refer_path, refer_value in get_hdf_reference_with_path(patchPart_value):
-                    print(f"refer_path: {patch_part_full_path_in_obj}{refer_path} refer_value: {refer_value} ")
-                    hdf5_path = get_hdf5_path_from_external_path(
-                                external_path_obj=refer_value,
-                                path_in_root=patch_part_full_path_in_obj + refer_path,
-                                root_obj=polyline_set,
-                                epc=epc,
-                    )
-                    if hdf5_path is not None:
-                        node_counts_list = h5_reader.read_array(hdf5_path, refer_value)
-                        idx = 0
-                        for nb_node in node_counts_list:
-                            point_indices.append([x for x in range(idx, idx + nb_node)])
-                            idx = idx + nb_node
+            # for patch_part_path, patchPart_value in node_count_ext_array:
+            #     patch_part_full_path_in_obj = path_path_in_obj + node_count_per_poly_path_in_obj + patch_part_path
+            #     for refer_path, refer_value in get_hdf_reference_with_path(patchPart_value):
+            #         print(f"refer_path: {patch_part_full_path_in_obj}{refer_path} refer_value: {refer_value} ")
+            #         hdf5_path = get_hdf5_path_from_external_path(
+            #                     external_path_obj=refer_value,
+            #                     path_in_root=patch_part_full_path_in_obj + refer_path,
+            #                     root_obj=polyline_set,
+            #                     epc=epc,
+            #         )
+            #         if hdf5_path is not None:
+            #             node_counts_list = h5_reader.read_array(hdf5_path, refer_value)
+            #             idx = 0
+            #             for nb_node in node_counts_list:
+            #                 point_indices.append([x for x in range(idx, idx + nb_node)])
+            #                 idx = idx + nb_node
+
+            node_counts_list = read_array(
+                energyml_array=node_count_per_poly,
+                root_obj=polyline_set,
+                path_in_root=path_path_in_obj + node_count_per_poly_path_in_obj,
+                epc=epc,
+            )
+            idx = 0
+            for nb_node in node_counts_list:
+                point_indices.append([x for x in range(idx, idx + nb_node)])
+                idx = idx + nb_node
 
             if len(point_per_elt) > 0:
                 # poly_idx = 0

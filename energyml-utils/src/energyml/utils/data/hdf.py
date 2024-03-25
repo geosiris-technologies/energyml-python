@@ -79,7 +79,7 @@ def get_crs_obj(
         epc: Optional[Epc] = None
 ) -> Optional[Any]:
     # crs_list = search_attribute_matching_name(context_obj, ".*Crs")
-    crs_list = search_attribute_matching_name(context_obj, ".*Crs")
+    crs_list = search_attribute_matching_name(context_obj, r"\.*Crs", search_in_sub_obj=False, deep_search=False)
     if crs_list is not None and len(crs_list) > 0:
         crs = epc.get_object_by_identifier(get_obj_identifier(crs_list[0]))
         if crs is None:
@@ -91,12 +91,14 @@ def get_crs_obj(
 
     if context_obj != root_obj:
         upper_path = path_in_root[:path_in_root.rindex(".")]
-        return get_crs_obj(
-            context_obj=get_object_attribute(root_obj, upper_path),
-            path_in_root=upper_path,
-            root_obj=root_obj,
-            epc=epc,
-        )
+        print(f"upper_path {upper_path}")
+        if len(upper_path) > 0:
+            return get_crs_obj(
+                context_obj=get_object_attribute(root_obj, upper_path),
+                path_in_root=upper_path,
+                root_obj=root_obj,
+                epc=epc,
+            )
 
     return None
 
@@ -108,7 +110,7 @@ def get_hdf5_path_from_external_path(
         epc: Optional[Epc] = None
 ) -> Optional[str]:
     if isinstance(external_path_obj, str):
-        # external_path_obj is maybe an attribte of an ExternalDataArrayPart, now search upper in the object
+        # external_path_obj is maybe an attribute of an ExternalDataArrayPart, now search upper in the object
         upper_path = path_in_root[:path_in_root.rindex(".")]
         return get_hdf5_path_from_external_path(
             external_path_obj=get_object_attribute(root_obj, upper_path),
@@ -123,10 +125,9 @@ def get_hdf5_path_from_external_path(
             return f"{epc_folder}/{h5_uri[0]}"
     else:
         epc_folder = epc.get_epc_file_foler()
-        hdf_proxy = get_object_attribute(external_path_obj, "HdfProxy")
+        hdf_proxy = search_attribute_matching_name(external_path_obj, "HdfProxy")[0]
         if hdf_proxy is not None:
             hdf_proxy_obj = epc.get_object_by_identifier(get_obj_identifier(hdf_proxy))
-            print(f"hdf_proxy_obj : {hdf_proxy_obj}")
             if hdf_proxy_obj is not None:
                 for rel in epc.additional_rels.get(get_obj_identifier(hdf_proxy_obj), []):
                     print(f"\trel : {rel}")

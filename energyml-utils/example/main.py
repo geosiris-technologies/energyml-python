@@ -343,7 +343,7 @@ def test_introspection():
 
     # =====================================================================
 
-    poly = read_energyml_xml_file("../rc/polyline_set_for_array_tests.xml")
+    poly = read_energyml_xml_file("../../rc/polyline_set_for_array_tests.xml")
 
     # print(serialize_xml(poly))
 
@@ -377,14 +377,13 @@ def tests_hdf():
 
 if __name__ == "__main__":
     # tests_0()
-    # ast_test()
     # tests_content_type()
 
     # tests_epc()
     # tests_dor()
     # test_verif()
     # test_ast()
-    # test_introspection()
+    test_introspection()
 
-    # tests_hdf()
+    tests_hdf()
     print(get_object_attribute(""))

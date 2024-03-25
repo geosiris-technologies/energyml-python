@@ -14,44 +14,6 @@ from src.energyml.utils.manager import get_sub_classes
 from src.energyml.utils.serialization import read_energyml_xml_file
 
 
-def test_off():
-    print("hello")
-    indices = [
-        [1, 2, 3],
-        [1, 2, 3],
-        [1, 2, 3],
-    ]
-
-    print(sum(list(map(lambda x: len(x), indices))))
-
-    points = [
-        [0., 0., 0.],
-        [1., 0., 0.],
-        [0., 1., 0.],
-        [1., 1., 0.],
-    ]
-
-    indices = [
-        [0, 1, 3],
-        [0, 3, 2],
-    ]
-
-    off_file = export_off(points, indices)
-
-    print(off_file.getvalue())
-
-    tmp_folder = "../../../#data/tmp"
-    print(os.listdir(tmp_folder))
-
-    try:
-        os.mkdir(tmp_folder)
-    except Exception as e:
-        print(e)
-
-    with open(f"{tmp_folder}/hdf-test0.off", "wb") as f:
-        f.write(off_file.getvalue())
-
-
 def test_array():
 
     hdf5filereader = HDF5FileReader()
@@ -75,12 +37,12 @@ def test_h5_path():
                         root_obj=ref_obj,
                         epc=epc,
             ))
-            print("CRS:", get_crs_obj(
-                        context_obj=get_object_attribute(ref_obj, refer_path),
-                        path_in_root=refer_path,
-                        root_obj=ref_obj,
-                        epc=epc,
-            ))
+            # print("CRS:", get_crs_obj(
+            #             context_obj=get_object_attribute(ref_obj, refer_path),
+            #             path_in_root=refer_path,
+            #             root_obj=ref_obj,
+            #             epc=epc,
+            # ))
         except Exception as e:
             print(f"Error with path {refer_path} -- {ref_obj}")
             raise e
@@ -102,13 +64,13 @@ def test_h5_path():
                         root_obj=ref_obj,
                         epc=epc201,
             ))
-            crs = get_crs_obj(
-                        context_obj=refer_value,
-                        path_in_root=refer_path,
-                        root_obj=ref_obj,
-                        epc=epc201,
-            )
-            print("CRS:", get_obj_identifier(crs), " - ", crs)
+            # crs = get_crs_obj(
+            #             context_obj=refer_value,
+            #             path_in_root=refer_path,
+            #             root_obj=ref_obj,
+            #             epc=epc201,
+            # )
+            # print("CRS:", get_obj_identifier(crs), " - ", crs)
         except Exception as e:
             print(f"Error with path {refer_path} -- {ref_obj}")
             raise e
@@ -202,11 +164,10 @@ def read_arrays():
 
 
 if __name__ == "__main__":
-    # test_off()
-    # test_array
-    # test_h5_path()
-    # read_h5_datasets()
-    # read_h5_polyline()
+    test_array()
+    test_h5_path()
+    read_h5_datasets()
+    read_h5_polyline()
     read_arrays()
 
     print("Supported : ", get_supported_array())

@@ -157,7 +157,7 @@ def get_class_attributes(cls: Union[type, Any]) -> List[str]:
 
 
 def get_matching_class_attribute_name(
-        cls: Union[type, Any], attribute_name: str
+        cls: Union[type, Any], attribute_name: str, re_flags=re.IGNORECASE,
 ) -> Optional[str]:
     """
     From an object and an attribute name, returns the correct attribute name of the class.
@@ -175,8 +175,9 @@ def get_matching_class_attribute_name(
             return name
 
     # search regex after to avoid shadowing perfect match
-    pattern = re.compile(attribute_name)
+    pattern = re.compile(attribute_name, flags=re_flags)
     for name, cf in class_fields.items():
+        # print(f"\t->{name} : {attribute_name} {pattern.match(name)} {('name' in cf.metadata and pattern.match(cf.metadata['name']))}")
         if pattern.match(name) or ('name' in cf.metadata and pattern.match(cf.metadata['name'])):
             return name
 
@@ -414,8 +415,9 @@ def search_attribute_matching_name_with_path(
     :param obj:
     :param name_rgx:
     :param re_flags:
-    :param deep_search:
     :param current_path:
+    :param deep_search:
+    :param search_in_sub_obj:
     :return:
     """
     while name_rgx.startswith("."):
@@ -427,7 +429,6 @@ def search_attribute_matching_name_with_path(
         current_match = attrib_list[0]
         next_match = '.'.join(attrib_list[1:])
 
-    # print(f"{current_path}\n\t{current_match}\n\t{next_match}")
     res = []
 
     match_value = None
@@ -436,7 +437,7 @@ def search_attribute_matching_name_with_path(
     if isinstance(obj, list):
         cpt = 0
         for s_o in obj:
-            match = re.match(current_match, str(cpt))
+            match = re.match(current_match.replace("\\.", "."), str(cpt), flags=re_flags)
             if match is not None:
                 match_value = match.group(0)
                 match_path_and_obj.append( (f"{current_path}.{cpt}", s_o) )
@@ -445,15 +446,14 @@ def search_attribute_matching_name_with_path(
             cpt = cpt + 1
     elif isinstance(obj, dict):
         for k, s_o in obj.items():
-            match = re.match(current_match, k)
+            match = re.match(current_match.replace("\\.", "."), k, flags=re_flags)
             if match is not None:
                 match_value = match.group(0)
                 match_path_and_obj.append( (f"{current_path}.{k}", s_o) )
             else:
                 not_match_path_and_obj.append( (f"{current_path}.{k}", s_o) )
-            cpt = cpt + 1
     elif not is_primitive(obj):
-        match_value = get_matching_class_attribute_name(obj, current_match)
+        match_value = get_matching_class_attribute_name(obj, current_match.replace("\\.", "."))
         if match_value is not None:
             match_path_and_obj.append( (f"{current_path}.{match_value}", get_object_attribute_no_verif(obj, match_value)) )
         for att_name in get_class_attributes(obj):
@@ -461,7 +461,7 @@ def search_attribute_matching_name_with_path(
                 not_match_path_and_obj.append( (f"{current_path}.{att_name}", get_object_attribute_no_verif(obj, att_name)) )
 
     for matched_path, matched in match_path_and_obj:
-        if next_match != current_match:  # next_match is different, match is not final
+        if next_match != current_match and len(next_match) > 0:  # next_match is different, match is not final
             res = res + search_attribute_matching_name_with_path(
                 obj=matched,
                 name_rgx=next_match,
@@ -500,6 +500,7 @@ def search_attribute_matching_name(
         name_rgx: str,
         re_flags=re.IGNORECASE,
         deep_search: bool = True,  # Search inside a matching object
+        search_in_sub_obj: bool = True,  # Search in obj attributes
 ) -> List[Any]:
     return [
         val
@@ -508,6 +509,7 @@ def search_attribute_matching_name(
             name_rgx=name_rgx,
             re_flags=re_flags,
             deep_search=deep_search,
+            search_in_sub_obj=search_in_sub_obj
         )
     ]
 
