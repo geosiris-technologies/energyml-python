@@ -78,8 +78,7 @@ def get_crs_obj(
         root_obj: Optional[Any] = None,
         epc: Optional[Epc] = None
 ) -> Optional[Any]:
-    # crs_list = search_attribute_matching_name(context_obj, ".*Crs")
-    crs_list = search_attribute_matching_name(context_obj, r"\.*Crs", search_in_sub_obj=False, deep_search=False)
+    crs_list = search_attribute_matching_name(context_obj, r"\.*Crs", search_in_sub_obj=True, deep_search=False)
     if crs_list is not None and len(crs_list) > 0:
         crs = epc.get_object_by_identifier(get_obj_identifier(crs_list[0]))
         if crs is None:
@@ -91,7 +90,6 @@ def get_crs_obj(
 
     if context_obj != root_obj:
         upper_path = path_in_root[:path_in_root.rindex(".")]
-        print(f"upper_path {upper_path}")
         if len(upper_path) > 0:
             return get_crs_obj(
                 context_obj=get_object_attribute(root_obj, upper_path),
@@ -130,7 +128,7 @@ def get_hdf5_path_from_external_path(
             hdf_proxy_obj = epc.get_object_by_identifier(get_obj_identifier(hdf_proxy))
             if hdf_proxy_obj is not None:
                 for rel in epc.additional_rels.get(get_obj_identifier(hdf_proxy_obj), []):
-                    print(f"\trel : {rel}")
+                    # print(f"\trel : {rel}")
                     if rel.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
                         return f"{epc_folder}/{rel.target}"
     return None

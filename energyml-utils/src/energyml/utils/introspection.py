@@ -91,7 +91,11 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
         domain = "opc"
     if domain == "opc":
         xml_domain = ct.group("xmlDomain")
-        opc_type = pascal_case(xml_domain[xml_domain.rindex(".") + 1:])
+        if "." in xml_domain:
+            xml_domain = xml_domain[xml_domain.rindex(".") + 1:]
+        if "extended" in xml_domain:
+            xml_domain = xml_domain.replace("extended", "")
+        opc_type = pascal_case(xml_domain)
         # print("energyml.opc.opc." + opc_type)
         return get_class_from_name("energyml.opc.opc." + opc_type)
     else:
@@ -124,6 +128,13 @@ def snake_case(s: str) -> str:
 
 def pascal_case(s: str) -> str:
     return snake_case(s).replace("_", " ").title().replace(" ", "")
+
+
+def flatten_concatenation(matrix):
+    flat_list = []
+    for row in matrix:
+        flat_list += row
+    return flat_list
 
 
 def import_related_module(energyml_module_name: str) -> None:
@@ -380,6 +391,31 @@ def search_attribute_matching_type_with_path(
     return res
 
 
+def search_attribute_in_upper_matching_name(
+        obj: Any,
+        name_rgx: str,
+        root_obj: Optional[Any] = None,
+        re_flags=re.IGNORECASE,
+        current_path: str = "",
+) -> Optional[Any]:
+    elt_list = search_attribute_matching_name(obj, name_rgx, search_in_sub_obj=False, deep_search=False)
+    if elt_list is not None and len(elt_list) > 0:
+        return elt_list
+
+    if obj != root_obj:
+        upper_path = current_path[:current_path.rindex(".")]
+        if len(upper_path) > 0:
+            return search_attribute_in_upper_matching_name(
+                obj=get_object_attribute(root_obj, upper_path),
+                name_rgx=name_rgx,
+                root_obj=root_obj,
+                re_flags=re_flags,
+                current_path=upper_path,
+            )
+
+    return None
+
+
 def search_attribute_matching_type(
         obj: Any,
         type_rgx: str,
@@ -532,6 +568,7 @@ def get_obj_version(obj: Any) -> str:
         try:
             return get_object_attribute_no_verif(obj, "version_string")
         except Exception:
+            print(f"Error with {type(obj)}")
             raise e
 
 

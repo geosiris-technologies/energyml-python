@@ -10,6 +10,7 @@ from typing import List, Any, Union, Dict, Callable, Optional, Tuple
 
 from energyml.opc.opc import CoreProperties, Relationships, Types, Default, Relationship, Override
 from xsdata.exceptions import ParserError
+from xsdata.formats.dataclass.models.generics import DerivedElement
 
 from .introspection import (
     get_class_from_content_type,
@@ -332,6 +333,7 @@ class Epc:
                     for ov in content_type_obj.override:
                         ov_ct = ov.content_type
                         ov_path = ov.part_name
+                        # print(ov_ct)
                         while ov_path.startswith("/") or ov_path.startswith("\\"):
                             ov_path = ov_path[1:]
                         if is_energyml_content_type(ov_ct):
@@ -341,6 +343,8 @@ class Epc:
                                     epc_file.read(ov_path),
                                     get_class_from_content_type(ov_ct)
                                 )
+                                if isinstance(ov_obj, DerivedElement):
+                                    ov_obj = ov_obj.value
                                 path_to_obj[ov_path] = ov_obj
                                 obj_list.append(ov_obj)
                             except ParserError as e:
@@ -376,16 +380,20 @@ class Epc:
                                 )
                                 obj_path = obj_folder + obj_file_name
                                 if obj_path in path_to_obj:
-                                    additional_rels_key = get_obj_identifier(path_to_obj[obj_path])
-                                    for rel in rels_file.relationship:
-                                        # print(f"\t\t{rel.type_value}")
-                                        if (rel.type_value != EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
-                                                and rel.type_value != EPCRelsRelationshipType.SOURCE_OBJECT.get_type()
-                                                and rel.type_value != EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES.get_type()
-                                        ):  # not a computable relation
-                                            if additional_rels_key not in additional_rels:
-                                                additional_rels[additional_rels_key] = []
-                                            additional_rels[additional_rels_key].append(rel)
+                                    try:
+                                        additional_rels_key = get_obj_identifier(path_to_obj[obj_path])
+                                        for rel in rels_file.relationship:
+                                            # print(f"\t\t{rel.type_value}")
+                                            if (rel.type_value != EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
+                                                    and rel.type_value != EPCRelsRelationshipType.SOURCE_OBJECT.get_type()
+                                                    and rel.type_value != EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES.get_type()
+                                            ):  # not a computable relation
+                                                if additional_rels_key not in additional_rels:
+                                                    additional_rels[additional_rels_key] = []
+                                                additional_rels[additional_rels_key].append(rel)
+                                    except Exception as e:
+                                        print(f"Error with obj path {obj_path} {path_to_obj[obj_path]}")
+                                        raise e
                                 else:
                                     print(f"xml file {obj_path} not found in EPC (rels is not associate to any object)")
 

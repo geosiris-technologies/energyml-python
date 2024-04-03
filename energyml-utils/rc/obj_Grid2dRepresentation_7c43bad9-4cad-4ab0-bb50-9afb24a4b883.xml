@@ -1,0 +1,58 @@
+    
+<Grid2dRepresentation xmlns="http://www.energistics.org/energyml/data/resqmlv2" xmlns:ns2="http://www.energistics.org/energyml/data/commonv2" xmlns:ns3="http://www.w3.org/1999/xlink" xmlns:ns4="http://www.opengis.net/gml/3.2" xmlns:ns5="http://www.isotc211.org/2005/gco" xmlns:ns6="http://www.isotc211.org/2005/gmd" schemaVersion="2.0" uuid="7c43bad9-4cad-4ab0-bb50-9afb24a4b883">
+    <ns2:Citation>
+        <ns2:Title>Alwyn96</ns2:Title>
+        <ns2:Originator>Unknown</ns2:Originator>
+        <ns2:Creation>2014-03-20T13:48:42Z</ns2:Creation>
+        <ns2:Format>Sismage</ns2:Format>
+        <ns2:Editor>philippe</ns2:Editor>
+        <ns2:LastUpdate>2014-03-27T14:06:54Z</ns2:LastUpdate>
+    </ns2:Citation>
+    <RepresentedInterpretation>
+        <ns2:ContentType>application/x-resqml+xml;version=2.0;type=obj_GenericFeatureInterpretation</ns2:ContentType>
+        <ns2:Title>Alwyn96</ns2:Title>
+        <ns2:UUID>4a1ca12e-b6d7-350c-945d-fcab169186bf</ns2:UUID>
+    </RepresentedInterpretation>
+    <SurfaceRole>pick</SurfaceRole>
+    <Grid2dPatch>
+        <PatchIndex>0</PatchIndex>
+        <FastestAxisCount>21</FastestAxisCount>
+        <SlowestAxisCount>10</SlowestAxisCount>
+        <Geometry>
+            <LocalCrs>
+                <ns2:ContentType>application/x-resqml+xml;version=2.0;type=obj_LocalDepth3dCrs</ns2:ContentType>
+                <ns2:Title>GLOBAL_CRS_DEPTH</ns2:Title>
+                <ns2:UUID>298de7a0-ae03-3d8d-afd9-c888c79cb330</ns2:UUID>
+            </LocalCrs>
+            <Points xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="Point3dLatticeArray">
+                <Origin>
+                    <Coordinate1>1.0</Coordinate1>
+                    <Coordinate2>1.0</Coordinate2>
+                    <Coordinate3>0.0</Coordinate3>
+                </Origin>
+                <Offset>
+                    <Offset>
+                        <Coordinate1>1.0</Coordinate1>
+                        <Coordinate2>0.0</Coordinate2>
+                        <Coordinate3>0.0</Coordinate3>
+                    </Offset>
+                    <Spacing xsi:type="DoubleConstantArray">
+                        <Value>1.0</Value>
+                        <Count>9</Count>
+                    </Spacing>
+                </Offset>
+                <Offset>
+                    <Offset>
+                        <Coordinate1>0.0</Coordinate1>
+                        <Coordinate2>1.0</Coordinate2>
+                        <Coordinate3>0.0</Coordinate3>
+                    </Offset>
+                    <Spacing xsi:type="DoubleConstantArray">
+                        <Value>1.0</Value>
+                        <Count>20</Count>
+                    </Spacing>
+                </Offset>
+            </Points>
+        </Geometry>
+    </Grid2dPatch>
+</Grid2dRepresentation>

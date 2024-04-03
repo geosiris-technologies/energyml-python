@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.poetry]
 name = "energyml-utils"
-version = "0.0.0" # Set at build time
+version = "0.0.1.dev17+307f5c5" # Set at build time
 description = "Energyml helper"
 authors = [
     "Valentin Gauthier <valentin.gauthier@geosiris.com>"
