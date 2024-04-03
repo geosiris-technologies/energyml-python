@@ -3,6 +3,20 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Optional
 from xsdata.models.datatype import XmlDateTime
+from energyml.eml.v2_0.commonv2 import (
+    AbstractCitedDataObject,
+    AbstractProjectedCrs,
+    AbstractVerticalCrs,
+    AxisOrder2D,
+    DataObjectReference,
+    Hdf5Dataset,
+    LengthMeasure,
+    LengthUom,
+    PlaneAngleMeasure,
+    PlaneAngleUom,
+    TimeUom,
+    VolumeUom,
+)
 
 __NAMESPACE__ = "http://www.energistics.org/energyml/data/resqmlv2"
 
@@ -71,26 +85,6 @@ class AbstractPropertyKind:
 
 
 @dataclass
-class AbstractSeismicCoordinates:
-    """Parent class is used to associate horizon and fault representations to
-    seismic 2D and seismic 3D technical features.
-
-    It stores a 1-to-1 mapping between geometry coordinates (usually X,
-    Y, Z) and trace or inter-trace positions on a seismic survey.
-    """
-
-    seismic_support: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "SeismicSupport",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
 class AbstractValueArray:
     """Generic representation of an array of numeric, Boolean, and string values.
 
@@ -149,40 +143,6 @@ class CellShape(Enum):
     PRISM = "prism"
     HEXAHEDRAL = "hexahedral"
     POLYHEDRAL = "polyhedral"
-
-
-@dataclass
-class ChronostratigraphicRank:
-    """The chronostratigraphic ranking of "well known" stratigraphic unit features
-    in the global chronostratigraphic column.
-
-    The ranks are organized from container to contained, e.g., (eon=1), (era=2), (period=3)
-    The units are ranked by using age as ordering criteria, from oldest to youngest.
-    These stratigraphic units have no associated interpretations or representations.
-    BUSINESS RULE: The name must reference a well-known stratigraphic unit feature (such as "Jurassic"), for example, from the International Commission on Stratigraphy (http://www.stratigraphy.org).
-
-    :ivar name: Name of the chrono rank such as "epoch, era, ..."
-    :ivar contains:
-    """
-
-    name: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Name",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    contains: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Contains",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "min_occurs": 1,
-        },
-    )
 
 
 class ColumnShape(Enum):
@@ -534,37 +494,6 @@ class GeologicUnitComposition(Enum):
     SEDIMENTARY_TURBIDITE = "sedimentary turbidite"
 
 
-@dataclass
-class GeologicUnitInterpretationIndex:
-    """Element that lets you index and order rock feature interpretations.
-
-    For possible ordering criteria, see OrderingCriteria.
-
-    :ivar index: An index value associated to an instance of this type
-        interpretation, given a specific ordering criteria.
-    :ivar unit:
-    """
-
-    index: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "Index",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    unit: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Unit",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
 class GeologicUnitMaterialImplacement(Enum):
     """
     The enumerated attributes of a horizon.
@@ -620,47 +549,6 @@ class GridGeometryAttachment(Enum):
     SUBNODES = "subnodes"
 
 
-@dataclass
-class HorizonInterpretationIndex:
-    """Element that lets you index and order horizon interpretations.
-
-    For possible ordering criteria, see OrderingCriteria.
-
-    :ivar index: An index value associated to an instance of this type
-        of interpretation, given a specific ordering criteria
-    :ivar stratigraphic_rank: Number of the stratigraphic rank on which
-        the previous indices have been defined.
-    :ivar horizon:
-    """
-
-    index: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "Index",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    stratigraphic_rank: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "StratigraphicRank",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-    horizon: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Horizon",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
 class IdentityKind(Enum):
     """
     Enumeration of the identity kinds for the element identities (ElementIdentity).
@@ -688,6 +576,67 @@ class IdentityKind(Enum):
     PREVIOUS_COLOCATION = "previous colocation"
     EQUIVALENCE = "equivalence"
     PREVIOUS_EQUIVALENCE = "previous equivalence"
+
+
+class IjkIndexableElements(Enum):
+    """
+    Indexable elements for IJK grids and patches.
+
+    :cvar CELLS: Count = NI x NJ x NK
+    :cvar COLUMN_EDGES: Count = NIL*NJ + NI*NJL + #SplitColumnEdges
+    :cvar COLUMNS: Count = NI x NJ = #Columns = columnCount
+    :cvar COORDINATE_LINES: Count = #CoordinateLines = #Pillars +
+        #SplitCoordinateLines
+    :cvar EDGES: Count = #Edges = edgeCount
+    :cvar EDGES_PER_COLUMN: Ordered list of edges, specified (local) to
+        a column = 0...3
+    :cvar FACES: Count = #Faces = #KFaces + #ColumnEdges x NK +
+        #SplitFaces
+    :cvar FACES_PER_CELL: Ordered list of faces, specified (local) to a
+        cell = 0...5
+    :cvar HINGE_NODE_FACES: Count = NI x NJ x NKL (K faces)
+    :cvar INTERVAL_EDGES: Count = NKL = NK + gapCount + 1
+    :cvar INTERVALS: Count = NK + gapCount
+    :cvar I0: Count = NI
+    :cvar I0_EDGES: Count = NIL = NI+1
+    :cvar J0: Count = NJ
+    :cvar J0_EDGES: Count = NJL = NJ or NJ+1
+    :cvar LAYERS: Count = NK
+    :cvar NODES: Count = #Nodes = #CoordinateLines x NKL
+    :cvar NODES_PER_CELL: Ordered list of nodes, specified (local) to a
+        cell = 0...7
+    :cvar NODES_PER_EDGE: Ordered list of nodes, specified (local) to an
+        edge, 2 x edgeCount
+    :cvar NODES_PER_FACE: Ordered list of nodes, specified (local) to a
+        face = 0...3
+    :cvar PILLARS: Count = #Pillars = NIL x NJL + #SplitPillars
+    :cvar RADIAL_ORIGIN_POLYLINE: Count = NKL
+    :cvar SUBNODES: Count specified per subnode patch
+    """
+
+    CELLS = "cells"
+    COLUMN_EDGES = "column edges"
+    COLUMNS = "columns"
+    COORDINATE_LINES = "coordinate lines"
+    EDGES = "edges"
+    EDGES_PER_COLUMN = "edges per column"
+    FACES = "faces"
+    FACES_PER_CELL = "faces per cell"
+    HINGE_NODE_FACES = "hinge node faces"
+    INTERVAL_EDGES = "interval edges"
+    INTERVALS = "intervals"
+    I0 = "I0"
+    I0_EDGES = "I0 edges"
+    J0 = "J0"
+    J0_EDGES = "J0 edges"
+    LAYERS = "layers"
+    NODES = "nodes"
+    NODES_PER_CELL = "nodes per cell"
+    NODES_PER_EDGE = "nodes per edge"
+    NODES_PER_FACE = "nodes per face"
+    PILLARS = "pillars"
+    RADIAL_ORIGIN_POLYLINE = "radial origin polyline"
+    SUBNODES = "subnodes"
 
 
 class IndexableElements(Enum):
@@ -1051,54 +1000,6 @@ class Patch:
         default=None,
         metadata={
             "name": "PatchIndex",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class PatchBoundaries:
-    """Defines the boundaries of an indexed patch.
-
-    These boundaries are outer and inner rings.
-
-    :ivar inner_ring: A hole inside a representation patch. Inside the
-        ring, the representation patch is not defined, outside it is. In
-        case of contact, inner ring polyline representations should be
-        typed as an erosion line, deposition line, or contact. BUSINESS
-        RULE: Must be a polyline reference to a polyline representation,
-        either a single polyline representation or a subrepresentation.
-        Must be closed.
-    :ivar outer_ring: The extension of a representation patch. Inside
-        the ring, the representation patch is defined, outside it is
-        not. BUSINESS RULE: Must be a reference to a polyline, either a
-        single polyline representation or a subrepresentation. Must be
-        closed.
-    :ivar referenced_patch: UUID of the referenced topological patch.
-    """
-
-    inner_ring: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "InnerRing",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-    outer_ring: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "OuterRing",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-    referenced_patch: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "ReferencedPatch",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "required": True,
@@ -3114,36 +3015,6 @@ class ResqmlUom(Enum):
     YD3 = "yd3"
 
 
-@dataclass
-class RockFluidUnitInterpretationIndex:
-    """
-    An element that allows ordering of fluid feature interpretations in a fluid
-    organization interpretation.
-
-    :ivar index: Index of the fluid feature interpretation.
-    :ivar rock_fluid_unit:
-    """
-
-    index: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "Index",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    rock_fluid_unit: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "RockFluidUnit",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
 class SequenceStratigraphySurface(Enum):
     """
     The enumerated attributes of a horizon.
@@ -3153,37 +3024,6 @@ class SequenceStratigraphySurface(Enum):
     RAVINEMENT = "ravinement"
     MAXIMUM_FLOODING = "maximum flooding"
     TRANSGRESSIVE = "transgressive"
-
-
-@dataclass
-class StratigraphicUnitInterpretationIndex:
-    """Element that lets you index and order stratigraphic unit interpretations.
-
-    For possible ordering criteria, see OrderingCriteria.
-
-    :ivar index: An index value associated to an instance of this type
-        of interpretation, given a specific ordering criteria.
-    :ivar unit:
-    """
-
-    index: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "Index",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    unit: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Unit",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
 
 
 class StreamlineFlux(Enum):
@@ -3307,64 +3147,6 @@ class ThrowKind(Enum):
     VARIABLE = "variable"
 
 
-@dataclass
-class TimeIndex:
-    """Index into a time series.
-
-    Used to specify time. (Not to be confused with time step.)
-
-    :ivar index: The index of the time in the time series.
-    :ivar time_series:
-    """
-
-    index: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "Index",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    time_series: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TimeSeries",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class TimeInterval:
-    """Geological time during which a geological event (e.g., deposition, erosion,
-    fracturation, faulting, intrusion) occurred.
-
-    BUSINESS RULE: All rock features that are present in the global chronostratigraphic column feature must have a time interval.
-    """
-
-    chrono_bottom: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "ChronoBottom",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    chrono_top: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "ChronoTop",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
 class TimeSetKind(Enum):
     """
     Indicates that the collection of properties shares this time relationship, if
@@ -3417,67 +3199,103 @@ class Timestamp:
     )
 
 
-@dataclass
-class WellboreTrajectoryParentIntersection:
+class UnstructuredCellIndexableElements(Enum):
     """
-    For a wellbore trajectory in a multi-lateral well, indicates the MD of the
-    kickoff point where the trajectory begins and the corresponding MD of the
-    parent trajectory.
-    """
+    Indexable elements for unstructured cell grids and patches.
 
-    kickoff_md: Optional[float] = field(
-        default=None,
-        metadata={
-            "name": "KickoffMd",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    parent_md: Optional[float] = field(
-        default=None,
-        metadata={
-            "name": "ParentMd",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    parent_trajectory: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "ParentTrajectory",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class WitsmlWellboreReference:
-    """
-    Reference to the WITSML wellbore that this wellbore feature is based on.
+    :cvar CELLS: Count = #Cells = cellCount
+    :cvar EDGES: Count = #Edges = edgeCount
+    :cvar FACES: Count = #Faces = faceCount
+    :cvar FACES_PER_CELL: Ordered list of faces, specified (local) to a
+        cell
+    :cvar HINGE_NODE_FACES: Count = #HingeNodeFaces
+    :cvar NODES: Count = #Nodes = nodeCount
+    :cvar NODES_PER_CELL: Ordered list of nodes, specified (local) to a
+        cell
+    :cvar NODES_PER_EDGE: Ordered list of nodes, specified (local) to an
+        edge, 2 x edgeCount
+    :cvar NODES_PER_FACE: Ordered list of nodes, specified (local) to a
+        face
+    :cvar SUBNODES: Count specified per subnode patch
     """
 
-    witsml_well: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "WitsmlWell",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    witsml_wellbore: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "WitsmlWellbore",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
+    CELLS = "cells"
+    EDGES = "edges"
+    FACES = "faces"
+    FACES_PER_CELL = "faces per cell"
+    HINGE_NODE_FACES = "hinge node faces"
+    NODES = "nodes"
+    NODES_PER_CELL = "nodes per cell"
+    NODES_PER_EDGE = "nodes per edge"
+    NODES_PER_FACE = "nodes per face"
+    SUBNODES = "subnodes"
+
+
+class UnstructuredColumnLayerIndexableElements(Enum):
+    """
+    Indexable elements for unstructured column layer grids and patches.
+
+    :cvar CELLS: Count = #Columns x NK
+    :cvar COLUMN_EDGES: Count = #UnstructuredColumnEdges +
+        #SplitColumnEdges
+    :cvar COLUMNS: Count = #Columns = columnCount
+    :cvar COORDINATE_LINES: Count = #Pillars + #SplitCoordinateLines
+    :cvar EDGES: Count = #Edges = edgeCount
+    :cvar EDGES_PER_COLUMN: Ordered list of edges, specified (local) to
+        a column
+    :cvar FACES: Count = #KFaces + #ColumnEdges x NK
+    :cvar FACES_PER_CELL: Ordered list of faces, specified (local) to a
+        cell
+    :cvar HINGE_NODE_FACES: Count = #Columns x NKL (K faces)
+    :cvar INTERVAL_EDGES: Count = NKL = NK + gapCount + 1
+    :cvar INTERVALS: Count = NK + gapCount Only needed if the
+        Unstructured Column Layer indices are a component of GPGrid.
+    :cvar LAYERS: Count = NK
+    :cvar NODES: Count = #CoordinateLines x NKL
+    :cvar NODES_PER_CELL: Ordered list of nodes, specified (local) to a
+        cell
+    :cvar NODES_PER_EDGE: Ordered list of nodes, specified (local) to an
+        edge, 2 x edgeCount
+    :cvar NODES_PER_FACE: Ordered list of nodes, specified (local) to a
+        face
+    :cvar PILLARS: Count = #Pillars = pillarCount
+    :cvar SUBNODES: Count specified per subnode patch
+    """
+
+    CELLS = "cells"
+    COLUMN_EDGES = "column edges"
+    COLUMNS = "columns"
+    COORDINATE_LINES = "coordinate lines"
+    EDGES = "edges"
+    EDGES_PER_COLUMN = "edges per column"
+    FACES = "faces"
+    FACES_PER_CELL = "faces per cell"
+    HINGE_NODE_FACES = "hinge node faces"
+    INTERVAL_EDGES = "interval edges"
+    INTERVALS = "intervals"
+    LAYERS = "layers"
+    NODES = "nodes"
+    NODES_PER_CELL = "nodes per cell"
+    NODES_PER_EDGE = "nodes per edge"
+    NODES_PER_FACE = "nodes per face"
+    PILLARS = "pillars"
+    SUBNODES = "subnodes"
+
+
+class WellboreFrameIndexableElements(Enum):
+    """
+    The elements on a wellbore frame that may be indexed.
+
+    :cvar INTERVALS: Count = nodeCount-1
+    :cvar NODES: Count = nodeCount
+    :cvar CELLS: Count = Number of intervals that intersect grids in the
+        blocked wellbore. When applied to the wellbore frame
+        representation, this is identical to the number of intervals.
+    """
+
+    INTERVALS = "intervals"
+    NODES = "nodes"
+    CELLS = "cells"
 
 
 @dataclass
@@ -3576,7 +3394,7 @@ class AbstractContactInterpretationPart:
             "required": True,
         },
     )
-    part_of: Optional[str] = field(
+    part_of: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "PartOf",
@@ -3596,32 +3414,6 @@ class AbstractDoubleArray(AbstractValueArray):
 
 
 @dataclass
-class AbstractGeometry:
-    """
-    The base class for all geometric values, which is always associated with a
-    representation.
-    """
-
-    time_index: Optional[TimeIndex] = field(
-        default=None,
-        metadata={
-            "name": "TimeIndex",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-    local_crs: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "LocalCrs",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
 class AbstractIntegerArray(AbstractValueArray):
     """Generic representation of an array of integer values.
 
@@ -3631,7 +3423,7 @@ class AbstractIntegerArray(AbstractValueArray):
 
 
 @dataclass
-class AbstractResqmlDataObject:
+class AbstractResqmlDataObject(AbstractCitedDataObject):
     """The parent class for all top-level elements in RESQML.
 
     Inherits from AbstractCitedDataObject in the commonV2 package of the
@@ -3644,6 +3436,26 @@ class AbstractResqmlDataObject:
             "name": "ExtraMetadata",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+
+
+@dataclass
+class AbstractSeismicCoordinates:
+    """Parent class is used to associate horizon and fault representations to
+    seismic 2D and seismic 3D technical features.
+
+    It stores a 1-to-1 mapping between geometry coordinates (usually X,
+    Y, Z) and trace or inter-trace positions on a seismic survey.
+    """
+
+    seismic_support: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "SeismicSupport",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
         },
     )
 
@@ -3690,7 +3502,44 @@ class AdditionalGridPoints:
 
 
 @dataclass
-class ContactElementReference:
+class ChronostratigraphicRank:
+    """The chronostratigraphic ranking of "well known" stratigraphic unit features
+    in the global chronostratigraphic column.
+
+    The ranks are organized from container to contained, e.g., (eon=1), (era=2), (period=3)
+    The units are ranked by using age as ordering criteria, from oldest to youngest.
+    These stratigraphic units have no associated interpretations or representations.
+    BUSINESS RULE: The name must reference a well-known stratigraphic unit feature (such as "Jurassic"), for example, from the International Commission on Stratigraphy (http://www.stratigraphy.org).
+
+    :ivar name: Name of the chrono rank such as "epoch, era, ..."
+    :ivar contains:
+    """
+
+    name: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Name",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+            "min_length": 1,
+            "max_length": 64,
+            "white_space": "collapse",
+        },
+    )
+    contains: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "Contains",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "min_occurs": 1,
+        },
+    )
+
+
+@dataclass
+class ContactElementReference(DataObjectReference):
     """A reference to either a geologic feature interpretation or a frontier
     feature.
 
@@ -3721,7 +3570,7 @@ class ContactRepresentationReference(AbstractContactRepresentationPart):
     Used when the contact already exists as a top level element representation.
     """
 
-    representation: Optional[str] = field(
+    representation: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "Representation",
@@ -3733,33 +3582,80 @@ class ContactRepresentationReference(AbstractContactRepresentationPart):
 
 
 @dataclass
-class FaultThrow:
-    """
-    Identifies the characteristic of the throw of a fault interpretation.
+class GeologicUnitInterpretationIndex:
+    """Element that lets you index and order rock feature interpretations.
+
+    For possible ordering criteria, see OrderingCriteria.
+
+    :ivar index: An index value associated to an instance of this type
+        interpretation, given a specific ordering criteria.
+    :ivar unit:
     """
 
-    throw: List[ThrowKind] = field(
-        default_factory=list,
-        metadata={
-            "name": "Throw",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "min_occurs": 1,
-        },
-    )
-    has_occured_during: Optional[TimeInterval] = field(
+    index: Optional[int] = field(
         default=None,
         metadata={
-            "name": "HasOccuredDuring",
+            "name": "Index",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    unit: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "Unit",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class HorizonInterpretationIndex:
+    """Element that lets you index and order horizon interpretations.
+
+    For possible ordering criteria, see OrderingCriteria.
+
+    :ivar index: An index value associated to an instance of this type
+        of interpretation, given a specific ordering criteria
+    :ivar stratigraphic_rank: Number of the stratigraphic rank on which
+        the previous indices have been defined.
+    :ivar horizon:
+    """
+
+    index: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "Index",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    stratigraphic_rank: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "StratigraphicRank",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+    horizon: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "Horizon",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
         },
     )
 
 
 @dataclass
 class LocalPropertyKind(AbstractPropertyKind):
-    local_property_kind: Optional[str] = field(
+    local_property_kind: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "LocalPropertyKind",
@@ -3777,7 +3673,7 @@ class ObjectParameterKey(AbstractParameterKey):
         relationship.
     """
 
-    data_object: Optional[str] = field(
+    data_object: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "DataObject",
@@ -3803,6 +3699,54 @@ class Patch1D(Patch):
         default=None,
         metadata={
             "name": "Count",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class PatchBoundaries:
+    """Defines the boundaries of an indexed patch.
+
+    These boundaries are outer and inner rings.
+
+    :ivar inner_ring: A hole inside a representation patch. Inside the
+        ring, the representation patch is not defined, outside it is. In
+        case of contact, inner ring polyline representations should be
+        typed as an erosion line, deposition line, or contact. BUSINESS
+        RULE: Must be a polyline reference to a polyline representation,
+        either a single polyline representation or a subrepresentation.
+        Must be closed.
+    :ivar outer_ring: The extension of a representation patch. Inside
+        the ring, the representation patch is defined, outside it is
+        not. BUSINESS RULE: Must be a reference to a polyline, either a
+        single polyline representation or a subrepresentation. Must be
+        closed.
+    :ivar referenced_patch: UUID of the referenced topological patch.
+    """
+
+    inner_ring: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "InnerRing",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+    outer_ring: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "OuterRing",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+    referenced_patch: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "ReferencedPatch",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "required": True,
@@ -3886,7 +3830,7 @@ class Point2DHdf5Array(AbstractPoint3DArray):
     class Meta:
         name = "Point2dHdf5Array"
 
-    coordinates: Optional[str] = field(
+    coordinates: Optional[Hdf5Dataset] = field(
         default=None,
         metadata={
             "name": "Coordinates",
@@ -3911,7 +3855,7 @@ class Point3DHdf5Array(AbstractPoint3DArray):
     class Meta:
         name = "Point3dHdf5Array"
 
-    coordinates: Optional[str] = field(
+    coordinates: Optional[Hdf5Dataset] = field(
         default=None,
         metadata={
             "name": "Coordinates",
@@ -3975,6 +3919,36 @@ class PropertyValuesPatch:
 
 
 @dataclass
+class RockFluidUnitInterpretationIndex:
+    """
+    An element that allows ordering of fluid feature interpretations in a fluid
+    organization interpretation.
+
+    :ivar index: Index of the fluid feature interpretation.
+    :ivar rock_fluid_unit:
+    """
+
+    index: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "Index",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    rock_fluid_unit: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "RockFluidUnit",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
 class StandardPropertyKind(AbstractPropertyKind):
     """A standard property kind is defined in the Energistics catalog.
 
@@ -3993,6 +3967,37 @@ class StandardPropertyKind(AbstractPropertyKind):
 
 
 @dataclass
+class StratigraphicUnitInterpretationIndex:
+    """Element that lets you index and order stratigraphic unit interpretations.
+
+    For possible ordering criteria, see OrderingCriteria.
+
+    :ivar index: An index value associated to an instance of this type
+        of interpretation, given a specific ordering criteria.
+    :ivar unit:
+    """
+
+    index: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "Index",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    unit: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "Unit",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
 class StringHdf5Array(AbstractValueArray):
     """Used to store explicit string values, i.e., values that are not double,
     boolean or integers.
@@ -4003,7 +4008,7 @@ class StringHdf5Array(AbstractValueArray):
     :ivar values: Reference to HDF5 array of integer or double
     """
 
-    values: Optional[str] = field(
+    values: Optional[Hdf5Dataset] = field(
         default=None,
         metadata={
             "name": "Values",
@@ -4074,11 +4079,28 @@ class ThreePoint3D:
 
 
 @dataclass
-class TimeIndexParameterKey(AbstractParameterKey):
-    time_index: Optional[TimeIndex] = field(
+class TimeIndex:
+    """Index into a time series.
+
+    Used to specify time. (Not to be confused with time step.)
+
+    :ivar index: The index of the time in the time series.
+    :ivar time_series:
+    """
+
+    index: Optional[int] = field(
         default=None,
         metadata={
-            "name": "TimeIndex",
+            "name": "Index",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    time_series: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "TimeSeries",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "required": True,
@@ -4087,31 +4109,26 @@ class TimeIndexParameterKey(AbstractParameterKey):
 
 
 @dataclass
-class TimeSeriesParentage:
-    """
-    Indicates that a time series has the associated time series as a parent, i.e.,
-    that the series continues from the parent time series.
+class TimeInterval:
+    """Geological time during which a geological event (e.g., deposition, erosion,
+    fracturation, faulting, intrusion) occurred.
 
-    :ivar has_overlap: Used to indicate that a time series overlaps with
-        its parent time series, e.g., as may be done for simulation
-        studies, where the end state of one calculation is the initial
-        state of the next.
-    :ivar parent_time_index:
+    BUSINESS RULE: All rock features that are present in the global chronostratigraphic column feature must have a time interval.
     """
 
-    has_overlap: Optional[bool] = field(
+    chrono_bottom: Optional[DataObjectReference] = field(
         default=None,
         metadata={
-            "name": "HasOverlap",
+            "name": "ChronoBottom",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "required": True,
         },
     )
-    parent_time_index: Optional[TimeIndex] = field(
+    chrono_top: Optional[DataObjectReference] = field(
         default=None,
         metadata={
-            "name": "ParentTimeIndex",
+            "name": "ChronoTop",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "required": True,
@@ -4146,6 +4163,69 @@ class VolumeShell:
 
 
 @dataclass
+class WellboreTrajectoryParentIntersection:
+    """
+    For a wellbore trajectory in a multi-lateral well, indicates the MD of the
+    kickoff point where the trajectory begins and the corresponding MD of the
+    parent trajectory.
+    """
+
+    kickoff_md: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "KickoffMd",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    parent_md: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "ParentMd",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    parent_trajectory: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "ParentTrajectory",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class WitsmlWellboreReference:
+    """
+    Reference to the WITSML wellbore that this wellbore feature is based on.
+    """
+
+    witsml_well: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "WitsmlWell",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    witsml_wellbore: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "WitsmlWellbore",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
 class AbstractFeature(AbstractResqmlDataObject):
     """Something that has physical existence at some point during the exploration,
     development, production or abandonment of a reservoir.
@@ -4171,7 +4251,7 @@ class AbstractFeatureInterpretation(AbstractResqmlDataObject):
             "required": True,
         },
     )
-    interpreted_feature: Optional[str] = field(
+    interpreted_feature: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "InterpretedFeature",
@@ -4186,6 +4266,32 @@ class AbstractFeatureInterpretation(AbstractResqmlDataObject):
             "name": "HasOccuredDuring",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+
+
+@dataclass
+class AbstractGeometry:
+    """
+    The base class for all geometric values, which is always associated with a
+    representation.
+    """
+
+    time_index: Optional[TimeIndex] = field(
+        default=None,
+        metadata={
+            "name": "TimeIndex",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+    local_crs: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "LocalCrs",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
         },
     )
 
@@ -4267,7 +4373,7 @@ class AbstractLocal3DCrs(AbstractResqmlDataObject):
             "required": True,
         },
     )
-    areal_rotation: Optional[str] = field(
+    areal_rotation: Optional[PlaneAngleMeasure] = field(
         default=None,
         metadata={
             "name": "ArealRotation",
@@ -4276,7 +4382,7 @@ class AbstractLocal3DCrs(AbstractResqmlDataObject):
             "required": True,
         },
     )
-    projected_axis_order: Optional[str] = field(
+    projected_axis_order: Optional[AxisOrder2D] = field(
         default=None,
         metadata={
             "name": "ProjectedAxisOrder",
@@ -4285,7 +4391,7 @@ class AbstractLocal3DCrs(AbstractResqmlDataObject):
             "required": True,
         },
     )
-    projected_uom: Optional[str] = field(
+    projected_uom: Optional[LengthUom] = field(
         default=None,
         metadata={
             "name": "ProjectedUom",
@@ -4294,7 +4400,7 @@ class AbstractLocal3DCrs(AbstractResqmlDataObject):
             "required": True,
         },
     )
-    vertical_uom: Optional[str] = field(
+    vertical_uom: Optional[LengthUom] = field(
         default=None,
         metadata={
             "name": "VerticalUom",
@@ -4321,7 +4427,7 @@ class AbstractLocal3DCrs(AbstractResqmlDataObject):
             "required": True,
         },
     )
-    vertical_crs: Optional[str] = field(
+    vertical_crs: Optional[AbstractVerticalCrs] = field(
         default=None,
         metadata={
             "name": "VerticalCrs",
@@ -4330,7 +4436,7 @@ class AbstractLocal3DCrs(AbstractResqmlDataObject):
             "required": True,
         },
     )
-    projected_crs: Optional[str] = field(
+    projected_crs: Optional[AbstractProjectedCrs] = field(
         default=None,
         metadata={
             "name": "ProjectedCrs",
@@ -4339,20 +4445,6 @@ class AbstractLocal3DCrs(AbstractResqmlDataObject):
             "required": True,
         },
     )
-
-
-@dataclass
-class AbstractParametricLineGeometry(AbstractGeometry):
-    """
-    The abstract class for defining a single parametric line.
-    """
-
-
-@dataclass
-class AbstractPlaneGeometry(AbstractGeometry):
-    """
-    The abstract class for all geometric values defined by planes.
-    """
 
 
 @dataclass
@@ -4423,7 +4515,7 @@ class AbstractProperty(AbstractResqmlDataObject):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    supporting_representation: Optional[str] = field(
+    supporting_representation: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "SupportingRepresentation",
@@ -4432,7 +4524,7 @@ class AbstractProperty(AbstractResqmlDataObject):
             "required": True,
         },
     )
-    local_crs: Optional[str] = field(
+    local_crs: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "LocalCrs",
@@ -4472,7 +4564,7 @@ class AbstractRepresentation(AbstractResqmlDataObject):
     TimeIndex is provided to describe time-dependent geometry.
     """
 
-    represented_interpretation: Optional[str] = field(
+    represented_interpretation: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "RepresentedInterpretation",
@@ -4507,7 +4599,7 @@ class Activation:
             "required": True,
         },
     )
-    time_series: Optional[str] = field(
+    time_series: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "TimeSeries",
@@ -4596,7 +4688,7 @@ class BooleanArrayFromDiscretePropertyArray(AbstractBooleanArray):
             "required": True,
         },
     )
-    property: Optional[str] = field(
+    property: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "Property",
@@ -4691,7 +4783,7 @@ class BooleanHdf5Array(AbstractBooleanArray):
     :ivar values: Reference to an HDF5 array of values.
     """
 
-    values: Optional[str] = field(
+    values: Optional[Hdf5Dataset] = field(
         default=None,
         metadata={
             "name": "Values",
@@ -4728,7 +4820,7 @@ class CellFluidPhaseUnits:
             "required": True,
         },
     )
-    fluid_organization: Optional[str] = field(
+    fluid_organization: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "FluidOrganization",
@@ -4761,7 +4853,7 @@ class CellStratigraphicUnits:
             "required": True,
         },
     )
-    stratigraphic_organization: Optional[str] = field(
+    stratigraphic_organization: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "StratigraphicOrganization",
@@ -4930,7 +5022,7 @@ class DataObjectParameter(AbstractActivityParameter):
         relationship.
     """
 
-    data_object: Optional[str] = field(
+    data_object: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "DataObject",
@@ -4981,7 +5073,7 @@ class DoubleHdf5Array(AbstractDoubleArray):
     :ivar values: Reference to an HDF5 array of doubles.
     """
 
-    values: Optional[str] = field(
+    values: Optional[Hdf5Dataset] = field(
         default=None,
         metadata={
             "name": "Values",
@@ -5099,7 +5191,7 @@ class ElementIdentity:
             "required": True,
         },
     )
-    representation: Optional[str] = field(
+    representation: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "Representation",
@@ -5148,6 +5240,31 @@ class ElementIndices:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "required": True,
+        },
+    )
+
+
+@dataclass
+class FaultThrow:
+    """
+    Identifies the characteristic of the throw of a fault interpretation.
+    """
+
+    throw: List[ThrowKind] = field(
+        default_factory=list,
+        metadata={
+            "name": "Throw",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "min_occurs": 1,
+        },
+    )
+    has_occured_during: Optional[TimeInterval] = field(
+        default=None,
+        metadata={
+            "name": "HasOccuredDuring",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
 
@@ -5265,7 +5382,7 @@ class IntegerHdf5Array(AbstractIntegerArray):
             "required": True,
         },
     )
-    values: Optional[str] = field(
+    values: Optional[Hdf5Dataset] = field(
         default=None,
         metadata={
             "name": "Values",
@@ -5392,7 +5509,7 @@ class IntervalGridCells:
             "required": True,
         },
     )
-    grids: List[str] = field(
+    grids: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "Grids",
@@ -5426,7 +5543,7 @@ class IntervalStratigraphicUnits:
             "required": True,
         },
     )
-    stratigraphic_organization: Optional[str] = field(
+    stratigraphic_organization: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "StratigraphicOrganization",
@@ -5575,7 +5692,7 @@ class OverlapVolume:
         RULE: Length of array must equal the cell overlap count.
     """
 
-    volume_uom: Optional[str] = field(
+    volume_uom: Optional[VolumeUom] = field(
         default=None,
         metadata={
             "name": "VolumeUom",
@@ -5764,35 +5881,6 @@ class ParametricLineIntersections:
 
 
 @dataclass
-class PatchOfGeometry:
-    """
-    Indicates which patch of the representation has a new geometry.
-
-    :ivar representation_patch_index: Patch index for the geometry
-        attachment, if required
-    :ivar geometry:
-    """
-
-    representation_patch_index: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "RepresentationPatchIndex",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-    geometry: Optional[AbstractGeometry] = field(
-        default=None,
-        metadata={
-            "name": "Geometry",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
 class Point3DOffset:
     """Defines the size and sampling in each dimension (direction) of the point 3D
     lattice array.
@@ -5936,32 +6024,6 @@ class Point3DZvalueArray(AbstractPoint3DArray):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "required": True,
-        },
-    )
-
-
-@dataclass
-class PointGeometry(AbstractGeometry):
-    """
-    The geometry of a set of points defined by their location in the local CRS,
-    with optional seismic coordinates.
-    """
-
-    points: Optional[AbstractPoint3DArray] = field(
-        default=None,
-        metadata={
-            "name": "Points",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    seismic_coordinates: Optional[AbstractSeismicCoordinates] = field(
-        default=None,
-        metadata={
-            "name": "SeismicCoordinates",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
 
@@ -6125,7 +6187,7 @@ class StreamlineWellbores:
             "required": True,
         },
     )
-    wellbore_trajectory_representation: List[str] = field(
+    wellbore_trajectory_representation: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "WellboreTrajectoryRepresentation",
@@ -6159,6 +6221,19 @@ class TimeIndexParameter(AbstractActivityParameter):
     Parameter containing a time index value.
     """
 
+    time_index: Optional[TimeIndex] = field(
+        default=None,
+        metadata={
+            "name": "TimeIndex",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class TimeIndexParameterKey(AbstractParameterKey):
     time_index: Optional[TimeIndex] = field(
         default=None,
         metadata={
@@ -6222,10 +6297,43 @@ class TimeIndices:
             "required": True,
         },
     )
-    time_series: Optional[str] = field(
+    time_series: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "TimeSeries",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class TimeSeriesParentage:
+    """
+    Indicates that a time series has the associated time series as a parent, i.e.,
+    that the series continues from the parent time series.
+
+    :ivar has_overlap: Used to indicate that a time series overlaps with
+        its parent time series, e.g., as may be done for simulation
+        studies, where the end state of one calculation is the initial
+        state of the next.
+    :ivar parent_time_index:
+    """
+
+    has_overlap: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "HasOverlap",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    parent_time_index: Optional[TimeIndex] = field(
+        default=None,
+        metadata={
+            "name": "ParentTimeIndex",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "required": True,
@@ -6343,7 +6451,7 @@ class VolumeRegion:
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    represents: Optional[str] = field(
+    represents: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "Represents",
@@ -6402,7 +6510,7 @@ class WellboreMarker(AbstractResqmlDataObject):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    witsml_formation_marker: Optional[str] = field(
+    witsml_formation_marker: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "WitsmlFormationMarker",
@@ -6410,7 +6518,7 @@ class WellboreMarker(AbstractResqmlDataObject):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    interpretation: Optional[str] = field(
+    interpretation: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "Interpretation",
@@ -6429,7 +6537,7 @@ class ObjActivity(AbstractResqmlDataObject):
     class Meta:
         name = "obj_Activity"
 
-    parent: Optional[str] = field(
+    parent: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "Parent",
@@ -6437,7 +6545,7 @@ class ObjActivity(AbstractResqmlDataObject):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    activity_descriptor: Optional[str] = field(
+    activity_descriptor: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "ActivityDescriptor",
@@ -6515,7 +6623,7 @@ class ObjMdDatum(AbstractResqmlDataObject):
             "required": True,
         },
     )
-    local_crs: Optional[str] = field(
+    local_crs: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "LocalCrs",
@@ -6649,7 +6757,7 @@ class ObjPropertySet(AbstractResqmlDataObject):
             "required": True,
         },
     )
-    parent_set: List[str] = field(
+    parent_set: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "ParentSet",
@@ -6657,7 +6765,7 @@ class ObjPropertySet(AbstractResqmlDataObject):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    properties: List[str] = field(
+    properties: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "Properties",
@@ -6679,48 +6787,13 @@ class ObjStratigraphicColumn(AbstractResqmlDataObject):
     class Meta:
         name = "obj_StratigraphicColumn"
 
-    ranks: List[str] = field(
+    ranks: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "Ranks",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "min_occurs": 1,
-        },
-    )
-
-
-@dataclass
-class ObjTimeSeries(AbstractResqmlDataObject):
-    """Stores an ordered list of times, for example, for time-dependent properties,
-    geometries, or representations.
-
-    It is used in conjunction with the time index to specify times for
-    RESQML.
-
-    :ivar time: Individual times composing the series. The list ordering
-        is used by the time index.
-    :ivar time_series_parentage:
-    """
-
-    class Meta:
-        name = "obj_TimeSeries"
-
-    time: List[Timestamp] = field(
-        default_factory=list,
-        metadata={
-            "name": "Time",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "min_occurs": 1,
-        },
-    )
-    time_series_parentage: Optional[TimeSeriesParentage] = field(
-        default=None,
-        metadata={
-            "name": "TimeSeriesParentage",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
 
@@ -6735,24 +6808,6 @@ class AbstractGeologicFeature(AbstractFeature):
     Some of these objects are static—such as geologic intervals---while others are dynamic—such as fluids; their properties, geometries, and quantities may change over time during the course of field production.
     RESQML has these types of features: geologic and technical.
     """
-
-
-@dataclass
-class AbstractGridGeometry(PointGeometry):
-    """
-    Grid geometry described by means of points attached to nodes and additional
-    optional points which may be attached to other indexable elements of the grid
-    representation.
-    """
-
-    additional_grid_points: List[AdditionalGridPoints] = field(
-        default_factory=list,
-        metadata={
-            "name": "AdditionalGridPoints",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
 
 
 @dataclass
@@ -6777,6 +6832,20 @@ class AbstractOrganizationInterpretation(AbstractFeatureInterpretation):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
+
+
+@dataclass
+class AbstractParametricLineGeometry(AbstractGeometry):
+    """
+    The abstract class for defining a single parametric line.
+    """
+
+
+@dataclass
+class AbstractPlaneGeometry(AbstractGeometry):
+    """
+    The abstract class for all geometric values defined by planes.
+    """
 
 
 @dataclass
@@ -6969,7 +7038,7 @@ class ConnectionInterpretations:
             "required": True,
         },
     )
-    feature_interpretation: List[str] = field(
+    feature_interpretation: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "FeatureInterpretation",
@@ -7018,74 +7087,6 @@ class DoubleLatticeArray(AbstractDoubleArray):
 class GlobalChronostratigraphicColumn(ObjGlobalChronostratigraphicColumn):
     class Meta:
         namespace = "http://www.energistics.org/energyml/data/resqmlv2"
-
-
-@dataclass
-class Grid2DPatch(Patch):
-    """Patch representing a single 2D grid and its geometry.
-
-    The FastestAxisCount and the SlowestAxisCount determine the indexing
-    of this grid 2D patch, by defining a one dimensional index for the
-    2D grid as follows: Index = FastestIndex + FastestAxisCount *
-    SlowestIndex This indexing order IS the data order when stored in
-    HDF5, in which case, this would be a
-    SlowestAxisCount*FastestAxisCount two dimensional array in HDF5.
-
-    :ivar fastest_axis_count: The number of nodes in the fastest
-        direction.
-    :ivar slowest_axis_count: The number of nodes in the slowest
-        direction.
-    :ivar geometry:
-    """
-
-    class Meta:
-        name = "Grid2dPatch"
-
-    fastest_axis_count: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "FastestAxisCount",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    slowest_axis_count: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "SlowestAxisCount",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    geometry: Optional[PointGeometry] = field(
-        default=None,
-        metadata={
-            "name": "Geometry",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class HorizontalPlaneGeometry(AbstractPlaneGeometry):
-    """
-    Defines the infinite geometry of a horizontal plane provided by giving its
-    unique Z value.
-    """
-
-    coordinate: Optional[float] = field(
-        default=None,
-        metadata={
-            "name": "Coordinate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
 
 
 @dataclass
@@ -7164,23 +7165,6 @@ class IntegerLatticeArray(AbstractIntegerArray):
 class MdDatum(ObjMdDatum):
     class Meta:
         namespace = "http://www.energistics.org/energyml/data/resqmlv2"
-
-
-@dataclass
-class NodePatch(Patch1D):
-    """
-    Patch representing a list of nodes to which geometry may be attached.
-    """
-
-    geometry: Optional[PointGeometry] = field(
-        default=None,
-        metadata={
-            "name": "Geometry",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
 
 
 @dataclass
@@ -7378,127 +7362,30 @@ class ParametricLineArray(AbstractParametricLineArray):
 
 
 @dataclass
-class ParametricLineFromRepresentationGeometry(AbstractParametricLineGeometry):
-    """The parametric line extracted from an existing representation.
+class PatchOfGeometry:
+    """
+    Indicates which patch of the representation has a new geometry.
 
-    BUSINESS RULE: The supporting representation must have pillars or lines as indexable elements.
-
-    :ivar line_indiex_on_supporting_representation: The line index of
-        the selected line in the supporting representation. For a
-        column-layer grid, the parametric lines follow the indexing of
-        the pillars.
-    :ivar supporting_representation:
+    :ivar representation_patch_index: Patch index for the geometry
+        attachment, if required
+    :ivar geometry:
     """
 
-    line_indiex_on_supporting_representation: Optional[int] = field(
+    representation_patch_index: Optional[int] = field(
         default=None,
         metadata={
-            "name": "LineIndiexOnSupportingRepresentation",
+            "name": "RepresentationPatchIndex",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+    geometry: Optional[AbstractGeometry] = field(
+        default=None,
+        metadata={
+            "name": "Geometry",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "required": True,
-        },
-    )
-    supporting_representation: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "SupportingRepresentation",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ParametricLineGeometry(AbstractParametricLineGeometry):
-    """Defines a parametric line of any kind.
-
-    For more information on the supported parametric lines, see
-    ParametricLineArray.
-
-    :ivar control_point_parameters: An optional array of explicit
-        control point parameters for the control points on the
-        parametric line. Used only if control point parameters are
-        present. NOTES: (1) Vertical parametric lines do not require
-        control point parameters. (2) Z linear cubic splines have
-        implicitly defined parameters. For a line with N intervals (N+1
-        control points), the parametric values are P=0,...,N. BUSINESS
-        RULE: If present, the size must match the number of control
-        points. BUSINESS RULE: For vertical and Z linear cubic
-        parametric lines, this count must be zero. For all other
-        parametric line kinds, each control point must have one control
-        point parameter. BUSINESS RULE: The parametric values must be
-        strictly monotonically increasing on each parametric line. This
-        is an optional array which should only be used if control point
-        parameters are present. BUSINESS RILE: If present, the size must
-        match the number of control points. BUSINESS RULE: This count
-        should be zero for vertical and Z linear cubic parametric lines.
-        For all other parametric line kinds there should be one control
-        point parameter for each control point. Notes: (1) Vertical
-        parametric lines do not require control point parameters (2) Z
-        linear cubic splines have implicitly defined parameters. For a
-        line with N intervals (N+1 control points), the parametric
-        values are P=0,...,N. BUSINESS RULE: The parametric values must
-        be strictly monotonically increasing on each parametric line.
-    :ivar control_points: An array of 3D points for the control points
-        on the parametric line.
-    :ivar knot_count: Number of spline knots in the parametric line.
-    :ivar line_kind_index: Integer indicating the parametric line kind 0
-        for vertical 1 for linear spline 2 for natural cubic spline 3
-        for cubic spline 4 for z linear cubic spline 5 for minimum-
-        curvature spline (-1) for null: no line
-    :ivar tangent_vectors: An optional array of tangent vectors for each
-        control point on the cubic and minimum-curvature parametric
-        lines. Used only if tangent vectors are present. If a tangent
-        vector is missing, then it is computed in the same fashion as
-        for a natural cubic spline. Specifically, to obtain the tangent
-        at internal knots, the control points are fit by a quadratic
-        function with the two adjacent control points. At edge knots,
-        the second derivative vanishes.
-    """
-
-    control_point_parameters: Optional[AbstractDoubleArray] = field(
-        default=None,
-        metadata={
-            "name": "ControlPointParameters",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-    control_points: Optional[AbstractPoint3DArray] = field(
-        default=None,
-        metadata={
-            "name": "ControlPoints",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    knot_count: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "KnotCount",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    line_kind_index: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "LineKindIndex",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    tangent_vectors: Optional[AbstractPoint3DArray] = field(
-        default=None,
-        metadata={
-            "name": "TangentVectors",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
 
@@ -7554,50 +7441,27 @@ class Point3DLatticeArray(AbstractPoint3DArray):
 
 
 @dataclass
-class PolylineSetPatch(Patch):
-    """A patch containing a set of polylines. For performance reasons, the geometry
-    of each patch is described in only one 1D array of 3D points, which aggregates
-    the nodes of all the polylines together. To be able to separate the polyline
-    descriptions, additional information is added about the type of each polyline
-    (closed or not) and the number of 3D points (node count) of each polyline.
-
-    This additional information is contained in two arrays which are associated with each polyline set patch. The dimension of these arrays is the number of polylines gathered in one polyline set patch.
-    - The first array contains a Boolean for each polyline (closed or not closed)
-    - The second array contains the count of nodes for each polyline.
-
-    :ivar closed_polylines:
-    :ivar node_count_per_polyline: The first number in the list defines
-        the node count for the first polyline in the polyline set patch.
-        The second number in the list defines the node count for the
-        second polyline in the polyline set patch. etc.
-    :ivar geometry:
+class PointGeometry(AbstractGeometry):
+    """
+    The geometry of a set of points defined by their location in the local CRS,
+    with optional seismic coordinates.
     """
 
-    closed_polylines: Optional[AbstractBooleanArray] = field(
+    points: Optional[AbstractPoint3DArray] = field(
         default=None,
         metadata={
-            "name": "ClosedPolylines",
+            "name": "Points",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "required": True,
         },
     )
-    node_count_per_polyline: Optional[AbstractIntegerArray] = field(
+    seismic_coordinates: Optional[AbstractSeismicCoordinates] = field(
         default=None,
         metadata={
-            "name": "NodeCountPerPolyline",
+            "name": "SeismicCoordinates",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    geometry: Optional[PointGeometry] = field(
-        default=None,
-        metadata={
-            "name": "Geometry",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
         },
     )
 
@@ -7869,83 +7733,6 @@ class SubnodeTopology:
 
 
 @dataclass
-class TiltedPlaneGeometry(AbstractPlaneGeometry):
-    """
-    Describes the geometry of a tilted (or potentially not tilted) plane from three
-    points.
-    """
-
-    plane: List[ThreePoint3D] = field(
-        default_factory=list,
-        metadata={
-            "name": "Plane",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "min_occurs": 1,
-        },
-    )
-
-
-@dataclass
-class TimeSeries(ObjTimeSeries):
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
-
-
-@dataclass
-class TrianglePatch(Patch1D):
-    """Patch made of triangles, where the number of triangles is given by the patch count.
-    BUSINESS RULE: Within a patch, all the triangles must be contiguous.
-    The patch contains:
-    - Number of nodes within the triangulation and their locations.
-    - 2D array describing the topology of the triangles.
-    Two triangles that are connected may be in different patches.
-
-    :ivar node_count:
-    :ivar triangles: The triangles are a 2D array of non-negative
-        integers with the dimensions 3 x numTriangles.
-    :ivar geometry:
-    :ivar split_edge_patch:
-    """
-
-    node_count: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "NodeCount",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    triangles: Optional[AbstractIntegerArray] = field(
-        default=None,
-        metadata={
-            "name": "Triangles",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    geometry: Optional[PointGeometry] = field(
-        default=None,
-        metadata={
-            "name": "Geometry",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    split_edge_patch: List[EdgePatch] = field(
-        default_factory=list,
-        metadata={
-            "name": "SplitEdgePatch",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-
-
-@dataclass
 class TruncationCellPatch(Patch):
     """Truncation definitions for the truncated and split cells.
 
@@ -8180,7 +7967,7 @@ class ObjDeviationSurveyRepresentation(AbstractRepresentation):
     class Meta:
         name = "obj_DeviationSurveyRepresentation"
 
-    witsml_deviation_survey: Optional[str] = field(
+    witsml_deviation_survey: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "WitsmlDeviationSurvey",
@@ -8206,7 +7993,7 @@ class ObjDeviationSurveyRepresentation(AbstractRepresentation):
             "required": True,
         },
     )
-    md_uom: Optional[str] = field(
+    md_uom: Optional[LengthUom] = field(
         default=None,
         metadata={
             "name": "MdUom",
@@ -8233,7 +8020,7 @@ class ObjDeviationSurveyRepresentation(AbstractRepresentation):
             "required": True,
         },
     )
-    angle_uom: Optional[str] = field(
+    angle_uom: Optional[PlaneAngleUom] = field(
         default=None,
         metadata={
             "name": "AngleUom",
@@ -8260,7 +8047,7 @@ class ObjDeviationSurveyRepresentation(AbstractRepresentation):
             "required": True,
         },
     )
-    md_datum: Optional[str] = field(
+    md_datum: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "MdDatum",
@@ -8309,7 +8096,7 @@ class ObjEarthModelInterpretation(AbstractFeatureInterpretation):
     class Meta:
         name = "obj_EarthModelInterpretation"
 
-    stratigraphic_occurrences: List[str] = field(
+    stratigraphic_occurrences: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "StratigraphicOccurrences",
@@ -8317,7 +8104,7 @@ class ObjEarthModelInterpretation(AbstractFeatureInterpretation):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    stratigraphic_column: Optional[str] = field(
+    stratigraphic_column: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "StratigraphicColumn",
@@ -8325,7 +8112,7 @@ class ObjEarthModelInterpretation(AbstractFeatureInterpretation):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    structure: Optional[str] = field(
+    structure: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "Structure",
@@ -8333,7 +8120,7 @@ class ObjEarthModelInterpretation(AbstractFeatureInterpretation):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    fluid: Optional[str] = field(
+    fluid: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "Fluid",
@@ -8416,7 +8203,7 @@ class ObjLocalGridSet(AbstractResqmlDataObject):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    child_grid: List[str] = field(
+    child_grid: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "ChildGrid",
@@ -8442,7 +8229,7 @@ class ObjLocalTime3DCrs(AbstractLocal3DCrs):
     class Meta:
         name = "obj_LocalTime3dCrs"
 
-    time_uom: Optional[str] = field(
+    time_uom: Optional[TimeUom] = field(
         default=None,
         metadata={
             "name": "TimeUom",
@@ -8471,38 +8258,6 @@ class ObjPointsProperty(AbstractProperty):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "min_occurs": 1,
-        },
-    )
-
-
-@dataclass
-class ObjRedefinedGeometryRepresentation(AbstractRepresentation):
-    """A representation derived from an existing representation by redefining its
-    geometry.
-
-    Example use cases include deformation of the geometry of an object,
-    change of coordinate system, and change of time &lt;=&gt; depth.
-    """
-
-    class Meta:
-        name = "obj_RedefinedGeometryRepresentation"
-
-    patch_of_geometry: List[PatchOfGeometry] = field(
-        default_factory=list,
-        metadata={
-            "name": "PatchOfGeometry",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "min_occurs": 1,
-        },
-    )
-    supporting_representation: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "SupportingRepresentation",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
         },
     )
 
@@ -8538,7 +8293,7 @@ class ObjRepresentationSetRepresentation(AbstractRepresentation):
             "required": True,
         },
     )
-    representation: List[str] = field(
+    representation: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "Representation",
@@ -8564,6 +8319,41 @@ class ObjStringTableLookup(AbstractPropertyLookup):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "min_occurs": 1,
+        },
+    )
+
+
+@dataclass
+class ObjTimeSeries(AbstractResqmlDataObject):
+    """Stores an ordered list of times, for example, for time-dependent properties,
+    geometries, or representations.
+
+    It is used in conjunction with the time index to specify times for
+    RESQML.
+
+    :ivar time: Individual times composing the series. The list ordering
+        is used by the time index.
+    :ivar time_series_parentage:
+    """
+
+    class Meta:
+        name = "obj_TimeSeries"
+
+    time: List[Timestamp] = field(
+        default_factory=list,
+        metadata={
+            "name": "Time",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "min_occurs": 1,
+        },
+    )
+    time_series_parentage: Optional[TimeSeriesParentage] = field(
+        default=None,
+        metadata={
+            "name": "TimeSeriesParentage",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
 
@@ -8607,7 +8397,7 @@ class ObjWellboreFrameRepresentation(AbstractRepresentation):
             "required": True,
         },
     )
-    witsml_log_reference: Optional[str] = field(
+    witsml_log_reference: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "WitsmlLogReference",
@@ -8631,7 +8421,7 @@ class ObjWellboreFrameRepresentation(AbstractRepresentation):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    trajectory: Optional[str] = field(
+    trajectory: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "Trajectory",
@@ -8671,107 +8461,17 @@ class ObjWellboreInterpretation(AbstractFeatureInterpretation):
 
 
 @dataclass
-class ObjWellboreTrajectoryRepresentation(AbstractRepresentation):
+class AbstractGridGeometry(PointGeometry):
     """
-    Representation of a wellbore trajectory.
-
-    :ivar start_md: Specifies the measured depth  for the start of the
-        wellbore trajectory. Range may often be from kickoff to TD, but
-        this is not necessary. BUSINESS RULE: Start MD is always less
-        than the Finish MD.
-    :ivar finish_md: Specifies the ending measured depth of the range
-        for the wellbore trajectory. Range may often be from kickoff to
-        TD, but this is not necessary. BUSINESS RULE: Start MD is always
-        less than the Finish MD.
-    :ivar md_uom: The unit of measure of the reference MD.
-    :ivar md_domain:
-    :ivar witsml_trajectory: Pointer to the WITSML trajectory that is
-        contained in the referenced wellbore. (For information about
-        WITSML well and wellbore references, see the definition for
-        RESQML technical feature, WellboreFeature).
-    :ivar geometry: Explicit geometry is not required for vertical wells
-    :ivar md_datum:
-    :ivar deviation_survey:
-    :ivar parent_intersection:
+    Grid geometry described by means of points attached to nodes and additional
+    optional points which may be attached to other indexable elements of the grid
+    representation.
     """
 
-    class Meta:
-        name = "obj_WellboreTrajectoryRepresentation"
-
-    start_md: Optional[float] = field(
-        default=None,
+    additional_grid_points: List[AdditionalGridPoints] = field(
+        default_factory=list,
         metadata={
-            "name": "StartMd",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    finish_md: Optional[float] = field(
-        default=None,
-        metadata={
-            "name": "FinishMd",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    md_uom: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "MdUom",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    md_domain: Optional[MdDomain] = field(
-        default=None,
-        metadata={
-            "name": "MdDomain",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-    witsml_trajectory: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "WitsmlTrajectory",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-    geometry: Optional[AbstractParametricLineGeometry] = field(
-        default=None,
-        metadata={
-            "name": "Geometry",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-    md_datum: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "MdDatum",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-    deviation_survey: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "DeviationSurvey",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-    parent_intersection: Optional[
-        WellboreTrajectoryParentIntersection
-    ] = field(
-        default=None,
-        metadata={
-            "name": "ParentIntersection",
+            "name": "AdditionalGridPoints",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
@@ -8918,6 +8618,74 @@ class GeologicUnitInterpretation(ObjGeologicUnitInterpretation):
 
 
 @dataclass
+class Grid2DPatch(Patch):
+    """Patch representing a single 2D grid and its geometry.
+
+    The FastestAxisCount and the SlowestAxisCount determine the indexing
+    of this grid 2D patch, by defining a one dimensional index for the
+    2D grid as follows: Index = FastestIndex + FastestAxisCount *
+    SlowestIndex This indexing order IS the data order when stored in
+    HDF5, in which case, this would be a
+    SlowestAxisCount*FastestAxisCount two dimensional array in HDF5.
+
+    :ivar fastest_axis_count: The number of nodes in the fastest
+        direction.
+    :ivar slowest_axis_count: The number of nodes in the slowest
+        direction.
+    :ivar geometry:
+    """
+
+    class Meta:
+        name = "Grid2dPatch"
+
+    fastest_axis_count: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "FastestAxisCount",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    slowest_axis_count: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "SlowestAxisCount",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    geometry: Optional[PointGeometry] = field(
+        default=None,
+        metadata={
+            "name": "Geometry",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class HorizontalPlaneGeometry(AbstractPlaneGeometry):
+    """
+    Defines the infinite geometry of a horizontal plane provided by giving its
+    unique Z value.
+    """
+
+    coordinate: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "Coordinate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
 class IjGaps:
     """
     Optional object used to indicate that adjacent columns of the model are split
@@ -8991,6 +8759,56 @@ class LocalTime3DCrs(ObjLocalTime3DCrs):
 
 
 @dataclass
+class NodePatch(Patch1D):
+    """
+    Patch representing a list of nodes to which geometry may be attached.
+    """
+
+    geometry: Optional[PointGeometry] = field(
+        default=None,
+        metadata={
+            "name": "Geometry",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class ParametricLineFromRepresentationGeometry(AbstractParametricLineGeometry):
+    """The parametric line extracted from an existing representation.
+
+    BUSINESS RULE: The supporting representation must have pillars or lines as indexable elements.
+
+    :ivar line_indiex_on_supporting_representation: The line index of
+        the selected line in the supporting representation. For a
+        column-layer grid, the parametric lines follow the indexing of
+        the pillars.
+    :ivar supporting_representation:
+    """
+
+    line_indiex_on_supporting_representation: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "LineIndiexOnSupportingRepresentation",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    supporting_representation: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "SupportingRepresentation",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
 class ParametricLineFromRepresentationLatticeArray(
     AbstractParametricLineArray
 ):
@@ -9023,13 +8841,106 @@ class ParametricLineFromRepresentationLatticeArray(
             "required": True,
         },
     )
-    supporting_representation: Optional[str] = field(
+    supporting_representation: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "SupportingRepresentation",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "required": True,
+        },
+    )
+
+
+@dataclass
+class ParametricLineGeometry(AbstractParametricLineGeometry):
+    """Defines a parametric line of any kind.
+
+    For more information on the supported parametric lines, see
+    ParametricLineArray.
+
+    :ivar control_point_parameters: An optional array of explicit
+        control point parameters for the control points on the
+        parametric line. Used only if control point parameters are
+        present. NOTES: (1) Vertical parametric lines do not require
+        control point parameters. (2) Z linear cubic splines have
+        implicitly defined parameters. For a line with N intervals (N+1
+        control points), the parametric values are P=0,...,N. BUSINESS
+        RULE: If present, the size must match the number of control
+        points. BUSINESS RULE: For vertical and Z linear cubic
+        parametric lines, this count must be zero. For all other
+        parametric line kinds, each control point must have one control
+        point parameter. BUSINESS RULE: The parametric values must be
+        strictly monotonically increasing on each parametric line. This
+        is an optional array which should only be used if control point
+        parameters are present. BUSINESS RILE: If present, the size must
+        match the number of control points. BUSINESS RULE: This count
+        should be zero for vertical and Z linear cubic parametric lines.
+        For all other parametric line kinds there should be one control
+        point parameter for each control point. Notes: (1) Vertical
+        parametric lines do not require control point parameters (2) Z
+        linear cubic splines have implicitly defined parameters. For a
+        line with N intervals (N+1 control points), the parametric
+        values are P=0,...,N. BUSINESS RULE: The parametric values must
+        be strictly monotonically increasing on each parametric line.
+    :ivar control_points: An array of 3D points for the control points
+        on the parametric line.
+    :ivar knot_count: Number of spline knots in the parametric line.
+    :ivar line_kind_index: Integer indicating the parametric line kind 0
+        for vertical 1 for linear spline 2 for natural cubic spline 3
+        for cubic spline 4 for z linear cubic spline 5 for minimum-
+        curvature spline (-1) for null: no line
+    :ivar tangent_vectors: An optional array of tangent vectors for each
+        control point on the cubic and minimum-curvature parametric
+        lines. Used only if tangent vectors are present. If a tangent
+        vector is missing, then it is computed in the same fashion as
+        for a natural cubic spline. Specifically, to obtain the tangent
+        at internal knots, the control points are fit by a quadratic
+        function with the two adjacent control points. At edge knots,
+        the second derivative vanishes.
+    """
+
+    control_point_parameters: Optional[AbstractDoubleArray] = field(
+        default=None,
+        metadata={
+            "name": "ControlPointParameters",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+    control_points: Optional[AbstractPoint3DArray] = field(
+        default=None,
+        metadata={
+            "name": "ControlPoints",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    knot_count: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "KnotCount",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    line_kind_index: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "LineKindIndex",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    tangent_vectors: Optional[AbstractPoint3DArray] = field(
+        default=None,
+        metadata={
+            "name": "TangentVectors",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
 
@@ -9062,7 +8973,7 @@ class Point3DFromRepresentationLatticeArray(AbstractPoint3DArray):
             "required": True,
         },
     )
-    supporting_representation: Optional[str] = field(
+    supporting_representation: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "SupportingRepresentation",
@@ -9080,9 +8991,52 @@ class PointsProperty(ObjPointsProperty):
 
 
 @dataclass
-class RedefinedGeometryRepresentation(ObjRedefinedGeometryRepresentation):
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
+class PolylineSetPatch(Patch):
+    """A patch containing a set of polylines. For performance reasons, the geometry
+    of each patch is described in only one 1D array of 3D points, which aggregates
+    the nodes of all the polylines together. To be able to separate the polyline
+    descriptions, additional information is added about the type of each polyline
+    (closed or not) and the number of 3D points (node count) of each polyline.
+
+    This additional information is contained in two arrays which are associated with each polyline set patch. The dimension of these arrays is the number of polylines gathered in one polyline set patch.
+    - The first array contains a Boolean for each polyline (closed or not closed)
+    - The second array contains the count of nodes for each polyline.
+
+    :ivar closed_polylines:
+    :ivar node_count_per_polyline: The first number in the list defines
+        the node count for the first polyline in the polyline set patch.
+        The second number in the list defines the node count for the
+        second polyline in the polyline set patch. etc.
+    :ivar geometry:
+    """
+
+    closed_polylines: Optional[AbstractBooleanArray] = field(
+        default=None,
+        metadata={
+            "name": "ClosedPolylines",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    node_count_per_polyline: Optional[AbstractIntegerArray] = field(
+        default=None,
+        metadata={
+            "name": "NodeCountPerPolyline",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    geometry: Optional[PointGeometry] = field(
+        default=None,
+        metadata={
+            "name": "Geometry",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
 
 
 @dataclass
@@ -9152,6 +9106,83 @@ class StringTableLookup(ObjStringTableLookup):
 
 
 @dataclass
+class TiltedPlaneGeometry(AbstractPlaneGeometry):
+    """
+    Describes the geometry of a tilted (or potentially not tilted) plane from three
+    points.
+    """
+
+    plane: List[ThreePoint3D] = field(
+        default_factory=list,
+        metadata={
+            "name": "Plane",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "min_occurs": 1,
+        },
+    )
+
+
+@dataclass
+class TimeSeries(ObjTimeSeries):
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
+
+
+@dataclass
+class TrianglePatch(Patch1D):
+    """Patch made of triangles, where the number of triangles is given by the patch count.
+    BUSINESS RULE: Within a patch, all the triangles must be contiguous.
+    The patch contains:
+    - Number of nodes within the triangulation and their locations.
+    - 2D array describing the topology of the triangles.
+    Two triangles that are connected may be in different patches.
+
+    :ivar node_count:
+    :ivar triangles: The triangles are a 2D array of non-negative
+        integers with the dimensions 3 x numTriangles.
+    :ivar geometry:
+    :ivar split_edge_patch:
+    """
+
+    node_count: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "NodeCount",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    triangles: Optional[AbstractIntegerArray] = field(
+        default=None,
+        metadata={
+            "name": "Triangles",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    geometry: Optional[PointGeometry] = field(
+        default=None,
+        metadata={
+            "name": "Geometry",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    split_edge_patch: List[EdgePatch] = field(
+        default_factory=list,
+        metadata={
+            "name": "SplitEdgePatch",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+
+
+@dataclass
 class UnstructuredSubnodeTopology(SubnodeTopology):
     """If edge subnodes are used, then edges must be defined.
 
@@ -9184,12 +9215,6 @@ class WellboreFrameRepresentation(ObjWellboreFrameRepresentation):
 
 @dataclass
 class WellboreInterpretation(ObjWellboreInterpretation):
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
-
-
-@dataclass
-class WellboreTrajectoryRepresentation(ObjWellboreTrajectoryRepresentation):
     class Meta:
         namespace = "http://www.energistics.org/energyml/data/resqmlv2"
 
@@ -9257,7 +9282,7 @@ class ObjBlockedWellboreRepresentation(ObjWellboreFrameRepresentation):
             "required": True,
         },
     )
-    grid: List[str] = field(
+    grid: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "Grid",
@@ -9291,7 +9316,7 @@ class ObjCategoricalProperty(AbstractValuesProperty):
     class Meta:
         name = "obj_CategoricalProperty"
 
-    lookup: Optional[str] = field(
+    lookup: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "Lookup",
@@ -9438,7 +9463,7 @@ class ObjFaultInterpretation(ObjBoundaryFeatureInterpretation):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    maximum_throw: Optional[str] = field(
+    maximum_throw: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "MaximumThrow",
@@ -9446,7 +9471,7 @@ class ObjFaultInterpretation(ObjBoundaryFeatureInterpretation):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    mean_azimuth: Optional[str] = field(
+    mean_azimuth: Optional[PlaneAngleMeasure] = field(
         default=None,
         metadata={
             "name": "MeanAzimuth",
@@ -9454,7 +9479,7 @@ class ObjFaultInterpretation(ObjBoundaryFeatureInterpretation):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    mean_dip: Optional[str] = field(
+    mean_dip: Optional[PlaneAngleMeasure] = field(
         default=None,
         metadata={
             "name": "MeanDip",
@@ -9537,49 +9562,6 @@ class ObjGeologicUnitFeature(AbstractGeologicFeature):
 
 
 @dataclass
-class ObjGrid2DRepresentation(AbstractSurfaceRepresentation):
-    """Representation based on a 2D grid.
-
-    For definitions of slowest and fastest axes of the array, see
-    Grid2dPatch.
-    """
-
-    class Meta:
-        name = "obj_Grid2dRepresentation"
-
-    grid2d_patch: Optional[Grid2DPatch] = field(
-        default=None,
-        metadata={
-            "name": "Grid2dPatch",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ObjGrid2DSetRepresentation(AbstractSurfaceRepresentation):
-    """Set of representations based on a 2D grid.
-
-    Each 2D grid representation corresponds to one patch of the set.
-    """
-
-    class Meta:
-        name = "obj_Grid2dSetRepresentation"
-
-    grid2d_patch: List[Grid2DPatch] = field(
-        default_factory=list,
-        metadata={
-            "name": "Grid2dPatch",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "min_occurs": 2,
-        },
-    )
-
-
-@dataclass
 class ObjGridConnectionSetRepresentation(AbstractRepresentation):
     """Representation which consists of a list of connections between grid cells,
     potentially on different grids.
@@ -9655,7 +9637,7 @@ class ObjGridConnectionSetRepresentation(AbstractRepresentation):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    grid: List[str] = field(
+    grid: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "Grid",
@@ -9746,101 +9728,33 @@ class ObjPlaneSetRepresentation(AbstractSurfaceRepresentation):
 
 
 @dataclass
-class ObjPointSetRepresentation(AbstractRepresentation):
-    """A representation that consists of one or more node patches.
+class ObjRedefinedGeometryRepresentation(AbstractRepresentation):
+    """A representation derived from an existing representation by redefining its
+    geometry.
 
-    Each node patch is an array of XYZ coordinates for the 3D points.
-    There is no implied linkage between the multiple patches.
+    Example use cases include deformation of the geometry of an object,
+    change of coordinate system, and change of time &lt;=&gt; depth.
     """
 
     class Meta:
-        name = "obj_PointSetRepresentation"
+        name = "obj_RedefinedGeometryRepresentation"
 
-    node_patch: List[NodePatch] = field(
+    patch_of_geometry: List[PatchOfGeometry] = field(
         default_factory=list,
         metadata={
-            "name": "NodePatch",
+            "name": "PatchOfGeometry",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "min_occurs": 1,
         },
     )
-
-
-@dataclass
-class ObjPolylineRepresentation(AbstractRepresentation):
-    """A representation made up of a single polyline or "polygonal chain", which
-    may be closed or not.
-
-    Definition from Wikipedia (http://en.wikipedia.org/wiki/Piecewise_linear_curve):
-    A polygonal chain, polygonal curve, polygonal path, or piecewise linear curve, is a connected series of line segments. More formally, a polygonal chain P is a curve specified by a sequence of points \\scriptstyle(A_1, A_2, \\dots, A_n) called its vertices so that the curve consists of the line segments connecting the consecutive vertices.
-    In computer graphics a polygonal chain is called a polyline and is often used to approximate curved paths.
-    BUSINESS RULE: To record a polyline the writer software must give the values of the geometry of each node in an order corresponding to the logical series of segments (edges). The geometry of a polyline must be a 1D array of points.
-    A simple polygonal chain is one in which only consecutive (or the first and the last) segments intersect and only at their endpoints.
-    A closed polygonal chain (isClosed=True) is one in which the first vertex coincides with the last one, or the first and the last vertices are connected by a line segment.
-    """
-
-    class Meta:
-        name = "obj_PolylineRepresentation"
-
-    line_role: Optional[LineRole] = field(
+    supporting_representation: Optional[DataObjectReference] = field(
         default=None,
         metadata={
-            "name": "LineRole",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-    is_closed: Optional[bool] = field(
-        default=None,
-        metadata={
-            "name": "IsClosed",
+            "name": "SupportingRepresentation",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "required": True,
-        },
-    )
-    node_patch: Optional[NodePatch] = field(
-        default=None,
-        metadata={
-            "name": "NodePatch",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ObjPolylineSetRepresentation(AbstractRepresentation):
-    """A representation made up of a set of polylines or a set of polygonal chains
-    (for more information, see PolylineRepresentation).
-
-    For compactness, it is organized by line patch as a unique polyline
-    set patch. if allPolylineClosed = True, all the polylines are
-    connected between the first and the last point. Its geometry is a 1D
-    array of points, corresponding to the concatenation of the points of
-    all polyline points.
-    """
-
-    class Meta:
-        name = "obj_PolylineSetRepresentation"
-
-    line_role: Optional[LineRole] = field(
-        default=None,
-        metadata={
-            "name": "LineRole",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-    line_patch: List[PolylineSetPatch] = field(
-        default_factory=list,
-        metadata={
-            "name": "LinePatch",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "min_occurs": 1,
         },
     )
 
@@ -9900,7 +9814,7 @@ class ObjSealedVolumeFrameworkRepresentation(
     class Meta:
         name = "obj_SealedVolumeFrameworkRepresentation"
 
-    based_on: Optional[str] = field(
+    based_on: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "BasedOn",
@@ -9954,7 +9868,7 @@ class ObjStratigraphicUnitInterpretation(ObjGeologicUnitInterpretation):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    max_thickness: Optional[str] = field(
+    max_thickness: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "MaxThickness",
@@ -9962,7 +9876,7 @@ class ObjStratigraphicUnitInterpretation(ObjGeologicUnitInterpretation):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    min_thickness: Optional[str] = field(
+    min_thickness: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "MinThickness",
@@ -10089,7 +10003,7 @@ class ObjStructuralOrganizationInterpretation(
             "required": True,
         },
     )
-    faults: List[str] = field(
+    faults: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "Faults",
@@ -10105,7 +10019,7 @@ class ObjStructuralOrganizationInterpretation(
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    sides: List[str] = field(
+    sides: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "Sides",
@@ -10113,7 +10027,7 @@ class ObjStructuralOrganizationInterpretation(
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    top_frontier: List[str] = field(
+    top_frontier: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "TopFrontier",
@@ -10121,34 +10035,12 @@ class ObjStructuralOrganizationInterpretation(
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    bottom_frontier: List[str] = field(
+    bottom_frontier: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "BottomFrontier",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-        },
-    )
-
-
-@dataclass
-class ObjTriangulatedSetRepresentation(AbstractSurfaceRepresentation):
-    """A representation based on set of triangulated mesh patches, which gets its
-    geometry from a 1D array of points.
-
-    BUSINESS RULE: The orientation of all the triangles of this representation must be consistent.
-    """
-
-    class Meta:
-        name = "obj_TriangulatedSetRepresentation"
-
-    triangle_patch: List[TrianglePatch] = field(
-        default_factory=list,
-        metadata={
-            "name": "TrianglePatch",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
-            "min_occurs": 1,
         },
     )
 
@@ -10189,6 +10081,114 @@ class ObjWellboreMarkerFrameRepresentation(ObjWellboreFrameRepresentation):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "min_occurs": 1,
+        },
+    )
+
+
+@dataclass
+class ObjWellboreTrajectoryRepresentation(AbstractRepresentation):
+    """
+    Representation of a wellbore trajectory.
+
+    :ivar start_md: Specifies the measured depth  for the start of the
+        wellbore trajectory. Range may often be from kickoff to TD, but
+        this is not necessary. BUSINESS RULE: Start MD is always less
+        than the Finish MD.
+    :ivar finish_md: Specifies the ending measured depth of the range
+        for the wellbore trajectory. Range may often be from kickoff to
+        TD, but this is not necessary. BUSINESS RULE: Start MD is always
+        less than the Finish MD.
+    :ivar md_uom: The unit of measure of the reference MD.
+    :ivar md_domain:
+    :ivar witsml_trajectory: Pointer to the WITSML trajectory that is
+        contained in the referenced wellbore. (For information about
+        WITSML well and wellbore references, see the definition for
+        RESQML technical feature, WellboreFeature).
+    :ivar geometry: Explicit geometry is not required for vertical wells
+    :ivar md_datum:
+    :ivar deviation_survey:
+    :ivar parent_intersection:
+    """
+
+    class Meta:
+        name = "obj_WellboreTrajectoryRepresentation"
+
+    start_md: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "StartMd",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    finish_md: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "FinishMd",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    md_uom: Optional[LengthUom] = field(
+        default=None,
+        metadata={
+            "name": "MdUom",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    md_domain: Optional[MdDomain] = field(
+        default=None,
+        metadata={
+            "name": "MdDomain",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+    witsml_trajectory: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "WitsmlTrajectory",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+    geometry: Optional[AbstractParametricLineGeometry] = field(
+        default=None,
+        metadata={
+            "name": "Geometry",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+    md_datum: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "MdDatum",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    deviation_survey: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "DeviationSurvey",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+    parent_intersection: Optional[
+        WellboreTrajectoryParentIntersection
+    ] = field(
+        default=None,
+        metadata={
+            "name": "ParentIntersection",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
 
@@ -10264,7 +10264,7 @@ class CellParentWindow(AbstractParentWindow):
             "required": True,
         },
     )
-    parent_grid: Optional[str] = field(
+    parent_grid: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "ParentGrid",
@@ -10320,7 +10320,7 @@ class ColumnLayerParentWindow(AbstractParentWindow):
             "required": True,
         },
     )
-    parent_grid: Optional[str] = field(
+    parent_grid: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "ParentGrid",
@@ -10380,20 +10380,6 @@ class GeologicUnitFeature(ObjGeologicUnitFeature):
 
 
 @dataclass
-class Grid2DRepresentation(ObjGrid2DRepresentation):
-    class Meta:
-        name = "Grid2dRepresentation"
-        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
-
-
-@dataclass
-class Grid2DSetRepresentation(ObjGrid2DSetRepresentation):
-    class Meta:
-        name = "Grid2dSetRepresentation"
-        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
-
-
-@dataclass
 class GridConnectionSetRepresentation(ObjGridConnectionSetRepresentation):
     class Meta:
         namespace = "http://www.energistics.org/energyml/data/resqmlv2"
@@ -10438,7 +10424,7 @@ class IjkParentWindow(AbstractParentWindow):
             "required": True,
         },
     )
-    parent_grid: Optional[str] = field(
+    parent_grid: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "ParentGrid",
@@ -10480,19 +10466,7 @@ class PlaneSetRepresentation(ObjPlaneSetRepresentation):
 
 
 @dataclass
-class PointSetRepresentation(ObjPointSetRepresentation):
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
-
-
-@dataclass
-class PolylineRepresentation(ObjPolylineRepresentation):
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
-
-
-@dataclass
-class PolylineSetRepresentation(ObjPolylineSetRepresentation):
+class RedefinedGeometryRepresentation(ObjRedefinedGeometryRepresentation):
     class Meta:
         namespace = "http://www.energistics.org/energyml/data/resqmlv2"
 
@@ -10611,12 +10585,6 @@ class StructuralOrganizationInterpretation(
 
 
 @dataclass
-class TriangulatedSetRepresentation(ObjTriangulatedSetRepresentation):
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
-
-
-@dataclass
 class UnstructuredGridGeometry(AbstractGridGeometry):
     """Description of the geometry of an unstructured cell grid, which includes
     geometric characteristics, e.g., cell face parity, and supporting topology.
@@ -10726,6 +10694,12 @@ class WellboreFeature(ObjWellboreFeature):
 
 @dataclass
 class WellboreMarkerFrameRepresentation(ObjWellboreMarkerFrameRepresentation):
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
+
+
+@dataclass
+class WellboreTrajectoryRepresentation(ObjWellboreTrajectoryRepresentation):
     class Meta:
         namespace = "http://www.energistics.org/energyml/data/resqmlv2"
 
@@ -10948,6 +10922,49 @@ class ObjGeobodyFeature(ObjGeologicUnitFeature):
 
 
 @dataclass
+class ObjGrid2DRepresentation(AbstractSurfaceRepresentation):
+    """Representation based on a 2D grid.
+
+    For definitions of slowest and fastest axes of the array, see
+    Grid2dPatch.
+    """
+
+    class Meta:
+        name = "obj_Grid2dRepresentation"
+
+    grid2d_patch: Optional[Grid2DPatch] = field(
+        default=None,
+        metadata={
+            "name": "Grid2dPatch",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class ObjGrid2DSetRepresentation(AbstractSurfaceRepresentation):
+    """Set of representations based on a 2D grid.
+
+    Each 2D grid representation corresponds to one patch of the set.
+    """
+
+    class Meta:
+        name = "obj_Grid2dSetRepresentation"
+
+    grid2d_patch: List[Grid2DPatch] = field(
+        default_factory=list,
+        metadata={
+            "name": "Grid2dPatch",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "min_occurs": 2,
+        },
+    )
+
+
+@dataclass
 class ObjNonSealedSurfaceFrameworkRepresentation(
     AbstractSurfaceFrameworkRepresentation
 ):
@@ -10975,6 +10992,106 @@ class ObjNonSealedSurfaceFrameworkRepresentation(
 
 
 @dataclass
+class ObjPointSetRepresentation(AbstractRepresentation):
+    """A representation that consists of one or more node patches.
+
+    Each node patch is an array of XYZ coordinates for the 3D points.
+    There is no implied linkage between the multiple patches.
+    """
+
+    class Meta:
+        name = "obj_PointSetRepresentation"
+
+    node_patch: List[NodePatch] = field(
+        default_factory=list,
+        metadata={
+            "name": "NodePatch",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "min_occurs": 1,
+        },
+    )
+
+
+@dataclass
+class ObjPolylineRepresentation(AbstractRepresentation):
+    """A representation made up of a single polyline or "polygonal chain", which
+    may be closed or not.
+
+    Definition from Wikipedia (http://en.wikipedia.org/wiki/Piecewise_linear_curve):
+    A polygonal chain, polygonal curve, polygonal path, or piecewise linear curve, is a connected series of line segments. More formally, a polygonal chain P is a curve specified by a sequence of points \\scriptstyle(A_1, A_2, \\dots, A_n) called its vertices so that the curve consists of the line segments connecting the consecutive vertices.
+    In computer graphics a polygonal chain is called a polyline and is often used to approximate curved paths.
+    BUSINESS RULE: To record a polyline the writer software must give the values of the geometry of each node in an order corresponding to the logical series of segments (edges). The geometry of a polyline must be a 1D array of points.
+    A simple polygonal chain is one in which only consecutive (or the first and the last) segments intersect and only at their endpoints.
+    A closed polygonal chain (isClosed=True) is one in which the first vertex coincides with the last one, or the first and the last vertices are connected by a line segment.
+    """
+
+    class Meta:
+        name = "obj_PolylineRepresentation"
+
+    line_role: Optional[LineRole] = field(
+        default=None,
+        metadata={
+            "name": "LineRole",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+    is_closed: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "IsClosed",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+    node_patch: Optional[NodePatch] = field(
+        default=None,
+        metadata={
+            "name": "NodePatch",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class ObjPolylineSetRepresentation(AbstractRepresentation):
+    """A representation made up of a set of polylines or a set of polygonal chains
+    (for more information, see PolylineRepresentation).
+
+    For compactness, it is organized by line patch as a unique polyline
+    set patch. if allPolylineClosed = True, all the polylines are
+    connected between the first and the last point. Its geometry is a 1D
+    array of points, corresponding to the concatenation of the points of
+    all polyline points.
+    """
+
+    class Meta:
+        name = "obj_PolylineSetRepresentation"
+
+    line_role: Optional[LineRole] = field(
+        default=None,
+        metadata={
+            "name": "LineRole",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+        },
+    )
+    line_patch: List[PolylineSetPatch] = field(
+        default_factory=list,
+        metadata={
+            "name": "LinePatch",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "min_occurs": 1,
+        },
+    )
+
+
+@dataclass
 class ObjRockFluidUnitFeature(ObjGeologicUnitFeature):
     """A fluid phase plus one or more stratigraphic units.
 
@@ -10995,7 +11112,7 @@ class ObjRockFluidUnitFeature(ObjGeologicUnitFeature):
             "required": True,
         },
     )
-    fluid_boundary_bottom: Optional[str] = field(
+    fluid_boundary_bottom: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "FluidBoundaryBottom",
@@ -11004,7 +11121,7 @@ class ObjRockFluidUnitFeature(ObjGeologicUnitFeature):
             "required": True,
         },
     )
-    fluid_boundary_top: Optional[str] = field(
+    fluid_boundary_top: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "FluidBoundaryTop",
@@ -11085,7 +11202,7 @@ class ObjSeismicLineFeature(AbstractSeismicSurveyFeature):
             "required": True,
         },
     )
-    is_part_of: Optional[str] = field(
+    is_part_of: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "IsPartOf",
@@ -11153,7 +11270,7 @@ class ObjStratigraphicOccurrenceInterpretation(
     class Meta:
         name = "obj_StratigraphicOccurrenceInterpretation"
 
-    is_occurrence_of: Optional[str] = field(
+    is_occurrence_of: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "IsOccurrenceOf",
@@ -11183,7 +11300,7 @@ class ObjStratigraphicUnitFeature(ObjGeologicUnitFeature):
     class Meta:
         name = "obj_StratigraphicUnitFeature"
 
-    chronostratigraphic_bottom: Optional[str] = field(
+    chronostratigraphic_bottom: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "ChronostratigraphicBottom",
@@ -11191,7 +11308,7 @@ class ObjStratigraphicUnitFeature(ObjGeologicUnitFeature):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    chronostratigraphic_top: Optional[str] = field(
+    chronostratigraphic_top: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "ChronostratigraphicTop",
@@ -11219,6 +11336,28 @@ class ObjTectonicBoundaryFeature(ObjBoundaryFeature):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
             "required": True,
+        },
+    )
+
+
+@dataclass
+class ObjTriangulatedSetRepresentation(AbstractSurfaceRepresentation):
+    """A representation based on set of triangulated mesh patches, which gets its
+    geometry from a 1D array of points.
+
+    BUSINESS RULE: The orientation of all the triangles of this representation must be consistent.
+    """
+
+    class Meta:
+        name = "obj_TriangulatedSetRepresentation"
+
+    triangle_patch: List[TrianglePatch] = field(
+        default_factory=list,
+        metadata={
+            "name": "TrianglePatch",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
+            "min_occurs": 1,
         },
     )
 
@@ -11567,9 +11706,41 @@ class GpGridUnstructuredGridPatch(Patch):
 
 
 @dataclass
+class Grid2DRepresentation(ObjGrid2DRepresentation):
+    class Meta:
+        name = "Grid2dRepresentation"
+        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
+
+
+@dataclass
+class Grid2DSetRepresentation(ObjGrid2DSetRepresentation):
+    class Meta:
+        name = "Grid2dSetRepresentation"
+        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
+
+
+@dataclass
 class NonSealedSurfaceFrameworkRepresentation(
     ObjNonSealedSurfaceFrameworkRepresentation
 ):
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
+
+
+@dataclass
+class PointSetRepresentation(ObjPointSetRepresentation):
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
+
+
+@dataclass
+class PolylineRepresentation(ObjPolylineRepresentation):
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
+
+
+@dataclass
+class PolylineSetRepresentation(ObjPolylineSetRepresentation):
     class Meta:
         namespace = "http://www.energistics.org/energyml/data/resqmlv2"
 
@@ -11624,6 +11795,12 @@ class StratigraphicUnitFeature(ObjStratigraphicUnitFeature):
 
 @dataclass
 class TectonicBoundaryFeature(ObjTectonicBoundaryFeature):
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/resqmlv2"
+
+
+@dataclass
+class TriangulatedSetRepresentation(ObjTriangulatedSetRepresentation):
     class Meta:
         namespace = "http://www.energistics.org/energyml/data/resqmlv2"
 
@@ -11929,7 +12106,7 @@ class ObjSubRepresentation(AbstractRepresentation):
             "namespace": "http://www.energistics.org/energyml/data/resqmlv2",
         },
     )
-    supporting_representation: Optional[str] = field(
+    supporting_representation: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "SupportingRepresentation",

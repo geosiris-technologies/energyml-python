@@ -4,6 +4,74 @@ from decimal import Decimal
 from enum import Enum
 from typing import List, Optional, Union
 from xsdata.models.datatype import XmlDate, XmlDateTime
+from energyml.eml.v2_1.commonv2 import (
+    ApigravityMeasure,
+    AbstractNumericArray,
+    AbstractObject,
+    AbstractPressureValue,
+    AbstractTemperaturePressure,
+    AmountOfSubstanceMeasure,
+    AmountOfSubstancePerAmountOfSubstanceMeasure,
+    AngularVelocityMeasure,
+    AreaMeasure,
+    AuthorityQualifiedName,
+    DataObjectReference,
+    DensityValue,
+    DimensionlessMeasure,
+    DynamicViscosityMeasure,
+    ElectricConductivityMeasure,
+    ElectricCurrentMeasure,
+    ElectricalResistivityMeasure,
+    EnergyLengthPerTimeAreaTemperatureMeasure,
+    EnergyMeasure,
+    EnergyPerMassMeasure,
+    EnergyPerVolumeMeasure,
+    ExtensionNameValue,
+    ExternalDatasetPart,
+    FlowRateValue,
+    ForcePerLengthMeasure,
+    FrequencyMeasure,
+    IntegerExternalArray,
+    IsothermalCompressibilityMeasure,
+    LengthMeasure,
+    LengthPerLengthMeasure,
+    LengthPerTimeMeasure,
+    LogarithmicPowerRatioPerLengthMeasure,
+    MassMeasure,
+    MassPerMassMeasure,
+    MassPerTimeMeasure,
+    MassPerVolumeMeasure,
+    MassPerVolumePerPressureMeasureExt,
+    MassPerVolumePerTemperatureMeasureExt,
+    MeasureType,
+    MolarEnergyMeasure,
+    MolarVolumeMeasure,
+    MolecularWeightMeasure,
+    ObjectAlias,
+    PermeabilityRockMeasure,
+    PlaneAngleMeasure,
+    PlaneAngleUom,
+    PressureMeasure,
+    PressureMeasureExt,
+    PressurePerPressureMeasure,
+    ReciprocalPressureMeasure,
+    ReferenceCondition,
+    TemperaturePressure,
+    ThermodynamicTemperatureMeasure,
+    ThermodynamicTemperatureMeasureExt,
+    ThermodynamicTemperaturePerThermodynamicTemperatureMeasure,
+    TimeMeasure,
+    VerticalCoordinateUom,
+    VolumeMeasure,
+    VolumePerMassMeasure,
+    VolumePerTimeMeasure,
+    VolumePerTimePerPressureMeasure,
+    VolumePerVolumeMeasure,
+    VolumeValue,
+    VolumetricThermalExpansionMeasure,
+    WellStatus,
+    WellboreDatumReference,
+)
 
 __NAMESPACE__ = "http://www.energistics.org/energyml/data/prodmlv2"
 
@@ -52,6 +120,7 @@ class AbstractDateTimeType:
             "name": "DTime",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".+T.+[Z+\-].*",
         },
     )
     month: Optional[str] = field(
@@ -77,43 +146,6 @@ class AbstractFiberFacility:
     """
     The abstract base type of FiberFacility.
     """
-
-
-@dataclass
-class AbstractFluidComponent:
-    """
-    The Abstract base type of FluidComponent.
-
-    :ivar mass_fraction: The fluid mass fraction.
-    :ivar mole_fraction: The fluid mole fraction.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    mass_fraction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MassFraction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mole_fraction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MoleFraction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
 
 
 @dataclass
@@ -150,52 +182,6 @@ class AbstractOilVolShrinkage:
     """
     The abstract class of oil volume shrinkage.
     """
-
-
-@dataclass
-class AbstractProductQuantity:
-    """
-    The Abstract base type of product quantity.
-
-    :ivar mass: The amount of product as a mass measure.
-    :ivar moles: Moles.
-    :ivar volume: The amount of product as a volume measure.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    mass: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Mass",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    moles: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Moles",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Volume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
 
 
 @dataclass
@@ -245,6 +231,7 @@ class AbstractWellTest:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -294,12 +281,14 @@ class ApplicationInfo:
             "name": "ApplicationName",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     version: Optional[str] = field(
         default=None,
         metadata={
             "type": "Attribute",
+            "max_length": 64,
         },
     )
 
@@ -421,22 +410,47 @@ class BalanceFlowPart(Enum):
 
 
 @dataclass
+class BeaufortScaleIntegerCode:
+    """An estimate wind strength based on the Beaufort Wind Scale.
+
+    Values range from 0 (calm) to 12 (hurricane).
+    """
+
+    value: Optional[int] = field(
+        default=None,
+        metadata={
+            "required": True,
+            "min_inclusive": 0,
+            "max_exclusive": 12,
+        },
+    )
+
+
+@dataclass
 class BinaryInteractionCoefficient:
     """
     Binary interaction coefficient.
 
+    :ivar value:
     :ivar fluid_component1_reference: Reference to the first fluid
         component for this binary interaction coefficient.
     :ivar fluid_component2_reference: Reference to the second fluid
         component for this binary interaction coefficient.
     """
 
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
     fluid_component1_reference: Optional[str] = field(
         default=None,
         metadata={
             "name": "fluidComponent1Reference",
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
     fluid_component2_reference: Optional[str] = field(
@@ -444,6 +458,7 @@ class BinaryInteractionCoefficient:
         metadata={
             "name": "fluidComponent2Reference",
             "type": "Attribute",
+            "max_length": 64,
         },
     )
 
@@ -476,6 +491,60 @@ class CableType(Enum):
     SINGLE_FIBER_CABLE = "single-fiber-cable"
 
 
+class CalculationMethod(Enum):
+    """
+    Specifies the calculation methods available for "filling in" values in an
+    indexed set.
+
+    :cvar NONE: No calculations are performed to create data where none
+        exists at index points within an existing set of data.
+    :cvar STEP_WISE_CONSTANT: The value is held constant until the next
+        index point.
+    :cvar UNKNOWN: Unknown.
+    """
+
+    NONE = "none"
+    STEP_WISE_CONSTANT = "step wise constant"
+    UNKNOWN = "unknown"
+
+
+@dataclass
+class CalendarMonth:
+    """A month of a year (CCYY-MM).
+
+    A time zone is not allowed. This type is meant to capture original
+    invariant values. It is not intended to be used in "time math" where
+    knowledge of the time zone is needed.
+    """
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "pattern": r"([1-9][0-9][0-9][0-9])-(([0][0-9])|([1][0-2]))",
+        },
+    )
+
+
+@dataclass
+class CalendarYear:
+    """A calendar year (CCYY) in the gregorian calendar.
+
+    This type is meant to capture original invariant values. It is not
+    intended to be used in "time math" where knowledge of the time zone
+    is needed.
+    """
+
+    value: Optional[int] = field(
+        default=None,
+        metadata={
+            "required": True,
+            "min_inclusive": 1000,
+            "max_inclusive": 9999,
+        },
+    )
+
+
 @dataclass
 class CalibrationParameter:
     """Parameters are given by name/ value pairs, with optional UOM.
@@ -492,12 +561,14 @@ class CalibrationParameter:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
     uom: Optional[str] = field(
         default=None,
         metadata={
             "type": "Attribute",
+            "max_length": 32,
         },
     )
 
@@ -563,6 +634,7 @@ class ConnectedNode:
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     dtim_end: Optional[XmlDateTime] = field(
@@ -588,6 +660,7 @@ class ConnectedNode:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     plan_name: List[str] = field(
@@ -596,6 +669,7 @@ class ConnectedNode:
             "name": "PlanName",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     uid: Optional[str] = field(
@@ -603,6 +677,7 @@ class ConnectedNode:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -698,115 +773,6 @@ class CrewType(Enum):
     PERSONNEL_ON_BOARD = "personnel on board"
 
 
-@dataclass
-class CurveDefinition:
-    """
-    The definition of a curve.
-
-    :ivar is_index: True (equal "1" or "true") indicates that this is an
-        independent variable in this curve. At least one column column
-        should be flagged as independent.
-    :ivar measure_class: The measure class of the variable. This defines
-        which units of measure are valid for the value.
-    :ivar order: The order of the value in the index or data tuple. If
-        isIndex is true, this is the order of the (independent) index
-        element. If isIndex is false, this is the order of the
-        (dependent) value element.
-    :ivar parameter: The name of the variable in this curve.
-    :ivar unit: The unit of measure of the variable. The unit of measure
-        must match a unit allowed by the measure class.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    is_index: Optional[bool] = field(
-        default=None,
-        metadata={
-            "name": "IsIndex",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    measure_class: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "MeasureClass",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    order: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Order",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    parameter: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Parameter",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    unit: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Unit",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class CustomPvtModelParameter:
-    """
-    Custom PVT model parameter.
-
-    :ivar custom_parameter_value:
-    :ivar fluid_component_reference: Reference to a fluid component to
-        which this custom model parameter applies.
-    """
-
-    custom_parameter_value: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "CustomParameterValue",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    fluid_component_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "fluidComponentReference",
-            "type": "Attribute",
-        },
-    )
-
-
-@dataclass
-class DasAcquisition:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
 class DasCalibrationType(Enum):
     """
     Specifies the types of calibration.
@@ -864,92 +830,6 @@ class DasDimensions(Enum):
 
 
 @dataclass
-class DasExternalDatasetPart:
-    """Array of integer values provided explicitly by an HDF5 dataset.
-
-    The null value must be  explicitly provided in the NullValue
-    attribute of this class.
-
-    :ivar part_end_time: The timestamp in human readable, ISO 8601
-        format of the last recorded sample in the sub-record of the raw
-        data array stored in the corresponding HDF data file.
-    :ivar part_start_time: The timestamp in human readable, ISO 8601
-        format of the first recorded sample in the sub-record of the raw
-        data array stored in the corresponding HDF data file.
-    """
-
-    part_end_time: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PartEndTime",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    part_start_time: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PartStartTime",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class DasInstrumentBox:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
-class DasTimeArray:
-    """The Times arrays contain the ‘scan’ or ‘trace’ times at which the raw, FBE
-    and spectrum arrays were acquired or processed:
-
-    - For raw data, these are the times for which all loci in the ‘scanned’ fiber section were interrogated by a single pulse of the DAS measurement system.
-    - For the processed data, these are the times of the first sample in the time window used in the frequency filter or transformation function to calculate the FBE or spectrum data.
-
-    :ivar end_time: The timestamp in human readable, ISO 8601 format of
-        the last recorded sample in the acquisition. Note that this is
-        the end time of the acquistion if a raw data set is stored in
-        multiple HDF files. The end time of the sub-record stored in an
-        individual HDF file is stored in PartEndTime.
-    :ivar start_time: The timestamp in human readable, ISO 8601 format
-        of the last recorded sample in the acquistion. Note that this is
-        the start time of the acquistion if a raw dataset is stored in
-        multiple HDF files. The end time of the sub-record stored in an
-        individual HDF file is stored in PartStartTime.
-    :ivar time_array:
-    """
-
-    end_time: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "EndTime",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    start_time: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "StartTime",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    time_array: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TimeArray",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
 class DatedComment:
     """
     A general time-stamped comment structure.
@@ -981,6 +861,7 @@ class DatedComment:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     role: List[str] = field(
@@ -989,6 +870,7 @@ class DatedComment:
             "name": "Role",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     start_time: Optional[XmlDateTime] = field(
@@ -1005,6 +887,7 @@ class DatedComment:
             "name": "Who",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     uid: Optional[str] = field(
@@ -1012,6 +895,7 @@ class DatedComment:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -1065,6 +949,7 @@ class DowntimeReasonCode:
             "name": "Name",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     parent: Optional[DowntimeReasonCode] = field(
@@ -1080,60 +965,14 @@ class DowntimeReasonCode:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
     code: Optional[str] = field(
         default=None,
         metadata={
             "type": "Attribute",
-        },
-    )
-
-
-@dataclass
-class DtsInstalledSystem:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
-class DtsInstrumentBox:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
-class DtsMeasurement:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
-class DtsPatchCord:
-    """
-    Information regarding the patch cord used to connect the instrument box to the
-    start of the optical fiber path.
-
-    :ivar description: A textual description of the patch cord.
-    :ivar fiber_length: Optical distance between the instrument and the
-        end of the patch cord that will be attached to the rest of the
-        optical path from which a measurement will be taken.
-    """
-
-    description: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Description",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    fiber_length: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FiberLength",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
 
@@ -1812,216 +1651,6 @@ class FiberMode(Enum):
     SINGLEMODE = "singlemode"
 
 
-@dataclass
-class FiberOpticalPath:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
-class FiberPumpActivity:
-    """
-    The activity of pumping the fiber downhole into a control line (small diameter
-    tube).
-
-    :ivar cable_meter_calibration_date: The date the cable meter was
-        calibrated.
-    :ivar cable_meter_serial_number: The serial number of the cable
-        meter.
-    :ivar cable_meter_type: The type of cable meter.
-    :ivar comment: Comment about the pump activity.
-    :ivar control_line_fluid: The type of fluid used in the control
-        line.
-    :ivar engineer_name: The person in charge of the pumping activity.
-    :ivar excess_fiber_recovered: The length of the excess fiber that
-        was removed.
-    :ivar fiber_end_seal: The type of end seal on the fiber.
-    :ivar installed_fiber: The name of the InstalledFiberInstance that
-        this activity relates to.
-    :ivar name: A name that can be used to reference the pumping
-        activity. In general, a pumping activity does not have a natural
-        name, so this element is often not used.
-    :ivar pump_direction: The direction of the pumping.
-    :ivar pump_fluid_type: The type of fluid used in the pump.
-    :ivar pumping_date: The date of the pumping activity.
-    :ivar service_company: The company that performed the pumping
-        activity.
-    :ivar uid: Unique identifier of this object.
-    """
-
-    cable_meter_calibration_date: Optional[XmlDate] = field(
-        default=None,
-        metadata={
-            "name": "CableMeterCalibrationDate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    cable_meter_serial_number: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CableMeterSerialNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    cable_meter_type: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CableMeterType",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    comment: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Comment",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    control_line_fluid: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ControlLineFluid",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    engineer_name: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "EngineerName",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    excess_fiber_recovered: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ExcessFiberRecovered",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    fiber_end_seal: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FiberEndSeal",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    installed_fiber: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "InstalledFiber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    name: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Name",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pump_direction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PumpDirection",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pump_fluid_type: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PumpFluidType",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pumping_date: Optional[XmlDate] = field(
-        default=None,
-        metadata={
-            "name": "PumpingDate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    service_company: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ServiceCompany",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class FiberRefractiveIndex:
-    """The refractive index of a material depends on the frequency (or wavelength)
-    of the light.
-
-    Hence, it is necessary to include both the value (a unitless number)
-    and the frequency (or wavelength) it was measured at. The frequency
-    will be a quantity type with a frequency unit such as Hz.
-
-    :ivar frequency: The frequency (and UOM) for which the refractive
-        index is measured.
-    :ivar value: The value of the refractive index.
-    :ivar wavelength: The wavelength (and UOM) for which the refractive
-        index is measured. The reported wavelength should be the
-        wavelength of the light in a vacuum.
-    :ivar uid: Unique identifier of this object.
-    """
-
-    frequency: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Frequency",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    value: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Value",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    wavelength: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Wavelength",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
 class FiberSpliceTypes(Enum):
     """
     Specifies the type of fiber splice.
@@ -2075,12 +1704,6 @@ class FlowSubQualifier(Enum):
     STANDARD = "standard"
 
 
-@dataclass
-class FluidAnalysis:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
 class FluidAnalysisStepCondition(Enum):
     """
     Specifies the conditions of a fluid analysis step.
@@ -2101,275 +1724,205 @@ class FluidAnalysisStepCondition(Enum):
     STOCK_TANK_CONDITIONS = "stock tank conditions"
 
 
-@dataclass
-class FluidCharacterization:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
-class FluidCharacterizationSource:
+class FluidComponentBasis(Enum):
     """
-    Fluid characterization source.
+    Specifies, in a mixture such as an oil or gas, either a single chemical
+    component, a group of isomeric chemicals, or a fraction.
 
-    :ivar fluid_analysis_reference:
-    :ivar fluid_analysis_test_reference: A reference to a fluid analysis
-        test which was used as source data for this fluid
-        characterization.
-    """
-
-    fluid_analysis_reference: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FluidAnalysisReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    fluid_analysis_test_reference: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FluidAnalysisTestReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class FluidComponent:
-    """
-    Fluid component.
-
-    :ivar kvalue: K value.
-    :ivar mass_fraction: The mass fraction for the fluid component.
-    :ivar mole_fraction: The mole fraction for the fluid component.
-    :ivar fluid_component_reference: Fluid component reference.
-    """
-
-    kvalue: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "KValue",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mass_fraction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MassFraction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mole_fraction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MoleFraction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    fluid_component_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "fluidComponentReference",
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class FluidComponentProperty:
-    """
-    The properties of a fluid component.
-
-    :ivar acentric_factor: The acentric factor for this fluid component.
-    :ivar compact_volume: The compact volume for this fluid component.
-    :ivar critical_pressure: The critical pressure for this fluid
-        component.
-    :ivar critical_temperature: The critical temperature for this fluid
-        component.
-    :ivar critical_viscosity: The critical viscosity for this fluid
-        component.
-    :ivar critical_volume: The critical volume for this fluid component.
-    :ivar mass_density: The mass density for this fluid component.
-    :ivar omega_a: The omega A for this fluid component.
-    :ivar omega_b: The omega B for this fluid component.
-    :ivar parachor: The parachor for this fluid component.
-    :ivar partial_molar_density: The partial molar density for this
-        fluid component.
-    :ivar partial_molar_volume: The partial molar volume for this fluid
-        component.
-    :ivar reference_density_zj: The reference density for this fluid
-        component.
-    :ivar reference_gravity_zj: The reference gravity for this fluid
-        component.
-    :ivar reference_temperature_zj: The reference temperature for this
-        fluid component.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar viscous_compressibility: The viscous compressibility for this
-        fluid component.
-    :ivar volume_shift_parameter: The volume shift parameter for this
-        fluid component.
-    :ivar fluid_component_reference: The reference to the fluid
-        component to which these properties apply.
+    :cvar VALUE_1: 1
+    :cvar VALUE_1_DIMETHYLCYCLOPENTANE: 1-dimethylcyclopentane
+    :cvar VALUE_2: 2
+    :cvar VALUE_2_DIMETHYLBENZENE: 2 dimethylbenzene
+    :cvar VALUE_2_DIMETHYLPROPANE: 2 dimethylpropane
+    :cvar VALUE_2_DIMETHYLBUTANE: 2-dimethylbutane
+    :cvar VALUE_2_DIMETHYLCYCLOPENTANE: 2-dimethylcyclopentane
+    :cvar VALUE_2_DIMETHYLHEXANE: 2-dimethylhexane
+    :cvar VALUE_2_DIMETHYLPENTANE: 2-dimethylpentane
+    :cvar VALUE_2_METHYLBUTANE: 2-methylbutane
+    :cvar VALUE_2_METHYLHEXANE: 2-methylhexane
+    :cvar VALUE_2_METHYLPENTANE: 2-methylpentane
+    :cvar VALUE_2_METHYLPROPANE: 2-methylpropane
+    :cvar VALUE_3: 3
+    :cvar VALUE_3_DIMETHYLBENZENE: 3 dimethylbenzene
+    :cvar VALUE_3_DIMETHYLBUTANE: 3-dimethylbutane
+    :cvar VALUE_3_DIMETHYLCYCLOPENTANE: 3-dimethylcyclopentane
+    :cvar VALUE_3_DIMETHYLPENTANE: 3-dimethylpentane
+    :cvar VALUE_3_ETHYLPENTANE: 3-ethylpentane
+    :cvar VALUE_3_METHYLHEXANE: 3-methylhexane
+    :cvar VALUE_3_METHYLPENTANE: 3-methylpentane
+    :cvar VALUE_3_TRIMETHYLBUTANE: 3-trimethylbutane
+    :cvar VALUE_3_TRIMETHYLPENTANE: 3-trimethylpentane
+    :cvar VALUE_4_DIMETHYLBENZENE: 4-dimethylbenzene
+    :cvar VALUE_4_DIMETHYLHEXANE: 4-dimethylhexane
+    :cvar VALUE_4_DIMETHYLPENTANE: 4-Dimethylpentane
+    :cvar VALUE_4_TRIMETHYLBENZENE: 4-trimethylbenzene
+    :cvar VALUE_5_DIMETHYLHEXANE: 5-dimethylhexane
+    :cvar ARGON: argon
+    :cvar BENZENE: benzene
+    :cvar BUTANE: butane
+    :cvar C11_FRACTION: c11 fraction
+    :cvar C12_FRACTION: c12 fraction
+    :cvar C13_FRACTION: c13 fraction
+    :cvar C14_FRACTION: c14 fraction
+    :cvar C15_FRACTION: c15 fraction
+    :cvar C16_FRACTION: c16 fraction
+    :cvar C17_FRACTION: c17 fraction
+    :cvar C18_FRACTION: c18 fraction
+    :cvar C19_FRACTION: c19 fraction
+    :cvar C20_FRACTION: c20 fraction
+    :cvar C21_FRACTION: c21 fraction
+    :cvar C22_FRACTION: c22 fraction
+    :cvar C23_FRACTION: c23 fraction
+    :cvar C24_FRACTION: c24 fraction
+    :cvar C25_FRACTION: c25 fraction
+    :cvar C26_FRACTION: c26 fraction
+    :cvar C27_FRACTION: c27 fraction
+    :cvar C28_FRACTION: c28 fraction
+    :cvar C29_FRACTION: c29 fraction
+    :cvar C30_FRACTION: c30 fraction
+    :cvar C31_FRACTION: c31 fraction
+    :cvar C32_FRACTION: c32 fraction
+    :cvar C33_FRACTION: c33 fraction
+    :cvar C34_FRACTION: c34 fraction
+    :cvar C35_FRACTION: c35 fraction
+    :cvar C36_FRACTION: c36 fraction
+    :cvar C37_FRACTION: c37 fraction
+    :cvar C38_FRACTION: c38 fraction
+    :cvar C39_FRACTION: c39 fraction
+    :cvar C40_FRACTION: c40 fraction
+    :cvar C41_FRACTION: c41 fraction
+    :cvar C42_FRACTION: c42 fraction
+    :cvar C43_FRACTION: c43 fraction
+    :cvar C44_FRACTION: c44 fraction
+    :cvar C45_FRACTION: c45 fraction
+    :cvar C46_FRACTION: c46 fraction
+    :cvar C47_FRACTION: c47 fraction
+    :cvar C48_FRACTION: c48 fraction
+    :cvar C49_FRACTION: c49 fraction
+    :cvar CARBON_DIOXIDE: carbon dioxide
+    :cvar CIS_1: cis-1
+    :cvar CYCLOHEXANE: cyclohexane
+    :cvar CYCLOPENTANE: cyclopentane
+    :cvar DECANES: decanes
+    :cvar ETHANE: ethane
+    :cvar ETHYLBENZENE: ethylbenzene
+    :cvar ETHYLCYCLOPENTANE: ethylcyclopentane
+    :cvar HEPTANES: heptanes
+    :cvar HEXANE: hexane
+    :cvar HEXANES: hexanes
+    :cvar HYDROGEN: hydrogen
+    :cvar HYDROGEN_SULFIDE: hydrogen sulfide
+    :cvar METHANE: methane
+    :cvar METHYLBENZENE: methylbenzene
+    :cvar METHYLCYCLOHEXANE: methylcyclohexane
+    :cvar METHYLCYCLOPENTANE: methylcyclopentane
+    :cvar NITROGEN: nitrogen
+    :cvar NONANES: nonanes
+    :cvar OCTANES: octanes
+    :cvar OXYGEN: oxygen
+    :cvar PENTANE: pentane
+    :cvar PROPANE: propane
+    :cvar TRANS_1: trans-1
+    :cvar UNKNOWN: unknown
+    :cvar WATER: water
     """
 
-    acentric_factor: Optional[Decimal] = field(
-        default=None,
-        metadata={
-            "name": "AcentricFactor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    compact_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CompactVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    critical_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CriticalPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    critical_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CriticalTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    critical_viscosity: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CriticalViscosity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    critical_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CriticalVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mass_density: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MassDensity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    omega_a: Optional[float] = field(
-        default=None,
-        metadata={
-            "name": "OmegaA",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    omega_b: Optional[float] = field(
-        default=None,
-        metadata={
-            "name": "OmegaB",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    parachor: Optional[float] = field(
-        default=None,
-        metadata={
-            "name": "Parachor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    partial_molar_density: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PartialMolarDensity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    partial_molar_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PartialMolarVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    reference_density_zj: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ReferenceDensityZJ",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    reference_gravity_zj: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ReferenceGravityZJ",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    reference_temperature_zj: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ReferenceTemperatureZJ",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    viscous_compressibility: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ViscousCompressibility",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    volume_shift_parameter: Optional[Decimal] = field(
-        default=None,
-        metadata={
-            "name": "VolumeShiftParameter",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    fluid_component_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "fluidComponentReference",
-            "type": "Attribute",
-            "required": True,
-        },
-    )
+    VALUE_1 = "1"
+    VALUE_1_DIMETHYLCYCLOPENTANE = "1-dimethylcyclopentane"
+    VALUE_2 = "2"
+    VALUE_2_DIMETHYLBENZENE = "2 dimethylbenzene"
+    VALUE_2_DIMETHYLPROPANE = "2 dimethylpropane"
+    VALUE_2_DIMETHYLBUTANE = "2-dimethylbutane"
+    VALUE_2_DIMETHYLCYCLOPENTANE = "2-dimethylcyclopentane"
+    VALUE_2_DIMETHYLHEXANE = "2-dimethylhexane"
+    VALUE_2_DIMETHYLPENTANE = "2-dimethylpentane"
+    VALUE_2_METHYLBUTANE = "2-methylbutane"
+    VALUE_2_METHYLHEXANE = "2-methylhexane"
+    VALUE_2_METHYLPENTANE = "2-methylpentane"
+    VALUE_2_METHYLPROPANE = "2-methylpropane"
+    VALUE_3 = "3"
+    VALUE_3_DIMETHYLBENZENE = "3 dimethylbenzene"
+    VALUE_3_DIMETHYLBUTANE = "3-dimethylbutane"
+    VALUE_3_DIMETHYLCYCLOPENTANE = "3-dimethylcyclopentane"
+    VALUE_3_DIMETHYLPENTANE = "3-dimethylpentane"
+    VALUE_3_ETHYLPENTANE = "3-ethylpentane"
+    VALUE_3_METHYLHEXANE = "3-methylhexane"
+    VALUE_3_METHYLPENTANE = "3-methylpentane"
+    VALUE_3_TRIMETHYLBUTANE = "3-trimethylbutane"
+    VALUE_3_TRIMETHYLPENTANE = "3-trimethylpentane"
+    VALUE_4_DIMETHYLBENZENE = "4-dimethylbenzene"
+    VALUE_4_DIMETHYLHEXANE = "4-dimethylhexane"
+    VALUE_4_DIMETHYLPENTANE = "4-Dimethylpentane"
+    VALUE_4_TRIMETHYLBENZENE = "4-trimethylbenzene"
+    VALUE_5_DIMETHYLHEXANE = "5-dimethylhexane"
+    ARGON = "argon"
+    BENZENE = "benzene"
+    BUTANE = "butane"
+    C11_FRACTION = "c11 fraction"
+    C12_FRACTION = "c12 fraction"
+    C13_FRACTION = "c13 fraction"
+    C14_FRACTION = "c14 fraction"
+    C15_FRACTION = "c15 fraction"
+    C16_FRACTION = "c16 fraction"
+    C17_FRACTION = "c17 fraction"
+    C18_FRACTION = "c18 fraction"
+    C19_FRACTION = "c19 fraction"
+    C20_FRACTION = "c20 fraction"
+    C21_FRACTION = "c21 fraction"
+    C22_FRACTION = "c22 fraction"
+    C23_FRACTION = "c23 fraction"
+    C24_FRACTION = "c24 fraction"
+    C25_FRACTION = "c25 fraction"
+    C26_FRACTION = "c26 fraction"
+    C27_FRACTION = "c27 fraction"
+    C28_FRACTION = "c28 fraction"
+    C29_FRACTION = "c29 fraction"
+    C30_FRACTION = "c30 fraction"
+    C31_FRACTION = "c31 fraction"
+    C32_FRACTION = "c32 fraction"
+    C33_FRACTION = "c33 fraction"
+    C34_FRACTION = "c34 fraction"
+    C35_FRACTION = "c35 fraction"
+    C36_FRACTION = "c36 fraction"
+    C37_FRACTION = "c37 fraction"
+    C38_FRACTION = "c38 fraction"
+    C39_FRACTION = "c39 fraction"
+    C40_FRACTION = "c40 fraction"
+    C41_FRACTION = "c41 fraction"
+    C42_FRACTION = "c42 fraction"
+    C43_FRACTION = "c43 fraction"
+    C44_FRACTION = "c44 fraction"
+    C45_FRACTION = "c45 fraction"
+    C46_FRACTION = "c46 fraction"
+    C47_FRACTION = "c47 fraction"
+    C48_FRACTION = "c48 fraction"
+    C49_FRACTION = "c49 fraction"
+    CARBON_DIOXIDE = "carbon dioxide"
+    CIS_1 = "cis-1"
+    CYCLOHEXANE = "cyclohexane"
+    CYCLOPENTANE = "cyclopentane"
+    DECANES = "decanes"
+    ETHANE = "ethane"
+    ETHYLBENZENE = "ethylbenzene"
+    ETHYLCYCLOPENTANE = "ethylcyclopentane"
+    HEPTANES = "heptanes"
+    HEXANE = "hexane"
+    HEXANES = "hexanes"
+    HYDROGEN = "hydrogen"
+    HYDROGEN_SULFIDE = "hydrogen sulfide"
+    METHANE = "methane"
+    METHYLBENZENE = "methylbenzene"
+    METHYLCYCLOHEXANE = "methylcyclohexane"
+    METHYLCYCLOPENTANE = "methylcyclopentane"
+    NITROGEN = "nitrogen"
+    NONANES = "nonanes"
+    OCTANES = "octanes"
+    OXYGEN = "oxygen"
+    PENTANE = "pentane"
+    PROPANE = "propane"
+    TRANS_1 = "trans-1"
+    UNKNOWN = "unknown"
+    WATER = "water"
 
 
 class FluidContaminant(Enum):
@@ -2401,125 +1954,39 @@ class FluidContaminant(Enum):
     UNKNOWN = "unknown"
 
 
-@dataclass
-class FluidSample:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
-class FluidSampleAcquisitionJob:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
-class FluidSampleAcquisitionJobSource:
+class FluidSampleKind(Enum):
     """
-    :ivar fluid_sample_acquisition_job_reference:
-    :ivar fluid_sample_acquisition_reference: Reference to the fluid
-        sample acquisition (by uid) within a fluid sample acquisition
-        job (which is referred to as a top-level object) which acquired
-        this fluid sample.
-    """
+    Species the kinds of fluid sample by reference to how it was obtained.
 
-    fluid_sample_acquisition_job_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "FluidSampleAcquisitionJobReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    fluid_sample_acquisition_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "FluidSampleAcquisitionReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class FluidSampleComposition:
-    """
-    Fluid sample points to a mixture from other samples.
-
-    :ivar fluid_sample:
-    :ivar mass_fraction: The mass fraction of this parent sample within
-        this combined sample.
-    :ivar mole_fraction: The mole fraction of this parent sample within
-        this combined sample.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar volume_fraction: The volume fraction of this parent sample
-        within this combined sample.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
+    :cvar SYNTHETIC: The fluid sample has originated from synthetic
+        creation.
+    :cvar SEPARATOR_WATER: The fluid sample has originated from
+        separator water.
+    :cvar SEPARATOR_OIL: The fluid sample has originated from separator
+        oil.
+    :cvar SEPARATOR_GAS: The fluid sample has originated from separator
+        gas.
+    :cvar DOWNHOLE_CASED: The fluid sample has originated from downhole
+        cased hole sampling.
+    :cvar DOWNHOLE_OPEN: The fluid sample has originated from downhole
+        openhole sampling.
+    :cvar RECOMBINED: The fluid sample has originated from recombined
+        samples.
+    :cvar WELLHEAD: The fluid sample has originated from wellhead
+        sampling.
+    :cvar COMMINGLED: The fluid sample has originated from commingled
+        flow.
     """
 
-    fluid_sample: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FluidSample",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mass_fraction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MassFraction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mole_fraction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MoleFraction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    volume_fraction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "VolumeFraction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class FluidSampleContainer:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
-class FluidSystem:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+    SYNTHETIC = "synthetic"
+    SEPARATOR_WATER = "separator water"
+    SEPARATOR_OIL = "separator oil"
+    SEPARATOR_GAS = "separator gas"
+    DOWNHOLE_CASED = "downhole cased"
+    DOWNHOLE_OPEN = "downhole open"
+    RECOMBINED = "recombined"
+    WELLHEAD = "wellhead"
+    COMMINGLED = "commingled"
 
 
 @dataclass
@@ -2534,6 +2001,7 @@ class GeneralMeasureType:
         default=None,
         metadata={
             "type": "Attribute",
+            "max_length": 32,
         },
     )
 
@@ -2564,18 +2032,21 @@ class IndexedObject:
         default=None,
         metadata={
             "type": "Attribute",
+            "max_length": 2000,
         },
     )
-    index: Optional[str] = field(
+    index: Optional[int] = field(
         default=None,
         metadata={
             "type": "Attribute",
+            "min_inclusive": 0,
         },
     )
     name: Optional[str] = field(
         default=None,
         metadata={
             "type": "Attribute",
+            "max_length": 64,
         },
     )
     uom: Optional[str] = field(
@@ -2624,93 +2095,6 @@ class InjectionFluid(Enum):
     WATER = "water"
 
 
-@dataclass
-class InterfacialTensionTestStep:
-    """
-    The interfacial tension test step.
-
-    :ivar interfacial_tension: The interfacial tension for this test
-        step.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar step_number: The step number is the index of a (P,T) step in
-        the overall test.
-    :ivar step_pressure: The pressure for this test step.
-    :ivar step_temperature: The temperature for this test step.
-    :ivar surfactant_concentration: The surfactant concentration for
-        this test step.
-    :ivar wetting_phase_saturation: The wetting phase saturation for
-        this test step.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    interfacial_tension: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "InterfacialTension",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    step_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "StepNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    step_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "StepPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    step_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "StepTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    surfactant_concentration: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SurfactantConcentration",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    wetting_phase_saturation: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WettingPhaseSaturation",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
 class InterpretationProcessingType(Enum):
     """
     Specifies the types of mnemonics.
@@ -2743,152 +2127,29 @@ class InterventionConveyanceType(Enum):
 
 
 @dataclass
-class MassIn:
-    """
-    The mass of fluid in the connecting lines.
-
-    :ivar mass_fluid_connecting_lines: The mass of fluid in the
-        connecting lines for this slim tube test volume step mass
-        balance.
-    :ivar mass_fluid_slimtube: The mass of fluid in the slim tube for
-        this slim tube test volume step mass balance.
-    :ivar mass_injected_gas_solvent: The mass of injected gas solvent
-        for this slim tube test volume step mass balance.
-    :ivar total_mass_in: The total mass in for this slim tube test
-        volume step mass balance.
-    """
-
-    mass_fluid_connecting_lines: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MassFluidConnectingLines",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mass_fluid_slimtube: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MassFluidSlimtube",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mass_injected_gas_solvent: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MassInjectedGasSolvent",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    total_mass_in: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TotalMassIn",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class MassOut:
-    """
-    The  mass out for this slim tube.
-
-    :ivar mass_effluent_stock_tank_oil: The mass of effluent stock tank
-        oil for this slim tube test volume step mass balance.
-    :ivar mass_produced_effluent_gas: The mass of produced effluent gas
-        for this slim tube test volume step mass balance.
-    :ivar mass_produced_effluent_gas_flow_down: The mass of produced
-        effluent gas flow down for this slim tube test volume step mass
-        balance.
-    :ivar mass_residual_oil: The mass of residual oil for this slim tube
-        test volume step mass balance.
-    :ivar total_mass_out: The total mass out for this slim tube test
-        volume step mass balance.
-    """
-
-    mass_effluent_stock_tank_oil: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MassEffluentStockTankOil",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mass_produced_effluent_gas: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MassProducedEffluentGas",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mass_produced_effluent_gas_flow_down: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MassProducedEffluentGasFlowDown",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mass_residual_oil: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MassResidualOil",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    total_mass_out: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TotalMassOut",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
 class MeasureOrQuantity:
     """A measure with a UOM or a quantity (without a UOM).
 
     Use this only where the underlying class of data is captured
     elsewhere. For example, using a measure class.
 
+    :ivar value:
     :ivar uom: The unit of measure for the quantity. This value must
         conform to the values allowed by a measure class. If the value
         is a measure, then the UOM must be specified.
     """
 
-    uom: Optional[str] = field(
+    value: Optional[float] = field(
         default=None,
         metadata={
-            "type": "Attribute",
+            "required": True,
         },
     )
-
-
-@dataclass
-class MeasuredDepthCoord:
-    """A measured depth coordinate in a wellbore.
-
-    Positive moving from the reference datum toward the bottomhole. All
-    coordinates with the same datum (and same UOM) can be considered to
-    be in the same coordinate reference system (CRS) and are thus
-    directly comparable.
-
-    :ivar uom: The unit of measure of the measured depth coordinate.
-    """
-
     uom: Optional[str] = field(
         default=None,
         metadata={
             "type": "Attribute",
-            "required": True,
+            "max_length": 32,
         },
     )
 
@@ -2906,69 +2167,43 @@ class MixingRule(Enum):
 
 
 @dataclass
-class MultipleContactMiscibilityTest:
+class NameStruct:
     """
-    Multiple contact miscibility test.
+    The name of something within a naming system.
 
-    :ivar gas_solvent_composition_reference: The reference to the
-        composition of the gas solvent that is a fluid composition.
-    :ivar mix_ratio: The mix ratio for the multiple contact miscibility
-        test.
-    :ivar test_number: A unique identifier for this data element. It is
-        not globally unique (not a uuid) and only need be unique within
-        the context of the parent top-level object.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
+    :ivar value:
+    :ivar authority: The authority for the naming system, e.g., a
+        company.
     """
 
-    gas_solvent_composition_reference: List[str] = field(
-        default_factory=list,
+    value: str = field(
+        default="",
         metadata={
-            "name": "GasSolventCompositionReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mix_ratio: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MixRatio",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
-    uid: Optional[str] = field(
+    authority: Optional[str] = field(
         default=None,
         metadata={
             "type": "Attribute",
-            "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class NameStruct:
+class NonNegativeFraction:
     """
-    The name of something within a naming system.
-
-    :ivar authority: The authority for the naming system, e.g., a
-        company.
+    A floating point value between zero (inclusive) and one (inclusive).
     """
 
-    authority: Optional[str] = field(
+    value: Optional[float] = field(
         default=None,
         metadata={
-            "type": "Attribute",
+            "required": True,
+            "min_inclusive": 0.0,
+            "max_inclusive": 1.0,
         },
     )
 
@@ -2993,6 +2228,7 @@ class NorthSeaOffshore:
             "name": "AreaName",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     block_suffix: List[str] = field(
@@ -3001,6 +2237,7 @@ class NorthSeaOffshore:
             "name": "BlockSuffix",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     quadrant: Optional[str] = field(
@@ -3010,6 +2247,7 @@ class NorthSeaOffshore:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -3068,6 +2306,23 @@ class OperationKind(Enum):
     POWER_STATION_FAILURE = "power station failure"
     PRODUCTION = "production"
     WELL = "well"
+
+
+class OpticalPathConfiguration(Enum):
+    """
+    Specifies the types of configuration of an optical path.
+
+    :cvar ACCURATE_SINGLE_ENDED_DUAL_LASER: accurate single-ended/dual
+        laser
+    :cvar DIFFERENTIAL_LOSS_CALIBRATED: differential loss calibrated
+    :cvar DOUBLE_ENDED: double-ended
+    :cvar SINGLE_ENDED: single-ended
+    """
+
+    ACCURATE_SINGLE_ENDED_DUAL_LASER = "accurate single-ended/dual laser"
+    DIFFERENTIAL_LOSS_CALIBRATED = "differential loss calibrated"
+    DOUBLE_ENDED = "double-ended"
+    SINGLE_ENDED = "single-ended"
 
 
 class OutputFluidProperty(Enum):
@@ -3233,6 +2488,7 @@ class PersonName:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     last: Optional[str] = field(
@@ -3242,6 +2498,7 @@ class PersonName:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     middle: List[str] = field(
@@ -3250,6 +2507,7 @@ class PersonName:
             "name": "Middle",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     prefix: List[str] = field(
@@ -3258,6 +2516,7 @@ class PersonName:
             "name": "Prefix",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     suffix: List[str] = field(
@@ -3266,82 +2525,34 @@ class PersonName:
             "name": "Suffix",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
 
 
-@dataclass
-class PhaseDensity:
-    """
-    Phase density.
+class PhasePresent(Enum):
+    """Specifies the values for phase present.
 
-    :ivar density: The phase density.
-    :ivar pressure: The pressure corresponding to this phase density.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
+    It can be water, gas or oil;  each combination of any two phases; or
+    all three phases.
 
-    density: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Density",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Pressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class PhaseViscosity:
-    """
-    Phase viscosity.
-
-    :ivar pressure: The pressure corresponding to this phase viscosity.
-    :ivar viscosity: The phase viscosity.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
+    :cvar GAS_AND_OIL_AND_WATER: All three phases--gas and oil and water
+        --are present.
+    :cvar WATER: The phase present is water.
+    :cvar GAS: The phase present is gas.
+    :cvar OIL: The phase present is oil.
+    :cvar OIL_AND_GAS: The phases present are oil and gas.
+    :cvar OIL_AND_WATER: The phases present are oil and water.
+    :cvar GAS_AND_WATER: The phases present are gas and water.
     """
 
-    pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Pressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    viscosity: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Viscosity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
+    GAS_AND_OIL_AND_WATER = "gas and oil and water"
+    WATER = "water"
+    GAS = "gas"
+    OIL = "oil"
+    OIL_AND_GAS = "oil and gas"
+    OIL_AND_WATER = "oil and water"
+    GAS_AND_WATER = "gas and water"
 
 
 class PhoneType(Enum):
@@ -3378,59 +2589,18 @@ class PlusComponentEnum(Enum):
 
 
 @dataclass
-class ProducedOilProperties:
+class ProdmlRelativeIdentifier:
     """
-    Properties of produced oil.
-
-    :ivar asphaltene_content: The asphaltene content of this produced
-        oil.
-    :ivar stoapi_gravity: The stock tank oil API gravity of this
-        produced oil.
-    :ivar stodensity: The stock tank oil density of this produced oil.
-    :ivar stomw: The stock tank oil molecular weight of this produced
-        oil.
-    :ivar stowater_content: The stock tank oil water content of this
-        produced oil.
+    A relative identifier (or URI, Uniform Resource Identifier), It follows the
+    general pattern of type(id)/type(id) where (id) is optional, as defined in the
+    Energistics Identifier Specification, which is available in the zip file when
+    download PRODML.
     """
 
-    asphaltene_content: List[str] = field(
-        default_factory=list,
+    value: str = field(
+        default="",
         metadata={
-            "name": "AsphalteneContent",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    stoapi_gravity: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "STOApiGravity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    stodensity: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "STODensity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    stomw: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "STOMW",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    stowater_content: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "STOWaterContent",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
         },
     )
 
@@ -3465,6 +2635,7 @@ class ProductFlowChangeLog:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     reason: List[str] = field(
@@ -3473,6 +2644,7 @@ class ProductFlowChangeLog:
             "name": "Reason",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     uid: Optional[str] = field(
@@ -3480,14 +2652,9 @@ class ProductFlowChangeLog:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
-
-
-@dataclass
-class ProductFlowModel:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
 
 
 @dataclass
@@ -3552,6 +2719,7 @@ class ProductFlowNetwork:
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     name: Optional[str] = field(
@@ -3561,6 +2729,7 @@ class ProductFlowNetwork:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     parent_network_reference: List[str] = field(
@@ -3569,6 +2738,7 @@ class ProductFlowNetwork:
             "name": "ParentNetworkReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     plan: List[str] = field(
@@ -3585,6 +2755,7 @@ class ProductFlowNetwork:
             "name": "PlanName",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     port: List[str] = field(
@@ -3609,6 +2780,7 @@ class ProductFlowNetwork:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -3654,12 +2826,6 @@ class ProductFluidKind(Enum):
 
 
 @dataclass
-class ProductVolume:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
 class ProductVolumeAlert:
     """
     Alert Schema.
@@ -3678,6 +2844,7 @@ class ProductVolumeAlert:
             "name": "Description",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     level: List[str] = field(
@@ -3686,6 +2853,7 @@ class ProductVolumeAlert:
             "name": "Level",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     target: List[str] = field(
@@ -3694,6 +2862,7 @@ class ProductVolumeAlert:
             "name": "Target",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     type_value: List[str] = field(
@@ -3702,90 +2871,9 @@ class ProductVolumeAlert:
             "name": "Type",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-
-
-@dataclass
-class ProductVolumePortDifference:
-    """
-    Product Volume port differential characteristics.
-
-    :ivar choke_relative: The relative size of the choke restriction.
-        This characterizes the overall unit with respect to the flow
-        restriction between the ports. The restriction might be
-        implemented using a valve or an actual choke.
-    :ivar choke_size: The size of the choke. This characterizes the
-        overall unit with respect to the flow restriction between the
-        ports. The restriction might be implemented using a valve or an
-        actual choke.
-    :ivar port_reference: A port on the other end of an internal
-        connection. This should always be specified if a product flow
-        network is being referenced by this report. If this is not
-        specified then there is an assumption that there is only one
-        other port for the unit. For example, if this end of the
-        connection represents an inlet port then the implied other end
-        is the outlet port for the unit.
-    :ivar pres_diff: The differential pressure between the ports.
-    :ivar temp_diff: The differential temperature between the ports.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    choke_relative: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ChokeRelative",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    choke_size: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ChokeSize",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    port_reference: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PortReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pres_diff: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PresDiff",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    temp_diff: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TempDiff",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ProductionOperation:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
 
 
 @dataclass
@@ -3809,6 +2897,7 @@ class ProductionOperationAlarm:
             "name": "Area",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     comment: List[str] = field(
@@ -3817,6 +2906,7 @@ class ProductionOperationAlarm:
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     dtim: Optional[XmlDateTime] = field(
@@ -3833,6 +2923,7 @@ class ProductionOperationAlarm:
             "name": "Reason",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     type_value: List[str] = field(
@@ -3841,6 +2932,7 @@ class ProductionOperationAlarm:
             "name": "Type",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     uid: Optional[str] = field(
@@ -3848,259 +2940,7 @@ class ProductionOperationAlarm:
         metadata={
             "type": "Attribute",
             "required": True,
-        },
-    )
-
-
-@dataclass
-class ProductionOperationWeather:
-    """
-    Operations Weather Schema.
-
-    :ivar agency: Name of company that supplied the data.
-    :ivar amt_precip: Amount of precipitation.
-    :ivar azi_current_sea: Azimuth of current.
-    :ivar azi_wave: The direction from which the waves are coming,
-        measured from true north.
-    :ivar azi_wind: The direction from which the wind is blowing,
-        measured from true north.
-    :ivar barometric_pressure: Atmospheric pressure.
-    :ivar ceiling_cloud: Height of cloud cover.
-    :ivar comments: Comments and remarks.
-    :ivar cover_cloud: Description of cloud cover.
-    :ivar current_sea: Current speed.
-    :ivar dtim: Date and time the information is related to.
-    :ivar ht_wave: Average height of the waves.
-    :ivar max_wave: The maximum wave height.
-    :ivar period_wave: The elapsed time between the passing of two wave
-        tops.
-    :ivar significant_wave: An average of the higher 1/3 of the wave
-        heights passing during a sample period (typically 20 to 30
-        minutes).
-    :ivar tempsea: Sea temperature.
-    :ivar temp_surface: Average temperature above ground for the period.
-        Temperature of the atmosphere.
-    :ivar temp_surface_mn: Minimum temperature above ground. Temperature
-        of the atmosphere.
-    :ivar temp_surface_mx: Maximum temperature above ground.
-    :ivar temp_wind_chill: A measure of the combined chilling effect of
-        wind and low temperature on living things, also named chill
-        factor, e.g., according to US Weather Service table, an air
-        temperature of 30 degF with a 10 mph wind corresponds to a wind
-        chill of 22 degF.
-    :ivar type_precip: Type of precipitation.
-    :ivar vel_wind: Wind speed.
-    :ivar visibility: Horizontal visibility.
-    :ivar beaufort_scale_number: The Beaufort wind scale is a system
-        used to estimate and report wind speeds when no measuring
-        apparatus is available. It was invented in the early 19th
-        Century by Admiral Sir Francis Beaufort of the British Navy as a
-        way to interpret winds from conditions.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    agency: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Agency",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    amt_precip: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AmtPrecip",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    azi_current_sea: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AziCurrentSea",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    azi_wave: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AziWave",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    azi_wind: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AziWind",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    barometric_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "BarometricPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    ceiling_cloud: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CeilingCloud",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    comments: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Comments",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    cover_cloud: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CoverCloud",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    current_sea: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CurrentSea",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    dtim: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "DTim",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    ht_wave: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "HtWave",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    max_wave: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MaxWave",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    period_wave: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PeriodWave",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    significant_wave: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SignificantWave",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    tempsea: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Tempsea",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    temp_surface: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TempSurface",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    temp_surface_mn: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TempSurfaceMn",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    temp_surface_mx: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TempSurfaceMx",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    temp_wind_chill: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TempWindChill",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    type_precip: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TypePrecip",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    vel_wind: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "VelWind",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    visibility: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Visibility",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    beaufort_scale_number: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "BeaufortScaleNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "min_inclusive": 0,
-            "max_exclusive": 12,
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -4165,6 +3005,7 @@ class PrsvParameter:
             "name": "fluidComponentReference",
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -4490,132 +3331,6 @@ class ReasonLost(Enum):
 
 
 @dataclass
-class RefInjectedGasAdded:
-    """
-    Reference to injected gas added.
-
-    :ivar injection_gas_reference: Reference to the injection gas
-        composition.
-    """
-
-    injection_gas_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "injectionGasReference",
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ReferenceSeparatorStage:
-    """
-    Reference to the separator stage.
-
-    :ivar separator_number: The separator number for a separator stage
-        used to define the separation train, which is used as the basis
-        of this fluid characterization.
-    :ivar separator_pressure: The separator pressure for a separator
-        stage used to define the separation train, which is used as the
-        basis of this fluid characterization.
-    :ivar separator_temperature: The separator temperature for a
-        separator stage used to define the separation train, which is
-        used as the basis of this fluid characterization.
-    """
-
-    separator_number: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SeparatorNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    separator_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SeparatorPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    separator_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SeparatorTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class RelativeCoordinate:
-    """
-    :ivar x: Defines the relative from-left-to-right location on a
-        display screen. The display origin (0,0) is the upper left-hand
-        corner of the display as viewed by the user.
-    :ivar y: Defines the relative from-top-to-bottom location on a
-        display screen. The display origin (0,0) is the upper left-hand
-        corner of the display as viewed by the user.
-    :ivar z: Defines the relative from-front-to-back location in a 3D
-        system. The unrotated display origin (0,0) is the upper left-
-        hand corner of the display as viewed by the user. The "3D
-        picture" may be rotated on the 2D display.
-    """
-
-    x: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "X",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    y: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Y",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    z: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Z",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class RelativeVolumeRatio:
-    """
-    Reference to the fluid volume ratio.
-
-    :ivar fluid_volume_reference: Reference to a fluid volume.
-    """
-
-    fluid_volume_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "fluidVolumeReference",
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class Report:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
 class ReportLocation:
     """Report location.
 
@@ -4639,6 +3354,7 @@ class ReportLocation:
             "name": "Location",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     location_date: Optional[XmlDate] = field(
@@ -4655,6 +3371,7 @@ class ReportLocation:
             "name": "LocationType",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     remark: List[str] = field(
@@ -4663,6 +3380,7 @@ class ReportLocation:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     uid: Optional[str] = field(
@@ -4670,8 +3388,22 @@ class ReportLocation:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
+
+
+class ReportVersionStatus(Enum):
+    """
+    Specifies the statuses of a version of a report.
+
+    :cvar FINAL: Final, the report is approved.
+    :cvar PRELIMINARY: Preliminary, the report has not yet been
+        approved.
+    """
+
+    FINAL = "final"
+    PRELIMINARY = "preliminary"
 
 
 class ReportingDurationKind(Enum):
@@ -4689,10 +3421,73 @@ class ReportingDurationKind(Enum):
     YEAR_TO_DATE = "year to date"
 
 
-@dataclass
-class ReportingEntity:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+class ReportingEntityKind(Enum):
+    """
+    Specifies the kinds of entities (usage of equipment or material) that can be
+    reported on.
+
+    :cvar BUSINESS_UNIT: business unit
+    :cvar FPSO: fpso
+    :cvar WELL_COMPLETION: well completion
+    :cvar WELLBORE_COMPLETION: wellbore completion
+    :cvar COMMERCIAL_ENTITY: commercial entity
+    :cvar COMPANY: company
+    :cvar CONTACT_INTERVAL: contact interval
+    :cvar COUNTRY: country
+    :cvar COUNTY: county
+    :cvar FACILITY: facility
+    :cvar FIELD: field
+    :cvar FIELD_PART: field - part
+    :cvar FLOW_METER: flow meter
+    :cvar FORMATION: formation
+    :cvar GAS_PLANT: gas plant
+    :cvar LEASE: lease
+    :cvar LICENSE: license
+    :cvar PIPELINE: pipeline
+    :cvar PLATFORM: platform
+    :cvar PRODUCTION_PROCESSING_FACILITY: production processing facility
+    :cvar RESERVOIR: reservoir
+    :cvar ROCK_FLUID_UNIT_FEATURE: rock-fluid unit feature
+    :cvar STATE: state
+    :cvar TANK: tank
+    :cvar TERMINAL: terminal
+    :cvar WELL: well
+    :cvar WELL_GROUP: well group
+    :cvar WELLBORE: wellbore
+    :cvar OIL_TANKER: oil tanker - ship
+    :cvar TANKER_TRUCK: truck
+    """
+
+    BUSINESS_UNIT = "business unit"
+    FPSO = "fpso"
+    WELL_COMPLETION = "well completion"
+    WELLBORE_COMPLETION = "wellbore completion"
+    COMMERCIAL_ENTITY = "commercial entity"
+    COMPANY = "company"
+    CONTACT_INTERVAL = "contact interval"
+    COUNTRY = "country"
+    COUNTY = "county"
+    FACILITY = "facility"
+    FIELD = "field"
+    FIELD_PART = "field - part"
+    FLOW_METER = "flow meter"
+    FORMATION = "formation"
+    GAS_PLANT = "gas plant"
+    LEASE = "lease"
+    LICENSE = "license"
+    PIPELINE = "pipeline"
+    PLATFORM = "platform"
+    PRODUCTION_PROCESSING_FACILITY = "production processing facility"
+    RESERVOIR = "reservoir"
+    ROCK_FLUID_UNIT_FEATURE = "rock-fluid unit feature"
+    STATE = "state"
+    TANK = "tank"
+    TERMINAL = "terminal"
+    WELL = "well"
+    WELL_GROUP = "well group"
+    WELLBORE = "wellbore"
+    OIL_TANKER = "oil tanker"
+    TANKER_TRUCK = "tanker truck"
 
 
 class ReportingFacility(Enum):
@@ -4882,55 +3677,6 @@ class ReportingFlow(Enum):
     UNKNOWN = "unknown"
 
 
-@dataclass
-class ReportingHierarchy:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
-class ReportingHierarchyNode:
-    """
-    Association that contains the parent and child of this node.
-
-    :ivar reporting_enitity_reference:
-    :ivar child_node:
-    :ivar id: The identification of node.
-    :ivar name: The entity name.
-    """
-
-    reporting_enitity_reference: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ReportingEnitityReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    child_node: List[ReportingHierarchyNode] = field(
-        default_factory=list,
-        metadata={
-            "name": "ChildNode",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    id: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-    name: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
 class ReportingProduct(Enum):
     """
     Specifies the kinds of product in a fluid system.
@@ -5109,6 +3855,42 @@ class ReportingProduct(Enum):
     WATER_PROCESSED = "water - processed"
 
 
+class ReservoirFluidKind(Enum):
+    """
+    Specifies the kinds of reservoir hydrocarbon fluid, in broad terms, by their
+    phase behavior.
+
+    :cvar BLACK_OIL: black oil
+    :cvar CRITICAL_OR_NEAR_CRITICAL: critical or near critical
+    :cvar DRY_GAS: dry gas
+    :cvar HEAVY_OIL: heavy oil
+    :cvar WET_GAS_OR_CONDENSATE: wet gas or condensate
+    :cvar VOLATILE_OIL: volatile oil
+    :cvar UNKNOWN: unknown
+    """
+
+    BLACK_OIL = "black oil"
+    CRITICAL_OR_NEAR_CRITICAL = "critical or near critical"
+    DRY_GAS = "dry gas"
+    HEAVY_OIL = "heavy oil"
+    WET_GAS_OR_CONDENSATE = "wet gas or condensate"
+    VOLATILE_OIL = "volatile oil"
+    UNKNOWN = "unknown"
+
+
+class ReservoirLifeCycleState(Enum):
+    """
+    Specifies the states of the reservoir lifecycle.
+    """
+
+    ABANDONED = "abandoned"
+    PRIMARY_PRODUCTION = "primary production"
+    PROSPECT = "prospect"
+    TERTIARY_PRODUCTION = "tertiary production"
+    UNDEVELOPED = "undeveloped"
+    SECONDARY_RECOVERY = "secondary recovery"
+
+
 class SafetyType(Enum):
     """
     Specifies the types of safety issues for which a count can be defined.
@@ -5199,142 +3981,6 @@ class SampleQuality(Enum):
     VALID = "valid"
 
 
-@dataclass
-class SampleRestoration:
-    """
-    Sample restoration.
-
-    :ivar date: The date when this test was performed.
-    :ivar mixing_mechanism: The mixing mechanism when the sample is
-        restored in preparation for analysis.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar restoration_duration: The restoration duration when the sample
-        is restored in preparation for analysis.
-    :ivar restoration_pressure: The restoration pressure when the sample
-        is restored in preparation for analysis.
-    :ivar restoration_temperature: The restoration temperature when the
-        sample is restored in preparation for analysis.
-    """
-
-    date: Optional[XmlDate] = field(
-        default=None,
-        metadata={
-            "name": "Date",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mixing_mechanism: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MixingMechanism",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    restoration_duration: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "RestorationDuration",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    restoration_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "RestorationPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    restoration_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "RestorationTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class Sara:
-    """SARA analysis results.
-
-    SARA stands for saturates, asphaltenes, resins and aromatics.
-
-    :ivar aromatics_weight_fraction: The aromatics weight fraction in
-        the sample.
-    :ivar asphaltenes_weight_fraction: The asphaltenes weight fraction
-        in the sample.
-    :ivar napthenes_weight_fraction: The napthenes weight fraction in
-        the sample.
-    :ivar paraffins_weight_fraction: The paraffins weight fraction in
-        the sample.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    aromatics_weight_fraction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AromaticsWeightFraction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    asphaltenes_weight_fraction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AsphaltenesWeightFraction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    napthenes_weight_fraction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "NapthenesWeightFraction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    paraffins_weight_fraction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ParaffinsWeightFraction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
 class SaturationPointKind(Enum):
     """
     Specifies the kinds of saturation points.
@@ -5366,6 +4012,7 @@ class SeparatorConditions:
         metadata={
             "name": "separatorTestReference",
             "type": "Attribute",
+            "max_length": 64,
         },
     )
 
@@ -5447,6 +4094,7 @@ class TableDelimiter:
             "name": "asciiCharacters",
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -5458,6 +4106,22 @@ class TerminationType(Enum):
 
     LOOPED_BACK_TO_INSTRUMENT_BOX = "looped back to instrument box"
     TERMINATION_AT_CABLE = "termination at cable"
+
+
+class TestReason(Enum):
+    """
+    Specifies the reasons for running a well test.
+
+    :cvar INITIAL: initial
+    :cvar OTHER: other
+    :cvar PERIODIC: periodic
+    :cvar REVISION: revision
+    """
+
+    INITIAL = "initial"
+    OTHER = "other"
+    PERIODIC = "periodic"
+    REVISION = "revision"
 
 
 class ThermodynamicPhase(Enum):
@@ -5475,12 +4139,6 @@ class ThermodynamicPhase(Enum):
     OLEIC = "oleic"
     VAPOR = "vapor"
     TOTAL_HYDROCARBON = "total hydrocarbon"
-
-
-@dataclass
-class TimeSeriesData:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
 
 
 class TimeSeriesKeyword(Enum):
@@ -5504,16 +4162,11 @@ class TimeSeriesKeyword(Enum):
 
 
 @dataclass
-class TimeSeriesStatistic:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
 class TimeSeriesStringSample:
     """
     A single string value in a time series.
 
+    :ivar value:
     :ivar d_tim: The date and time at which the value applies. If no
         time is specified then the value is static and only one sample
         can be defined. Either dTim or value or both must be specified.
@@ -5521,6 +4174,12 @@ class TimeSeriesStringSample:
         the data value can be assumed to be good with no restrictions.
     """
 
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
     d_tim: Optional[XmlDateTime] = field(
         default=None,
         metadata={
@@ -5593,6 +4252,20 @@ class ValidationResult(Enum):
     UNKNOWN = "unknown"
 
 
+class ValidationState(Enum):
+    """
+    Specifies overall states of  well test validation operations.
+
+    :cvar UNVALIDATED: unvalidated
+    :cvar VALIDATED: validated
+    :cvar VALIDATING: validating
+    """
+
+    UNVALIDATED = "unvalidated"
+    VALIDATED = "validated"
+    VALIDATING = "validating"
+
+
 class ValueStatus(Enum):
     """Specifies the indicators of the quality of a value.
 
@@ -5628,37 +4301,6 @@ class ValueStatus(Enum):
     SENSOR_FAILURE = "sensor failure"
     SUBSTITUTED = "substituted"
     TIMEOUT = "timeout"
-
-
-@dataclass
-class ViscosityAtTemperature:
-    """
-    Viscosity measurement at a specific temperature.
-
-    :ivar viscosity: Viscosity measurement at the associated
-        temperature.
-    :ivar viscosity_temperature: Temperature at which the viscosity was
-        measured.
-    """
-
-    viscosity: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Viscosity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    viscosity_temperature: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "ViscosityTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
 
 
 class VolumeReferenceKind(Enum):
@@ -5714,264 +4356,6 @@ class VolumeReferenceKind(Enum):
     UNKNOWN = "unknown"
 
 
-@dataclass
-class WaterAnalysisTestStep:
-    """
-    Water analysis test step.
-
-    :ivar remark: Remarks and comments about this data item.
-    :ivar solution_gas_water_ratio: The solution gas-water ratio for the
-        water analysis test step.
-    :ivar step_number: The step number is the index of a (P,T) step in
-        the overall test.
-    :ivar step_pressure: The pressure for this test step.
-    :ivar step_temperature: The temperature for this test step.
-    :ivar water_density: The water density for the water analysis test
-        step.
-    :ivar water_density_change_with_pressure: The water density change
-        with pressure for the water analysis test step.
-    :ivar water_density_change_with_temperature: The water density
-        change with temperature for the water analysis test step.
-    :ivar water_enthalpy: The water enthalpy for the water analysis test
-        step.
-    :ivar water_entropy: The water entropy for the water analysis test
-        step.
-    :ivar water_formation_volume_factor: The water formation volume
-        factor for the water analysis test step.
-    :ivar water_heat_capacity: The water heat capacity for the water
-        analysis test step.
-    :ivar water_isothermal_compressibility: The water isothermal
-        compressibility for the water analysis test step.
-    :ivar water_specific_heat: The water specific heat for the water
-        analysis test step.
-    :ivar water_specific_volume: The water specific volume for the water
-        analysis test step.
-    :ivar water_thermal_conductivity: The water thermal conductivity for
-        the water analysis test step.
-    :ivar water_thermal_expansion: The water thermal expansion for the
-        water analysis test step.
-    :ivar water_viscosity: The water viscosity for the water analysis
-        test step.
-    :ivar water_viscous_compressibility: The water viscous
-        compressibility for the water analysis test step.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    solution_gas_water_ratio: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SolutionGasWaterRatio",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    step_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "StepNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    step_pressure: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "StepPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    step_temperature: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "StepTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    water_density: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterDensity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_density_change_with_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterDensityChangeWithPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_density_change_with_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterDensityChangeWithTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_enthalpy: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterEnthalpy",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_entropy: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterEntropy",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_formation_volume_factor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterFormationVolumeFactor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_heat_capacity: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterHeatCapacity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_isothermal_compressibility: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterIsothermalCompressibility",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_specific_heat: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterSpecificHeat",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_specific_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterSpecificVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_thermal_conductivity: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterThermalConductivity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_thermal_expansion: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterThermalExpansion",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_viscosity: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterViscosity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_viscous_compressibility: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterViscousCompressibility",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class WaterSampleComponent:
-    """
-    Water sample component.
-
-    :ivar equivalent_concentration: The equivalent concentration of the
-        water sample component.
-    :ivar ion: The ion of the water sample component.
-    :ivar mass_concentration: The mass concentration of the water sample
-        component.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    equivalent_concentration: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "EquivalentConcentration",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    ion: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Ion",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    mass_concentration: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MassConcentration",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
 class WellDirection(Enum):
     """
     Specifies the directions of flow of the fluids in a well facility (generally,
@@ -5991,145 +4375,6 @@ class WellDirection(Enum):
     INJECTOR = "injector"
     PRODUCER = "producer"
     UNCERTAIN = "uncertain"
-
-
-@dataclass
-class WellElevationCoord:
-    """A vertical (gravity-based) elevation coordinate within the context of a
-    well.
-
-    Positive moving upward from the reference datum. All coordinates
-    with the same datum (and same UOM) can be considered to be in the
-    same coordinate reference system (CRS) and are thus directly
-    comparable.
-
-    :ivar uom: The unit of measure of the quantity value. If not given
-        then the default unit of measure of the explicitly or implicitly
-        given datum must be assumed.
-    """
-
-    uom: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class WellFlowingCondition:
-    """
-    Describes key conditions of the flowing well during a production well test.
-
-    :ivar bottom_hole_flowing_pressure: The pressure at the bottom of
-        the hole.
-    :ivar bottom_hole_flowing_temperature: The temperature at the bottom
-        of the hole when the well is flowing.
-    :ivar bottom_hole_gauge_depth_md: The measure depth of the
-        bottomhole gauge.
-    :ivar bottom_hole_shut_in_pressure: The shut-in pressure of at the
-        bottom of the hole.
-    :ivar bottom_hole_static_pressure: The static pressure of the bottom
-        of the hole.
-    :ivar casing_head_pressure: The pressure at the casing head.
-    :ivar choke_orifice_size: The choke diameter.
-    :ivar flowing_pressure: The flowing pressure.
-    :ivar tubing_head_flowing_pressure: The pressure at the tubing head.
-    :ivar tubing_head_flowing_temperature: The temperature at the tubing
-        head when the well is flowing.
-    :ivar tubing_head_shut_in_pressure: The pressure at the tubing head
-        when the well is shut in.
-    """
-
-    bottom_hole_flowing_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "BottomHoleFlowingPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    bottom_hole_flowing_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "BottomHoleFlowingTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    bottom_hole_gauge_depth_md: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "BottomHoleGaugeDepthMD",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    bottom_hole_shut_in_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "BottomHoleShutInPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    bottom_hole_static_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "BottomHoleStaticPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    casing_head_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CasingHeadPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    choke_orifice_size: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ChokeOrificeSize",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    flowing_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FlowingPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    tubing_head_flowing_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TubingHeadFlowingPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    tubing_head_flowing_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TubingHeadFlowingTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    tubing_head_shut_in_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TubingHeadShutInPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
 
 
 class WellFluid(Enum):
@@ -6215,12 +4460,14 @@ class WellKnownNameStruct:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
     code: Optional[str] = field(
         default=None,
         metadata={
             "type": "Attribute",
+            "max_length": 64,
         },
     )
 
@@ -6253,288 +4500,6 @@ class WellOperationMethod(Enum):
     PROGRESSIVE_CAVITY_PUMP_LIFT = "progressive cavity pump lift"
     SUCKER_ROD_PUMP_LIFT = "sucker rod pump lift"
     UNKNOWN = "unknown"
-
-
-@dataclass
-class WellTest:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-
-@dataclass
-class WellTestCumulative:
-    """The cumulative amounts of the fluids at the time of the well test.
-
-    The fluids are oil, gas, and water.
-
-    :ivar cumulative_gas: The cumulative amount of gas.
-    :ivar cumulative_oil: The cumulative amount of oil.
-    :ivar cumulative_water: The cumulative amount of water.
-    """
-
-    cumulative_gas: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CumulativeGas",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    cumulative_oil: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CumulativeOil",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    cumulative_water: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CumulativeWater",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class WellTestElectricSubmersiblePumpData:
-    """
-    Information about an electric submersible pump (ESP).
-
-    :ivar electric_current: The average electric current of the ESP
-        during the test. The presumption is that only one pump per well
-        is operational during each test.
-    :ivar frequency: The average frequency of the ESP during the test.
-        The presumption is that only one pump per well is operational
-        during each test.
-    """
-
-    electric_current: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ElectricCurrent",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    frequency: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Frequency",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class WellTestFluidRate:
-    """
-    Information about fluid rate during a well test.
-
-    :ivar fluid_rate: The fluid flow rate.
-    :ivar fluid_rate_std_temp_pres: The fluid flow rate that has been
-        corrected to standard temperature and pressure.
-    :ivar gas_class: Class for natural gas. This is not valid for oil or
-        water.
-    """
-
-    fluid_rate: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FluidRate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    fluid_rate_std_temp_pres: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FluidRateStdTempPres",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_class: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasClass",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class WellTestSeparatorData:
-    """
-    Well test data gathered at the separator.
-
-    :ivar separator_pressure: The pressure measured at the separator
-        during the well test.
-    :ivar separator_temperature: The temperature measured at the
-        separator during the well test.
-    """
-
-    separator_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SeparatorPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    separator_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SeparatorTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class WellTestTestVolume:
-    """
-    The following sequence of four elements can be used for reporting of most
-    production fluids.
-
-    :ivar density: The density of the fluid, uncorrected.
-    :ivar density_std_temp_pres: The density of the fluid, corrected to
-        standard conditions of temperature and pressure.
-    :ivar gas_class: Class for natural gas. This is not valid for oil or
-        water.
-    :ivar volume: The volume, uncorrected. This volume is generally
-        reported at reservoir conditions.
-    :ivar volume_std_temp_pres: The volume is the fluid, corrected to
-        standard conditions of temperature and pressure.
-    """
-
-    density: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Density",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    density_std_temp_pres: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "DensityStdTempPres",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_class: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasClass",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Volume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    volume_std_temp_pres: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "VolumeStdTempPres",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class WellVerticalDepthCoord:
-    """A vertical (gravity-based) depth coordinate within the context of a well.
-
-    Positive moving downward from the reference datum. All coordinates
-    with the same datum (and same UOM) can be considered to be in the
-    same coordinate reference system (CRS) and are thus directly
-    comparable.
-
-    :ivar uom: The unit of measure of the quantity value.
-    """
-
-    uom: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class WftCurveSection:
-    """
-    Points to an interval on a curve in a log (or wellLog).
-
-    :ivar channel_reference: A pointer to a specific channel that
-        contains the curve.
-    :ivar dtim_end: The date and time of the end of the relevant
-        interval. If not specified then the end of the curve is assumed.
-    :ivar dtim_start: The date and time of the start of the relevant
-        interval. If not specified then the beginning of the curve is
-        assumed.
-    :ivar mnemonic: The curve mnemonic name.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    channel_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "ChannelReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    dtim_end: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "DTimEnd",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    dtim_start: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "DTimStart",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mnemonic: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Mnemonic",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
 
 
 class WftEventKind(Enum):
@@ -6573,84 +4538,6 @@ class WftFlowingIntervalKind(Enum):
     PACKED_INTERVAL = "packed interval"
     PROBE = "probe"
     UNKNOWN = "unknown"
-
-
-@dataclass
-class WftResultReference:
-    """Defines a set of pointers which collectively identify a particular
-    outputParameter beginning at a point in the hierarchy.
-
-    The combination of pointers needed depends on the starting point.
-
-    :ivar output_parameter_reference: A pointer to the desired
-        outputParameter.
-    :ivar result_reference: A pointer to the desired result containing
-        the outputParameter.
-    :ivar sample_acquisition:
-    :ivar station_reference: A pointer to the station node containing
-        the specified nodes.
-    :ivar test: A pointer to the test node containing the specified
-        nodes.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    output_parameter_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "OutputParameterReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    result_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "ResultReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    sample_acquisition: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SampleAcquisition",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    station_reference: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "StationReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Test",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class WftRun:
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
 
 
 class WftStationKind(Enum):
@@ -6724,53 +4611,31 @@ class SaturationKind(Enum):
 
 
 @dataclass
-class AbstractDisposition:
+class AbstractFluidComponent:
     """
-    The Abstract base type of disposition.
+    The Abstract base type of FluidComponent.
 
-    :ivar product_disposition_code: A unique disposition code associated
-        within a given naming system. This may be a code specified by a
-        regulatory agency.
-    :ivar remark: A descriptive remark relating to this disposition.
-    :ivar disposition_quantity: The amount of product to which this
-        disposition applies.
-    :ivar quantity_method: Quantity method.
+    :ivar mass_fraction: The fluid mass fraction.
+    :ivar mole_fraction: The fluid mole fraction.
     :ivar uid: A unique identifier for this data element. It is not
         globally unique (not a uuid) and only need be unique within the
         context of the parent top-level object.
     """
 
-    product_disposition_code: List[str] = field(
+    mass_fraction: List[MassPerMassMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "ProductDispositionCode",
+            "name": "MassFraction",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    remark: List[str] = field(
+    mole_fraction: List[AmountOfSubstancePerAmountOfSubstanceMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "Remark",
+            "name": "MoleFraction",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    disposition_quantity: List[AbstractProductQuantity] = field(
-        default_factory=list,
-        metadata={
-            "name": "DispositionQuantity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    quantity_method: Optional[Union[QuantityMethod, str]] = field(
-        default=None,
-        metadata={
-            "name": "QuantityMethod",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
         },
     )
     uid: Optional[str] = field(
@@ -6778,6 +4643,54 @@ class AbstractDisposition:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class AbstractProductQuantity:
+    """
+    The Abstract base type of product quantity.
+
+    :ivar mass: The amount of product as a mass measure.
+    :ivar moles: Moles.
+    :ivar volume: The amount of product as a volume measure.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    mass: List[MassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Mass",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    moles: List[AmountOfSubstanceMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Moles",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    volume: List[VolumeValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "Volume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -6800,373 +4713,11 @@ class BinaryInteractionCoefficientSet:
 
 
 @dataclass
-class CommonPropertiesProductVolume:
-    """
-    Properties that are common to multiple structures in the product volume schema.
-
-    :ivar absolute_min_pres: Absolute minimum pressure before the system
-        will give an alarm.
-    :ivar atmosphere: The average atmospheric pressure during the
-        reporting period.
-    :ivar bsw: Basic sediment and water is measured from a liquid sample
-        of the production stream. It includes free water, sediment and
-        emulsion and is measured as a volume percentage of the
-        production stream.
-    :ivar bsw_previous: The basic sediment and water as measured on the
-        previous reporting period (e.g., day).
-    :ivar bsw_stabilized_crude: Basic sediment and water content in
-        stabilized crude.
-    :ivar concentration: The concentration of the product as a volume
-        percentage of the product stream.
-    :ivar density_flow_rate: The mass basis flow rate of the product.
-        This is used for things like a sand component.
-    :ivar density_stabilized_crude: The density of stabilized crude.
-    :ivar density_value:
-    :ivar efficiency: The actual volume divided by the potential volume.
-    :ivar flow_rate_value:
-    :ivar gas_liquid_ratio: The volumetric ratio of gas to liquid for
-        all products in the whole flow.
-    :ivar gor: Gas oil ratio. The ratio between the total produced gas
-        volume and the total produced oil volume including oil and gas
-        volumes used on the installation.
-    :ivar gor_mtd: Gas oil ratio month to date. The gas oil ratio from
-        the beginning of the month to the end of the reporting period.
-    :ivar gross_calorific_value_std: The amount of heat that would be
-        released by the complete combustion in air of a specific
-        quantity of product at standard temperature and pressure.
-    :ivar hc_dewpoint: The temperature at which the heavier hydrocarbons
-        come out of solution.
-    :ivar mass: The mass of the product.
-    :ivar mole_amt: The molar amount.
-    :ivar molecular_weight: The molecular weight of the product.
-    :ivar mole_percent: The mole fraction of the product.
-    :ivar pres: Pressure of the port. Specifying the pressure here (as
-        opposed to in Period) implies that the pressure is constant for
-        all periods of the flow.
-    :ivar rvp: Reid vapor pressure of the product. The absolute vapor
-        pressure of volatile crude oil and volatile petroleum liquids,
-        except liquefied petroleum gases, as determined in accordance
-        with American Society for Testing and Materials under the
-        designation ASTM D323-56.
-    :ivar rvp_stabilized_crude: Reid vapor pressure of stabilized crude.
-    :ivar sg: The specific gravity of the product.
-    :ivar temp: Temperature of the port. Specifying the temperature here
-        (as opposed to in Period) implies that the temperature is
-        constant for all periods of the flow.
-    :ivar tvp: True vapor pressure of the product. The equilibrium
-        partial pressure exerted by a petroleum liquid as determined in
-        accordance with standard methods.
-    :ivar volume_value:
-    :ivar water_conc_mass: Water concentration mass basis. The ratio of
-        water produced compared to the mass of total liquids produced.
-    :ivar water_conc_vol: Water concentration volume basis. The ratio of
-        water produced compared to the mass of total liquids produced.
-    :ivar water_dewpoint: The temperature at which the first water comes
-        out of solution.
-    :ivar weight_percent: The weight fraction of the product.
-    :ivar wobbe_index: Indicator value of the interchangeability of fuel
-        gases.
-    :ivar work: The electrical energy represented by the product.
-    :ivar port_diff: The internal differences between this port and one
-        other port on this unit.
-    """
-
-    absolute_min_pres: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AbsoluteMinPres",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    atmosphere: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Atmosphere",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    bsw: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Bsw",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    bsw_previous: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "BswPrevious",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    bsw_stabilized_crude: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "BswStabilizedCrude",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    concentration: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Concentration",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    density_flow_rate: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "DensityFlowRate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    density_stabilized_crude: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "DensityStabilizedCrude",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    density_value: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "DensityValue",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    efficiency: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Efficiency",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    flow_rate_value: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FlowRateValue",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_liquid_ratio: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasLiquidRatio",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Gor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gor_mtd: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GorMTD",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gross_calorific_value_std: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GrossCalorificValueStd",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    hc_dewpoint: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "HcDewpoint",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mass: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Mass",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mole_amt: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MoleAmt",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    molecular_weight: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MolecularWeight",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mole_percent: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MolePercent",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pres: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Pres",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    rvp: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Rvp",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    rvp_stabilized_crude: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "RvpStabilizedCrude",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    sg: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Sg",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    temp: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Temp",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    tvp: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Tvp",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    volume_value: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "VolumeValue",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_conc_mass: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterConcMass",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_conc_vol: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterConcVol",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_dewpoint: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterDewpoint",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    weight_percent: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WeightPercent",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    wobbe_index: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WobbeIndex",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    work: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Work",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    port_diff: List[ProductVolumePortDifference] = field(
-        default_factory=list,
-        metadata={
-            "name": "PortDiff",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class ComponentPropertySet:
-    """
-    Component property set.
-    """
-
-    fluid_component_property: List[FluidComponentProperty] = field(
-        default_factory=list,
-        metadata={
-            "name": "FluidComponentProperty",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "min_occurs": 1,
-        },
-    )
-
-
-@dataclass
 class CrewCount:
     """
     A one-based count of personnel on a type of crew.
 
+    :ivar value:
     :ivar uid: A unique identifier for this data element. It is not
         globally unique (not a uuid) and only need be unique within the
         context of the parent top-level object.
@@ -7174,11 +4725,19 @@ class CrewCount:
         defined.
     """
 
+    value: Optional[int] = field(
+        default=None,
+        metadata={
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
     uid: Optional[str] = field(
         default=None,
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
     type_value: Optional[CrewType] = field(
@@ -7199,7 +4758,9 @@ class CumulativeGasProducedRatioStd(AbstractGasProducedRatioVolume):
         cumulative gas produced ratio.
     """
 
-    cumulative_gas_produced_ratio_std: Optional[str] = field(
+    cumulative_gas_produced_ratio_std: Optional[
+        VolumePerVolumeMeasure
+    ] = field(
         default=None,
         metadata={
             "name": "CumulativeGasProducedRatioStd",
@@ -7219,7 +4780,7 @@ class CumulativeGasProducedVol(AbstractGasProducedRatioVolume):
         produced ratio at standard conditions.
     """
 
-    cumulative_gas_produced_volume: Optional[str] = field(
+    cumulative_gas_produced_volume: Optional[VolumeMeasure] = field(
         default=None,
         metadata={
             "name": "CumulativeGasProducedVolume",
@@ -7252,13 +4813,14 @@ class CurveData(AbstractMeasureDataType):
         context of the parent top-level object.
     """
 
-    index: Optional[str] = field(
+    index: Optional[int] = field(
         default=None,
         metadata={
             "name": "Index",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 1,
         },
     )
     value: List[float] = field(
@@ -7275,33 +4837,115 @@ class CurveData(AbstractMeasureDataType):
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class CustomPvtModelExtension:
+class CurveDefinition:
     """
-    Custom PVT model extension.
+    The definition of a curve.
 
-    :ivar description: A description of the custom model.
-    :ivar custom_pvt_model_parameter:
+    :ivar is_index: True (equal "1" or "true") indicates that this is an
+        independent variable in this curve. At least one column column
+        should be flagged as independent.
+    :ivar measure_class: The measure class of the variable. This defines
+        which units of measure are valid for the value.
+    :ivar order: The order of the value in the index or data tuple. If
+        isIndex is true, this is the order of the (independent) index
+        element. If isIndex is false, this is the order of the
+        (dependent) value element.
+    :ivar parameter: The name of the variable in this curve.
+    :ivar unit: The unit of measure of the variable. The unit of measure
+        must match a unit allowed by the measure class.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
     """
 
-    description: List[str] = field(
-        default_factory=list,
+    is_index: Optional[bool] = field(
+        default=None,
         metadata={
-            "name": "Description",
+            "name": "IsIndex",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    custom_pvt_model_parameter: List[CustomPvtModelParameter] = field(
-        default_factory=list,
+    measure_class: Optional[MeasureType] = field(
+        default=None,
         metadata={
-            "name": "CustomPvtModelParameter",
+            "name": "MeasureClass",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    order: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "Order",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    parameter: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Parameter",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    unit: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Unit",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 32,
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class CustomPvtModelParameter:
+    """
+    Custom PVT model parameter.
+
+    :ivar custom_parameter_value:
+    :ivar fluid_component_reference: Reference to a fluid component to
+        which this custom model parameter applies.
+    """
+
+    custom_parameter_value: Optional[ExtensionNameValue] = field(
+        default=None,
+        metadata={
+            "name": "CustomParameterValue",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    fluid_component_reference: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "fluidComponentReference",
+            "type": "Attribute",
+            "max_length": 64,
         },
     )
 
@@ -7334,7 +4978,7 @@ class DasCalibrationPoint:
         points.
     """
 
-    calibration_facility_length: Optional[str] = field(
+    calibration_facility_length: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "CalibrationFacilityLength",
@@ -7343,16 +4987,17 @@ class DasCalibrationPoint:
             "required": True,
         },
     )
-    calibration_locus_index: Optional[str] = field(
+    calibration_locus_index: Optional[int] = field(
         default=None,
         metadata={
             "name": "CalibrationLocusIndex",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
-    calibration_optical_path_distance: Optional[str] = field(
+    calibration_optical_path_distance: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "CalibrationOpticalPathDistance",
@@ -7367,6 +5012,56 @@ class DasCalibrationPoint:
             "name": "CalibrationType",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class DasCalibrationTypeExt:
+    """
+    This extension of calibration type.
+    """
+
+    value: Union[DasCalibrationType, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class DasExternalDatasetPart(ExternalDatasetPart):
+    """Array of integer values provided explicitly by an HDF5 dataset.
+
+    The null value must be  explicitly provided in the NullValue
+    attribute of this class.
+
+    :ivar part_end_time: The timestamp in human readable, ISO 8601
+        format of the last recorded sample in the sub-record of the raw
+        data array stored in the corresponding HDF data file.
+    :ivar part_start_time: The timestamp in human readable, ISO 8601
+        format of the first recorded sample in the sub-record of the raw
+        data array stored in the corresponding HDF data file.
+    """
+
+    part_end_time: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "PartEndTime",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".+T.+[Z+\-].*",
+        },
+    )
+    part_start_time: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "PartStartTime",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".+T.+[Z+\-].*",
         },
     )
 
@@ -7399,7 +5094,7 @@ class DasFbeData:
         deliver data with different orderings.
     """
 
-    end_frequency: Optional[str] = field(
+    end_frequency: Optional[FrequencyMeasure] = field(
         default=None,
         metadata={
             "name": "EndFrequency",
@@ -7408,7 +5103,7 @@ class DasFbeData:
             "required": True,
         },
     )
-    fbe_data_array: Optional[str] = field(
+    fbe_data_array: Optional[AbstractNumericArray] = field(
         default=None,
         metadata={
             "name": "FbeDataArray",
@@ -7417,15 +5112,16 @@ class DasFbeData:
             "required": True,
         },
     )
-    fbe_data_index: List[str] = field(
+    fbe_data_index: List[int] = field(
         default_factory=list,
         metadata={
             "name": "FbeDataIndex",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
         },
     )
-    start_frequency: Optional[str] = field(
+    start_frequency: Optional[FrequencyMeasure] = field(
         default=None,
         metadata={
             "name": "StartFrequency",
@@ -7461,7 +5157,7 @@ class DasRawData:
         may be reversed.
     """
 
-    raw_data_array: Optional[str] = field(
+    raw_data_array: Optional[AbstractNumericArray] = field(
         default=None,
         metadata={
             "name": "RawDataArray",
@@ -7509,7 +5205,7 @@ class DasSpectraData:
         that vendors may deliver data with different orderings.
     """
 
-    end_frequency: Optional[str] = field(
+    end_frequency: Optional[FrequencyMeasure] = field(
         default=None,
         metadata={
             "name": "EndFrequency",
@@ -7518,7 +5214,7 @@ class DasSpectraData:
             "required": True,
         },
     )
-    spectra_data_array: Optional[str] = field(
+    spectra_data_array: Optional[AbstractNumericArray] = field(
         default=None,
         metadata={
             "name": "SpectraDataArray",
@@ -7527,7 +5223,7 @@ class DasSpectraData:
             "required": True,
         },
     )
-    start_frequency: Optional[str] = field(
+    start_frequency: Optional[FrequencyMeasure] = field(
         default=None,
         metadata={
             "name": "StartFrequency",
@@ -7544,6 +5240,55 @@ class DasSpectraData:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "min_occurs": 3,
             "max_occurs": 3,
+        },
+    )
+
+
+@dataclass
+class DasTimeArray:
+    """The Times arrays contain the ‘scan’ or ‘trace’ times at which the raw, FBE
+    and spectrum arrays were acquired or processed:
+
+    - For raw data, these are the times for which all loci in the ‘scanned’ fiber section were interrogated by a single pulse of the DAS measurement system.
+    - For the processed data, these are the times of the first sample in the time window used in the frequency filter or transformation function to calculate the FBE or spectrum data.
+
+    :ivar end_time: The timestamp in human readable, ISO 8601 format of
+        the last recorded sample in the acquisition. Note that this is
+        the end time of the acquistion if a raw data set is stored in
+        multiple HDF files. The end time of the sub-record stored in an
+        individual HDF file is stored in PartEndTime.
+    :ivar start_time: The timestamp in human readable, ISO 8601 format
+        of the last recorded sample in the acquistion. Note that this is
+        the start time of the acquistion if a raw dataset is stored in
+        multiple HDF files. The end time of the sub-record stored in an
+        individual HDF file is stored in PartStartTime.
+    :ivar time_array:
+    """
+
+    end_time: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "EndTime",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".+T.+[Z+\-].*",
+        },
+    )
+    start_time: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "StartTime",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".+T.+[Z+\-].*",
+        },
+    )
+    time_array: Optional[IntegerExternalArray] = field(
+        default=None,
+        metadata={
+            "name": "TimeArray",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
 
@@ -7568,6 +5313,7 @@ class DatumCrs(AbstractDatum):
             "name": "DatumCRS",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
 
@@ -7589,39 +5335,11 @@ class DatumName(AbstractDatum):
 
 
 @dataclass
-class DeferredProduction:
-    """
-    The production volume deferred for the reporting period.
-
-    :ivar remark: Remarks and comments about this data item.
-    :ivar deferred_product_quantity:
-    :ivar estimation_method: The method used to estimate deferred
-        production. See enum EstimationMethod.
-    """
-
-    remark: List[str] = field(
-        default_factory=list,
+class DispositionKindExt:
+    value: Union[DispositionKind, str] = field(
+        default="",
         metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    deferred_product_quantity: List[AbstractProductQuantity] = field(
-        default_factory=list,
-        metadata={
-            "name": "DeferredProductQuantity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    estimation_method: Optional[Union[EstimationMethod, str]] = field(
-        default=None,
-        metadata={
-            "name": "EstimationMethod",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
+            "pattern": r".*:.*",
         },
     )
 
@@ -7656,6 +5374,7 @@ class DtsCalibration:
             "name": "CalibratedBy",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     calibration_protocol: List[str] = field(
@@ -7664,6 +5383,7 @@ class DtsCalibration:
             "name": "CalibrationProtocol",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     dtim_calibration: Optional[XmlDate] = field(
@@ -7674,7 +5394,7 @@ class DtsCalibration:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    extension_name_value: List[str] = field(
+    extension_name_value: List[ExtensionNameValue] = field(
         default_factory=list,
         metadata={
             "name": "ExtensionNameValue",
@@ -7696,6 +5416,7 @@ class DtsCalibration:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     uid: Optional[str] = field(
@@ -7703,6 +5424,7 @@ class DtsCalibration:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -7770,7 +5492,7 @@ class DtsInterpretationData:
             "required": True,
         },
     )
-    channel_set_reference: Optional[str] = field(
+    channel_set_reference: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "ChannelSetReference",
@@ -7785,6 +5507,7 @@ class DtsInterpretationData:
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     creation_start_time: Optional[XmlDate] = field(
@@ -7803,6 +5526,7 @@ class DtsInterpretationData:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     index_mnemonic: Optional[str] = field(
@@ -7812,6 +5536,7 @@ class DtsInterpretationData:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     point_count: Optional[int] = field(
@@ -7823,7 +5548,7 @@ class DtsInterpretationData:
             "required": True,
         },
     )
-    sampling_interval: Optional[str] = field(
+    sampling_interval: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "SamplingInterval",
@@ -7849,6 +5574,7 @@ class DtsInterpretationData:
             "name": "measurementReference",
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
     parent_interpretation_reference: Optional[str] = field(
@@ -7856,6 +5582,7 @@ class DtsInterpretationData:
         metadata={
             "name": "parentInterpretationReference",
             "type": "Attribute",
+            "max_length": 64,
         },
     )
     uid: Optional[str] = field(
@@ -7863,6 +5590,7 @@ class DtsInterpretationData:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -7910,7 +5638,7 @@ class DtsMeasurementTrace:
     :ivar uid: Unique identifier of this object.
     """
 
-    channel_set_reference: Optional[str] = field(
+    channel_set_reference: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "ChannelSetReference",
@@ -7925,9 +5653,10 @@ class DtsMeasurementTrace:
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    frequency_rayleigh1: List[str] = field(
+    frequency_rayleigh1: List[FrequencyMeasure] = field(
         default_factory=list,
         metadata={
             "name": "FrequencyRayleigh1",
@@ -7935,7 +5664,7 @@ class DtsMeasurementTrace:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    frequency_rayleigh2: List[str] = field(
+    frequency_rayleigh2: List[FrequencyMeasure] = field(
         default_factory=list,
         metadata={
             "name": "FrequencyRayleigh2",
@@ -7950,6 +5679,7 @@ class DtsMeasurementTrace:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     point_count: Optional[int] = field(
@@ -7961,7 +5691,7 @@ class DtsMeasurementTrace:
             "required": True,
         },
     )
-    sampling_interval: Optional[str] = field(
+    sampling_interval: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "SamplingInterval",
@@ -7984,6 +5714,7 @@ class DtsMeasurementTrace:
         metadata={
             "name": "parentMeasurementReference",
             "type": "Attribute",
+            "max_length": 64,
         },
     )
     uid: Optional[str] = field(
@@ -7991,6 +5722,38 @@ class DtsMeasurementTrace:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class DtsPatchCord:
+    """
+    Information regarding the patch cord used to connect the instrument box to the
+    start of the optical fiber path.
+
+    :ivar description: A textual description of the patch cord.
+    :ivar fiber_length: Optical distance between the instrument and the
+        end of the patch cord that will be attached to the rest of the
+        optical path from which a measurement will be taken.
+    """
+
+    description: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Description",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    fiber_length: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "FiberLength",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
 
@@ -8075,15 +5838,32 @@ class EndpointQuantity:
     elsewhere. The meaning of the endpoint of an interval must be
     defined by the endpoint attribute.
 
+    :ivar value:
     :ivar endpoint: Defines the semantics (inclusive or exclusive) of
         the endpoint within the context of the interval.
     """
 
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
     endpoint: Optional[EndpointQualifierInterval] = field(
         default=None,
         metadata={
             "type": "Attribute",
             "required": True,
+        },
+    )
+
+
+@dataclass
+class EstimationMethodExt:
+    value: Union[EstimationMethod, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
         },
     )
 
@@ -8108,6 +5888,7 @@ class FacilityIdentifierStruct:
         metadata={
             "name": "namingSystem",
             "type": "Attribute",
+            "max_length": 64,
         },
     )
     site_kind: Optional[str] = field(
@@ -8115,6 +5896,7 @@ class FacilityIdentifierStruct:
         metadata={
             "name": "siteKind",
             "type": "Attribute",
+            "max_length": 64,
         },
     )
     uid_ref: Optional[str] = field(
@@ -8122,6 +5904,7 @@ class FacilityIdentifierStruct:
         metadata={
             "name": "uidRef",
             "type": "Attribute",
+            "max_length": 64,
         },
     )
     kind: Optional[ReportingFacility] = field(
@@ -8162,6 +5945,7 @@ class FacilityUnitPort(AbstractRelatedFacilityObject):
             "name": "NetworkReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     port_reference: Optional[str] = field(
@@ -8170,6 +5954,7 @@ class FacilityUnitPort(AbstractRelatedFacilityObject):
             "name": "PortReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     unit_reference: Optional[str] = field(
@@ -8178,93 +5963,7 @@ class FacilityUnitPort(AbstractRelatedFacilityObject):
             "name": "UnitReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class FiberControlLine(AbstractCable):
-    """
-    Information regarding the control line into which a fiber cable may be pumped
-    to measure a facility.
-
-    :ivar comment: A descriptive remark about the fiber control line.
-    :ivar encapsulation_size: Enum of the size of encapsulation of a
-        fiber within a control line.
-    :ivar encapsulation_type: Enum of square or round encapsulation for
-        a control line. A fiber may be installed inside the control
-        line.
-    :ivar material: Enum of the common materials from which a control
-        line may be made. A fiber may be installed inside the control
-        line.
-    :ivar size: Enum of the common sizes of control line. The enum list
-        gives diameters and weight per length values. A fiber may be
-        installed inside the control line.
-    :ivar pump_activity: The activity of pumping the fiber downhole into
-        a control line (small diameter tube).
-    :ivar downhole_control_line_reference: A reference to the control
-        line string in a completion data object that represents this
-        control line containing a fiber.
-    """
-
-    comment: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Comment",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    encapsulation_size: Optional[ControlLineEncapsulationSize] = field(
-        default=None,
-        metadata={
-            "name": "EncapsulationSize",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    encapsulation_type: Optional[ControlLineEncapsulationType] = field(
-        default=None,
-        metadata={
-            "name": "EncapsulationType",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    material: Optional[ControlLineMaterial] = field(
-        default=None,
-        metadata={
-            "name": "Material",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    size: Optional[ControlLineSize] = field(
-        default=None,
-        metadata={
-            "name": "Size",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    pump_activity: List[FiberPumpActivity] = field(
-        default_factory=list,
-        metadata={
-            "name": "PumpActivity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    downhole_control_line_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "downholeControlLineReference",
-            "type": "Attribute",
-            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -8304,6 +6003,7 @@ class FiberFacilityGeneric(AbstractFiberFacility):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     facility_name: Optional[str] = field(
@@ -8313,6 +6013,7 @@ class FiberFacilityGeneric(AbstractFiberFacility):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -8345,9 +6046,10 @@ class FiberFacilityMappingPart:
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    facility_length_end: Optional[str] = field(
+    facility_length_end: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "FacilityLengthEnd",
@@ -8356,7 +6058,7 @@ class FiberFacilityMappingPart:
             "required": True,
         },
     )
-    facility_length_start: Optional[str] = field(
+    facility_length_start: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "FacilityLengthStart",
@@ -8365,7 +6067,7 @@ class FiberFacilityMappingPart:
             "required": True,
         },
     )
-    optical_path_distance_end: Optional[str] = field(
+    optical_path_distance_end: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "OpticalPathDistanceEnd",
@@ -8374,7 +6076,7 @@ class FiberFacilityMappingPart:
             "required": True,
         },
     )
-    optical_path_distance_start: Optional[str] = field(
+    optical_path_distance_start: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "OpticalPathDistanceStart",
@@ -8397,6 +6099,7 @@ class FiberFacilityMappingPart:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -8421,9 +6124,10 @@ class FiberFacilityWell(AbstractFiberFacility):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
-    wellbore_reference: Optional[str] = field(
+    wellbore_reference: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "WellboreReference",
@@ -8432,7 +6136,7 @@ class FiberFacilityWell(AbstractFiberFacility):
             "required": True,
         },
     )
-    well_datum: List[str] = field(
+    well_datum: List[WellboreDatumReference] = field(
         default_factory=list,
         metadata={
             "name": "WellDatum",
@@ -8457,7 +6161,7 @@ class FiberOneWayAttenuation:
     :ivar uid: Unique identifier of this object.
     """
 
-    value: Optional[str] = field(
+    value: Optional[LogarithmicPowerRatioPerLengthMeasure] = field(
         default=None,
         metadata={
             "name": "Value",
@@ -8480,6 +6184,7 @@ class FiberOneWayAttenuation:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}",
         },
     )
 
@@ -8510,10 +6215,11 @@ class FiberPathDefect:
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
             "sequence": 1,
         },
     )
-    optical_path_distance_end: List[str] = field(
+    optical_path_distance_end: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OpticalPathDistanceEnd",
@@ -8522,7 +6228,7 @@ class FiberPathDefect:
             "sequence": 1,
         },
     )
-    optical_path_distance_start: List[str] = field(
+    optical_path_distance_start: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OpticalPathDistanceStart",
@@ -8564,6 +6270,224 @@ class FiberPathDefect:
             "name": "defectID",
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class FiberPumpActivity:
+    """
+    The activity of pumping the fiber downhole into a control line (small diameter
+    tube).
+
+    :ivar cable_meter_calibration_date: The date the cable meter was
+        calibrated.
+    :ivar cable_meter_serial_number: The serial number of the cable
+        meter.
+    :ivar cable_meter_type: The type of cable meter.
+    :ivar comment: Comment about the pump activity.
+    :ivar control_line_fluid: The type of fluid used in the control
+        line.
+    :ivar engineer_name: The person in charge of the pumping activity.
+    :ivar excess_fiber_recovered: The length of the excess fiber that
+        was removed.
+    :ivar fiber_end_seal: The type of end seal on the fiber.
+    :ivar installed_fiber: The name of the InstalledFiberInstance that
+        this activity relates to.
+    :ivar name: A name that can be used to reference the pumping
+        activity. In general, a pumping activity does not have a natural
+        name, so this element is often not used.
+    :ivar pump_direction: The direction of the pumping.
+    :ivar pump_fluid_type: The type of fluid used in the pump.
+    :ivar pumping_date: The date of the pumping activity.
+    :ivar service_company: The company that performed the pumping
+        activity.
+    :ivar uid: Unique identifier of this object.
+    """
+
+    cable_meter_calibration_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "CableMeterCalibrationDate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    cable_meter_serial_number: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "CableMeterSerialNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    cable_meter_type: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "CableMeterType",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    comment: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comment",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    control_line_fluid: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "ControlLineFluid",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    engineer_name: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "EngineerName",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    excess_fiber_recovered: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ExcessFiberRecovered",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    fiber_end_seal: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "FiberEndSeal",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    installed_fiber: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "InstalledFiber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    name: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Name",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    pump_direction: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "PumpDirection",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    pump_fluid_type: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "PumpFluidType",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    pumping_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "PumpingDate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    service_company: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "ServiceCompany",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class FiberRefractiveIndex:
+    """The refractive index of a material depends on the frequency (or wavelength)
+    of the light.
+
+    Hence, it is necessary to include both the value (a unitless number)
+    and the frequency (or wavelength) it was measured at. The frequency
+    will be a quantity type with a frequency unit such as Hz.
+
+    :ivar frequency: The frequency (and UOM) for which the refractive
+        index is measured.
+    :ivar value: The value of the refractive index.
+    :ivar wavelength: The wavelength (and UOM) for which the refractive
+        index is measured. The reported wavelength should be the
+        wavelength of the light in a vacuum.
+    :ivar uid: Unique identifier of this object.
+    """
+
+    frequency: List[FrequencyMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Frequency",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    value: Optional[LogarithmicPowerRatioPerLengthMeasure] = field(
+        default=None,
+        metadata={
+            "name": "Value",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    wavelength: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Wavelength",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -8593,6 +6517,7 @@ class FluidAnalysisReport:
             "name": "AnalysisLaboratory",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     author: List[str] = field(
@@ -8601,6 +6526,7 @@ class FluidAnalysisReport:
             "name": "Author",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     report_date: Optional[XmlDate] = field(
@@ -8611,7 +6537,7 @@ class FluidAnalysisReport:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    report_document_reference: List[str] = field(
+    report_document_reference: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "ReportDocumentReference",
@@ -8625,6 +6551,7 @@ class FluidAnalysisReport:
             "name": "ReportIdentifier",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     report_location: List[ReportLocation] = field(
@@ -8640,6 +6567,37 @@ class FluidAnalysisReport:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class FluidCharacterizationSource:
+    """
+    Fluid characterization source.
+
+    :ivar fluid_analysis_reference:
+    :ivar fluid_analysis_test_reference: A reference to a fluid analysis
+        test which was used as source data for this fluid
+        characterization.
+    """
+
+    fluid_analysis_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidAnalysisReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    fluid_analysis_test_reference: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidAnalysisTestReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
 
@@ -8663,7 +6621,7 @@ class FluidCharacterizationTableColumn:
         table.
     """
 
-    keyword_alias: List[str] = field(
+    keyword_alias: List[ObjectAlias] = field(
         default_factory=list,
         metadata={
             "name": "KeywordAlias",
@@ -8686,6 +6644,7 @@ class FluidCharacterizationTableColumn:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "pattern": r".*:.*",
         },
     )
     fluid_component_reference: Optional[str] = field(
@@ -8693,18 +6652,21 @@ class FluidCharacterizationTableColumn:
         metadata={
             "name": "fluidComponentReference",
             "type": "Attribute",
+            "max_length": 64,
         },
     )
     name: Optional[str] = field(
         default=None,
         metadata={
             "type": "Attribute",
+            "max_length": 64,
         },
     )
-    sequence: Optional[str] = field(
+    sequence: Optional[int] = field(
         default=None,
         metadata={
             "type": "Attribute",
+            "min_inclusive": 0,
         },
     )
     uom: Optional[str] = field(
@@ -8712,6 +6674,7 @@ class FluidCharacterizationTableColumn:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -8733,7 +6696,7 @@ class FluidCharacterizationTableConstant:
     :ivar value: The value for this table constant.
     """
 
-    keyword_alias: List[str] = field(
+    keyword_alias: List[ObjectAlias] = field(
         default_factory=list,
         metadata={
             "name": "KeywordAlias",
@@ -8756,6 +6719,7 @@ class FluidCharacterizationTableConstant:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "pattern": r".*:.*",
         },
     )
     fluid_component_reference: Optional[str] = field(
@@ -8763,12 +6727,14 @@ class FluidCharacterizationTableConstant:
         metadata={
             "name": "fluidComponentReference",
             "type": "Attribute",
+            "max_length": 64,
         },
     )
     name: Optional[str] = field(
         default=None,
         metadata={
             "type": "Attribute",
+            "max_length": 64,
         },
     )
     uom: Optional[str] = field(
@@ -8776,6 +6742,7 @@ class FluidCharacterizationTableConstant:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
     value: Optional[Decimal] = field(
@@ -8792,23 +6759,303 @@ class FluidCharacterizationTableRow:
     """
     The row of a table.
 
+    :ivar value:
     :ivar row: The string containing the contents of a row in the table.
     :ivar kind: This type characteristic describes the row of data as
         either saturated or under-saturated at the conditions defined
         for the row.
     """
 
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
     row: Optional[str] = field(
         default=None,
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
     kind: Optional[SaturationKind] = field(
         default=None,
         metadata={
             "type": "Attribute",
+        },
+    )
+
+
+@dataclass
+class FluidComponent:
+    """
+    Fluid component.
+
+    :ivar kvalue: K value.
+    :ivar mass_fraction: The mass fraction for the fluid component.
+    :ivar mole_fraction: The mole fraction for the fluid component.
+    :ivar fluid_component_reference: Fluid component reference.
+    """
+
+    kvalue: List[AmountOfSubstancePerAmountOfSubstanceMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "KValue",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mass_fraction: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MassFraction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mole_fraction: List[AmountOfSubstancePerAmountOfSubstanceMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MoleFraction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    fluid_component_reference: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "fluidComponentReference",
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class FluidComponentProperty:
+    """
+    The properties of a fluid component.
+
+    :ivar acentric_factor: The acentric factor for this fluid component.
+    :ivar compact_volume: The compact volume for this fluid component.
+    :ivar critical_pressure: The critical pressure for this fluid
+        component.
+    :ivar critical_temperature: The critical temperature for this fluid
+        component.
+    :ivar critical_viscosity: The critical viscosity for this fluid
+        component.
+    :ivar critical_volume: The critical volume for this fluid component.
+    :ivar mass_density: The mass density for this fluid component.
+    :ivar omega_a: The omega A for this fluid component.
+    :ivar omega_b: The omega B for this fluid component.
+    :ivar parachor: The parachor for this fluid component.
+    :ivar partial_molar_density: The partial molar density for this
+        fluid component.
+    :ivar partial_molar_volume: The partial molar volume for this fluid
+        component.
+    :ivar reference_density_zj: The reference density for this fluid
+        component.
+    :ivar reference_gravity_zj: The reference gravity for this fluid
+        component.
+    :ivar reference_temperature_zj: The reference temperature for this
+        fluid component.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar viscous_compressibility: The viscous compressibility for this
+        fluid component.
+    :ivar volume_shift_parameter: The volume shift parameter for this
+        fluid component.
+    :ivar fluid_component_reference: The reference to the fluid
+        component to which these properties apply.
+    """
+
+    acentric_factor: Optional[Decimal] = field(
+        default=None,
+        metadata={
+            "name": "AcentricFactor",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    compact_volume: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CompactVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    critical_pressure: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CriticalPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    critical_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CriticalTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    critical_viscosity: List[DynamicViscosityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CriticalViscosity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    critical_volume: List[MolarVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CriticalVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mass_density: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MassDensity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    omega_a: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "OmegaA",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    omega_b: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "OmegaB",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    parachor: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "Parachor",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    partial_molar_density: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "PartialMolarDensity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    partial_molar_volume: List[MolarVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "PartialMolarVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    reference_density_zj: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ReferenceDensityZJ",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    reference_gravity_zj: List[ApigravityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ReferenceGravityZJ",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    reference_temperature_zj: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ReferenceTemperatureZJ",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    viscous_compressibility: List[ReciprocalPressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ViscousCompressibility",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    volume_shift_parameter: Optional[Decimal] = field(
+        default=None,
+        metadata={
+            "name": "VolumeShiftParameter",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    fluid_component_reference: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "fluidComponentReference",
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class FluidSampleAcquisitionJobSource:
+    """
+    :ivar fluid_sample_acquisition_job_reference:
+    :ivar fluid_sample_acquisition_reference: Reference to the fluid
+        sample acquisition (by uid) within a fluid sample acquisition
+        job (which is referred to as a top-level object) which acquired
+        this fluid sample.
+    """
+
+    fluid_sample_acquisition_job_reference: Optional[
+        DataObjectReference
+    ] = field(
+        default=None,
+        metadata={
+            "name": "FluidSampleAcquisitionJobReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    fluid_sample_acquisition_reference: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "FluidSampleAcquisitionReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -8850,9 +7097,10 @@ class FluidSampleChainofCustodyEvent:
             "name": "ContainerLocation",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    current_container: Optional[str] = field(
+    current_container: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "CurrentContainer",
@@ -8867,6 +7115,7 @@ class FluidSampleChainofCustodyEvent:
             "name": "Custodian",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     custody_date: Optional[XmlDate] = field(
@@ -8877,7 +7126,7 @@ class FluidSampleChainofCustodyEvent:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    lost_volume: List[str] = field(
+    lost_volume: List[VolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "LostVolume",
@@ -8885,7 +7134,7 @@ class FluidSampleChainofCustodyEvent:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    prev_container: List[str] = field(
+    prev_container: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "PrevContainer",
@@ -8893,7 +7142,7 @@ class FluidSampleChainofCustodyEvent:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    remaining_volume: List[str] = field(
+    remaining_volume: List[VolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "RemainingVolume",
@@ -8907,6 +7156,7 @@ class FluidSampleChainofCustodyEvent:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     sample_integrity: Optional[SampleQuality] = field(
@@ -8918,7 +7168,7 @@ class FluidSampleChainofCustodyEvent:
             "required": True,
         },
     )
-    transfer_pressure: List[str] = field(
+    transfer_pressure: List[AbstractPressureValue] = field(
         default_factory=list,
         metadata={
             "name": "TransferPressure",
@@ -8926,7 +7176,7 @@ class FluidSampleChainofCustodyEvent:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    transfer_temperature: List[str] = field(
+    transfer_temperature: List[ThermodynamicTemperatureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "TransferTemperature",
@@ -8934,7 +7184,7 @@ class FluidSampleChainofCustodyEvent:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    transfer_volume: List[str] = field(
+    transfer_volume: List[VolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "TransferVolume",
@@ -8955,6 +7205,205 @@ class FluidSampleChainofCustodyEvent:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class FluidSampleComposition:
+    """
+    Fluid sample points to a mixture from other samples.
+
+    :ivar fluid_sample:
+    :ivar mass_fraction: The mass fraction of this parent sample within
+        this combined sample.
+    :ivar mole_fraction: The mole fraction of this parent sample within
+        this combined sample.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar volume_fraction: The volume fraction of this parent sample
+        within this combined sample.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    fluid_sample: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidSample",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mass_fraction: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MassFraction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mole_fraction: List[AmountOfSubstancePerAmountOfSubstanceMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MoleFraction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    volume_fraction: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "VolumeFraction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class FluidSampleContainer(AbstractObject):
+    """
+    Information about the fluid container used to capture a fluid sample.
+
+    :ivar bottle_id: The reference ID  of a bottle or a chamber.
+    :ivar capacity: The volume of a bottle or chamber.
+    :ivar kind: The kind of this fluid sample container.
+    :ivar last_inspection_date: The date when this fluid sample
+        container was last inspected.
+    :ivar make: The make of this fluid sample container.
+    :ivar metallurgy: The metallurgy of this fluid sample container.
+    :ivar model: The model of this fluid sample container.
+    :ivar owner: The owner of this fluid sample container.
+    :ivar pressure_rating: The pressure rating of this fluid sample
+        container.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar serial_number: The serial number of this fluid sample
+        container.
+    :ivar temperature_rating: The temperature rating of this fluid
+        sample container.
+    :ivar transport_certificate_reference: The reference uid of an
+        attached object which stores the transport certificate.
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    bottle_id: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "BottleID",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    capacity: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Capacity",
+            "type": "Element",
+        },
+    )
+    kind: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Kind",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    last_inspection_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "LastInspectionDate",
+            "type": "Element",
+        },
+    )
+    make: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Make",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    metallurgy: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Metallurgy",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    model: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Model",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    owner: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Owner",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    pressure_rating: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "PressureRating",
+            "type": "Element",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    serial_number: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "SerialNumber",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    temperature_rating: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TemperatureRating",
+            "type": "Element",
+        },
+    )
+    transport_certificate_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "TransportCertificateReference",
+            "type": "Element",
         },
     )
 
@@ -8973,7 +7422,7 @@ class FluidVolumeReference:
         context of the parent top-level object.
     """
 
-    reference_volume: List[str] = field(
+    reference_volume: List[VolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "ReferenceVolume",
@@ -8987,6 +7436,7 @@ class FluidVolumeReference:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     kind: Optional[VolumeReferenceKind] = field(
@@ -9003,42 +7453,7 @@ class FluidVolumeReference:
         metadata={
             "type": "Attribute",
             "required": True,
-        },
-    )
-
-
-@dataclass
-class FormationWater(AbstractFluidComponent):
-    """
-    The water in the formation.
-
-    :ivar remark: Remarks and comments about this data item.
-    :ivar salinity: Salinity level.
-    :ivar specific_gravity: Specific gravity.
-    """
-
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    salinity: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Salinity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    specific_gravity: Optional[float] = field(
-        default=None,
-        metadata={
-            "name": "SpecificGravity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
 
@@ -9051,7 +7466,7 @@ class Frequency(AbstractAttenuationMeasure):
     :ivar frequency: Frequency.
     """
 
-    frequency: Optional[str] = field(
+    frequency: Optional[FrequencyMeasure] = field(
         default=None,
         metadata={
             "name": "Frequency",
@@ -9096,6 +7511,7 @@ class GeneralAddress:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     country: List[str] = field(
@@ -9104,6 +7520,7 @@ class GeneralAddress:
             "name": "Country",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     county: Optional[str] = field(
@@ -9113,6 +7530,7 @@ class GeneralAddress:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     name: List[str] = field(
@@ -9121,6 +7539,7 @@ class GeneralAddress:
             "name": "Name",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     postal_code: List[str] = field(
@@ -9129,6 +7548,7 @@ class GeneralAddress:
             "name": "PostalCode",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     province: Optional[str] = field(
@@ -9138,6 +7558,7 @@ class GeneralAddress:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     state: Optional[str] = field(
@@ -9147,6 +7568,7 @@ class GeneralAddress:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     street: Optional[str] = field(
@@ -9156,6 +7578,7 @@ class GeneralAddress:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     uid: Optional[str] = field(
@@ -9163,6 +7586,7 @@ class GeneralAddress:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
     kind: Optional[AddressKindEnum] = field(
@@ -9195,6 +7619,7 @@ class GeneralQualifiedMeasure:
         metadata={
             "name": "componentReference",
             "type": "Attribute",
+            "max_length": 64,
         },
     )
     uom: Optional[str] = field(
@@ -9202,124 +7627,13 @@ class GeneralQualifiedMeasure:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 32,
         },
     )
     status: Optional[ValueStatus] = field(
         default=None,
         metadata={
             "type": "Attribute",
-        },
-    )
-
-
-@dataclass
-class GeologyFeature:
-    """
-    Geology features found in the location of the borehole string.
-
-    :ivar name: Name of the feature.
-    :ivar geology_type: Aquifer or reservoir.
-    :ivar md_top: Measured depth at the top of the interval.
-    :ivar md_bottom: Measured depth at the base of the interval.
-    :ivar tvd_top:
-    :ivar tvd_bottom:
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    name: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Name",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    geology_type: Optional[GeologyType] = field(
-        default=None,
-        metadata={
-            "name": "GeologyType",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    md_top: Optional[MeasuredDepthCoord] = field(
-        default=None,
-        metadata={
-            "name": "MdTop",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    md_bottom: Optional[MeasuredDepthCoord] = field(
-        default=None,
-        metadata={
-            "name": "MdBottom",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    tvd_top: Optional[WellVerticalDepthCoord] = field(
-        default=None,
-        metadata={
-            "name": "TvdTop",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    tvd_bottom: Optional[WellVerticalDepthCoord] = field(
-        default=None,
-        metadata={
-            "name": "TvdBottom",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class Injection:
-    """
-    Volume injected per reporting entity.
-
-    :ivar remark: A descriptive remark relating to any significant
-        events.
-    :ivar injection_quantity:
-    :ivar quantity_method: The method in which the quantity/volume was
-        determined. See enum QuantityMethod.
-    """
-
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    injection_quantity: List[AbstractProductQuantity] = field(
-        default_factory=list,
-        metadata={
-            "name": "InjectionQuantity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    quantity_method: Optional[Union[QuantityMethod, str]] = field(
-        default=None,
-        metadata={
-            "name": "QuantityMethod",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
         },
     )
 
@@ -9343,73 +7657,83 @@ class IntegerQualifiedCount:
 
 
 @dataclass
-class InterfacialTensionTest:
+class InterfacialTensionTestStep:
     """
-    The interfacial tension test.
+    The interfacial tension test step.
 
+    :ivar interfacial_tension: The interfacial tension for this test
+        step.
     :ivar remark: Remarks and comments about this data item.
-    :ivar surfactant: The surfactant for this interfacial tension test.
-    :ivar test_number: An integer number to identify this test in a
-        sequence of tests.
-    :ivar interfacial_tension_test_step:
-    :ivar wetting_phase: The wetting phase for this interfacial tension
-        test.
-    :ivar non_wetting_phase: The non-wetting phase for this interfacial
-        tension test.
+    :ivar step_number: The step number is the index of a (P,T) step in
+        the overall test.
+    :ivar step_pressure: The pressure for this test step.
+    :ivar step_temperature: The temperature for this test step.
+    :ivar surfactant_concentration: The surfactant concentration for
+        this test step.
+    :ivar wetting_phase_saturation: The wetting phase saturation for
+        this test step.
     :ivar uid: A unique identifier for this data element. It is not
         globally unique (not a uuid) and only need be unique within the
         context of the parent top-level object.
     """
 
+    interfacial_tension: List[ForcePerLengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "InterfacialTension",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
     remark: List[str] = field(
         default_factory=list,
         metadata={
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    surfactant: Optional[AbstractFluidComponent] = field(
+    step_number: Optional[int] = field(
         default=None,
         metadata={
-            "name": "Surfactant",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestNumber",
+            "name": "StepNumber",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
-    interfacial_tension_test_step: List[InterfacialTensionTestStep] = field(
+    step_pressure: List[PressureMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "InterfacialTensionTestStep",
+            "name": "StepPressure",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    wetting_phase: Optional[ThermodynamicPhase] = field(
-        default=None,
+    step_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
         metadata={
-            "name": "WettingPhase",
+            "name": "StepTemperature",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
         },
     )
-    non_wetting_phase: Optional[ThermodynamicPhase] = field(
-        default=None,
+    surfactant_concentration: List[MassPerMassMeasure] = field(
+        default_factory=list,
         metadata={
-            "name": "nonWettingPhase",
+            "name": "SurfactantConcentration",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
+        },
+    )
+    wetting_phase_saturation: List[DimensionlessMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WettingPhaseSaturation",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
     uid: Optional[str] = field(
@@ -9417,6 +7741,7 @@ class InterfacialTensionTest:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -9437,6 +7762,7 @@ class InterventionConveyance(AbstractCable):
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     intervention_conveyance_type: Optional[InterventionConveyanceType] = field(
@@ -9457,11 +7783,18 @@ class KeywordValueStruct:
     That is, a keyword-value pair. The allowed length of the value is
     constrained by the keyword.
 
+    :ivar value:
     :ivar keyword: The keyword within which the value is unique. The
         concept of a keyword is very close to the concept of a
         classification system.
     """
 
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
     keyword: Optional[TimeSeriesKeyword] = field(
         default=None,
         metadata={
@@ -9490,33 +7823,6 @@ class KindQualifiedString:
 
 
 @dataclass
-class LiquidComposition:
-    """
-    The composition of liquid.
-
-    :ivar remark: Remarks and comments about this data item.
-    :ivar liquid_component:
-    """
-
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    liquid_component: List[FluidComponent] = field(
-        default_factory=list,
-        metadata={
-            "name": "LiquidComponent",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
 class LiquidDropoutFraction(AbstractLiquidDropoutPercVolume):
     """
     The fraction of liquid by volume.
@@ -9525,7 +7831,7 @@ class LiquidDropoutFraction(AbstractLiquidDropoutPercVolume):
         this test step.
     """
 
-    liquid_dropout_percent: Optional[str] = field(
+    liquid_dropout_percent: Optional[VolumePerVolumeMeasure] = field(
         default=None,
         metadata={
             "name": "LiquidDropoutPercent",
@@ -9544,7 +7850,7 @@ class LiquidVolume(AbstractLiquidDropoutPercVolume):
         step.
     """
 
-    liquid_volume: Optional[str] = field(
+    liquid_volume: Optional[VolumeMeasure] = field(
         default=None,
         metadata={
             "name": "LiquidVolume",
@@ -9588,9 +7894,10 @@ class Location:
             "name": "Description",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    extension_name_value: List[str] = field(
+    extension_name_value: List[ExtensionNameValue] = field(
         default_factory=list,
         metadata={
             "name": "ExtensionNameValue",
@@ -9612,6 +7919,7 @@ class Location:
             "name": "WellCRS",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     abstract_location: Optional[AbstractLocation] = field(
@@ -9625,7 +7933,7 @@ class Location:
 
 
 @dataclass
-class LostVolumeAndReason:
+class LostVolumeAndReason(VolumeMeasure):
     """
     A volume corrected to standard temperature and pressure.
 
@@ -9643,45 +7951,49 @@ class LostVolumeAndReason:
 
 
 @dataclass
-class MassBalance:
+class MassIn:
     """
-    The balance sheet of mass.
+    The mass of fluid in the connecting lines.
 
-    :ivar mass_balance_fraction: The mass balance fraction for this slim
-        tube test volume step.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar mass_in:
-    :ivar mass_out:
+    :ivar mass_fluid_connecting_lines: The mass of fluid in the
+        connecting lines for this slim tube test volume step mass
+        balance.
+    :ivar mass_fluid_slimtube: The mass of fluid in the slim tube for
+        this slim tube test volume step mass balance.
+    :ivar mass_injected_gas_solvent: The mass of injected gas solvent
+        for this slim tube test volume step mass balance.
+    :ivar total_mass_in: The total mass in for this slim tube test
+        volume step mass balance.
     """
 
-    mass_balance_fraction: List[str] = field(
+    mass_fluid_connecting_lines: List[MassMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "MassBalanceFraction",
+            "name": "MassFluidConnectingLines",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    remark: List[str] = field(
+    mass_fluid_slimtube: List[MassMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "Remark",
+            "name": "MassFluidSlimtube",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    mass_in: Optional[MassIn] = field(
-        default=None,
+    mass_injected_gas_solvent: List[MassMeasure] = field(
+        default_factory=list,
         metadata={
-            "name": "MassIn",
+            "name": "MassInjectedGasSolvent",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    mass_out: Optional[MassOut] = field(
-        default=None,
+    total_mass_in: List[MassMeasure] = field(
+        default_factory=list,
         metadata={
-            "name": "MassOut",
+            "name": "TotalMassIn",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
@@ -9689,101 +8001,143 @@ class MassBalance:
 
 
 @dataclass
-class NaturalGas(AbstractFluidComponent):
+class MassOut:
     """
-    Natural gas.
+    The  mass out for this slim tube.
 
-    :ivar gas_gravity: Gas gravity.
-    :ivar gross_energy_content_per_unit_mass: The amount of heat
-        released during the combustion of a specified amount of gas. It
-        is also known as higher heating value (HHV), gross energy, upper
-        heating value, gross calorific value (GCV) or higher calorific
-        Value (HCV). This value takes into account the latent heat of
-        vaporization of water in the combustion products, and is useful
-        in calculating heating values for fuels where condensation of
-        the reaction products is practical.
-    :ivar gross_energy_content_per_unit_volume: The amount of heat
-        released during the combustion of a specified amount of gas. It
-        is also known as higher heating value (HHV), gross energy, upper
-        heating value, gross calorific value (GCV) or higher calorific
-        value (HCV). This value takes into account the latent heat of
-        vaporization of water in the combustion products, and is useful
-        in calculating heating values for fuels where condensation of
-        the reaction products is practical.
-    :ivar molecular_weight: Molecular weight.
-    :ivar net_energy_content_per_unit_mass: The amount of heat released
-        during the combustion of a specified amount of gas. It is also
-        known as lower heating value (LHV), net energy, net calorific
-        value (NCV) or lower calorific value (LCV). This value ignores
-        the latent heat of vaporization of water in the combustion
-        products, and is useful in calculating heating values for fuels
-        where condensation of the reaction products is not possible and
-        is ignored.
-    :ivar net_energy_content_per_unit_volume: The amount of heat
-        released during the combustion of a specified amount of gas. It
-        is also known as lower heating value (LHV), net energy, net
-        calorific value (NCV) or lower calorific value (LCV). This value
-        ignores the latent heat of vaporization of water in the
-        combustion products, and is useful in calculating heating values
-        for fuels where condensation of the reaction products is not
-        possible and is ignored.
-    :ivar remark: Remarks and comments about this data item.
+    :ivar mass_effluent_stock_tank_oil: The mass of effluent stock tank
+        oil for this slim tube test volume step mass balance.
+    :ivar mass_produced_effluent_gas: The mass of produced effluent gas
+        for this slim tube test volume step mass balance.
+    :ivar mass_produced_effluent_gas_flow_down: The mass of produced
+        effluent gas flow down for this slim tube test volume step mass
+        balance.
+    :ivar mass_residual_oil: The mass of residual oil for this slim tube
+        test volume step mass balance.
+    :ivar total_mass_out: The total mass out for this slim tube test
+        volume step mass balance.
     """
 
-    gas_gravity: Optional[float] = field(
+    mass_effluent_stock_tank_oil: List[MassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MassEffluentStockTankOil",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mass_produced_effluent_gas: List[MassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MassProducedEffluentGas",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mass_produced_effluent_gas_flow_down: List[MassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MassProducedEffluentGasFlowDown",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mass_residual_oil: List[MassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MassResidualOil",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    total_mass_out: List[MassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TotalMassOut",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class MeasuredDepthCoord:
+    """A measured depth coordinate in a wellbore.
+
+    Positive moving from the reference datum toward the bottomhole. All
+    coordinates with the same datum (and same UOM) can be considered to
+    be in the same coordinate reference system (CRS) and are thus
+    directly comparable.
+
+    :ivar value:
+    :ivar uom: The unit of measure of the measured depth coordinate.
+    """
+
+    value: Optional[float] = field(
         default=None,
         metadata={
-            "name": "GasGravity",
+            "required": True,
+        },
+    )
+    uom: Optional[VerticalCoordinateUom] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class MultipleContactMiscibilityTest:
+    """
+    Multiple contact miscibility test.
+
+    :ivar gas_solvent_composition_reference: The reference to the
+        composition of the gas solvent that is a fluid composition.
+    :ivar mix_ratio: The mix ratio for the multiple contact miscibility
+        test.
+    :ivar test_number: A unique identifier for this data element. It is
+        not globally unique (not a uuid) and only need be unique within
+        the context of the parent top-level object.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    gas_solvent_composition_reference: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasSolventCompositionReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    mix_ratio: List[DimensionlessMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MixRatio",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gross_energy_content_per_unit_mass: List[str] = field(
-        default_factory=list,
+    test_number: Optional[int] = field(
+        default=None,
         metadata={
-            "name": "GrossEnergyContentPerUnitMass",
+            "name": "TestNumber",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
         },
     )
-    gross_energy_content_per_unit_volume: List[str] = field(
-        default_factory=list,
+    uid: Optional[str] = field(
+        default=None,
         metadata={
-            "name": "GrossEnergyContentPerUnitVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    molecular_weight: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MolecularWeight",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    net_energy_content_per_unit_mass: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "NetEnergyContentPerUnitMass",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    net_energy_content_per_unit_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "NetEnergyContentPerUnitVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -9814,6 +8168,7 @@ class OffshoreLocation:
             "name": "AreaName",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     block_id: Optional[str] = field(
@@ -9823,6 +8178,7 @@ class OffshoreLocation:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     comment: List[str] = field(
@@ -9831,6 +8187,7 @@ class OffshoreLocation:
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     north_sea_offshore: Optional[NorthSeaOffshore] = field(
@@ -9844,7 +8201,7 @@ class OffshoreLocation:
 
 
 @dataclass
-class OilCompressibility:
+class OilCompressibility(ReciprocalPressureMeasure):
     """
     Oil compressibility.
 
@@ -9868,7 +8225,7 @@ class OilShrinkageFactor(AbstractOilVolShrinkage):
     :ivar oil_shrinkage_factor: The oil shrinkage factor.
     """
 
-    oil_shrinkage_factor: Optional[str] = field(
+    oil_shrinkage_factor: Optional[VolumePerVolumeMeasure] = field(
         default=None,
         metadata={
             "name": "OilShrinkageFactor",
@@ -9886,7 +8243,7 @@ class OilVolume(AbstractOilVolShrinkage):
     :ivar oil_volume: The volume of oil.
     """
 
-    oil_volume: Optional[str] = field(
+    oil_volume: Optional[VolumeMeasure] = field(
         default=None,
         metadata={
             "name": "OilVolume",
@@ -9934,7 +8291,7 @@ class OtherMeasurementTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_mass_density: List[str] = field(
+    gas_mass_density: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasMassDensity",
@@ -9942,7 +8299,7 @@ class OtherMeasurementTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_viscosity: List[str] = field(
+    gas_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasViscosity",
@@ -9958,7 +8315,7 @@ class OtherMeasurementTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_mass_density: List[str] = field(
+    oil_mass_density: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilMassDensity",
@@ -9966,7 +8323,7 @@ class OtherMeasurementTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_viscosity: List[str] = field(
+    oil_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilViscosity",
@@ -9980,6 +8337,7 @@ class OtherMeasurementTestStep:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     rsw: Optional[float] = field(
@@ -9990,7 +8348,7 @@ class OtherMeasurementTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    salinity: List[str] = field(
+    salinity: List[MassPerMassMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Salinity",
@@ -10006,16 +8364,17 @@ class OtherMeasurementTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    step_number: Optional[str] = field(
+    step_number: Optional[int] = field(
         default=None,
         metadata={
             "name": "StepNumber",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
-    step_pressure: List[str] = field(
+    step_pressure: List[PressureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "StepPressure",
@@ -10023,7 +8382,7 @@ class OtherMeasurementTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    step_temperature: List[str] = field(
+    step_temperature: List[ThermodynamicTemperatureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "StepTemperature",
@@ -10037,9 +8396,10 @@ class OtherMeasurementTestStep:
             "name": "WaterContent",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    water_viscosity: List[str] = field(
+    water_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "WaterViscosity",
@@ -10060,33 +8420,21 @@ class OtherMeasurementTestStep:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class OverallComposition:
+class OutputFluidPropertyExt:
     """
-    Overall composition.
-
-    :ivar remark: Remarks and comments about this data item.
-    :ivar fluid_component:
+    Output fluid property extension.
     """
 
-    remark: List[str] = field(
-        default_factory=list,
+    value: Union[OutputFluidProperty, str] = field(
+        default="",
         metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    fluid_component: List[FluidComponent] = field(
-        default_factory=list,
-        metadata={
-            "name": "FluidComponent",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".*:.*",
         },
     )
 
@@ -10108,6 +8456,7 @@ class Parentfacility(AbstractRefProductFlow):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -10129,6 +8478,7 @@ class PermanentCable(AbstractCable):
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     permanent_cable_installation_type: Optional[
@@ -10140,6 +8490,82 @@ class PermanentCable(AbstractCable):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+        },
+    )
+
+
+@dataclass
+class PhaseDensity:
+    """
+    Phase density.
+
+    :ivar density: The phase density.
+    :ivar pressure: The pressure corresponding to this phase density.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    density: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Density",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    pressure: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Pressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class PhaseViscosity:
+    """
+    Phase viscosity.
+
+    :ivar pressure: The pressure corresponding to this phase viscosity.
+    :ivar viscosity: The phase viscosity.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    pressure: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Pressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    viscosity: List[DynamicViscosityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Viscosity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -10163,6 +8589,7 @@ class PhoneNumberStruct:
         default=None,
         metadata={
             "type": "Attribute",
+            "max_length": 64,
         },
     )
     type_value: Optional[PhoneType] = field(
@@ -10190,74 +8617,71 @@ class PhoneNumberStruct:
 
 
 @dataclass
-class PlusFluidComponent(AbstractFluidComponent):
+class PlusComponentEnumExt:
     """
-    Plus fluid component.
-
-    :ivar avg_density: The average density of the fluid.
-    :ivar avg_molecular_weight: The average molecular weight of the
-        fluid.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar specific_gravity: The fluid specific gravity.
-    :ivar starting_boiling_point: The starting boiling temperature
-        measure.
-    :ivar starting_carbon_number: The start/min carbon number.
-    :ivar kind: The kind from plus fluid component. See
-        PlusComponentEnum.
+    Plus component enumeration extension.
     """
 
-    avg_density: List[str] = field(
+    value: Union[PlusComponentEnum, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ProducedOilProperties:
+    """
+    Properties of produced oil.
+
+    :ivar asphaltene_content: The asphaltene content of this produced
+        oil.
+    :ivar stoapi_gravity: The stock tank oil API gravity of this
+        produced oil.
+    :ivar stodensity: The stock tank oil density of this produced oil.
+    :ivar stomw: The stock tank oil molecular weight of this produced
+        oil.
+    :ivar stowater_content: The stock tank oil water content of this
+        produced oil.
+    """
+
+    asphaltene_content: List[MassPerMassMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "AvgDensity",
+            "name": "AsphalteneContent",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    avg_molecular_weight: List[str] = field(
+    stoapi_gravity: List[ApigravityMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "AvgMolecularWeight",
+            "name": "STOApiGravity",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    remark: List[str] = field(
+    stodensity: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "Remark",
+            "name": "STODensity",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    specific_gravity: Optional[float] = field(
-        default=None,
-        metadata={
-            "name": "SpecificGravity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    starting_boiling_point: List[str] = field(
+    stomw: List[MolecularWeightMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "StartingBoilingPoint",
+            "name": "STOMW",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    starting_carbon_number: List[str] = field(
+    stowater_content: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "StartingCarbonNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    kind: Optional[Union[PlusComponentEnum, str]] = field(
-        default=None,
-        metadata={
-            "name": "Kind",
+            "name": "STOWaterContent",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
@@ -10298,6 +8722,7 @@ class ProductFlowExternalPort:
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     connected_node: Optional[str] = field(
@@ -10307,6 +8732,7 @@ class ProductFlowExternalPort:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     direction: Optional[ProductFlowPortType] = field(
@@ -10333,6 +8759,7 @@ class ProductFlowExternalPort:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     uid: Optional[str] = field(
@@ -10340,6 +8767,7 @@ class ProductFlowExternalPort:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -10379,6 +8807,7 @@ class ProductFlowNetworkPlan:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     purpose: List[str] = field(
@@ -10387,6 +8816,7 @@ class ProductFlowNetworkPlan:
             "name": "Purpose",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     change_log: List[ProductFlowChangeLog] = field(
@@ -10402,6 +8832,7 @@ class ProductFlowNetworkPlan:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -10449,6 +8880,21 @@ class ProductFlowQualifierExpected(ExpectedFlowQualifier):
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ProductFluidKindExt:
+    """
+    Use to add user-defined enumerations for ProductFluidKind.
+    """
+
+    value: Union[ProductFluidKind, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
         },
     )
 
@@ -10471,7 +8917,7 @@ class ProductRate:
         context of the parent top-level object.
     """
 
-    mass_flow_rate: List[str] = field(
+    mass_flow_rate: List[MassPerTimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "MassFlowRate",
@@ -10486,6 +8932,7 @@ class ProductRate:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     remark: List[str] = field(
@@ -10494,9 +8941,10 @@ class ProductRate:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    volume_flow_rate: List[str] = field(
+    volume_flow_rate: List[VolumePerTimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "VolumeFlowRate",
@@ -10510,6 +8958,7 @@ class ProductRate:
             "name": "ProductFluidKind",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".*:.*",
         },
     )
     uid: Optional[str] = field(
@@ -10517,6 +8966,7 @@ class ProductRate:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -10556,6 +9006,7 @@ class ProductVolumeBalanceEvent:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -10580,6 +9031,7 @@ class ProductVolumeBusinessSubUnit:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     ownership_business_acct: Optional[OwnershipBusinessAcct] = field(
@@ -10596,6 +9048,7 @@ class ProductVolumeBusinessSubUnit:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -10616,6 +9069,7 @@ class ProductVolumeDestination:
             "name": "Country",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     name: List[str] = field(
@@ -10624,6 +9078,7 @@ class ProductVolumeDestination:
             "name": "Name",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     type_value: Optional[BalanceDestinationType] = field(
@@ -10683,6 +9138,7 @@ class ProductVolumeParameterValue:
             "name": "Port",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     unit: List[str] = field(
@@ -10691,6 +9147,7 @@ class ProductVolumeParameterValue:
             "name": "Unit",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     measure_data_type: List[AbstractMeasureDataType] = field(
@@ -10715,6 +9172,85 @@ class ProductVolumeParameterValue:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ProductVolumePortDifference:
+    """
+    Product Volume port differential characteristics.
+
+    :ivar choke_relative: The relative size of the choke restriction.
+        This characterizes the overall unit with respect to the flow
+        restriction between the ports. The restriction might be
+        implemented using a valve or an actual choke.
+    :ivar choke_size: The size of the choke. This characterizes the
+        overall unit with respect to the flow restriction between the
+        ports. The restriction might be implemented using a valve or an
+        actual choke.
+    :ivar port_reference: A port on the other end of an internal
+        connection. This should always be specified if a product flow
+        network is being referenced by this report. If this is not
+        specified then there is an assumption that there is only one
+        other port for the unit. For example, if this end of the
+        connection represents an inlet port then the implied other end
+        is the outlet port for the unit.
+    :ivar pres_diff: The differential pressure between the ports.
+    :ivar temp_diff: The differential temperature between the ports.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    choke_relative: List[LengthPerLengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ChokeRelative",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    choke_size: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ChokeSize",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    port_reference: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "PortReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    pres_diff: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "PresDiff",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    temp_diff: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TempDiff",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -10747,44 +9283,6 @@ class ProductVolumeRelatedFacility:
             "name": "RelatedFacilityObject",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class Production:
-    """
-    Product volume that is produce from a reporting entity.
-
-    :ivar remark: Remarks and comments about this data item.
-    :ivar production_quantity:
-    :ivar quantity_method: The method in which the quantity/volume was
-        determined. See enum QuantityMethod.
-    """
-
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    production_quantity: List[AbstractProductQuantity] = field(
-        default_factory=list,
-        metadata={
-            "name": "ProductionQuantity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    quantity_method: Optional[Union[QuantityMethod, str]] = field(
-        default=None,
-        metadata={
-            "name": "QuantityMethod",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
         },
     )
 
@@ -10836,7 +9334,7 @@ class ProductionOperationCargoShipOperation:
         context of the parent top-level object.
     """
 
-    bsw: List[str] = field(
+    bsw: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Bsw",
@@ -10850,6 +9348,7 @@ class ProductionOperationCargoShipOperation:
             "name": "Captain",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     cargo: List[str] = field(
@@ -10858,6 +9357,7 @@ class ProductionOperationCargoShipOperation:
             "name": "Cargo",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     cargo_batch_number: Optional[int] = field(
@@ -10874,6 +9374,7 @@ class ProductionOperationCargoShipOperation:
             "name": "CargoNumber",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     comment: List[DatedComment] = field(
@@ -10884,7 +9385,7 @@ class ProductionOperationCargoShipOperation:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    density: List[str] = field(
+    density: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Density",
@@ -10892,7 +9393,7 @@ class ProductionOperationCargoShipOperation:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    density_std_temp_pres: List[str] = field(
+    density_std_temp_pres: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "DensityStdTempPres",
@@ -10916,7 +9417,7 @@ class ProductionOperationCargoShipOperation:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_gross_std_temp_pres: List[str] = field(
+    oil_gross_std_temp_pres: List[VolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilGrossStdTempPres",
@@ -10924,7 +9425,7 @@ class ProductionOperationCargoShipOperation:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_gross_total_std_temp_pres: List[str] = field(
+    oil_gross_total_std_temp_pres: List[VolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilGrossTotalStdTempPres",
@@ -10932,7 +9433,7 @@ class ProductionOperationCargoShipOperation:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_net_month_to_date_std_temp_pres: List[str] = field(
+    oil_net_month_to_date_std_temp_pres: List[VolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilNetMonthToDateStdTempPres",
@@ -10940,7 +9441,7 @@ class ProductionOperationCargoShipOperation:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_net_std_temp_pres: List[str] = field(
+    oil_net_std_temp_pres: List[VolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilNetStdTempPres",
@@ -10948,7 +9449,7 @@ class ProductionOperationCargoShipOperation:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    rvp: List[str] = field(
+    rvp: List[PressureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Rvp",
@@ -10956,7 +9457,7 @@ class ProductionOperationCargoShipOperation:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    salt: List[str] = field(
+    salt: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Salt",
@@ -10970,6 +9471,7 @@ class ProductionOperationCargoShipOperation:
             "name": "VesselName",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     uid: Optional[str] = field(
@@ -10977,6 +9479,7 @@ class ProductionOperationCargoShipOperation:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -11043,6 +9546,7 @@ class ProductionOperationMarineOperation:
             "name": "GeneralComment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     standby_vessel: List[str] = field(
@@ -11051,6 +9555,7 @@ class ProductionOperationMarineOperation:
             "name": "StandbyVessel",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     standby_vessel_comment: List[DatedComment] = field(
@@ -11067,6 +9572,7 @@ class ProductionOperationMarineOperation:
             "name": "SupplyShip",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     supply_ship_comment: List[DatedComment] = field(
@@ -11082,6 +9588,7 @@ class ProductionOperationMarineOperation:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -11109,6 +9616,7 @@ class ProductionOperationOperationalComment:
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     dtim_end: Optional[XmlDateTime] = field(
@@ -11140,6 +9648,7 @@ class ProductionOperationOperationalComment:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -11189,7 +9698,7 @@ class ProductionOperationWaterCleaningQuality:
         context of the parent top-level object.
     """
 
-    ammonium: List[str] = field(
+    ammonium: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Ammonium",
@@ -11197,7 +9706,7 @@ class ProductionOperationWaterCleaningQuality:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    amount_of_oil: List[str] = field(
+    amount_of_oil: List[MassMeasure] = field(
         default_factory=list,
         metadata={
             "name": "AmountOfOil",
@@ -11213,7 +9722,7 @@ class ProductionOperationWaterCleaningQuality:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    coulter_counter: List[str] = field(
+    coulter_counter: List[MassPerMassMeasure] = field(
         default_factory=list,
         metadata={
             "name": "CoulterCounter",
@@ -11221,7 +9730,7 @@ class ProductionOperationWaterCleaningQuality:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    glycol: List[str] = field(
+    glycol: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Glycol",
@@ -11229,7 +9738,7 @@ class ProductionOperationWaterCleaningQuality:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_in_water_produced: List[str] = field(
+    oil_in_water_produced: List[MassPerMassMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilInWaterProduced",
@@ -11237,7 +9746,7 @@ class ProductionOperationWaterCleaningQuality:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oxygen: List[str] = field(
+    oxygen: List[MassPerMassMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Oxygen",
@@ -11245,7 +9754,7 @@ class ProductionOperationWaterCleaningQuality:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    phenol: List[str] = field(
+    phenol: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Phenol",
@@ -11253,7 +9762,7 @@ class ProductionOperationWaterCleaningQuality:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    ph_value: List[str] = field(
+    ph_value: List[DimensionlessMeasure] = field(
         default_factory=list,
         metadata={
             "name": "PhValue",
@@ -11261,7 +9770,7 @@ class ProductionOperationWaterCleaningQuality:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    residual_chloride: List[str] = field(
+    residual_chloride: List[MassPerMassMeasure] = field(
         default_factory=list,
         metadata={
             "name": "ResidualChloride",
@@ -11275,9 +9784,10 @@ class ProductionOperationWaterCleaningQuality:
             "name": "SamplePoint",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    total_organic_carbon: List[str] = field(
+    total_organic_carbon: List[MassPerMassMeasure] = field(
         default_factory=list,
         metadata={
             "name": "TotalOrganicCarbon",
@@ -11285,7 +9795,7 @@ class ProductionOperationWaterCleaningQuality:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    turbidity: List[str] = field(
+    turbidity: List[DimensionlessMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Turbidity",
@@ -11293,7 +9803,7 @@ class ProductionOperationWaterCleaningQuality:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    water_temperature: List[str] = field(
+    water_temperature: List[ThermodynamicTemperatureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "WaterTemperature",
@@ -11306,151 +9816,293 @@ class ProductionOperationWaterCleaningQuality:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class PseudoFluidComponent(AbstractFluidComponent):
+class ProductionOperationWeather:
     """
-    Pseudo fluid component.
+    Operations Weather Schema.
 
-    :ivar avg_boiling_point: The average boiling point measure.
-    :ivar avg_density: The average fluid density.
-    :ivar avg_molecular_weight: Average molecular weight.
-    :ivar ending_boiling_point: The ending boiling point measure.
-    :ivar ending_carbon_number: The ending / largest carbon number.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar specific_gravity: The fluid specific gravity.
-    :ivar starting_boiling_point: The starting boiling point measure.
-    :ivar starting_carbon_number: The starting / smalestl carbon number.
-    :ivar kind: The type from pseudo component enumeration.
+    :ivar agency: Name of company that supplied the data.
+    :ivar amt_precip: Amount of precipitation.
+    :ivar azi_current_sea: Azimuth of current.
+    :ivar azi_wave: The direction from which the waves are coming,
+        measured from true north.
+    :ivar azi_wind: The direction from which the wind is blowing,
+        measured from true north.
+    :ivar barometric_pressure: Atmospheric pressure.
+    :ivar ceiling_cloud: Height of cloud cover.
+    :ivar comments: Comments and remarks.
+    :ivar cover_cloud: Description of cloud cover.
+    :ivar current_sea: Current speed.
+    :ivar dtim: Date and time the information is related to.
+    :ivar ht_wave: Average height of the waves.
+    :ivar max_wave: The maximum wave height.
+    :ivar period_wave: The elapsed time between the passing of two wave
+        tops.
+    :ivar significant_wave: An average of the higher 1/3 of the wave
+        heights passing during a sample period (typically 20 to 30
+        minutes).
+    :ivar tempsea: Sea temperature.
+    :ivar temp_surface: Average temperature above ground for the period.
+        Temperature of the atmosphere.
+    :ivar temp_surface_mn: Minimum temperature above ground. Temperature
+        of the atmosphere.
+    :ivar temp_surface_mx: Maximum temperature above ground.
+    :ivar temp_wind_chill: A measure of the combined chilling effect of
+        wind and low temperature on living things, also named chill
+        factor, e.g., according to US Weather Service table, an air
+        temperature of 30 degF with a 10 mph wind corresponds to a wind
+        chill of 22 degF.
+    :ivar type_precip: Type of precipitation.
+    :ivar vel_wind: Wind speed.
+    :ivar visibility: Horizontal visibility.
+    :ivar beaufort_scale_number: The Beaufort wind scale is a system
+        used to estimate and report wind speeds when no measuring
+        apparatus is available. It was invented in the early 19th
+        Century by Admiral Sir Francis Beaufort of the British Navy as a
+        way to interpret winds from conditions.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
     """
 
-    avg_boiling_point: List[str] = field(
+    agency: List[str] = field(
         default_factory=list,
         metadata={
-            "name": "AvgBoilingPoint",
+            "name": "Agency",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    amt_precip: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AmtPrecip",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    avg_density: List[str] = field(
+    azi_current_sea: List[PlaneAngleMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "AvgDensity",
+            "name": "AziCurrentSea",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    avg_molecular_weight: List[str] = field(
+    azi_wave: List[PlaneAngleMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "AvgMolecularWeight",
+            "name": "AziWave",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    ending_boiling_point: List[str] = field(
+    azi_wind: List[PlaneAngleMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "EndingBoilingPoint",
+            "name": "AziWind",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    ending_carbon_number: List[str] = field(
+    barometric_pressure: List[PressureMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "EndingCarbonNumber",
+            "name": "BarometricPressure",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    remark: List[str] = field(
+    ceiling_cloud: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "Remark",
+            "name": "CeilingCloud",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    specific_gravity: Optional[float] = field(
+    comments: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comments",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    cover_cloud: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "CoverCloud",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    current_sea: List[AngularVelocityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CurrentSea",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    dtim: Optional[XmlDateTime] = field(
         default=None,
         metadata={
-            "name": "SpecificGravity",
+            "name": "DTim",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
         },
     )
-    starting_boiling_point: List[str] = field(
+    ht_wave: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "StartingBoilingPoint",
+            "name": "HtWave",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    starting_carbon_number: List[str] = field(
+    max_wave: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "StartingCarbonNumber",
+            "name": "MaxWave",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    kind: Optional[Union[PseudoComponentEnum, str]] = field(
+    period_wave: List[TimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "PeriodWave",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    significant_wave: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "SignificantWave",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    tempsea: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Tempsea",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    temp_surface: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TempSurface",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    temp_surface_mn: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TempSurfaceMn",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    temp_surface_mx: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TempSurfaceMx",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    temp_wind_chill: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TempWindChill",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    type_precip: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "TypePrecip",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    vel_wind: List[AngularVelocityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "VelWind",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    visibility: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Visibility",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    beaufort_scale_number: Optional[int] = field(
         default=None,
         metadata={
-            "name": "Kind",
+            "name": "BeaufortScaleNumber",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
+            "max_exclusive": 12,
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class PureFluidComponent(AbstractFluidComponent):
+class PseudoComponentEnumExt:
     """
-    Pure fluid component.
-
-    :ivar hydrocarbon_flag: Yes/no  flag indicates if hydrocarbon or
-        not.
-    :ivar molecular_weight: The molecular weight of the pure component.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar kind: The type of component.
+    Use to create user-defined pseudo-component enumerations.
     """
 
-    hydrocarbon_flag: Optional[bool] = field(
-        default=None,
+    value: Union[PseudoComponentEnum, str] = field(
+        default="",
         metadata={
-            "name": "HydrocarbonFlag",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".*:.*",
         },
     )
-    molecular_weight: List[str] = field(
-        default_factory=list,
+
+
+@dataclass
+class PureComponentEnumExt:
+    """
+    Use to create user-defined pure component enumerations.
+    """
+
+    value: Union[PureComponentEnum, str] = field(
+        default="",
         metadata={
-            "name": "MolecularWeight",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    kind: Optional[Union[PureComponentEnum, str]] = field(
-        default=None,
-        metadata={
-            "name": "Kind",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".*:.*",
         },
     )
 
@@ -11460,16 +10112,24 @@ class PvtModelParameter:
     """
     PVT model parameter.
 
+    :ivar value:
     :ivar name: The  user-defined name of a parameter, which can be
         added to any model.
     :ivar kind: The kind of model parameter. Extensible enum.  See PVT
         model parameter kind ext.
     """
 
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
     name: Optional[str] = field(
         default=None,
         metadata={
             "type": "Attribute",
+            "max_length": 64,
         },
     )
     kind: Optional[Union[PvtModelParameterKind, str]] = field(
@@ -11477,6 +10137,21 @@ class PvtModelParameter:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PvtModelParameterKindExt:
+    """
+    PVT model parameter enumeration extension.
+    """
+
+    value: Union[PvtModelParameterKind, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
         },
     )
 
@@ -11500,6 +10175,36 @@ class Qualifier(ExpectedFlowQualifier):
 
 
 @dataclass
+class QuantityMethodExt:
+    value: Union[QuantityMethod, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class RefInjectedGasAdded(AmountOfSubstancePerAmountOfSubstanceMeasure):
+    """
+    Reference to injected gas added.
+
+    :ivar injection_gas_reference: Reference to the injection gas
+        composition.
+    """
+
+    injection_gas_reference: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "injectionGasReference",
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
 class ReferenceFlow(AbstractRefProductFlow):
     """
     Reference flow.
@@ -11513,217 +10218,201 @@ class ReferenceFlow(AbstractRefProductFlow):
             "name": "FlowReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class StoflashedLiquid:
+class ReferenceSeparatorStage:
     """
-    Stock tank oil flashed liquid properties and composition.
+    Reference to the separator stage.
 
-    :ivar asphaltene_content: The asphaltene content of the liquid phase
-        of the stock tank analysis.
-    :ivar astmflash_point: The ASTM flash point of the liquid phase of
-        the stock tank analysis.
-    :ivar cloud_point: The cloud point of the liquid phase of the stock
-        tank analysis.
-    :ivar elemental_sulfur: The elemental sulfur content of the liquid
-        phase of the stock tank analysis.
-    :ivar iron: The iron content of the liquid phase of the stock tank
-        analysis.
-    :ivar lead: The lead content of the liquid phase of the stock tank
-        analysis.
-    :ivar nickel: The nickel content of the liquid phase of the stock
-        tank analysis.
-    :ivar nitrogen: The nitrogen content of the liquid phase of the
-        stock tank analysis.
-    :ivar oil_apigravity: Oil API gravity.
-    :ivar paraffin_content: The paraffin content of the liquid phase of
-        the stock tank analysis.
-    :ivar pour_point: The pour point of the liquid phase of the stock
-        tank analysis.
-    :ivar reid_vapor_pressure: The reid vapor pressure of the liquid
-        phase of the stock tank analysis.
-    :ivar total_acid_number: The total acid number of the liquid phase
-        of the stock tank analysis.
-    :ivar total_sulfur: The total sulfur content of the liquid phase of
-        the stock tank analysis.
-    :ivar vanadium: The vanadium content of the liquid phase of the
-        stock tank analysis.
-    :ivar water_content: The water content of the liquid phase of the
-        stock tank analysis.
-    :ivar watson_kfactor: The Watson K factor of the liquid phase of the
-        stock tank analysis.
-    :ivar wax_appearance_temperature: The wax appearance temperature of
-        the liquid phase of the stock tank analysis.
-    :ivar sara:
-    :ivar viscosity_at_temperature: The viscosity at test temperature of
-        the liquid phase of the stock tank analysis.
+    :ivar separator_number: The separator number for a separator stage
+        used to define the separation train, which is used as the basis
+        of this fluid characterization.
+    :ivar separator_pressure: The separator pressure for a separator
+        stage used to define the separation train, which is used as the
+        basis of this fluid characterization.
+    :ivar separator_temperature: The separator temperature for a
+        separator stage used to define the separation train, which is
+        used as the basis of this fluid characterization.
+    """
+
+    separator_number: List[int] = field(
+        default_factory=list,
+        metadata={
+            "name": "SeparatorNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
+        },
+    )
+    separator_pressure: List[AbstractPressureValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "SeparatorPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    separator_temperature: List[ThermodynamicTemperatureMeasureExt] = field(
+        default_factory=list,
+        metadata={
+            "name": "SeparatorTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class RelativeCoordinate:
+    """
+    :ivar x: Defines the relative from-left-to-right location on a
+        display screen. The display origin (0,0) is the upper left-hand
+        corner of the display as viewed by the user.
+    :ivar y: Defines the relative from-top-to-bottom location on a
+        display screen. The display origin (0,0) is the upper left-hand
+        corner of the display as viewed by the user.
+    :ivar z: Defines the relative from-front-to-back location in a 3D
+        system. The unrotated display origin (0,0) is the upper left-
+        hand corner of the display as viewed by the user. The "3D
+        picture" may be rotated on the 2D display.
+    """
+
+    x: List[LengthPerLengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "X",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    y: List[LengthPerLengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Y",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    z: List[LengthPerLengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Z",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class RelativeVolumeRatio(VolumePerVolumeMeasure):
+    """
+    Reference to the fluid volume ratio.
+
+    :ivar fluid_volume_reference: Reference to a fluid volume.
+    """
+
+    fluid_volume_reference: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "fluidVolumeReference",
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ReportingDurationKindExt:
+    value: Union[ReportingDurationKind, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ReportingEntity(AbstractObject):
+    """Reporting Entity: The top-level entity in hierarchy structure.
+
+    :ivar alias:
+    :ivar kind: The type of reporting entity.
+    :ivar target_facility_reference: Reference to the target facility.
     """
 
     class Meta:
-        name = "STOFlashedLiquid"
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
 
-    asphaltene_content: List[str] = field(
+    alias: List[ObjectAlias] = field(
         default_factory=list,
         metadata={
-            "name": "AsphalteneContent",
+            "name": "Alias",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    astmflash_point: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ASTMFlashPoint",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    cloud_point: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CloudPoint",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    elemental_sulfur: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ElementalSulfur",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    iron: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Iron",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    lead: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Lead",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    nickel: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Nickel",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    nitrogen: Optional[str] = field(
+    kind: Optional[ReportingEntityKind] = field(
         default=None,
         metadata={
-            "name": "Nitrogen",
+            "name": "Kind",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
         },
     )
-    oil_apigravity: List[str] = field(
+    target_facility_reference: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
-            "name": "OilAPIGravity",
+            "name": "TargetFacilityReference",
+            "type": "Element",
+        },
+    )
+
+
+@dataclass
+class ReportingHierarchyNode:
+    """
+    Association that contains the parent and child of this node.
+
+    :ivar reporting_enitity_reference:
+    :ivar child_node:
+    :ivar id: The identification of node.
+    :ivar name: The entity name.
+    """
+
+    reporting_enitity_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "ReportingEnitityReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    paraffin_content: List[str] = field(
+    child_node: List[ReportingHierarchyNode] = field(
         default_factory=list,
         metadata={
-            "name": "ParaffinContent",
+            "name": "ChildNode",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    pour_point: List[str] = field(
-        default_factory=list,
+    id: Optional[str] = field(
+        default=None,
         metadata={
-            "name": "PourPoint",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
-    reid_vapor_pressure: List[str] = field(
-        default_factory=list,
+    name: Optional[str] = field(
+        default=None,
         metadata={
-            "name": "ReidVaporPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    total_acid_number: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TotalAcidNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    total_sulfur: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TotalSulfur",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    vanadium: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Vanadium",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_content: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterContent",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    watson_kfactor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WatsonKFactor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    wax_appearance_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaxAppearanceTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    sara: List[Sara] = field(
-        default_factory=list,
-        metadata={
-            "name": "Sara",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    viscosity_at_temperature: List[ViscosityAtTemperature] = field(
-        default_factory=list,
-        metadata={
-            "name": "ViscosityAtTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -11733,11 +10422,19 @@ class SafetyCount:
     """
     A zero-based count of a type of safety item.
 
+    :ivar value:
     :ivar period: The type of period being reported by this count.
     :ivar type_value: The type of safety issue for which a count is
         being defined.
     """
 
+    value: Optional[int] = field(
+        default=None,
+        metadata={
+            "required": True,
+            "min_inclusive": 1,
+        },
+    )
     period: Optional[ReportingDurationKind] = field(
         default=None,
         metadata={
@@ -11754,7 +10451,147 @@ class SafetyCount:
 
 
 @dataclass
-class SaturationPressure:
+class SampleRestoration:
+    """
+    Sample restoration.
+
+    :ivar date: The date when this test was performed.
+    :ivar mixing_mechanism: The mixing mechanism when the sample is
+        restored in preparation for analysis.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar restoration_duration: The restoration duration when the sample
+        is restored in preparation for analysis.
+    :ivar restoration_pressure: The restoration pressure when the sample
+        is restored in preparation for analysis.
+    :ivar restoration_temperature: The restoration temperature when the
+        sample is restored in preparation for analysis.
+    """
+
+    date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "Date",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mixing_mechanism: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "MixingMechanism",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    restoration_duration: List[TimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "RestorationDuration",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    restoration_pressure: List[AbstractPressureValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "RestorationPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    restoration_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "RestorationTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class Sara:
+    """SARA analysis results.
+
+    SARA stands for saturates, asphaltenes, resins and aromatics.
+
+    :ivar aromatics_weight_fraction: The aromatics weight fraction in
+        the sample.
+    :ivar asphaltenes_weight_fraction: The asphaltenes weight fraction
+        in the sample.
+    :ivar napthenes_weight_fraction: The napthenes weight fraction in
+        the sample.
+    :ivar paraffins_weight_fraction: The paraffins weight fraction in
+        the sample.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    aromatics_weight_fraction: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AromaticsWeightFraction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    asphaltenes_weight_fraction: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AsphaltenesWeightFraction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    napthenes_weight_fraction: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "NapthenesWeightFraction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    paraffins_weight_fraction: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ParaffinsWeightFraction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class SaturationPressure(PressureMeasureExt):
     """
     Saturation pressure.
 
@@ -11772,7 +10609,7 @@ class SaturationPressure:
 
 
 @dataclass
-class SaturationTemperature:
+class SaturationTemperature(ThermodynamicTemperatureMeasure):
     """
     Saturation temperature.
 
@@ -11790,31 +10627,15 @@ class SaturationTemperature:
 
 
 @dataclass
-class ServiceFluid(AbstractProductQuantity):
+class ServiceFluidKindExt:
     """
-    Service fluid (e.g., biocides, lubricants, etc.) being reported on.
-
-    :ivar service_fluid_kind: Indicates the kind of service fluid. See
-        enum ServiceFluidKind (in ProdmlCommon).
-    :ivar service_fluid_reference: String ID that points to a service
-        fluid in the FluidComponentSet.
+    Use to add user-defined extensions to service fluid kind.
     """
 
-    service_fluid_kind: Optional[Union[ServiceFluidKind, str]] = field(
-        default=None,
+    value: Union[ServiceFluidKind, str] = field(
+        default="",
         metadata={
-            "name": "ServiceFluidKind",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    service_fluid_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "serviceFluidReference",
-            "type": "Attribute",
-            "required": True,
+            "pattern": r".*:.*",
         },
     )
 
@@ -11862,6 +10683,7 @@ class StartEndTime(AbstractDateTimeType):
             "name": "DTimEnd",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".+T.+[Z+\-].*",
         },
     )
     dtim_start: List[str] = field(
@@ -11870,106 +10692,7 @@ class StartEndTime(AbstractDateTimeType):
             "name": "DTimStart",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class StockTankOil(AbstractFluidComponent):
-    """
-    Stock tank oil (STO).
-
-    :ivar apigravity: API gravity.
-    :ivar gross_energy_content_per_unit_mass: The amount of heat
-        released during the combustion of a specified amount of STO. It
-        is also known as higher heating value (HHV), gross energy, upper
-        heating value, gross calorific value (GCV) or higher calorific
-        value (HCV). This value takes into account the latent heat of
-        vaporization of water in the combustion products, and is useful
-        in calculating heating values for fuels where condensation of
-        the reaction products is practical.
-    :ivar gross_energy_content_per_unit_volume: The amount of heat
-        released during the combustion of a specified amount of STO. It
-        is also known as higher heating value (HHV), gross energy, upper
-        heating value,  gross calorific value (GCV) or higher calorific
-        value (HCV). This value takes into account the latent heat of
-        vaporization of water in the combustion products, and is useful
-        in calculating heating values for fuels where condensation of
-        the reaction products is practical.
-    :ivar molecular_weight: Molecular weight.
-    :ivar net_energy_content_per_unit_mass: The amount of heat released
-        during the combustion of a specified amount of STO. It is also
-        known as lower heating value (LHV), net energy, lower heating
-        value, net calorific value  (NCV) or lower calorific value
-        (LCV). This value ignores the latent heat of vaporization of
-        water in the combustion products, and is useful in calculating
-        heating values for fuels where condensation of the reaction
-        products is not possible and is ignored.
-    :ivar net_energy_content_per_unit_volume: The amount of heat
-        released during the combustion of a specified amount of STO. It
-        is also known as lower heating value  (LHV), net energy, net
-        calorific value (NCV) or lower calorific value (LCV). This value
-        ignores the latent heat of vaporization of water in the
-        combustion products, and is useful in calculating heating values
-        for fuels where condensation of the reaction products is not
-        possible and is ignored.
-    :ivar remark: Remarks and comments about this data item.
-    """
-
-    apigravity: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "APIGravity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gross_energy_content_per_unit_mass: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GrossEnergyContentPerUnitMass",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gross_energy_content_per_unit_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GrossEnergyContentPerUnitVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    molecular_weight: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MolecularWeight",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    net_energy_content_per_unit_mass: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "NetEnergyContentPerUnitMass",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    net_energy_content_per_unit_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "NetEnergyContentPerUnitVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".+T.+[Z+\-].*",
         },
     )
 
@@ -11998,6 +10721,7 @@ class TimeSeriesDoubleSample:
     """
     A single double value in a time series.
 
+    :ivar value:
     :ivar d_tim: The date and time at which the value applies. If no
         time is specified then the value is static and only one sample
         can be defined. Either dTim or value or both must be specified.
@@ -12006,6 +10730,12 @@ class TimeSeriesDoubleSample:
     :ivar status: An indicator of the quality of the value.
     """
 
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
     d_tim: Optional[XmlDateTime] = field(
         default=None,
         metadata={
@@ -12022,28 +10752,32 @@ class TimeSeriesDoubleSample:
 
 
 @dataclass
-class VaporComposition:
+class ViscosityAtTemperature:
     """
-    Vapor composition.
+    Viscosity measurement at a specific temperature.
 
-    :ivar remark: Remarks and comments about this data item.
-    :ivar vapor_component:
+    :ivar viscosity: Viscosity measurement at the associated
+        temperature.
+    :ivar viscosity_temperature: Temperature at which the viscosity was
+        measured.
     """
 
-    remark: List[str] = field(
-        default_factory=list,
+    viscosity: Optional[DynamicViscosityMeasure] = field(
+        default=None,
         metadata={
-            "name": "Remark",
+            "name": "Viscosity",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
         },
     )
-    vapor_component: List[FluidComponent] = field(
-        default_factory=list,
+    viscosity_temperature: Optional[ThermodynamicTemperatureMeasure] = field(
+        default=None,
         metadata={
-            "name": "VaporComponent",
+            "name": "ViscosityTemperature",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
         },
     )
 
@@ -12067,108 +10801,207 @@ class VolumeQualifiedMeasure:
 
 
 @dataclass
-class WaterAnalysisTest:
+class WaterAnalysisTestStep:
     """
-    Water analysis test.
+    Water analysis test step.
 
-    :ivar liquid_gravity: The liquid gravity for the water analysis
-        test.
-    :ivar ph: The ph for the water analysis test.
     :ivar remark: Remarks and comments about this data item.
-    :ivar resistivity: The resistivity for the water analysis test.
-    :ivar salinity: The salinity for the water analysis test.
-    :ivar test_number: An integer number to identify this test in a
-        sequence of tests.
-    :ivar total_dissolved_solids: The total dissolved solids for the
-        water analysis test.
-    :ivar total_hardness: The total water hardness for the water
-        analysis test.
-    :ivar total_suspended_solids: The total suspended solids for the
-        water analysis test.
-    :ivar water_analysis_test_step: The name of the Fluid Analysis
-        Result.
+    :ivar solution_gas_water_ratio: The solution gas-water ratio for the
+        water analysis test step.
+    :ivar step_number: The step number is the index of a (P,T) step in
+        the overall test.
+    :ivar step_pressure: The pressure for this test step.
+    :ivar step_temperature: The temperature for this test step.
+    :ivar water_density: The water density for the water analysis test
+        step.
+    :ivar water_density_change_with_pressure: The water density change
+        with pressure for the water analysis test step.
+    :ivar water_density_change_with_temperature: The water density
+        change with temperature for the water analysis test step.
+    :ivar water_enthalpy: The water enthalpy for the water analysis test
+        step.
+    :ivar water_entropy: The water entropy for the water analysis test
+        step.
+    :ivar water_formation_volume_factor: The water formation volume
+        factor for the water analysis test step.
+    :ivar water_heat_capacity: The water heat capacity for the water
+        analysis test step.
+    :ivar water_isothermal_compressibility: The water isothermal
+        compressibility for the water analysis test step.
+    :ivar water_specific_heat: The water specific heat for the water
+        analysis test step.
+    :ivar water_specific_volume: The water specific volume for the water
+        analysis test step.
+    :ivar water_thermal_conductivity: The water thermal conductivity for
+        the water analysis test step.
+    :ivar water_thermal_expansion: The water thermal expansion for the
+        water analysis test step.
+    :ivar water_viscosity: The water viscosity for the water analysis
+        test step.
+    :ivar water_viscous_compressibility: The water viscous
+        compressibility for the water analysis test step.
     :ivar uid: A unique identifier for this data element. It is not
         globally unique (not a uuid) and only need be unique within the
         context of the parent top-level object.
     """
 
-    liquid_gravity: Optional[float] = field(
-        default=None,
-        metadata={
-            "name": "LiquidGravity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    ph: Optional[float] = field(
-        default=None,
-        metadata={
-            "name": "PH",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
     remark: List[str] = field(
         default_factory=list,
         metadata={
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    resistivity: List[str] = field(
+    solution_gas_water_ratio: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "Resistivity",
+            "name": "SolutionGasWaterRatio",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    salinity: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Salinity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test_number: Optional[str] = field(
+    step_number: Optional[int] = field(
         default=None,
         metadata={
-            "name": "TestNumber",
+            "name": "StepNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    step_pressure: Optional[PressureMeasure] = field(
+        default=None,
+        metadata={
+            "name": "StepPressure",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
         },
     )
-    total_dissolved_solids: List[str] = field(
+    step_temperature: Optional[ThermodynamicTemperatureMeasure] = field(
+        default=None,
+        metadata={
+            "name": "StepTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    water_density: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "TotalDissolvedSolids",
+            "name": "WaterDensity",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    total_hardness: List[str] = field(
+    water_density_change_with_pressure: List[
+        MassPerVolumePerPressureMeasureExt
+    ] = field(
         default_factory=list,
         metadata={
-            "name": "TotalHardness",
+            "name": "WaterDensityChangeWithPressure",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    total_suspended_solids: List[str] = field(
+    water_density_change_with_temperature: List[
+        MassPerVolumePerTemperatureMeasureExt
+    ] = field(
         default_factory=list,
         metadata={
-            "name": "TotalSuspendedSolids",
+            "name": "WaterDensityChangeWithTemperature",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    water_analysis_test_step: List[WaterAnalysisTestStep] = field(
+    water_enthalpy: List[MolarEnergyMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "WaterAnalysisTestStep",
+            "name": "WaterEnthalpy",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_entropy: List[EnergyLengthPerTimeAreaTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterEntropy",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_formation_volume_factor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterFormationVolumeFactor",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_heat_capacity: List[EnergyMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterHeatCapacity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_isothermal_compressibility: List[ReciprocalPressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterIsothermalCompressibility",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_specific_heat: List[EnergyPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterSpecificHeat",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_specific_volume: List[VolumePerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterSpecificVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_thermal_conductivity: List[ElectricConductivityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterThermalConductivity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_thermal_expansion: List[VolumetricThermalExpansionMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterThermalExpansion",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_viscosity: List[DynamicViscosityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterViscosity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_viscous_compressibility: List[ReciprocalPressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterViscousCompressibility",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
@@ -12178,6 +11011,58 @@ class WaterAnalysisTest:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class WaterSampleComponent:
+    """
+    Water sample component.
+
+    :ivar equivalent_concentration: The equivalent concentration of the
+        water sample component.
+    :ivar ion: The ion of the water sample component.
+    :ivar mass_concentration: The mass concentration of the water sample
+        component.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    equivalent_concentration: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "EquivalentConcentration",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    ion: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Ion",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    mass_concentration: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MassConcentration",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -12190,7 +11075,7 @@ class WaveLength(AbstractAttenuationMeasure):
     :ivar wave_length: Wave length.
     """
 
-    wave_length: Optional[str] = field(
+    wave_length: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "WaveLength",
@@ -12202,61 +11087,210 @@ class WaveLength(AbstractAttenuationMeasure):
 
 
 @dataclass
-class WellTestBottomholeData:
-    """
-    Well test data gathered at the bottomhole.
+class WellElevationCoord:
+    """A vertical (gravity-based) elevation coordinate within the context of a
+    well.
 
-    :ivar bottomhole_md: The measured depth of the bottomhole.
-    :ivar bottomhole_pover_z: The P/Z value at the bottomhole. This is
-        P/Z, pressure over gas compressibility factor (z), at the
-        bottomhole of the well. Note that the UOM is units of pressure,
-        because Z is dimensionless.
-    :ivar bottomhole_pres: The pressure at the bottomhole of the well.
-    :ivar bottomhole_temp: The temperature at the bottomhole of the
-        well.
-    :ivar wellbore_reference: Defines the wellbore (sidetract)
-        represented by the measured depth. This must be given when the
-        well has multiple wellbores and the measured depth value is
-        deeper than the first kickoff point. It is recommended that it
-        always be given.
+    Positive moving upward from the reference datum. All coordinates
+    with the same datum (and same UOM) can be considered to be in the
+    same coordinate reference system (CRS) and are thus directly
+    comparable.
+
+    :ivar uom: The unit of measure of the quantity value. If not given
+        then the default unit of measure of the explicitly or implicitly
+        given datum must be assumed.
     """
 
-    bottomhole_md: Optional[MeasuredDepthCoord] = field(
+    uom: Optional[VerticalCoordinateUom] = field(
         default=None,
         metadata={
-            "name": "BottomholeMD",
+            "type": "Attribute",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class WellFlowingCondition:
+    """
+    Describes key conditions of the flowing well during a production well test.
+
+    :ivar bottom_hole_flowing_pressure: The pressure at the bottom of
+        the hole.
+    :ivar bottom_hole_flowing_temperature: The temperature at the bottom
+        of the hole when the well is flowing.
+    :ivar bottom_hole_gauge_depth_md: The measure depth of the
+        bottomhole gauge.
+    :ivar bottom_hole_shut_in_pressure: The shut-in pressure of at the
+        bottom of the hole.
+    :ivar bottom_hole_static_pressure: The static pressure of the bottom
+        of the hole.
+    :ivar casing_head_pressure: The pressure at the casing head.
+    :ivar choke_orifice_size: The choke diameter.
+    :ivar flowing_pressure: The flowing pressure.
+    :ivar tubing_head_flowing_pressure: The pressure at the tubing head.
+    :ivar tubing_head_flowing_temperature: The temperature at the tubing
+        head when the well is flowing.
+    :ivar tubing_head_shut_in_pressure: The pressure at the tubing head
+        when the well is shut in.
+    """
+
+    bottom_hole_flowing_pressure: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "BottomHoleFlowingPressure",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    bottomhole_pover_z: List[str] = field(
+    bottom_hole_flowing_temperature: List[
+        ThermodynamicTemperatureMeasure
+    ] = field(
         default_factory=list,
         metadata={
-            "name": "BottomholePOverZ",
+            "name": "BottomHoleFlowingTemperature",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    bottomhole_pres: List[str] = field(
+    bottom_hole_gauge_depth_md: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "BottomholePres",
+            "name": "BottomHoleGaugeDepthMD",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    bottomhole_temp: List[str] = field(
+    bottom_hole_shut_in_pressure: List[PressureMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "BottomholeTemp",
+            "name": "BottomHoleShutInPressure",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    wellbore_reference: List[str] = field(
+    bottom_hole_static_pressure: List[PressureMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "WellboreReference",
+            "name": "BottomHoleStaticPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    casing_head_pressure: List[AbstractPressureValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "CasingHeadPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    choke_orifice_size: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ChokeOrificeSize",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    flowing_pressure: List[AbstractPressureValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "FlowingPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    tubing_head_flowing_pressure: List[AbstractPressureValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "TubingHeadFlowingPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    tubing_head_flowing_temperature: List[
+        ThermodynamicTemperatureMeasure
+    ] = field(
+        default_factory=list,
+        metadata={
+            "name": "TubingHeadFlowingTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    tubing_head_shut_in_pressure: List[AbstractPressureValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "TubingHeadShutInPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class WellTestCumulative:
+    """The cumulative amounts of the fluids at the time of the well test.
+
+    The fluids are oil, gas, and water.
+
+    :ivar cumulative_gas: The cumulative amount of gas.
+    :ivar cumulative_oil: The cumulative amount of oil.
+    :ivar cumulative_water: The cumulative amount of water.
+    """
+
+    cumulative_gas: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CumulativeGas",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    cumulative_oil: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CumulativeOil",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    cumulative_water: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CumulativeWater",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class WellTestElectricSubmersiblePumpData:
+    """
+    Information about an electric submersible pump (ESP).
+
+    :ivar electric_current: The average electric current of the ESP
+        during the test. The presumption is that only one pump per well
+        is operational during each test.
+    :ivar frequency: The average frequency of the ESP during the test.
+        The presumption is that only one pump per well is operational
+        during each test.
+    """
+
+    electric_current: List[ElectricCurrentMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ElectricCurrent",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    frequency: List[FrequencyMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Frequency",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
@@ -12276,7 +11310,7 @@ class WellTestFluidLevelTest(AbstractWellTest):
         This is generally a person.
     """
 
-    base_usable_water: List[str] = field(
+    base_usable_water: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
             "name": "BaseUsableWater",
@@ -12284,7 +11318,7 @@ class WellTestFluidLevelTest(AbstractWellTest):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    fluid_level: Optional[str] = field(
+    fluid_level: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "FluidLevel",
@@ -12299,268 +11333,97 @@ class WellTestFluidLevelTest(AbstractWellTest):
             "name": "TestedBy",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class WellTestInterval:
+class WellTestFluidRate:
     """
-    Information about the interval in the wellbore where the well test was
-    conducted.
+    Information about fluid rate during a well test.
 
-    :ivar md_base: The measured depth to the bottom of the interval.
-    :ivar md_top: The measured depth to the top of the interval.
-    :ivar tested_formation: The formation that was tested.
-    :ivar valve_position: The relative opening of the downhole control
-        valve for the tested zone. This is for surface controllable
-        valves.
-    :ivar wellbore_reference: Defines the wellbore (sidetract)
-        represented by the measured depth. This must be given when the
-        well has multiple wellbores and the measured depth value is
-        deeper than the first kickoff point. It is recommended that it
-        always be given.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
+    :ivar fluid_rate: The fluid flow rate.
+    :ivar fluid_rate_std_temp_pres: The fluid flow rate that has been
+        corrected to standard temperature and pressure.
+    :ivar gas_class: Class for natural gas. This is not valid for oil or
+        water.
     """
 
-    md_base: Optional[MeasuredDepthCoord] = field(
-        default=None,
-        metadata={
-            "name": "MdBase",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    md_top: Optional[MeasuredDepthCoord] = field(
-        default=None,
-        metadata={
-            "name": "MdTop",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    tested_formation: List[str] = field(
+    fluid_rate: List[VolumePerTimeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "TestedFormation",
+            "name": "FluidRate",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    valve_position: List[str] = field(
+    fluid_rate_std_temp_pres: List[VolumePerTimeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "ValvePosition",
+            "name": "FluidRateStdTempPres",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    wellbore_reference: List[str] = field(
+    gas_class: List[str] = field(
         default_factory=list,
         metadata={
-            "name": "WellboreReference",
+            "name": "GasClass",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class WellTestPointData:
+class WellTestSeparatorData:
     """
-    Well test data gathered at a point in the wellbore.
+    Well test data gathered at the separator.
 
-    :ivar bottomhole: A value of true (1 or "true") indicates that the
-        point is at the bottomhole. A value of false (0 or "false") or
-        not given indicates otherwise.
-    :ivar md: The measured depth of the point being tested.
-    :ivar pover_z: The P/Z value at the point. This is P/Z, pressure
-        over gas compressibility factor (z). Note that the UOM is units
-        of pressure., because Z is dimensionless.
-    :ivar pres: The pressure at the point.
-    :ivar static: A value of true (1 or "true") indicates a static (non-
-        flowing) pressure. A value of false (0 or "false") or not given
-        indicates otherwise. The pressure may be measured (e.g., shut-in
-        well) or calculated.
-    :ivar temp: The temperature at the point.
-    :ivar wellbore_reference: Defines the wellbore (sidetract)
-        represented by the measured depth. This must be given when the
-        well has multiple wellbores and the measured depth value is
-        deeper than the first kickoff point. It is recommended that it
-        always be given.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
+    :ivar separator_pressure: The pressure measured at the separator
+        during the well test.
+    :ivar separator_temperature: The temperature measured at the
+        separator during the well test.
     """
 
-    bottomhole: Optional[bool] = field(
-        default=None,
-        metadata={
-            "name": "Bottomhole",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    md: Optional[MeasuredDepthCoord] = field(
-        default=None,
-        metadata={
-            "name": "Md",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pover_z: List[str] = field(
+    separator_pressure: List[AbstractPressureValue] = field(
         default_factory=list,
         metadata={
-            "name": "POverZ",
+            "name": "SeparatorPressure",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    pres: List[str] = field(
+    separator_temperature: List[ThermodynamicTemperatureMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "Pres",
+            "name": "SeparatorTemperature",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    static: Optional[bool] = field(
-        default=None,
-        metadata={
-            "name": "Static",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    temp: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Temp",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    wellbore_reference: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WellboreReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
         },
     )
 
 
 @dataclass
-class WellTestProductionTestResults:
-    """Oil, gas, and water volumes and rates measured during the well test.
+class WellTestTestVolume:
+    """
+    The following sequence of four elements can be used for reporting of most
+    production fluids.
 
-    The volumes allow either actual volumes or standard (corrected)
-    volumes. The densities are also recorded with the volumes.
-
-    :ivar allocated_split: True ("true" or "1") indicates that the split
-        factors are allocated as opposed to measured. False ("false" or
-        "0") or not given indicates otherwise.
-    :ivar basic_sediment_and_water: This is the measured of impurities
-        present in crude oil as it comes from the well. BSandW content
-        is commonly used as a measure for treating performance of
-        hydrocarbon liquids
-    :ivar condensate_split_factor: The split factor for condensate
-        relative to the overall volume of the test.
-    :ivar condensate_yield: This is the condensate yield, which
-        describes the amount of condensate per unit of natural gas
-        produced
-    :ivar density: The density of the fluid mixture.
-    :ivar fluid_velocity: The velocity of the overall fluid mixture.
-    :ivar gas_oil_ratio: The ratio of the volume of gas and the volume
-        of oil that was produced.
-    :ivar gas_potential: This is the potential of the well to produce
-        natural gas. This represents the flow rate that could be
-        achieved under maximum drawdown.
-    :ivar gas_split_factor: The split factor for gas relative to the
-        overall volume of the test.
-    :ivar oil_potential: This is the potential of the well to produce
-        crude oil. This represents the flow rate that could be achieved
-        under maximum drawdown.
-    :ivar oil_split_factor: The split factor for oil relative to the
-        overall volume of the test.
-    :ivar productivity_index: Productivity index (PI) is an expression
-        which defines the pressure drop in the reservoir to produce a
-        unit of oil per day. That is, the energy to produce a unit of
-        oil. The value was defined at ambient temperature and pressure.
-    :ivar productivity_index_std_temp_pres: Productivity index (PI) is
-        an expression which defines the pressure drop in the reservoir
-        to produce a unit of oil per day. That is, the energy to produce
-        a unit of oil. The value has been converted to the declared
-        conditions of standard temperature and pressure.
-    :ivar sand_volume: The volume of sand that was produced.
-    :ivar water_cut: The ratio of water produced compared to the volume
-        of total liquids produced.
-    :ivar water_split_factor: The split factor for water relative to the
-        overall volume of the test.
-    :ivar oil_rate: Oil rates measured during the well test.
-    :ivar water_rate: Water rates measured during the well test.
-    :ivar gas_rate: Gas rates measured during the well test.
-    :ivar condensate_rate: Condensate rates measured during the well
-        test.
-    :ivar water_volume: Water volumes measured during the well test.
-    :ivar condensate_volume: condensate volumes measured during the well
-        test.
-    :ivar oil_volume: Oil volumes measured during the well test.
-    :ivar gas_volume: Gas volumes measured during the well test.
+    :ivar density: The density of the fluid, uncorrected.
+    :ivar density_std_temp_pres: The density of the fluid, corrected to
+        standard conditions of temperature and pressure.
+    :ivar gas_class: Class for natural gas. This is not valid for oil or
+        water.
+    :ivar volume: The volume, uncorrected. This volume is generally
+        reported at reservoir conditions.
+    :ivar volume_std_temp_pres: The volume is the fluid, corrected to
+        standard conditions of temperature and pressure.
     """
 
-    allocated_split: Optional[bool] = field(
-        default=None,
-        metadata={
-            "name": "AllocatedSplit",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    basic_sediment_and_water: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "BasicSedimentAndWater",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    condensate_split_factor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CondensateSplitFactor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    condensate_yield: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CondensateYield",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    density: List[str] = field(
+    density: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Density",
@@ -12568,154 +11431,35 @@ class WellTestProductionTestResults:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    fluid_velocity: List[str] = field(
+    density_std_temp_pres: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "FluidVelocity",
+            "name": "DensityStdTempPres",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_oil_ratio: List[str] = field(
+    gas_class: List[str] = field(
         default_factory=list,
         metadata={
-            "name": "GasOilRatio",
+            "name": "GasClass",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    gas_potential: List[str] = field(
+    volume: List[VolumeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "GasPotential",
+            "name": "Volume",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_split_factor: List[str] = field(
+    volume_std_temp_pres: List[VolumeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "GasSplitFactor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    oil_potential: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "OilPotential",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    oil_split_factor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "OilSplitFactor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    productivity_index: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ProductivityIndex",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    productivity_index_std_temp_pres: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ProductivityIndexStdTempPres",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    sand_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SandVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_cut: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterCut",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_split_factor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterSplitFactor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    oil_rate: Optional[WellTestFluidRate] = field(
-        default=None,
-        metadata={
-            "name": "OilRate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_rate: Optional[WellTestFluidRate] = field(
-        default=None,
-        metadata={
-            "name": "WaterRate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_rate: Optional[WellTestFluidRate] = field(
-        default=None,
-        metadata={
-            "name": "GasRate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    condensate_rate: Optional[WellTestFluidRate] = field(
-        default=None,
-        metadata={
-            "name": "CondensateRate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_volume: Optional[WellTestTestVolume] = field(
-        default=None,
-        metadata={
-            "name": "WaterVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    condensate_volume: Optional[WellTestTestVolume] = field(
-        default=None,
-        metadata={
-            "name": "CondensateVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    oil_volume: Optional[WellTestTestVolume] = field(
-        default=None,
-        metadata={
-            "name": "OilVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_volume: Optional[WellTestTestVolume] = field(
-        default=None,
-        metadata={
-            "name": "GasVolume",
+            "name": "VolumeStdTempPres",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
@@ -12754,6 +11498,7 @@ class WellTestValidationOperation:
             "name": "Method",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     remark: List[str] = field(
@@ -12762,6 +11507,7 @@ class WellTestValidationOperation:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     tool: List[str] = field(
@@ -12770,6 +11516,7 @@ class WellTestValidationOperation:
             "name": "Tool",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     kind: Optional[ValidationOperation] = field(
@@ -12795,114 +11542,91 @@ class WellTestValidationOperation:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class WellTestWellheadData:
-    """
-    Basic measurements at the wellhead, during the well test.
+class WellVerticalDepthCoord:
+    """A vertical (gravity-based) depth coordinate within the context of a well.
 
-    :ivar choke_orifice_size: The size of the choke opening at the
-        wellhead.
-    :ivar flowing_pressure: The flowing pressure measured at the
-        wellhead during the well test.
-    :ivar flow_line_pressure: The pressure measured at the flow line
-        connected to the wellhead during this well test.
-    :ivar gas_liftchoke_orifice_size: The size of the gas lift choke
-        opening.
-    :ivar gas_lift_pres: The pressure of the lift gas at the wellhead.
-    :ivar gas_lift_temp: The temperature of the lift gas at the
-        wellhead.
-    :ivar shut_in_pressure: The shut-in pressure measured at the
-        wellhead during the well test.
-    :ivar temperature: The temperature measured at the wellhead during
-        the well test.
-    :ivar gas_lift_rate: Lift gas rates injected during the well test at
-        the wellhead.
-    :ivar gas_lift_volume: Lift gas volumes injected during the well
-        test at the wellhead.
+    Positive moving downward from the reference datum. All coordinates
+    with the same datum (and same UOM) can be considered to be in the
+    same coordinate reference system (CRS) and are thus directly
+    comparable.
+
+    :ivar uom: The unit of measure of the quantity value.
     """
 
-    choke_orifice_size: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ChokeOrificeSize",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    flowing_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FlowingPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    flow_line_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FlowLinePressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_liftchoke_orifice_size: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasLiftchokeOrificeSize",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_lift_pres: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasLiftPres",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_lift_temp: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasLiftTemp",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    shut_in_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ShutInPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Temperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_lift_rate: Optional[WellTestFluidRate] = field(
+    uom: Optional[VerticalCoordinateUom] = field(
         default=None,
         metadata={
-            "name": "GasLiftRate",
+            "type": "Attribute",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class WftCurveSection:
+    """
+    Points to an interval on a curve in a log (or wellLog).
+
+    :ivar channel_reference: A pointer to a specific channel that
+        contains the curve.
+    :ivar dtim_end: The date and time of the end of the relevant
+        interval. If not specified then the end of the curve is assumed.
+    :ivar dtim_start: The date and time of the start of the relevant
+        interval. If not specified then the beginning of the curve is
+        assumed.
+    :ivar mnemonic: The curve mnemonic name.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    channel_reference: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "ChannelReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    dtim_end: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimEnd",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_lift_volume: Optional[WellTestTestVolume] = field(
+    dtim_start: Optional[XmlDateTime] = field(
         default=None,
         metadata={
-            "name": "GasLiftVolume",
+            "name": "DTimStart",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mnemonic: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Mnemonic",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -12930,7 +11654,7 @@ class WftEvent:
             "required": True,
         },
     )
-    duration: Optional[str] = field(
+    duration: Optional[TimeMeasure] = field(
         default=None,
         metadata={
             "name": "Duration",
@@ -12945,6 +11669,7 @@ class WftEvent:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     kind: Optional[WftEventKind] = field(
@@ -12961,6 +11686,7 @@ class WftEvent:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -12982,7 +11708,7 @@ class WftInOutParameter:
         context of the parent top-level object.
     """
 
-    measure_class: List[str] = field(
+    measure_class: List[MeasureType] = field(
         default_factory=list,
         metadata={
             "name": "MeasureClass",
@@ -12997,6 +11723,7 @@ class WftInOutParameter:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     value: Optional[MeasureOrQuantity] = field(
@@ -13013,6 +11740,146 @@ class WftInOutParameter:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class WftResultReference:
+    """Defines a set of pointers which collectively identify a particular
+    outputParameter beginning at a point in the hierarchy.
+
+    The combination of pointers needed depends on the starting point.
+
+    :ivar output_parameter_reference: A pointer to the desired
+        outputParameter.
+    :ivar result_reference: A pointer to the desired result containing
+        the outputParameter.
+    :ivar sample_acquisition:
+    :ivar station_reference: A pointer to the station node containing
+        the specified nodes.
+    :ivar test: A pointer to the test node containing the specified
+        nodes.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    output_parameter_reference: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "OutputParameterReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    result_reference: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "ResultReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    sample_acquisition: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "SampleAcquisition",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    station_reference: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "StationReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    test: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Test",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class AbstractDisposition:
+    """
+    The Abstract base type of disposition.
+
+    :ivar product_disposition_code: A unique disposition code associated
+        within a given naming system. This may be a code specified by a
+        regulatory agency.
+    :ivar remark: A descriptive remark relating to this disposition.
+    :ivar disposition_quantity: The amount of product to which this
+        disposition applies.
+    :ivar quantity_method: Quantity method.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    product_disposition_code: List[AuthorityQualifiedName] = field(
+        default_factory=list,
+        metadata={
+            "name": "ProductDispositionCode",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    disposition_quantity: List[AbstractProductQuantity] = field(
+        default_factory=list,
+        metadata={
+            "name": "DispositionQuantity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    quantity_method: Optional[Union[QuantityMethod, str]] = field(
+        default=None,
+        metadata={
+            "name": "QuantityMethod",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -13057,6 +11924,7 @@ class BusinessAssociate:
             "name": "AssociatedWith",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     contact: List[str] = field(
@@ -13065,6 +11933,7 @@ class BusinessAssociate:
             "name": "Contact",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     name: Optional[str] = field(
@@ -13074,6 +11943,7 @@ class BusinessAssociate:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     personnel_count: Optional[int] = field(
@@ -13135,207 +12005,392 @@ class BusinessAssociate:
 
 
 @dataclass
-class ConstantCompositionExpansionTestStep:
+class CommonPropertiesProductVolume:
     """
-    The CCE test steps.
+    Properties that are common to multiple structures in the product volume schema.
 
-    :ivar gas_compressibility: The gas compressibility at this test
-        step.
-    :ivar gas_density: The gas density at the conditions for this
-        viscosity correlation to be used.
-    :ivar gas_viscosity: The viscosity of the gas phase at this test
-        step.
-    :ivar gas_zfactor: The gas Z factor value at this test step.
-    :ivar liquid_composition: The liquid composition at this test step.
-    :ivar oil_density: The density of the oil phase at this test step.
-    :ivar oil_viscosity: The viscosity of the oil phase at this test
-        step.
-    :ivar overall_composition: The overall composition at this test
-        step.
-    :ivar phases_present: The phases present at this test step (oil,
-        water, gas etc.). Enum, see phases present.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar step_number: The step number is the index of a (P,T) step in
-        the overall test.
-    :ivar step_pressure: The pressure for this test step.
-    :ivar total_volume: The total volume of the expanded mixture at this
-        test step.
-    :ivar vapor_composition: The vapor composition at this test step.
-    :ivar yfunction: The Y function at this test step. See  Standing,
-        M.B.: Volumetric And Phase Behavior Of Oil Field Hydrocarbon
-        Systems, Eighth Edition, SPE Richardson, Texas (1977).
-    :ivar fluid_condition: The fluid condition at this test step. Enum,
-        see fluid analysis step condition.
-    :ivar oil_compressibility: The oil compressibility at this test
-        step.
-    :ivar liquid_fraction: The fraction of liquid by volume for this
-        test step.
-    :ivar relative_volume_ratio: Measured relative volume ratio =
-        measured volume/volume at Psat.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
+    :ivar absolute_min_pres: Absolute minimum pressure before the system
+        will give an alarm.
+    :ivar atmosphere: The average atmospheric pressure during the
+        reporting period.
+    :ivar bsw: Basic sediment and water is measured from a liquid sample
+        of the production stream. It includes free water, sediment and
+        emulsion and is measured as a volume percentage of the
+        production stream.
+    :ivar bsw_previous: The basic sediment and water as measured on the
+        previous reporting period (e.g., day).
+    :ivar bsw_stabilized_crude: Basic sediment and water content in
+        stabilized crude.
+    :ivar concentration: The concentration of the product as a volume
+        percentage of the product stream.
+    :ivar density_flow_rate: The mass basis flow rate of the product.
+        This is used for things like a sand component.
+    :ivar density_stabilized_crude: The density of stabilized crude.
+    :ivar density_value:
+    :ivar efficiency: The actual volume divided by the potential volume.
+    :ivar flow_rate_value:
+    :ivar gas_liquid_ratio: The volumetric ratio of gas to liquid for
+        all products in the whole flow.
+    :ivar gor: Gas oil ratio. The ratio between the total produced gas
+        volume and the total produced oil volume including oil and gas
+        volumes used on the installation.
+    :ivar gor_mtd: Gas oil ratio month to date. The gas oil ratio from
+        the beginning of the month to the end of the reporting period.
+    :ivar gross_calorific_value_std: The amount of heat that would be
+        released by the complete combustion in air of a specific
+        quantity of product at standard temperature and pressure.
+    :ivar hc_dewpoint: The temperature at which the heavier hydrocarbons
+        come out of solution.
+    :ivar mass: The mass of the product.
+    :ivar mole_amt: The molar amount.
+    :ivar molecular_weight: The molecular weight of the product.
+    :ivar mole_percent: The mole fraction of the product.
+    :ivar pres: Pressure of the port. Specifying the pressure here (as
+        opposed to in Period) implies that the pressure is constant for
+        all periods of the flow.
+    :ivar rvp: Reid vapor pressure of the product. The absolute vapor
+        pressure of volatile crude oil and volatile petroleum liquids,
+        except liquefied petroleum gases, as determined in accordance
+        with American Society for Testing and Materials under the
+        designation ASTM D323-56.
+    :ivar rvp_stabilized_crude: Reid vapor pressure of stabilized crude.
+    :ivar sg: The specific gravity of the product.
+    :ivar temp: Temperature of the port. Specifying the temperature here
+        (as opposed to in Period) implies that the temperature is
+        constant for all periods of the flow.
+    :ivar tvp: True vapor pressure of the product. The equilibrium
+        partial pressure exerted by a petroleum liquid as determined in
+        accordance with standard methods.
+    :ivar volume_value:
+    :ivar water_conc_mass: Water concentration mass basis. The ratio of
+        water produced compared to the mass of total liquids produced.
+    :ivar water_conc_vol: Water concentration volume basis. The ratio of
+        water produced compared to the mass of total liquids produced.
+    :ivar water_dewpoint: The temperature at which the first water comes
+        out of solution.
+    :ivar weight_percent: The weight fraction of the product.
+    :ivar wobbe_index: Indicator value of the interchangeability of fuel
+        gases.
+    :ivar work: The electrical energy represented by the product.
+    :ivar port_diff: The internal differences between this port and one
+        other port on this unit.
     """
 
-    gas_compressibility: List[str] = field(
+    absolute_min_pres: List[PressureMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "GasCompressibility",
+            "name": "AbsoluteMinPres",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_density: List[str] = field(
+    atmosphere: List[PressureMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "GasDensity",
+            "name": "Atmosphere",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_viscosity: List[str] = field(
+    bsw: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "GasViscosity",
+            "name": "Bsw",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_zfactor: Optional[float] = field(
-        default=None,
-        metadata={
-            "name": "GasZFactor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    liquid_composition: Optional[LiquidComposition] = field(
-        default=None,
-        metadata={
-            "name": "LiquidComposition",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    oil_density: List[str] = field(
+    bsw_previous: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "OilDensity",
+            "name": "BswPrevious",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_viscosity: List[str] = field(
+    bsw_stabilized_crude: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "OilViscosity",
+            "name": "BswStabilizedCrude",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    overall_composition: Optional[OverallComposition] = field(
-        default=None,
-        metadata={
-            "name": "OverallComposition",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    phases_present: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "PhasesPresent",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
+    concentration: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "Remark",
+            "name": "Concentration",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    step_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "StepNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    step_pressure: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "StepPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    total_volume: List[str] = field(
+    density_flow_rate: List[MassPerTimeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "TotalVolume",
+            "name": "DensityFlowRate",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    vapor_composition: Optional[VaporComposition] = field(
-        default=None,
+    density_stabilized_crude: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
         metadata={
-            "name": "VaporComposition",
+            "name": "DensityStabilizedCrude",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    yfunction: Optional[float] = field(
-        default=None,
+    density_value: List[DensityValue] = field(
+        default_factory=list,
         metadata={
-            "name": "YFunction",
+            "name": "DensityValue",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    fluid_condition: Optional[FluidAnalysisStepCondition] = field(
-        default=None,
+    efficiency: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
         metadata={
-            "name": "FluidCondition",
+            "name": "Efficiency",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_compressibility: Optional[OilCompressibility] = field(
-        default=None,
+    flow_rate_value: List[FlowRateValue] = field(
+        default_factory=list,
         metadata={
-            "name": "OilCompressibility",
+            "name": "FlowRateValue",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    liquid_fraction: Optional[RelativeVolumeRatio] = field(
-        default=None,
+    gas_liquid_ratio: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
         metadata={
-            "name": "LiquidFraction",
+            "name": "GasLiquidRatio",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    relative_volume_ratio: Optional[RelativeVolumeRatio] = field(
-        default=None,
+    gor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
         metadata={
-            "name": "RelativeVolumeRatio",
+            "name": "Gor",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    uid: Optional[str] = field(
-        default=None,
+    gor_mtd: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
         metadata={
-            "type": "Attribute",
-            "required": True,
+            "name": "GorMTD",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gross_calorific_value_std: List[EnergyPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GrossCalorificValueStd",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    hc_dewpoint: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "HcDewpoint",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mass: List[MassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Mass",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mole_amt: List[AmountOfSubstanceMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MoleAmt",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    molecular_weight: List[MolecularWeightMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MolecularWeight",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mole_percent: List[AmountOfSubstancePerAmountOfSubstanceMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MolePercent",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    pres: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Pres",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    rvp: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Rvp",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    rvp_stabilized_crude: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "RvpStabilizedCrude",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    sg: List[DimensionlessMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Sg",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    temp: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Temp",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    tvp: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Tvp",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    volume_value: List[VolumeValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "VolumeValue",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_conc_mass: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterConcMass",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_conc_vol: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterConcVol",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_dewpoint: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterDewpoint",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    weight_percent: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WeightPercent",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    wobbe_index: List[IsothermalCompressibilityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WobbeIndex",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    work: List[EnergyMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Work",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    port_diff: List[ProductVolumePortDifference] = field(
+        default_factory=list,
+        metadata={
+            "name": "PortDiff",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class ComponentPropertySet:
+    """
+    Component property set.
+    """
+
+    fluid_component_property: List[FluidComponentProperty] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidComponentProperty",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_occurs": 1,
+        },
+    )
+
+
+@dataclass
+class CustomPvtModelExtension:
+    """
+    Custom PVT model extension.
+
+    :ivar description: A description of the custom model.
+    :ivar custom_pvt_model_parameter:
+    """
+
+    description: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Description",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    custom_pvt_model_parameter: List[CustomPvtModelParameter] = field(
+        default_factory=list,
+        metadata={
+            "name": "CustomPvtModelParameter",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
 
@@ -13367,7 +12422,7 @@ class DasCalibration:
         (well or pipeline) for this acquisition.
     """
 
-    calibration_datum: List[str] = field(
+    calibration_datum: List[WellboreDatumReference] = field(
         default_factory=list,
         metadata={
             "name": "CalibrationDatum",
@@ -13381,6 +12436,7 @@ class DasCalibration:
             "name": "CalibrationDescription",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     calibration_facility_length_unit: List[str] = field(
@@ -13389,14 +12445,16 @@ class DasCalibration:
             "name": "CalibrationFacilityLengthUnit",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    calibration_index: List[str] = field(
+    calibration_index: List[int] = field(
         default_factory=list,
         metadata={
             "name": "CalibrationIndex",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
         },
     )
     calibration_optical_path_distance_unit: List[str] = field(
@@ -13405,6 +12463,7 @@ class DasCalibration:
             "name": "CalibrationOpticalPathDistanceUnit",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     facility_name: Optional[str] = field(
@@ -13414,15 +12473,17 @@ class DasCalibration:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
-    number_of_calibration_points: Optional[str] = field(
+    number_of_calibration_points: Optional[int] = field(
         default=None,
         metadata={
             "name": "NumberOfCalibrationPoints",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
     calibration_data_points: List[DasCalibrationPoint] = field(
@@ -13526,6 +12587,7 @@ class DasFbe:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     fbe_description: List[str] = field(
@@ -13534,14 +12596,16 @@ class DasFbe:
             "name": "FbeDescription",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    fbe_index: List[str] = field(
+    fbe_index: List[int] = field(
         default_factory=list,
         metadata={
             "name": "FbeIndex",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
         },
     )
     filter_type: List[str] = field(
@@ -13550,18 +12614,20 @@ class DasFbe:
             "name": "FilterType",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    number_of_loci: Optional[str] = field(
+    number_of_loci: Optional[int] = field(
         default=None,
         metadata={
             "name": "NumberOfLoci",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
-    output_data_rate: Optional[str] = field(
+    output_data_rate: Optional[FrequencyMeasure] = field(
         default=None,
         metadata={
             "name": "OutputDataRate",
@@ -13576,9 +12642,10 @@ class DasFbe:
             "name": "RawReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}",
         },
     )
-    spatial_sampling_interval: List[str] = field(
+    spatial_sampling_interval: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
             "name": "SpatialSamplingInterval",
@@ -13592,6 +12659,7 @@ class DasFbe:
             "name": "SpatialSamplingIntervalUnit",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     spectra_reference: List[str] = field(
@@ -13600,23 +12668,26 @@ class DasFbe:
             "name": "SpectraReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}",
         },
     )
-    start_locus_index: Optional[str] = field(
+    start_locus_index: Optional[int] = field(
         default=None,
         metadata={
             "name": "StartLocusIndex",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
-    transform_size: List[str] = field(
+    transform_size: List[int] = field(
         default_factory=list,
         metadata={
             "name": "TransformSize",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
         },
     )
     transform_type: List[str] = field(
@@ -13625,6 +12696,7 @@ class DasFbe:
             "name": "TransformType",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     window_function: List[str] = field(
@@ -13633,22 +12705,25 @@ class DasFbe:
             "name": "WindowFunction",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    window_overlap: List[str] = field(
+    window_overlap: List[int] = field(
         default_factory=list,
         metadata={
             "name": "WindowOverlap",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
         },
     )
-    window_size: List[str] = field(
+    window_size: List[int] = field(
         default_factory=list,
         metadata={
             "name": "WindowSize",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
         },
     )
     custom: Optional[DasCustom] = field(
@@ -13682,6 +12757,7 @@ class DasFbe:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}",
         },
     )
 
@@ -13735,16 +12811,17 @@ class DasRaw:
         of raw DAS data.
     """
 
-    number_of_loci: Optional[str] = field(
+    number_of_loci: Optional[int] = field(
         default=None,
         metadata={
             "name": "NumberOfLoci",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
-    output_data_rate: List[str] = field(
+    output_data_rate: List[FrequencyMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OutputDataRate",
@@ -13759,6 +12836,7 @@ class DasRaw:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     raw_description: List[str] = field(
@@ -13767,23 +12845,26 @@ class DasRaw:
             "name": "RawDescription",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    raw_index: List[str] = field(
+    raw_index: List[int] = field(
         default_factory=list,
         metadata={
             "name": "RawIndex",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
         },
     )
-    start_locus_index: Optional[str] = field(
+    start_locus_index: Optional[int] = field(
         default=None,
         metadata={
             "name": "StartLocusIndex",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
     custom: Optional[DasCustom] = field(
@@ -13825,6 +12906,7 @@ class DasRaw:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}",
         },
     )
 
@@ -13911,6 +12993,7 @@ class DasSpectra:
             "name": "FbeReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}",
         },
     )
     filter_type: List[str] = field(
@@ -13919,18 +13002,20 @@ class DasSpectra:
             "name": "FilterType",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    number_of_loci: Optional[str] = field(
+    number_of_loci: Optional[int] = field(
         default=None,
         metadata={
             "name": "NumberOfLoci",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
-    output_data_rate: Optional[str] = field(
+    output_data_rate: Optional[FrequencyMeasure] = field(
         default=None,
         metadata={
             "name": "OutputDataRate",
@@ -13945,9 +13030,10 @@ class DasSpectra:
             "name": "RawReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}",
         },
     )
-    spatial_sampling_interval: List[str] = field(
+    spatial_sampling_interval: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
             "name": "SpatialSamplingInterval",
@@ -13961,6 +13047,7 @@ class DasSpectra:
             "name": "SpatialSamplingIntervalUnit",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     spectra_data_unit: Optional[str] = field(
@@ -13970,6 +13057,7 @@ class DasSpectra:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     spectra_description: List[str] = field(
@@ -13978,32 +13066,36 @@ class DasSpectra:
             "name": "SpectraDescription",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    spectra_index: List[str] = field(
+    spectra_index: List[int] = field(
         default_factory=list,
         metadata={
             "name": "SpectraIndex",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
         },
     )
-    start_locus_index: Optional[str] = field(
+    start_locus_index: Optional[int] = field(
         default=None,
         metadata={
             "name": "StartLocusIndex",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
-    transform_size: Optional[str] = field(
+    transform_size: Optional[int] = field(
         default=None,
         metadata={
             "name": "TransformSize",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
     transform_type: Optional[str] = field(
@@ -14013,6 +13105,7 @@ class DasSpectra:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     window_function: List[str] = field(
@@ -14021,22 +13114,25 @@ class DasSpectra:
             "name": "WindowFunction",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    window_overlap: List[str] = field(
+    window_overlap: List[int] = field(
         default_factory=list,
         metadata={
             "name": "WindowOverlap",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
         },
     )
-    window_size: List[str] = field(
+    window_size: List[int] = field(
         default_factory=list,
         metadata={
             "name": "WindowSize",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
         },
     )
     custom: Optional[DasCustom] = field(
@@ -14070,71 +13166,47 @@ class DasSpectra:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}",
         },
     )
 
 
 @dataclass
-class DeferredProductionEvent:
+class DeferredProduction:
     """
-    Information about the event or incident that caused production to be deferred.
+    The production volume deferred for the reporting period.
 
-    :ivar duration: The duration of the event.
-    :ivar end_date: The end date of the event.
-    :ivar start_date: The start date of the event.
-    :ivar deferred_production:
-    :ivar downtime_reason_code: The reason code for the downtime event.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar deferred_product_quantity:
+    :ivar estimation_method: The method used to estimate deferred
+        production. See enum EstimationMethod.
     """
 
-    duration: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Duration",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    end_date: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "EndDate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    start_date: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "StartDate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    deferred_production: List[DeferredProduction] = field(
+    remark: List[str] = field(
         default_factory=list,
         metadata={
-            "name": "DeferredProduction",
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    deferred_product_quantity: List[AbstractProductQuantity] = field(
+        default_factory=list,
+        metadata={
+            "name": "DeferredProductQuantity",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    downtime_reason_code: Optional[DowntimeReasonCode] = field(
+    estimation_method: Optional[Union[EstimationMethod, str]] = field(
         default=None,
         metadata={
-            "name": "DowntimeReasonCode",
+            "name": "EstimationMethod",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
         },
     )
 
@@ -14181,6 +13253,7 @@ class DtsInterpretationLogSet:
             "name": "PreferredInterpretationReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     interpretation_data: List[DtsInterpretationData] = field(
@@ -14238,6 +13311,95 @@ class FacilityParent(AbstractRelatedFacilityObject):
 
 
 @dataclass
+class FiberControlLine(AbstractCable):
+    """
+    Information regarding the control line into which a fiber cable may be pumped
+    to measure a facility.
+
+    :ivar comment: A descriptive remark about the fiber control line.
+    :ivar encapsulation_size: Enum of the size of encapsulation of a
+        fiber within a control line.
+    :ivar encapsulation_type: Enum of square or round encapsulation for
+        a control line. A fiber may be installed inside the control
+        line.
+    :ivar material: Enum of the common materials from which a control
+        line may be made. A fiber may be installed inside the control
+        line.
+    :ivar size: Enum of the common sizes of control line. The enum list
+        gives diameters and weight per length values. A fiber may be
+        installed inside the control line.
+    :ivar pump_activity: The activity of pumping the fiber downhole into
+        a control line (small diameter tube).
+    :ivar downhole_control_line_reference: A reference to the control
+        line string in a completion data object that represents this
+        control line containing a fiber.
+    """
+
+    comment: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comment",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    encapsulation_size: Optional[ControlLineEncapsulationSize] = field(
+        default=None,
+        metadata={
+            "name": "EncapsulationSize",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    encapsulation_type: Optional[ControlLineEncapsulationType] = field(
+        default=None,
+        metadata={
+            "name": "EncapsulationType",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    material: Optional[ControlLineMaterial] = field(
+        default=None,
+        metadata={
+            "name": "Material",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    size: Optional[ControlLineSize] = field(
+        default=None,
+        metadata={
+            "name": "Size",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    pump_activity: List[FiberPumpActivity] = field(
+        default_factory=list,
+        metadata={
+            "name": "PumpActivity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    downhole_control_line_reference: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "downholeControlLineReference",
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
 class FiberFacilityMapping:
     """Relates lengths of fiber to corresponding lengths of facilities (probably
     wellbores or pipelines).
@@ -14262,6 +13424,7 @@ class FiberFacilityMapping:
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     time_end: Optional[XmlDateTime] = field(
@@ -14295,6 +13458,7 @@ class FiberFacilityMapping:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -14332,6 +13496,7 @@ class FiberFacilityPipeline(AbstractFiberFacility):
             "name": "DatumPortReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     installation: Optional[FacilityIdentifierStruct] = field(
@@ -14348,6 +13513,7 @@ class FiberFacilityPipeline(AbstractFiberFacility):
             "name": "Kind",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     name: Optional[NameStruct] = field(
@@ -14357,6 +13523,4283 @@ class FiberFacilityPipeline(AbstractFiberFacility):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+        },
+    )
+
+
+@dataclass
+class FluidCharacterizationTable:
+    """
+    Fluid characterization table.
+
+    :ivar remark: Remarks and comments about this data item.
+    :ivar table_constant: A constant associated with this fluid
+        characterization table.
+    :ivar table_row:
+    :ivar name: The name of this table.
+    :ivar table_format: The uid reference of the table format for this
+        table.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    table_constant: List[FluidCharacterizationTableConstant] = field(
+        default_factory=list,
+        metadata={
+            "name": "TableConstant",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    table_row: List[FluidCharacterizationTableRow] = field(
+        default_factory=list,
+        metadata={
+            "name": "TableRow",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_occurs": 1,
+        },
+    )
+    name: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    table_format: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "tableFormat",
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class FluidCharacterizationTableFormat:
+    """
+    Fluid characterization table format.
+
+    :ivar null_value: The null value for this fluid characterization
+        table format.
+    :ivar table_column:
+    :ivar delimiter: The delimiter for this fluid characterization table
+        format.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    null_value: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "NullValue",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    table_column: List[FluidCharacterizationTableColumn] = field(
+        default_factory=list,
+        metadata={
+            "name": "TableColumn",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_occurs": 1,
+        },
+    )
+    delimiter: Optional[TableDelimiter] = field(
+        default=None,
+        metadata={
+            "name": "Delimiter",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class FormationWater(AbstractFluidComponent):
+    """
+    The water in the formation.
+
+    :ivar remark: Remarks and comments about this data item.
+    :ivar salinity: Salinity level.
+    :ivar specific_gravity: Specific gravity.
+    """
+
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    salinity: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Salinity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    specific_gravity: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "SpecificGravity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class GeographicContext:
+    """
+    A geographic context of a report.
+
+    :ivar comment: A general comment that further explains the offshore
+        location.
+    :ivar country: The name of the country.
+    :ivar county: The name of county.
+    :ivar state: The state or province within the country.
+    :ivar field_value: The name of the field within whose context the
+        report exists.
+    :ivar offshore_location:
+    """
+
+    comment: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comment",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    country: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Country",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    county: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "County",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    state: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "State",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    field_value: Optional[NameStruct] = field(
+        default=None,
+        metadata={
+            "name": "Field",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    offshore_location: Optional[OffshoreLocation] = field(
+        default=None,
+        metadata={
+            "name": "OffshoreLocation",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class GeologyFeature:
+    """
+    Geology features found in the location of the borehole string.
+
+    :ivar name: Name of the feature.
+    :ivar geology_type: Aquifer or reservoir.
+    :ivar md_top: Measured depth at the top of the interval.
+    :ivar md_bottom: Measured depth at the base of the interval.
+    :ivar tvd_top:
+    :ivar tvd_bottom:
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    name: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Name",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    geology_type: Optional[GeologyType] = field(
+        default=None,
+        metadata={
+            "name": "GeologyType",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    md_top: Optional[MeasuredDepthCoord] = field(
+        default=None,
+        metadata={
+            "name": "MdTop",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    md_bottom: Optional[MeasuredDepthCoord] = field(
+        default=None,
+        metadata={
+            "name": "MdBottom",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    tvd_top: Optional[WellVerticalDepthCoord] = field(
+        default=None,
+        metadata={
+            "name": "TvdTop",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    tvd_bottom: Optional[WellVerticalDepthCoord] = field(
+        default=None,
+        metadata={
+            "name": "TvdBottom",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class Injection:
+    """
+    Volume injected per reporting entity.
+
+    :ivar remark: A descriptive remark relating to any significant
+        events.
+    :ivar injection_quantity:
+    :ivar quantity_method: The method in which the quantity/volume was
+        determined. See enum QuantityMethod.
+    """
+
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    injection_quantity: List[AbstractProductQuantity] = field(
+        default_factory=list,
+        metadata={
+            "name": "InjectionQuantity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    quantity_method: Optional[Union[QuantityMethod, str]] = field(
+        default=None,
+        metadata={
+            "name": "QuantityMethod",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class IntegerData(AbstractMeasureDataType):
+    """
+    Integer data.
+
+    :ivar integer_value: The value of a dependent (data) variable in a
+        row of the curve table. The units of measure are specified in
+        the curve definition. The first value corresponds to order=1 for
+        columns where isIndex is false. The second to order=2. And so
+        on. The number of index and data values must match the number of
+        columns in the table.
+    """
+
+    integer_value: Optional[IntegerQualifiedCount] = field(
+        default=None,
+        metadata={
+            "name": "IntegerValue",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class InterfacialTensionTest:
+    """
+    The interfacial tension test.
+
+    :ivar remark: Remarks and comments about this data item.
+    :ivar surfactant: The surfactant for this interfacial tension test.
+    :ivar test_number: An integer number to identify this test in a
+        sequence of tests.
+    :ivar interfacial_tension_test_step:
+    :ivar wetting_phase: The wetting phase for this interfacial tension
+        test.
+    :ivar non_wetting_phase: The non-wetting phase for this interfacial
+        tension test.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    surfactant: Optional[AbstractFluidComponent] = field(
+        default=None,
+        metadata={
+            "name": "Surfactant",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    test_number: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "TestNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    interfacial_tension_test_step: List[InterfacialTensionTestStep] = field(
+        default_factory=list,
+        metadata={
+            "name": "InterfacialTensionTestStep",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    wetting_phase: Optional[ThermodynamicPhase] = field(
+        default=None,
+        metadata={
+            "name": "WettingPhase",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    non_wetting_phase: Optional[ThermodynamicPhase] = field(
+        default=None,
+        metadata={
+            "name": "nonWettingPhase",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class LiquidComposition:
+    """
+    The composition of liquid.
+
+    :ivar remark: Remarks and comments about this data item.
+    :ivar liquid_component:
+    """
+
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    liquid_component: List[FluidComponent] = field(
+        default_factory=list,
+        metadata={
+            "name": "LiquidComponent",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class MassBalance:
+    """
+    The balance sheet of mass.
+
+    :ivar mass_balance_fraction: The mass balance fraction for this slim
+        tube test volume step.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar mass_in:
+    :ivar mass_out:
+    """
+
+    mass_balance_fraction: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MassBalanceFraction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    mass_in: Optional[MassIn] = field(
+        default=None,
+        metadata={
+            "name": "MassIn",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mass_out: Optional[MassOut] = field(
+        default=None,
+        metadata={
+            "name": "MassOut",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class NaturalGas(AbstractFluidComponent):
+    """
+    Natural gas.
+
+    :ivar gas_gravity: Gas gravity.
+    :ivar gross_energy_content_per_unit_mass: The amount of heat
+        released during the combustion of a specified amount of gas. It
+        is also known as higher heating value (HHV), gross energy, upper
+        heating value, gross calorific value (GCV) or higher calorific
+        Value (HCV). This value takes into account the latent heat of
+        vaporization of water in the combustion products, and is useful
+        in calculating heating values for fuels where condensation of
+        the reaction products is practical.
+    :ivar gross_energy_content_per_unit_volume: The amount of heat
+        released during the combustion of a specified amount of gas. It
+        is also known as higher heating value (HHV), gross energy, upper
+        heating value, gross calorific value (GCV) or higher calorific
+        value (HCV). This value takes into account the latent heat of
+        vaporization of water in the combustion products, and is useful
+        in calculating heating values for fuels where condensation of
+        the reaction products is practical.
+    :ivar molecular_weight: Molecular weight.
+    :ivar net_energy_content_per_unit_mass: The amount of heat released
+        during the combustion of a specified amount of gas. It is also
+        known as lower heating value (LHV), net energy, net calorific
+        value (NCV) or lower calorific value (LCV). This value ignores
+        the latent heat of vaporization of water in the combustion
+        products, and is useful in calculating heating values for fuels
+        where condensation of the reaction products is not possible and
+        is ignored.
+    :ivar net_energy_content_per_unit_volume: The amount of heat
+        released during the combustion of a specified amount of gas. It
+        is also known as lower heating value (LHV), net energy, net
+        calorific value (NCV) or lower calorific value (LCV). This value
+        ignores the latent heat of vaporization of water in the
+        combustion products, and is useful in calculating heating values
+        for fuels where condensation of the reaction products is not
+        possible and is ignored.
+    :ivar remark: Remarks and comments about this data item.
+    """
+
+    gas_gravity: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "GasGravity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gross_energy_content_per_unit_mass: List[EnergyPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GrossEnergyContentPerUnitMass",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gross_energy_content_per_unit_volume: List[EnergyPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GrossEnergyContentPerUnitVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    molecular_weight: List[MolecularWeightMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MolecularWeight",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    net_energy_content_per_unit_mass: List[EnergyPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "NetEnergyContentPerUnitMass",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    net_energy_content_per_unit_volume: List[EnergyPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "NetEnergyContentPerUnitVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+
+
+@dataclass
+class OtherMeasurementTest:
+    """
+    Other measurement test.
+
+    :ivar fluid_characterization_table:
+    :ivar fluid_characterization_table_format_set:
+    :ivar remark: Remarks and comments about this data item.
+    :ivar test_number: An integer number to identify this test in a
+        sequence of tests.
+    :ivar other_measurement_test_step:
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    fluid_characterization_table: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "FluidCharacterizationTable",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    fluid_characterization_table_format_set: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "FluidCharacterizationTableFormatSet",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    test_number: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "TestNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    other_measurement_test_step: List[OtherMeasurementTestStep] = field(
+        default_factory=list,
+        metadata={
+            "name": "OtherMeasurementTestStep",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class OverallComposition:
+    """
+    Overall composition.
+
+    :ivar remark: Remarks and comments about this data item.
+    :ivar fluid_component:
+    """
+
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    fluid_component: List[FluidComponent] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidComponent",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class PlusFluidComponent(AbstractFluidComponent):
+    """
+    Plus fluid component.
+
+    :ivar avg_density: The average density of the fluid.
+    :ivar avg_molecular_weight: The average molecular weight of the
+        fluid.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar specific_gravity: The fluid specific gravity.
+    :ivar starting_boiling_point: The starting boiling temperature
+        measure.
+    :ivar starting_carbon_number: The start/min carbon number.
+    :ivar kind: The kind from plus fluid component. See
+        PlusComponentEnum.
+    """
+
+    avg_density: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AvgDensity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    avg_molecular_weight: List[MolecularWeightMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AvgMolecularWeight",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    specific_gravity: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "SpecificGravity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    starting_boiling_point: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "StartingBoilingPoint",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    starting_carbon_number: List[int] = field(
+        default_factory=list,
+        metadata={
+            "name": "StartingCarbonNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
+        },
+    )
+    kind: Optional[Union[PlusComponentEnum, str]] = field(
+        default=None,
+        metadata={
+            "name": "Kind",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ProductFlowExpectedUnitProperty:
+    """
+    Defines expected properties of a facility represented by a unit.
+
+    :ivar child_facility_identifier: The PRODML Relative Identifier (or
+        URI) of a child of the parent facility. The identifier path is
+        presumed to begin with the identity of the parent facility. This
+        identifies a sub-facility which is identified within the context
+        of the parent facilityParent2/facilityParent1/name
+        identification hierarchy. The property is only expected to be
+        defined for this child and not for the parent. For more
+        information about URIs, see the Energistics Identifier
+        Specification, which is available in the zip file when download
+        PRODML.
+    :ivar comment: A descriptive remark associated with this property.
+    :ivar deadband: Difference between two consecutive readings, which
+        must exceed deadband value to be accepted.
+    :ivar maximum_frequency: The maximum time difference from the last
+        sent event before the next event is sent.
+    :ivar property: The expected kind of facility property. Each
+        property is documented to have values of a particular type.
+    :ivar tag_alias: An alternative name for the sensor that  measures
+        the property.
+    :ivar expected_flow_qualifier:
+    :ivar expected_flow_product: Defines the expected flow and product
+        pairs to be assigned to this port by a Product Volume report. A
+        set of expected qualifiers can be defined for each pair. The
+        aggregate of expectations on all properties should be a subset
+        of the aggregate of expectations on the port. If no expectations
+        are defined on the port then the port aggregate will be defined
+        by the properties.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    child_facility_identifier: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "ChildFacilityIdentifier",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    comment: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comment",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    deadband: Optional[GeneralMeasureType] = field(
+        default=None,
+        metadata={
+            "name": "Deadband",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    maximum_frequency: List[TimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MaximumFrequency",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    property: Optional[FacilityParameter] = field(
+        default=None,
+        metadata={
+            "name": "Property",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    tag_alias: List[NameStruct] = field(
+        default_factory=list,
+        metadata={
+            "name": "TagAlias",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    expected_flow_qualifier: Optional[ExpectedFlowQualifier] = field(
+        default=None,
+        metadata={
+            "name": "ExpectedFlowQualifier",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    expected_flow_product: List[ProductFlowQualifierExpected] = field(
+        default_factory=list,
+        metadata={
+            "name": "ExpectedFlowProduct",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ProductFlowExternalReference:
+    """
+    A reference to an external port in a different product flow model.This value
+    represents a foreign key from one element to another.
+
+    :ivar connected_model_reference: Reference to the connected model.
+    :ivar connected_port_reference: Reference to the connected port.
+    :ivar port_reference: Reference to a type of port.
+    :ivar connected_installation:
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top level object.
+    """
+
+    connected_model_reference: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "ConnectedModelReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    connected_port_reference: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "ConnectedPortReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    port_reference: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "PortReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    connected_installation: Optional[FacilityIdentifierStruct] = field(
+        default=None,
+        metadata={
+            "name": "ConnectedInstallation",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ProductVolumeBusinessUnit:
+    """
+    Product volume schema for defining business units.
+
+    :ivar description: A textual description of the business unit.
+    :ivar kind: The type of business unit.
+    :ivar name: The human contextual name of the business unit.
+    :ivar sub_unit: A component part of the unit. The composition of a
+        unit may vary with time. This defines the ownership share or
+        account information for a sub unit within the context of the
+        whole unit. For ownership shares, at any one point in time the
+        sum of the shares should be 100%.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    description: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Description",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    kind: Optional[BusinessUnitKind] = field(
+        default=None,
+        metadata={
+            "name": "Kind",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    name: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Name",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    sub_unit: List[ProductVolumeBusinessSubUnit] = field(
+        default_factory=list,
+        metadata={
+            "name": "SubUnit",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ProductVolumeParameterSet:
+    """
+    Product Volume Facility Parameter Set Schema.
+
+    :ivar child_facility_identifier: The PRODML Relative Identifier (or
+        URI) of a child of the parent facility. The identifier path is
+        presumed to begin with the identity of the parent facility. This
+        identifies a sub-facility which is identified within the context
+        of the parent facilityParent2/facilityParent1/name
+        identification hierarchy. The property is only expected to be
+        defined for this child and not for the parent. For more
+        information about URIs, see the Energistics Identifier
+        Specification, which is available in the zip file when download
+        PRODML.
+    :ivar comment: A comment about the parameter.
+    :ivar coordinate_reference_system: The pointer to the coordinate
+        reference system (CRS). This is needed for coordinates such as
+        measured depth to specify the reference datum.
+    :ivar measure_class: If the value is a measure (value with unit of
+        measure), this defines the measurement class of the value. The
+        units of measure for the value must conform to the list allowed
+        by the measurement class in the unit dictionary file. Mutually
+        exclusive with curveDefinition.
+    :ivar name: The name of the facility parameter. This should reflect
+        the business semantics of all values in the set and not the
+        underlying kind. For example, specify "diameter" rather than
+        "length" or "distance".
+    :ivar period_kind: The type of period that is being reported.
+    :ivar port: The port to which this parameter is assigned. This must
+        be a port on the unit representing the parent facility of this
+        parameter. If not specified then the parameter represents the
+        unit.
+    :ivar product: The type of product that is being reported. This
+        would be useful for something like specifying a tank product
+        volume or level.
+    :ivar qualifier: Qualifies the type of parameter that is being
+        reported.
+    :ivar sub_qualifier: Defines a specialization of the qualifier
+        value. This should only be given if a qualifier is given.
+    :ivar version: A timestamp representing the version of this data. A
+        parameter set with a more recent timestamp will represent the
+        "current" version.
+    :ivar version_source: Identifies the source of the version. This
+        will commonly be the name of the software which created the
+        version.
+    :ivar curve_definition: If the value is a curve, this defines the
+        meaning of the one column in the table representing the curve.
+        Mutually exclusive with measureClass.
+    :ivar parameter: A parameter value, possibly at a time. If a time is
+        not given then only one parameter should be given. If a time is
+        specified with one value then time should be specified for all
+        values. Each value in a time series should be of the same
+        underling kind of value (for example, a length measure).
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    child_facility_identifier: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "ChildFacilityIdentifier",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    comment: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comment",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    coordinate_reference_system: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "CoordinateReferenceSystem",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    measure_class: List[MeasureType] = field(
+        default_factory=list,
+        metadata={
+            "name": "MeasureClass",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    name: Optional[FacilityParameter] = field(
+        default=None,
+        metadata={
+            "name": "Name",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    period_kind: Optional[ReportingDurationKind] = field(
+        default=None,
+        metadata={
+            "name": "PeriodKind",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    port: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Port",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    product: Optional[ReportingProduct] = field(
+        default=None,
+        metadata={
+            "name": "Product",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    qualifier: Optional[FlowQualifier] = field(
+        default=None,
+        metadata={
+            "name": "Qualifier",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    sub_qualifier: Optional[FlowSubQualifier] = field(
+        default=None,
+        metadata={
+            "name": "SubQualifier",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    version: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "Version",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    version_source: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "VersionSource",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    curve_definition: List[CurveDefinition] = field(
+        default_factory=list,
+        metadata={
+            "name": "CurveDefinition",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    parameter: List[ProductVolumeParameterValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "Parameter",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_occurs": 1,
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class Production:
+    """
+    Product volume that is produce from a reporting entity.
+
+    :ivar remark: Remarks and comments about this data item.
+    :ivar production_quantity:
+    :ivar quantity_method: The method in which the quantity/volume was
+        determined. See enum QuantityMethod.
+    """
+
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    production_quantity: List[AbstractProductQuantity] = field(
+        default_factory=list,
+        metadata={
+            "name": "ProductionQuantity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    quantity_method: Optional[Union[QuantityMethod, str]] = field(
+        default=None,
+        metadata={
+            "name": "QuantityMethod",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ProductionOperationSafety:
+    """
+    Safety Information Schema.
+
+    :ivar comment: Safety related comment.
+    :ivar meantime_incident: The mean time between safety incidents.
+    :ivar safety_count:
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    comment: List[DatedComment] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comment",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    meantime_incident: List[TimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MeantimeIncident",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    safety_count: List[SafetyCount] = field(
+        default_factory=list,
+        metadata={
+            "name": "SafetyCount",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ProductionOperationShutdown:
+    """
+    Information about a shutdown event.
+
+    :ivar activity: A description of main activities from time to time
+        during the shutdown period.
+    :ivar description: A general description of the shutdown with reason
+        and other relevant information.
+    :ivar dtim_end: The time the shutdown ended.
+    :ivar dtim_start: The time the shutdown started.
+    :ivar installation: The name of the installation which was shut
+        down. The name can be qualified by a naming system. This also
+        defines the kind of facility.
+    :ivar loss_gas_std_temp_pres: Estimated loss of gas deliveries
+        because of the shutdown. This volume has been corrected to
+        standard conditions of temperature and pressure.
+    :ivar loss_oil_std_temp_pres: Estimated loss of oil deliveries
+        because of the shutdown. This volume has been corrected to
+        standard conditions of temperature and pressure.
+    :ivar volumetric_down_time: Downtime when the installation is unable
+        to produce 100% of its capability.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    activity: List[DatedComment] = field(
+        default_factory=list,
+        metadata={
+            "name": "Activity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    description: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Description",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    dtim_end: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimEnd",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    dtim_start: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimStart",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    installation: Optional[FacilityIdentifierStruct] = field(
+        default=None,
+        metadata={
+            "name": "Installation",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    loss_gas_std_temp_pres: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "LossGasStdTempPres",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    loss_oil_std_temp_pres: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "LossOilStdTempPres",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    volumetric_down_time: List[TimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "VolumetricDownTime",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ProductionOperationThirdPartyProcessing:
+    """
+    Production losses due to third-party processing.
+
+    :ivar gas_std_temp_pres: The estimated amount of gas lost. This
+        volume has been corrected to standard conditions of temperature
+        and pressure
+    :ivar installation: The name of the installation which performed the
+        processing. The name can be qualified by a naming system. This
+        also defines the kind of facility.
+    :ivar oil_std_temp_pres: The estimated amount of oil lost. This
+        volume has been corrected to standard conditions of temperature
+        and pressure
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    gas_std_temp_pres: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasStdTempPres",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    installation: Optional[FacilityIdentifierStruct] = field(
+        default=None,
+        metadata={
+            "name": "Installation",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    oil_std_temp_pres: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "OilStdTempPres",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ProductionWellPeriod:
+    """
+    Period during which the well choke did not vary.
+
+    :ivar duration: The duration at the given choke setting.
+    :ivar remark: A descriptive remark relating to any significant
+        events during this period.
+    :ivar start_time: The start time at a given choke setting.
+    :ivar well_status: The status of the well.
+    :ivar product_rate:
+    :ivar well_flowing_condition:
+    """
+
+    duration: Optional[TimeMeasure] = field(
+        default=None,
+        metadata={
+            "name": "Duration",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    start_time: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "StartTime",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    well_status: List[WellStatus] = field(
+        default_factory=list,
+        metadata={
+            "name": "WellStatus",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    product_rate: List[ProductRate] = field(
+        default_factory=list,
+        metadata={
+            "name": "ProductRate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    well_flowing_condition: Optional[WellFlowingCondition] = field(
+        default=None,
+        metadata={
+            "name": "WellFlowingCondition",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class PseudoFluidComponent(AbstractFluidComponent):
+    """
+    Pseudo fluid component.
+
+    :ivar avg_boiling_point: The average boiling point measure.
+    :ivar avg_density: The average fluid density.
+    :ivar avg_molecular_weight: Average molecular weight.
+    :ivar ending_boiling_point: The ending boiling point measure.
+    :ivar ending_carbon_number: The ending / largest carbon number.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar specific_gravity: The fluid specific gravity.
+    :ivar starting_boiling_point: The starting boiling point measure.
+    :ivar starting_carbon_number: The starting / smalestl carbon number.
+    :ivar kind: The type from pseudo component enumeration.
+    """
+
+    avg_boiling_point: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AvgBoilingPoint",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    avg_density: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AvgDensity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    avg_molecular_weight: List[MolecularWeightMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AvgMolecularWeight",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    ending_boiling_point: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "EndingBoilingPoint",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    ending_carbon_number: List[int] = field(
+        default_factory=list,
+        metadata={
+            "name": "EndingCarbonNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    specific_gravity: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "SpecificGravity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    starting_boiling_point: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "StartingBoilingPoint",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    starting_carbon_number: List[int] = field(
+        default_factory=list,
+        metadata={
+            "name": "StartingCarbonNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_inclusive": 0,
+        },
+    )
+    kind: Optional[Union[PseudoComponentEnum, str]] = field(
+        default=None,
+        metadata={
+            "name": "Kind",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PureFluidComponent(AbstractFluidComponent):
+    """
+    Pure fluid component.
+
+    :ivar hydrocarbon_flag: Yes/no  flag indicates if hydrocarbon or
+        not.
+    :ivar molecular_weight: The molecular weight of the pure component.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar kind: The type of component.
+    """
+
+    hydrocarbon_flag: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "HydrocarbonFlag",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    molecular_weight: List[MolecularWeightMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MolecularWeight",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    kind: Optional[Union[PureComponentEnum, str]] = field(
+        default=None,
+        metadata={
+            "name": "Kind",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PvtModelParameterSet:
+    """
+    A collection of parameters.
+    """
+
+    coefficient: List[PvtModelParameter] = field(
+        default_factory=list,
+        metadata={
+            "name": "Coefficient",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_occurs": 1,
+        },
+    )
+
+
+@dataclass
+class ReportingHierarchy(AbstractObject):
+    """
+    The hierarchy structure that elements refer to in the asset registry.
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    reporting_node: List[ReportingHierarchyNode] = field(
+        default_factory=list,
+        metadata={
+            "name": "ReportingNode",
+            "type": "Element",
+            "min_occurs": 1,
+        },
+    )
+
+
+@dataclass
+class StoflashedLiquid:
+    """
+    Stock tank oil flashed liquid properties and composition.
+
+    :ivar asphaltene_content: The asphaltene content of the liquid phase
+        of the stock tank analysis.
+    :ivar astmflash_point: The ASTM flash point of the liquid phase of
+        the stock tank analysis.
+    :ivar cloud_point: The cloud point of the liquid phase of the stock
+        tank analysis.
+    :ivar elemental_sulfur: The elemental sulfur content of the liquid
+        phase of the stock tank analysis.
+    :ivar iron: The iron content of the liquid phase of the stock tank
+        analysis.
+    :ivar lead: The lead content of the liquid phase of the stock tank
+        analysis.
+    :ivar nickel: The nickel content of the liquid phase of the stock
+        tank analysis.
+    :ivar nitrogen: The nitrogen content of the liquid phase of the
+        stock tank analysis.
+    :ivar oil_apigravity: Oil API gravity.
+    :ivar paraffin_content: The paraffin content of the liquid phase of
+        the stock tank analysis.
+    :ivar pour_point: The pour point of the liquid phase of the stock
+        tank analysis.
+    :ivar reid_vapor_pressure: The reid vapor pressure of the liquid
+        phase of the stock tank analysis.
+    :ivar total_acid_number: The total acid number of the liquid phase
+        of the stock tank analysis.
+    :ivar total_sulfur: The total sulfur content of the liquid phase of
+        the stock tank analysis.
+    :ivar vanadium: The vanadium content of the liquid phase of the
+        stock tank analysis.
+    :ivar water_content: The water content of the liquid phase of the
+        stock tank analysis.
+    :ivar watson_kfactor: The Watson K factor of the liquid phase of the
+        stock tank analysis.
+    :ivar wax_appearance_temperature: The wax appearance temperature of
+        the liquid phase of the stock tank analysis.
+    :ivar sara:
+    :ivar viscosity_at_temperature: The viscosity at test temperature of
+        the liquid phase of the stock tank analysis.
+    """
+
+    class Meta:
+        name = "STOFlashedLiquid"
+
+    asphaltene_content: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AsphalteneContent",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    astmflash_point: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ASTMFlashPoint",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    cloud_point: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CloudPoint",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    elemental_sulfur: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ElementalSulfur",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    iron: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Iron",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    lead: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Lead",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    nickel: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Nickel",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    nitrogen: Optional[MassPerMassMeasure] = field(
+        default=None,
+        metadata={
+            "name": "Nitrogen",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    oil_apigravity: List[ApigravityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "OilAPIGravity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    paraffin_content: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ParaffinContent",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    pour_point: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "PourPoint",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    reid_vapor_pressure: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ReidVaporPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    total_acid_number: List[DimensionlessMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TotalAcidNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    total_sulfur: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TotalSulfur",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    vanadium: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Vanadium",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_content: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterContent",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    watson_kfactor: List[DimensionlessMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WatsonKFactor",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    wax_appearance_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaxAppearanceTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    sara: List[Sara] = field(
+        default_factory=list,
+        metadata={
+            "name": "Sara",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    viscosity_at_temperature: List[ViscosityAtTemperature] = field(
+        default_factory=list,
+        metadata={
+            "name": "ViscosityAtTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class SampleIntegrityAndPreparation:
+    """
+    Sample integrity And preparation information.
+
+    :ivar basic_sediment_and_water: The basic sediment and water of the
+        sample when prepared for analysis.
+    :ivar free_water_volume: The free water volume of the sample when
+        prepared for analysis.
+    :ivar initial_volume: The initial volume of the sample when prepared
+        for analysis.
+    :ivar opening_date: The date when this fluid sample was opened.
+    :ivar opening_pressure: The opening pressure of the sample when
+        prepared for analysis.
+    :ivar opening_remark: Remarks and comments about the opening of the
+        sample.
+    :ivar opening_temperature: The opening temperature of the sample
+        when prepared for analysis.
+    :ivar water_content_in_hydrocarbon: The water content in hydrocarbon
+        of the sample when prepared for analysis.
+    :ivar sample_restoration:
+    :ivar saturation_pressure: The saturation (or bubble point) pressure
+        measured in this test.
+    :ivar saturation_temperature: The saturation temperature of the
+        sample when prepared for analysis.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    basic_sediment_and_water: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "BasicSedimentAndWater",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    free_water_volume: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "FreeWaterVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    initial_volume: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "InitialVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    opening_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "OpeningDate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    opening_pressure: List[AbstractPressureValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "OpeningPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    opening_remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "OpeningRemark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    opening_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "OpeningTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_content_in_hydrocarbon: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterContentInHydrocarbon",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    sample_restoration: List[SampleRestoration] = field(
+        default_factory=list,
+        metadata={
+            "name": "SampleRestoration",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    saturation_pressure: Optional[SaturationPressure] = field(
+        default=None,
+        metadata={
+            "name": "SaturationPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    saturation_temperature: Optional[SaturationTemperature] = field(
+        default=None,
+        metadata={
+            "name": "SaturationTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class SaturationTest:
+    """
+    Saturation test.
+
+    :ivar remark: Remarks and comments about this data item.
+    :ivar test_number: A number for this test for purposes of, e.g.,
+        tracking lab sequence.
+    :ivar test_temperature: The temperature of this test.
+    :ivar saturation_pressure: The saturation (or bubble point) pressure
+        measured in this test.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    test_number: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "TestNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    test_temperature: Optional[ThermodynamicTemperatureMeasure] = field(
+        default=None,
+        metadata={
+            "name": "TestTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    saturation_pressure: Optional[SaturationPressure] = field(
+        default=None,
+        metadata={
+            "name": "SaturationPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ServiceFluid(AbstractProductQuantity):
+    """
+    Service fluid (e.g., biocides, lubricants, etc.) being reported on.
+
+    :ivar service_fluid_kind: Indicates the kind of service fluid. See
+        enum ServiceFluidKind (in ProdmlCommon).
+    :ivar service_fluid_reference: String ID that points to a service
+        fluid in the FluidComponentSet.
+    """
+
+    service_fluid_kind: Optional[Union[ServiceFluidKind, str]] = field(
+        default=None,
+        metadata={
+            "name": "ServiceFluidKind",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+    service_fluid_reference: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "serviceFluidReference",
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class StockTankOil(AbstractFluidComponent):
+    """
+    Stock tank oil (STO).
+
+    :ivar apigravity: API gravity.
+    :ivar gross_energy_content_per_unit_mass: The amount of heat
+        released during the combustion of a specified amount of STO. It
+        is also known as higher heating value (HHV), gross energy, upper
+        heating value, gross calorific value (GCV) or higher calorific
+        value (HCV). This value takes into account the latent heat of
+        vaporization of water in the combustion products, and is useful
+        in calculating heating values for fuels where condensation of
+        the reaction products is practical.
+    :ivar gross_energy_content_per_unit_volume: The amount of heat
+        released during the combustion of a specified amount of STO. It
+        is also known as higher heating value (HHV), gross energy, upper
+        heating value,  gross calorific value (GCV) or higher calorific
+        value (HCV). This value takes into account the latent heat of
+        vaporization of water in the combustion products, and is useful
+        in calculating heating values for fuels where condensation of
+        the reaction products is practical.
+    :ivar molecular_weight: Molecular weight.
+    :ivar net_energy_content_per_unit_mass: The amount of heat released
+        during the combustion of a specified amount of STO. It is also
+        known as lower heating value (LHV), net energy, lower heating
+        value, net calorific value  (NCV) or lower calorific value
+        (LCV). This value ignores the latent heat of vaporization of
+        water in the combustion products, and is useful in calculating
+        heating values for fuels where condensation of the reaction
+        products is not possible and is ignored.
+    :ivar net_energy_content_per_unit_volume: The amount of heat
+        released during the combustion of a specified amount of STO. It
+        is also known as lower heating value  (LHV), net energy, net
+        calorific value (NCV) or lower calorific value (LCV). This value
+        ignores the latent heat of vaporization of water in the
+        combustion products, and is useful in calculating heating values
+        for fuels where condensation of the reaction products is not
+        possible and is ignored.
+    :ivar remark: Remarks and comments about this data item.
+    """
+
+    apigravity: List[ApigravityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "APIGravity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gross_energy_content_per_unit_mass: List[EnergyPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GrossEnergyContentPerUnitMass",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gross_energy_content_per_unit_volume: List[EnergyPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GrossEnergyContentPerUnitVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    molecular_weight: List[MolecularWeightMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MolecularWeight",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    net_energy_content_per_unit_mass: List[EnergyPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "NetEnergyContentPerUnitMass",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    net_energy_content_per_unit_volume: List[EnergyPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "NetEnergyContentPerUnitVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+
+
+@dataclass
+class StringData(AbstractMeasureDataType):
+    """
+    String data.
+
+    :ivar string_value: The value of a dependent (data) variable in a
+        row of the curve table. The units of measure are specified in
+        the curve definition. The first value corresponds to order=1 for
+        columns where isIndex is false. The second to order=2. And so
+        on. The number of index and data values must match the number of
+        columns in the table.
+    """
+
+    string_value: Optional[KindQualifiedString] = field(
+        default=None,
+        metadata={
+            "name": "StringValue",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class SwellingTestStep:
+    """
+    Swelling test step.
+
+    :ivar constant_composition_expansion_test: A reference to a constant
+        composition expansion test associated with this swelling test.
+    :ivar density_at_saturation_point: The density at saturation point
+        for this swelling test step.
+    :ivar gor: The gas-oil ratio for this swelling test step.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar step_number: The step number is the index of a (P,T) step in
+        the overall test.
+    :ivar swelling_factor: The swelling factor for this swelling test
+        step.
+    :ivar transport_property_test_reference: A reference to a transport
+        property test associated with this swelling test.
+    :ivar incremental_gas_added: The incremental gas added for this
+        swelling test step.
+    :ivar cumulative_gas_added: The cumulative gas added for this
+        swelling test step.
+    :ivar swollen_volume: The swollen volume for this swelling test
+        step, relative to a reference volume.
+    :ivar saturation_pressure: The saturation (or bubble point) pressure
+        measured in this test.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    constant_composition_expansion_test: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "ConstantCompositionExpansionTest",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    density_at_saturation_point: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "DensityAtSaturationPoint",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Gor",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    step_number: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "StepNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    swelling_factor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "SwellingFactor",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    transport_property_test_reference: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "TransportPropertyTestReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    incremental_gas_added: List[RefInjectedGasAdded] = field(
+        default_factory=list,
+        metadata={
+            "name": "IncrementalGasAdded",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    cumulative_gas_added: List[RefInjectedGasAdded] = field(
+        default_factory=list,
+        metadata={
+            "name": "CumulativeGasAdded",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    swollen_volume: Optional[RelativeVolumeRatio] = field(
+        default=None,
+        metadata={
+            "name": "SwollenVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    saturation_pressure: Optional[SaturationPressure] = field(
+        default=None,
+        metadata={
+            "name": "SaturationPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class TimeSeriesData(AbstractObject):
+    """
+    Defines the time series data being transferred.
+
+    :ivar comment: A comment about the time series.
+    :ivar key: A keyword value pair which characterizes the underlying
+        nature of this value. The key value may provide part of the
+        unique identity of an instance of a concept or it may
+        characterize the underlying concept. The key value is defined
+        within the specified keyword-naming system. This is essentially
+        a classification of the data in the specified system (keyword).
+    :ivar measure_class: Defines the type of measure that the time
+        series represents. If this is specified then unit must be
+        specified. This may be redundant to some information in the
+        keys, but it is important for allowing an application to
+        understand the nature of a measure value, even if it does not
+        understand all of the underlying nature.
+    :ivar unit: If the time series is a measure, then this specifies the
+        unit of measure. The unit acronym must be chosen from the list
+        that is valid for the measure class. If this is specified,  then
+        the measure class must be specified.
+    :ivar data_value:
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    comment: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comment",
+            "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    key: List[KeywordValueStruct] = field(
+        default_factory=list,
+        metadata={
+            "name": "Key",
+            "type": "Element",
+        },
+    )
+    measure_class: List[MeasureType] = field(
+        default_factory=list,
+        metadata={
+            "name": "MeasureClass",
+            "type": "Element",
+        },
+    )
+    unit: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Unit",
+            "type": "Element",
+            "max_length": 32,
+        },
+    )
+    data_value: List[AbstractValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "DataValue",
+            "type": "Element",
+        },
+    )
+
+
+@dataclass
+class TimeSeriesThreshold:
+    """
+    Defines a value threshold window and the cumulative time duration that the data
+    was within that window.
+
+    :ivar duration: The sum of the time intervals over the range of
+        dTimMin to dTimMax during which the values were within the
+        specified threshold range.
+    :ivar threshold_minimum: The lower bound of the threshold for
+        testing whether values are within a specific range.The element
+        "unit" defines the unit of measure of this value. At least one
+        of minimumValue and maximumValue must be specified. The
+        thresholdMinimum must be less than thresholdMaximum. If
+        thresholdMinimum is not specified then the minimum shall be
+        assumed to be minus infinity.
+    :ivar threshold_maximum: The upper bound of the threshold for
+        testing whether values are within a specific range. Element
+        "unit" defines the unit of measure of this value. At least one
+        of minimumValue and maximumValue must be specified. The
+        thresholdMaximum must be greater than thresholdMinimum. If
+        thresholdMaximum is not specified then the maximum shall be
+        assumed to be plus infinity.
+    """
+
+    duration: Optional[TimeMeasure] = field(
+        default=None,
+        metadata={
+            "name": "Duration",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    threshold_minimum: Optional[EndpointQuantity] = field(
+        default=None,
+        metadata={
+            "name": "ThresholdMinimum",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    threshold_maximum: Optional[EndpointQuantity] = field(
+        default=None,
+        metadata={
+            "name": "ThresholdMaximum",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class VaporComposition:
+    """
+    Vapor composition.
+
+    :ivar remark: Remarks and comments about this data item.
+    :ivar vapor_component:
+    """
+
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    vapor_component: List[FluidComponent] = field(
+        default_factory=list,
+        metadata={
+            "name": "VaporComponent",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class WaterAnalysisTest:
+    """
+    Water analysis test.
+
+    :ivar liquid_gravity: The liquid gravity for the water analysis
+        test.
+    :ivar ph: The ph for the water analysis test.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar resistivity: The resistivity for the water analysis test.
+    :ivar salinity: The salinity for the water analysis test.
+    :ivar test_number: An integer number to identify this test in a
+        sequence of tests.
+    :ivar total_dissolved_solids: The total dissolved solids for the
+        water analysis test.
+    :ivar total_hardness: The total water hardness for the water
+        analysis test.
+    :ivar total_suspended_solids: The total suspended solids for the
+        water analysis test.
+    :ivar water_analysis_test_step: The name of the Fluid Analysis
+        Result.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    liquid_gravity: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "LiquidGravity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    ph: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "PH",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    resistivity: List[ElectricalResistivityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Resistivity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    salinity: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Salinity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    test_number: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "TestNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    total_dissolved_solids: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TotalDissolvedSolids",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    total_hardness: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TotalHardness",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    total_suspended_solids: List[MassPerMassMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TotalSuspendedSolids",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_analysis_test_step: List[WaterAnalysisTestStep] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterAnalysisTestStep",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class WellDatum:
+    """
+    Defines the vertical datums associated with elevation, vertical depth and
+    measured depth coordinates within the context of a well.
+
+    :ivar code: The code value that represents the type of reference
+        datum. This may represent a point on a device (e.g., kelly
+        bushing) or it may represent a vertical reference datum (e.g.,
+        mean sea level).
+    :ivar elevation:
+    :ivar kind: Since various activities may use different points as
+        measurement datums, it is useful to characterize the point based
+        on its usage. A well reference datum may have more than one such
+        characterization. For example, it may be the datum used by the
+        driller and logger for measuring their depths. Example usage
+        values would be 'permanent','driller', 'logger' 'WRP' (well
+        reference point) and 'SRP' (site reference point).
+    :ivar measured_depth: The measured depth coordinate of this
+        reference datum as measured from another datum. The measured
+        depth datum should either be the same as the elevation datum or
+        it should be relatable to the elevation datum through other
+        datums. Positive moving toward the bottomhole from the measured
+        depth datum. This should be given when a local reference is
+        "downhole", such as a kickoff point or ocean bottom template,
+        and the borehole may not be vertical. If a Depth is given then
+        an Elevation should also be given.
+    :ivar name: The human understandable contextual name of the
+        reference datum.
+    :ivar remark: A contextual description of the well reference datum.
+    :ivar wellbore:
+    :ivar abstract_datum:
+    :ivar horizontal_location:
+    :ivar default_elevation: True indicates that this is the default
+        reference datum for elevation coordinates. False or not given
+        indicates that this is not the default reference datum.
+        Elevation coordinates that do not specify a datum reference
+        should be assumed to be measured relative to the default
+        reference datum. Only one reference datum may be designated as
+        the default elevation datum for each well. Values are "true" (or
+        "1") and "false" ( or "0").
+    :ivar default_measured_depth: True indicates that this is the
+        default reference datum for measured depth coordinates. False or
+        not given indicates that this is not the default reference
+        datum. Measured depth coordinates that do not specify a datum
+        reference should be assumed to be measured relative to this
+        default reference datum. Only one reference datum may be
+        designated as the default measured depth datum for each well.
+        Values are "true" (or "1") and "false" ( or "0").
+    :ivar default_vertical_depth: True indicates that this is the
+        default reference datum for vertical depth coordinates. False or
+        not given indicates that this is not the default reference
+        datum. Vertical depth coordinates that do not specify a datum
+        reference should be assumed to be measured relative to the
+        default reference datum. Only one reference datum may be
+        designated as the default vertical depth datum for each well.
+        Values are "true" (or "1") and "false" ( or "0").
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    code: List[WellboreDatumReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "Code",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    elevation: Optional[WellElevationCoord] = field(
+        default=None,
+        metadata={
+            "name": "Elevation",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    kind: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Kind",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    measured_depth: Optional[MeasuredDepthCoord] = field(
+        default=None,
+        metadata={
+            "name": "MeasuredDepth",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    name: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Name",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    wellbore: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "Wellbore",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    abstract_datum: Optional[AbstractDatum] = field(
+        default=None,
+        metadata={
+            "name": "AbstractDatum",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    horizontal_location: Optional[Location] = field(
+        default=None,
+        metadata={
+            "name": "HorizontalLocation",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    default_elevation: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "DefaultElevation",
+            "type": "Attribute",
+            "required": True,
+        },
+    )
+    default_measured_depth: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "DefaultMeasuredDepth",
+            "type": "Attribute",
+            "required": True,
+        },
+    )
+    default_vertical_depth: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "DefaultVerticalDepth",
+            "type": "Attribute",
+            "required": True,
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class WellTest(AbstractObject):
+    """
+    Data about the well test.
+
+    :ivar dtim_current: The definition of the "current time" index for
+        this object. The current time index is a server query parameter
+        which requests the selection of a single node from a recurring
+        set (e.g., the data related to one point in a time series). That
+        is, the "most recent" (at or before the specified time) wellTest
+        for a well.
+    :ivar dtim_max: The maximum time index contained within the object.
+        The minimum and maximum indexes are server query parameters and
+        will be populated with valid values in a "get" result.
+    :ivar dtim_min: The minimum time index contained within the object.
+        The minimum and maximum indexes are server query parameters and
+        will be populated with valid values in a "get" result. That is,
+        all wellTest for a well in the specified period defined by the
+        min/max.
+    :ivar last_valid_test: The date-time of the last valid well test.
+    :ivar previous_test_date: The date-time of the previous well test.
+    :ivar product_flow_model_reference: The Product Flow Model that
+        represents the above product flow unit.
+    :ivar product_flow_port_reference: A port on a product flow unit
+        that is represented by this test.
+    :ivar product_flow_unit_reference: The product flow unit represented
+        by the port. This is defined in the Product Flow Model.
+    :ivar standard_temp_pres: Defines the standard temperature and
+        pressure to which all standard volumes in this report have been
+        corrected. This applies to all elements whose name is suffixed
+        by StdTempPres.
+    :ivar test_date: The date-time of the well test.
+    :ivar test_type: The type of well production test.
+    :ivar well_reference:
+    :ivar well_test_data:
+    :ivar test_reason: The reason for the well test: initial, periodic,
+        revision. See enum TestReason.
+    :ivar validation_state: The overall state of the test with respect
+        to validation operations.
+    :ivar validation_operation:
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    dtim_current: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimCurrent",
+            "type": "Element",
+        },
+    )
+    dtim_max: Optional[EndpointQualifiedDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimMax",
+            "type": "Element",
+        },
+    )
+    dtim_min: Optional[EndpointQualifiedDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimMin",
+            "type": "Element",
+        },
+    )
+    last_valid_test: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "LastValidTest",
+            "type": "Element",
+        },
+    )
+    previous_test_date: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "PreviousTestDate",
+            "type": "Element",
+        },
+    )
+    product_flow_model_reference: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "ProductFlowModelReference",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    product_flow_port_reference: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "ProductFlowPortReference",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    product_flow_unit_reference: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "ProductFlowUnitReference",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    standard_temp_pres: List[TemperaturePressure] = field(
+        default_factory=list,
+        metadata={
+            "name": "StandardTempPres",
+            "type": "Element",
+        },
+    )
+    test_date: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "TestDate",
+            "type": "Element",
+        },
+    )
+    test_type: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "TestType",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    well_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "WellReference",
+            "type": "Element",
+        },
+    )
+    well_test_data: Optional[AbstractWellTest] = field(
+        default=None,
+        metadata={
+            "name": "WellTestData",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    test_reason: Optional[TestReason] = field(
+        default=None,
+        metadata={
+            "name": "TestReason",
+            "type": "Element",
+        },
+    )
+    validation_state: Optional[ValidationState] = field(
+        default=None,
+        metadata={
+            "name": "ValidationState",
+            "type": "Element",
+        },
+    )
+    validation_operation: List[WellTestValidationOperation] = field(
+        default_factory=list,
+        metadata={
+            "name": "ValidationOperation",
+            "type": "Element",
+        },
+    )
+
+
+@dataclass
+class WellTestBottomholeData:
+    """
+    Well test data gathered at the bottomhole.
+
+    :ivar bottomhole_md: The measured depth of the bottomhole.
+    :ivar bottomhole_pover_z: The P/Z value at the bottomhole. This is
+        P/Z, pressure over gas compressibility factor (z), at the
+        bottomhole of the well. Note that the UOM is units of pressure,
+        because Z is dimensionless.
+    :ivar bottomhole_pres: The pressure at the bottomhole of the well.
+    :ivar bottomhole_temp: The temperature at the bottomhole of the
+        well.
+    :ivar wellbore_reference: Defines the wellbore (sidetract)
+        represented by the measured depth. This must be given when the
+        well has multiple wellbores and the measured depth value is
+        deeper than the first kickoff point. It is recommended that it
+        always be given.
+    """
+
+    bottomhole_md: Optional[MeasuredDepthCoord] = field(
+        default=None,
+        metadata={
+            "name": "BottomholeMD",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    bottomhole_pover_z: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "BottomholePOverZ",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    bottomhole_pres: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "BottomholePres",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    bottomhole_temp: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "BottomholeTemp",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    wellbore_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "WellboreReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class WellTestInterval:
+    """
+    Information about the interval in the wellbore where the well test was
+    conducted.
+
+    :ivar md_base: The measured depth to the bottom of the interval.
+    :ivar md_top: The measured depth to the top of the interval.
+    :ivar tested_formation: The formation that was tested.
+    :ivar valve_position: The relative opening of the downhole control
+        valve for the tested zone. This is for surface controllable
+        valves.
+    :ivar wellbore_reference: Defines the wellbore (sidetract)
+        represented by the measured depth. This must be given when the
+        well has multiple wellbores and the measured depth value is
+        deeper than the first kickoff point. It is recommended that it
+        always be given.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    md_base: Optional[MeasuredDepthCoord] = field(
+        default=None,
+        metadata={
+            "name": "MdBase",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    md_top: Optional[MeasuredDepthCoord] = field(
+        default=None,
+        metadata={
+            "name": "MdTop",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    tested_formation: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "TestedFormation",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    valve_position: List[LengthPerLengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ValvePosition",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    wellbore_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "WellboreReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class WellTestPointData:
+    """
+    Well test data gathered at a point in the wellbore.
+
+    :ivar bottomhole: A value of true (1 or "true") indicates that the
+        point is at the bottomhole. A value of false (0 or "false") or
+        not given indicates otherwise.
+    :ivar md: The measured depth of the point being tested.
+    :ivar pover_z: The P/Z value at the point. This is P/Z, pressure
+        over gas compressibility factor (z). Note that the UOM is units
+        of pressure., because Z is dimensionless.
+    :ivar pres: The pressure at the point.
+    :ivar static: A value of true (1 or "true") indicates a static (non-
+        flowing) pressure. A value of false (0 or "false") or not given
+        indicates otherwise. The pressure may be measured (e.g., shut-in
+        well) or calculated.
+    :ivar temp: The temperature at the point.
+    :ivar wellbore_reference: Defines the wellbore (sidetract)
+        represented by the measured depth. This must be given when the
+        well has multiple wellbores and the measured depth value is
+        deeper than the first kickoff point. It is recommended that it
+        always be given.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    bottomhole: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "Bottomhole",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    md: Optional[MeasuredDepthCoord] = field(
+        default=None,
+        metadata={
+            "name": "Md",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    pover_z: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "POverZ",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    pres: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Pres",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    static: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "Static",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    temp: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Temp",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    wellbore_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "WellboreReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class WellTestProductionTestResults:
+    """Oil, gas, and water volumes and rates measured during the well test.
+
+    The volumes allow either actual volumes or standard (corrected)
+    volumes. The densities are also recorded with the volumes.
+
+    :ivar allocated_split: True ("true" or "1") indicates that the split
+        factors are allocated as opposed to measured. False ("false" or
+        "0") or not given indicates otherwise.
+    :ivar basic_sediment_and_water: This is the measured of impurities
+        present in crude oil as it comes from the well. BSandW content
+        is commonly used as a measure for treating performance of
+        hydrocarbon liquids
+    :ivar condensate_split_factor: The split factor for condensate
+        relative to the overall volume of the test.
+    :ivar condensate_yield: This is the condensate yield, which
+        describes the amount of condensate per unit of natural gas
+        produced
+    :ivar density: The density of the fluid mixture.
+    :ivar fluid_velocity: The velocity of the overall fluid mixture.
+    :ivar gas_oil_ratio: The ratio of the volume of gas and the volume
+        of oil that was produced.
+    :ivar gas_potential: This is the potential of the well to produce
+        natural gas. This represents the flow rate that could be
+        achieved under maximum drawdown.
+    :ivar gas_split_factor: The split factor for gas relative to the
+        overall volume of the test.
+    :ivar oil_potential: This is the potential of the well to produce
+        crude oil. This represents the flow rate that could be achieved
+        under maximum drawdown.
+    :ivar oil_split_factor: The split factor for oil relative to the
+        overall volume of the test.
+    :ivar productivity_index: Productivity index (PI) is an expression
+        which defines the pressure drop in the reservoir to produce a
+        unit of oil per day. That is, the energy to produce a unit of
+        oil. The value was defined at ambient temperature and pressure.
+    :ivar productivity_index_std_temp_pres: Productivity index (PI) is
+        an expression which defines the pressure drop in the reservoir
+        to produce a unit of oil per day. That is, the energy to produce
+        a unit of oil. The value has been converted to the declared
+        conditions of standard temperature and pressure.
+    :ivar sand_volume: The volume of sand that was produced.
+    :ivar water_cut: The ratio of water produced compared to the volume
+        of total liquids produced.
+    :ivar water_split_factor: The split factor for water relative to the
+        overall volume of the test.
+    :ivar oil_rate: Oil rates measured during the well test.
+    :ivar water_rate: Water rates measured during the well test.
+    :ivar gas_rate: Gas rates measured during the well test.
+    :ivar condensate_rate: Condensate rates measured during the well
+        test.
+    :ivar water_volume: Water volumes measured during the well test.
+    :ivar condensate_volume: condensate volumes measured during the well
+        test.
+    :ivar oil_volume: Oil volumes measured during the well test.
+    :ivar gas_volume: Gas volumes measured during the well test.
+    """
+
+    allocated_split: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "AllocatedSplit",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    basic_sediment_and_water: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "BasicSedimentAndWater",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    condensate_split_factor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CondensateSplitFactor",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    condensate_yield: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CondensateYield",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    density: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Density",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    fluid_velocity: List[AngularVelocityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidVelocity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_oil_ratio: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasOilRatio",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_potential: List[VolumePerTimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasPotential",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_split_factor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasSplitFactor",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    oil_potential: List[VolumePerTimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "OilPotential",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    oil_split_factor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "OilSplitFactor",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    productivity_index: List[VolumePerTimePerPressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ProductivityIndex",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    productivity_index_std_temp_pres: List[
+        VolumePerTimePerPressureMeasure
+    ] = field(
+        default_factory=list,
+        metadata={
+            "name": "ProductivityIndexStdTempPres",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    sand_volume: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "SandVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_cut: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterCut",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_split_factor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterSplitFactor",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    oil_rate: Optional[WellTestFluidRate] = field(
+        default=None,
+        metadata={
+            "name": "OilRate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_rate: Optional[WellTestFluidRate] = field(
+        default=None,
+        metadata={
+            "name": "WaterRate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_rate: Optional[WellTestFluidRate] = field(
+        default=None,
+        metadata={
+            "name": "GasRate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    condensate_rate: Optional[WellTestFluidRate] = field(
+        default=None,
+        metadata={
+            "name": "CondensateRate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_volume: Optional[WellTestTestVolume] = field(
+        default=None,
+        metadata={
+            "name": "WaterVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    condensate_volume: Optional[WellTestTestVolume] = field(
+        default=None,
+        metadata={
+            "name": "CondensateVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    oil_volume: Optional[WellTestTestVolume] = field(
+        default=None,
+        metadata={
+            "name": "OilVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_volume: Optional[WellTestTestVolume] = field(
+        default=None,
+        metadata={
+            "name": "GasVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class WellTestWellheadData:
+    """
+    Basic measurements at the wellhead, during the well test.
+
+    :ivar choke_orifice_size: The size of the choke opening at the
+        wellhead.
+    :ivar flowing_pressure: The flowing pressure measured at the
+        wellhead during the well test.
+    :ivar flow_line_pressure: The pressure measured at the flow line
+        connected to the wellhead during this well test.
+    :ivar gas_liftchoke_orifice_size: The size of the gas lift choke
+        opening.
+    :ivar gas_lift_pres: The pressure of the lift gas at the wellhead.
+    :ivar gas_lift_temp: The temperature of the lift gas at the
+        wellhead.
+    :ivar shut_in_pressure: The shut-in pressure measured at the
+        wellhead during the well test.
+    :ivar temperature: The temperature measured at the wellhead during
+        the well test.
+    :ivar gas_lift_rate: Lift gas rates injected during the well test at
+        the wellhead.
+    :ivar gas_lift_volume: Lift gas volumes injected during the well
+        test at the wellhead.
+    """
+
+    choke_orifice_size: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ChokeOrificeSize",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    flowing_pressure: List[AbstractPressureValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "FlowingPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    flow_line_pressure: List[AbstractPressureValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "FlowLinePressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_liftchoke_orifice_size: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasLiftchokeOrificeSize",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_lift_pres: List[AbstractPressureValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasLiftPres",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_lift_temp: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasLiftTemp",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    shut_in_pressure: List[AbstractPressureValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "ShutInPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Temperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_lift_rate: Optional[WellTestFluidRate] = field(
+        default=None,
+        metadata={
+            "name": "GasLiftRate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_lift_volume: Optional[WellTestTestVolume] = field(
+        default=None,
+        metadata={
+            "name": "GasLiftVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class WftTestData:
+    """
+    A reference to a set of formation tester data that was recorded.
+
+    :ivar curve_section: A reference to a specific interval of a
+        specific curve in a specific log.
+    :ivar parameter: Test parameters used here are either control
+        parameters used to govern the test or are single value
+        parameters measured by the test (and not by subsequent
+        analysis).
+    :ivar role: The role of the test data. The role applies either to a
+        curve or to a point parameter. See enum WftTestRoleData.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    curve_section: List[WftCurveSection] = field(
+        default_factory=list,
+        metadata={
+            "name": "CurveSection",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    parameter: List[WftInOutParameter] = field(
+        default_factory=list,
+        metadata={
+            "name": "Parameter",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    role: Optional[WftTestDataRole] = field(
+        default=None,
+        metadata={
+            "name": "Role",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class AbstractDtsEquipment:
+    """
+    The abstract class of equipment in the optical path from which all components
+    in the optical path inherit.
+
+    :ivar comment: A descriptive remark about the equipment (e.g.,
+        optical fiber).
+    :ivar manufacturer: The manufacturer for this item of equipment.
+    :ivar manufacturing_date: Date when the equipment (e.g., instrument
+        box) was manufactured.
+    :ivar name: The DTS instrument equipment name.
+    :ivar software_version: Latest known version of the
+        software/firmware that is running in the equipment
+    :ivar supplier: Contact details for the company/person supplying the
+        equipment.
+    :ivar supplier_model_number: The model number (alphanumeric) that is
+        used by the supplier to reference the type of fiber that is
+        supplied to the user.
+    :ivar supply_date: The date on which this fiber segment was
+        supplied.
+    :ivar type_value: The type of equipment. This might include the
+        model type.
+    """
+
+    comment: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comment",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    manufacturer: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Manufacturer",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    manufacturing_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "ManufacturingDate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    name: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Name",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    software_version: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "SoftwareVersion",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    supplier: Optional[BusinessAssociate] = field(
+        default=None,
+        metadata={
+            "name": "Supplier",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    supplier_model_number: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "SupplierModelNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    supply_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "SupplyDate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    type_value: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Type",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class AbstractPvtModel:
+    """
+    Abstract class of  PVT model.
+    """
+
+    custom_pvt_model_extension: Optional[CustomPvtModelExtension] = field(
+        default=None,
+        metadata={
+            "name": "CustomPvtModelExtension",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    pvt_model_parameter_set: Optional[PvtModelParameterSet] = field(
+        default=None,
+        metadata={
+            "name": "PvtModelParameterSet",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class ConstantCompositionExpansionTestStep:
+    """
+    The CCE test steps.
+
+    :ivar gas_compressibility: The gas compressibility at this test
+        step.
+    :ivar gas_density: The gas density at the conditions for this
+        viscosity correlation to be used.
+    :ivar gas_viscosity: The viscosity of the gas phase at this test
+        step.
+    :ivar gas_zfactor: The gas Z factor value at this test step.
+    :ivar liquid_composition: The liquid composition at this test step.
+    :ivar oil_density: The density of the oil phase at this test step.
+    :ivar oil_viscosity: The viscosity of the oil phase at this test
+        step.
+    :ivar overall_composition: The overall composition at this test
+        step.
+    :ivar phases_present: The phases present at this test step (oil,
+        water, gas etc.). Enum, see phases present.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar step_number: The step number is the index of a (P,T) step in
+        the overall test.
+    :ivar step_pressure: The pressure for this test step.
+    :ivar total_volume: The total volume of the expanded mixture at this
+        test step.
+    :ivar vapor_composition: The vapor composition at this test step.
+    :ivar yfunction: The Y function at this test step. See  Standing,
+        M.B.: Volumetric And Phase Behavior Of Oil Field Hydrocarbon
+        Systems, Eighth Edition, SPE Richardson, Texas (1977).
+    :ivar fluid_condition: The fluid condition at this test step. Enum,
+        see fluid analysis step condition.
+    :ivar oil_compressibility: The oil compressibility at this test
+        step.
+    :ivar liquid_fraction: The fraction of liquid by volume for this
+        test step.
+    :ivar relative_volume_ratio: Measured relative volume ratio =
+        measured volume/volume at Psat.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    gas_compressibility: List[ReciprocalPressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasCompressibility",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_density: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasDensity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_viscosity: List[DynamicViscosityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasViscosity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_zfactor: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "GasZFactor",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    liquid_composition: Optional[LiquidComposition] = field(
+        default=None,
+        metadata={
+            "name": "LiquidComposition",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    oil_density: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "OilDensity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    oil_viscosity: List[DynamicViscosityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "OilViscosity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    overall_composition: Optional[OverallComposition] = field(
+        default=None,
+        metadata={
+            "name": "OverallComposition",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    phases_present: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "PhasesPresent",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    step_number: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "StepNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    step_pressure: Optional[PressureMeasure] = field(
+        default=None,
+        metadata={
+            "name": "StepPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    total_volume: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TotalVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    vapor_composition: Optional[VaporComposition] = field(
+        default=None,
+        metadata={
+            "name": "VaporComposition",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    yfunction: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "YFunction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    fluid_condition: Optional[FluidAnalysisStepCondition] = field(
+        default=None,
+        metadata={
+            "name": "FluidCondition",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    oil_compressibility: Optional[OilCompressibility] = field(
+        default=None,
+        metadata={
+            "name": "OilCompressibility",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    liquid_fraction: Optional[RelativeVolumeRatio] = field(
+        default=None,
+        metadata={
+            "name": "LiquidFraction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    relative_volume_ratio: Optional[RelativeVolumeRatio] = field(
+        default=None,
+        metadata={
+            "name": "RelativeVolumeRatio",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class DasProcessed:
+    """This object contains data objects for processed data types and has no data
+    attributes.
+
+    Currently only two processed data types have been defined: the frequency band extracted (FBE) and spectra. In the future other processed data types may be added.
+    Note that a DasProcessed object is optional and only present if DAS FBE or DAS spectra data is exchanged.
+    """
+
+    fbe: List[DasFbe] = field(
+        default_factory=list,
+        metadata={
+            "name": "Fbe",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    spectra: List[DasSpectra] = field(
+        default_factory=list,
+        metadata={
+            "name": "Spectra",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class DeferredProductionEvent:
+    """
+    Information about the event or incident that caused production to be deferred.
+
+    :ivar duration: The duration of the event.
+    :ivar end_date: The end date of the event.
+    :ivar start_date: The start date of the event.
+    :ivar deferred_production:
+    :ivar downtime_reason_code: The reason code for the downtime event.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    duration: Optional[TimeMeasure] = field(
+        default=None,
+        metadata={
+            "name": "Duration",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    end_date: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "EndDate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    start_date: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "StartDate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    deferred_production: List[DeferredProduction] = field(
+        default_factory=list,
+        metadata={
+            "name": "DeferredProduction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    downtime_reason_code: Optional[DowntimeReasonCode] = field(
+        default=None,
+        metadata={
+            "name": "DowntimeReasonCode",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class FacilityIdentifier:
+    """
+    Contains details about the facility being surveyed, such as name, geographical
+    data, etc.
+
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    :ivar content:
+    """
+
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    content: List[object] = field(
+        default_factory=list,
+        metadata={
+            "type": "Wildcard",
+            "namespace": "##any",
+            "mixed": True,
+            "choices": (
+                {
+                    "name": "BusinessUnit",
+                    "type": str,
+                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+                },
+                {
+                    "name": "Kind",
+                    "type": str,
+                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+                    "max_length": 64,
+                },
+                {
+                    "name": "Operator",
+                    "type": BusinessAssociate,
+                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+                },
+                {
+                    "name": "Installation",
+                    "type": FacilityIdentifierStruct,
+                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+                },
+                {
+                    "name": "ContextFacility",
+                    "type": FacilityIdentifierStruct,
+                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+                },
+                {
+                    "name": "GeographicContext",
+                    "type": GeographicContext,
+                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+                },
+                {
+                    "name": "Name",
+                    "type": NameStruct,
+                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+                },
+            ),
+        },
+    )
+
+
+@dataclass
+class FiberOpticalPathNetwork:
+    """The sequence of connected items of equipment along the optical path.
+
+    Represented by a flow network.
+
+    :ivar comment: Comment.
+    :ivar context_facility: Context facility.
+    :ivar dtime_end: DTimeEnd.
+    :ivar dtim_max: DTimMax.
+    :ivar dtim_min: DTimMin.
+    :ivar dtim_start: DTimStart.
+    :ivar existence_time: ExistenceTime.
+    :ivar external_connect:
+    :ivar installation: Installation.
+    :ivar network:
+    :ivar uid: Unique identifier of this object.
+    """
+
+    comment: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comment",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    context_facility: List[FacilityIdentifierStruct] = field(
+        default_factory=list,
+        metadata={
+            "name": "ContextFacility",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_occurs": 1,
+        },
+    )
+    dtime_end: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimeEnd",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    dtim_max: Optional[EndpointQualifiedDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimMax",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    dtim_min: Optional[EndpointQualifiedDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimMin",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    dtim_start: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimStart",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    existence_time: Optional[EndpointQualifiedDateTime] = field(
+        default=None,
+        metadata={
+            "name": "ExistenceTime",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    external_connect: List[ProductFlowExternalReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "ExternalConnect",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    installation: Optional[FacilityIdentifierStruct] = field(
+        default=None,
+        metadata={
+            "name": "Installation",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    network: List[ProductFlowNetwork] = field(
+        default_factory=list,
+        metadata={
+            "name": "Network",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_occurs": 1,
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -14385,7 +17828,7 @@ class FlashedGas:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_heating_value: List[str] = field(
+    gas_heating_value: List[EnergyMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasHeatingValue",
@@ -14393,7 +17836,7 @@ class FlashedGas:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_molecular_weight: List[str] = field(
+    gas_molecular_weight: List[MolecularWeightMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasMolecularWeight",
@@ -14440,7 +17883,7 @@ class FlashedLiquid:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_apigravity: List[str] = field(
+    oil_apigravity: List[ApigravityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilAPIGravity",
@@ -14448,7 +17891,7 @@ class FlashedLiquid:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_molecular_weight: List[str] = field(
+    oil_molecular_weight: List[MolecularWeightMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilMolecularWeight",
@@ -14459,116 +17902,20 @@ class FlashedLiquid:
 
 
 @dataclass
-class FluidCharacterizationTable:
+class FluidCharacterizationTableFormatSet:
     """
-    Fluid characterization table.
-
-    :ivar remark: Remarks and comments about this data item.
-    :ivar table_constant: A constant associated with this fluid
-        characterization table.
-    :ivar table_row:
-    :ivar name: The name of this table.
-    :ivar table_format: The uid reference of the table format for this
-        table.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
+    A set of table format definitions.
     """
 
-    remark: List[str] = field(
+    fluid_characterization_table_format: List[
+        FluidCharacterizationTableFormat
+    ] = field(
         default_factory=list,
         metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    table_constant: List[FluidCharacterizationTableConstant] = field(
-        default_factory=list,
-        metadata={
-            "name": "TableConstant",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    table_row: List[FluidCharacterizationTableRow] = field(
-        default_factory=list,
-        metadata={
-            "name": "TableRow",
+            "name": "FluidCharacterizationTableFormat",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "min_occurs": 1,
-        },
-    )
-    name: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-    table_format: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "tableFormat",
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class FluidCharacterizationTableFormat:
-    """
-    Fluid characterization table format.
-
-    :ivar null_value: The null value for this fluid characterization
-        table format.
-    :ivar table_column:
-    :ivar delimiter: The delimiter for this fluid characterization table
-        format.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    null_value: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "NullValue",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    table_column: List[FluidCharacterizationTableColumn] = field(
-        default_factory=list,
-        metadata={
-            "name": "TableColumn",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "min_occurs": 1,
-        },
-    )
-    delimiter: Optional[TableDelimiter] = field(
-        default=None,
-        metadata={
-            "name": "Delimiter",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
         },
     )
 
@@ -14674,7 +18021,9 @@ class FluidCvdTestStep:
         context of the parent top-level object.
     """
 
-    cumulative_fluid_produced_fraction: List[str] = field(
+    cumulative_fluid_produced_fraction: List[
+        AmountOfSubstancePerAmountOfSubstanceMeasure
+    ] = field(
         default_factory=list,
         metadata={
             "name": "CumulativeFluidProducedFraction",
@@ -14682,7 +18031,7 @@ class FluidCvdTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_formation_volume_factor: List[str] = field(
+    gas_formation_volume_factor: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasFormationVolumeFactor",
@@ -14698,7 +18047,7 @@ class FluidCvdTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_molecular_weight: List[str] = field(
+    gas_molecular_weight: List[MolecularWeightMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasMolecularWeight",
@@ -14706,7 +18055,7 @@ class FluidCvdTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_viscosity: List[str] = field(
+    gas_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasViscosity",
@@ -14730,7 +18079,7 @@ class FluidCvdTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_density: List[str] = field(
+    oil_density: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilDensity",
@@ -14738,7 +18087,7 @@ class FluidCvdTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_viscosity: List[str] = field(
+    oil_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilViscosity",
@@ -14776,18 +18125,20 @@ class FluidCvdTestStep:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    step_number: Optional[str] = field(
+    step_number: Optional[int] = field(
         default=None,
         metadata={
             "name": "StepNumber",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
-    step_pressure: Optional[str] = field(
+    step_pressure: Optional[PressureMeasure] = field(
         default=None,
         metadata={
             "name": "StepPressure",
@@ -14825,6 +18176,7 @@ class FluidCvdTestStep:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -14880,7 +18232,7 @@ class FluidDifferentialLiberationTestStep:
         context of the parent top-level object.
     """
 
-    cumulative_stock_tank_gor: List[str] = field(
+    cumulative_stock_tank_gor: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "CumulativeStockTankGOR",
@@ -14888,7 +18240,7 @@ class FluidDifferentialLiberationTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_density: List[str] = field(
+    gas_density: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasDensity",
@@ -14896,7 +18248,7 @@ class FluidDifferentialLiberationTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_formation_volume_factor: List[str] = field(
+    gas_formation_volume_factor: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasFormationVolumeFactor",
@@ -14912,7 +18264,7 @@ class FluidDifferentialLiberationTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_molecular_weight: List[str] = field(
+    gas_molecular_weight: List[MolecularWeightMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasMolecularWeight",
@@ -14920,7 +18272,7 @@ class FluidDifferentialLiberationTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_viscosity: List[str] = field(
+    gas_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasViscosity",
@@ -14944,7 +18296,7 @@ class FluidDifferentialLiberationTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_density: List[str] = field(
+    oil_density: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilDensity",
@@ -14952,7 +18304,7 @@ class FluidDifferentialLiberationTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_formation_volume_factor: List[str] = field(
+    oil_formation_volume_factor: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilFormationVolumeFactor",
@@ -14960,7 +18312,9 @@ class FluidDifferentialLiberationTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_formation_volume_factor_corrected: List[str] = field(
+    oil_formation_volume_factor_corrected: List[
+        VolumePerVolumeMeasure
+    ] = field(
         default_factory=list,
         metadata={
             "name": "OilFormationVolumeFactorCorrected",
@@ -14968,7 +18322,7 @@ class FluidDifferentialLiberationTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_viscosity: List[str] = field(
+    oil_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilViscosity",
@@ -14998,9 +18352,10 @@ class FluidDifferentialLiberationTestStep:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    residual_apigravity: List[str] = field(
+    residual_apigravity: List[ApigravityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "ResidualAPIGravity",
@@ -15008,7 +18363,7 @@ class FluidDifferentialLiberationTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    solution_gorcorrect: List[str] = field(
+    solution_gorcorrect: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "SolutionGORCorrect",
@@ -15016,7 +18371,7 @@ class FluidDifferentialLiberationTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    solution_gormeasured: List[str] = field(
+    solution_gormeasured: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "SolutionGORMeasured",
@@ -15024,16 +18379,17 @@ class FluidDifferentialLiberationTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    step_number: Optional[str] = field(
+    step_number: Optional[int] = field(
         default=None,
         metadata={
             "name": "StepNumber",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
-    step_pressure: Optional[str] = field(
+    step_pressure: Optional[PressureMeasure] = field(
         default=None,
         metadata={
             "name": "StepPressure",
@@ -15042,7 +18398,7 @@ class FluidDifferentialLiberationTestStep:
             "required": True,
         },
     )
-    step_temperature: List[str] = field(
+    step_temperature: List[ThermodynamicTemperatureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "StepTemperature",
@@ -15050,7 +18406,7 @@ class FluidDifferentialLiberationTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    total_formation_volume_factor: List[str] = field(
+    total_formation_volume_factor: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "TotalFormationVolumeFactor",
@@ -15087,6 +18443,143 @@ class FluidDifferentialLiberationTestStep:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class FluidSampleAcquisition:
+    """Information common to any fluid sample taken.
+
+    Additional details can be captured in related data object depending
+    on the where the sample was taken, for example: downhole, separator,
+    wellhead, of the formation using a wireline formation tester (WFT).
+    If the tool used to capture samples has multiple containers, each
+    container has a separate instance of fluid sample acquisition.
+
+    :ivar acquisition_gor: The acquisition gas-oil ratio for this fluid
+        sample acquisition.
+    :ivar acquisition_pressure: The acquisition pressure when this
+        sample was taken.
+    :ivar acquisition_temperature: The acquisition temperature when this
+        sample was taken. .
+    :ivar acquisition_volume: The acquisition volume when this sample
+        was taken.
+    :ivar date: The date when the sample was taken.
+    :ivar fluid_sample_container_reference:
+    :ivar fluid_sample_reference:
+    :ivar formation_pressure: The formation pressure when this sample
+        was taken.
+    :ivar formation_temperature: The formation temperature when this
+        sample was taken.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar service_company: The service company who took the fluid
+        sample.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    acquisition_gor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AcquisitionGOR",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    acquisition_pressure: List[AbstractPressureValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "AcquisitionPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    acquisition_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AcquisitionTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    acquisition_volume: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AcquisitionVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    date: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "Date",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    fluid_sample_container_reference: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "FluidSampleContainerReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    fluid_sample_reference: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "FluidSampleReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    formation_pressure: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "FormationPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    formation_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "FormationTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 2000,
+        },
+    )
+    service_company: Optional[BusinessAssociate] = field(
+        default=None,
+        metadata={
+            "name": "ServiceCompany",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -15143,7 +18636,7 @@ class FluidSeparatorTestStep:
         context of the parent top-level object.
     """
 
-    bubble_point_pressure: List[str] = field(
+    bubble_point_pressure: List[PressureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "BubblePointPressure",
@@ -15151,7 +18644,7 @@ class FluidSeparatorTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_density: List[str] = field(
+    gas_density: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasDensity",
@@ -15167,7 +18660,7 @@ class FluidSeparatorTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_molecular_weight: List[str] = field(
+    gas_molecular_weight: List[MolecularWeightMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasMolecularWeight",
@@ -15175,7 +18668,7 @@ class FluidSeparatorTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_viscosity: List[str] = field(
+    gas_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasViscosity",
@@ -15183,7 +18676,7 @@ class FluidSeparatorTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    gas_volume: List[str] = field(
+    gas_volume: List[VolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasVolume",
@@ -15207,7 +18700,7 @@ class FluidSeparatorTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_density: List[str] = field(
+    oil_density: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilDensity",
@@ -15215,7 +18708,9 @@ class FluidSeparatorTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_formation_volume_factor_corrected: List[str] = field(
+    oil_formation_volume_factor_corrected: List[
+        VolumePerVolumeMeasure
+    ] = field(
         default_factory=list,
         metadata={
             "name": "OilFormationVolumeFactorCorrected",
@@ -15223,7 +18718,7 @@ class FluidSeparatorTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_formation_volume_factor_std: List[str] = field(
+    oil_formation_volume_factor_std: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilFormationVolumeFactorStd",
@@ -15231,7 +18726,7 @@ class FluidSeparatorTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_shrinkage_factor: List[str] = field(
+    oil_shrinkage_factor: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilShrinkageFactor",
@@ -15239,7 +18734,7 @@ class FluidSeparatorTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_specific_gravity: List[str] = field(
+    oil_specific_gravity: List[DimensionlessMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilSpecificGravity",
@@ -15247,7 +18742,7 @@ class FluidSeparatorTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_viscosity: List[str] = field(
+    oil_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilViscosity",
@@ -15277,9 +18772,10 @@ class FluidSeparatorTestStep:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    residual_apigravity: List[str] = field(
+    residual_apigravity: List[ApigravityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "ResidualAPIGravity",
@@ -15287,7 +18783,7 @@ class FluidSeparatorTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    stage_separator_gorcorrected: List[str] = field(
+    stage_separator_gorcorrected: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "StageSeparatorGORCorrected",
@@ -15295,7 +18791,7 @@ class FluidSeparatorTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    stage_separator_gorstd: List[str] = field(
+    stage_separator_gorstd: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "StageSeparatorGORStd",
@@ -15303,16 +18799,17 @@ class FluidSeparatorTestStep:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    step_number: Optional[str] = field(
+    step_number: Optional[int] = field(
         default=None,
         metadata={
             "name": "StepNumber",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
-    step_pressure: Optional[str] = field(
+    step_pressure: Optional[PressureMeasure] = field(
         default=None,
         metadata={
             "name": "StepPressure",
@@ -15321,7 +18818,7 @@ class FluidSeparatorTestStep:
             "required": True,
         },
     )
-    step_temperature: Optional[str] = field(
+    step_temperature: Optional[ThermodynamicTemperatureMeasure] = field(
         default=None,
         metadata={
             "name": "StepTemperature",
@@ -15359,71 +18856,125 @@ class FluidSeparatorTestStep:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class GeographicContext:
-    """
-    A geographic context of a report.
+class FluidSystem(AbstractObject):
+    """Used to designate each distinct subsurface accumulation of economically
+    significant fluids.
 
-    :ivar comment: A general comment that further explains the offshore
-        location.
-    :ivar country: The name of the country.
-    :ivar county: The name of county.
-    :ivar state: The state or province within the country.
-    :ivar field_value: The name of the field within whose context the
-        report exists.
-    :ivar offshore_location:
+    This data object primarily serves to identify the source of one or
+    more fluid samples and provides a connection to the geologic
+    environment that contains it. Characteristics of the fluid system
+    include the type of system (e.g., black oil, dry gas, etc.), the
+    fluid phases present, and its lifecycle status (e.g., undeveloped,
+    producing, etc.).
+
+    :ivar formation_water:
+    :ivar natural_gas:
+    :ivar remark: Remarks and comments about this data item.
+    :ivar reservoir_fluid_kind: The kind of reservoir fluid for this
+        fluid system. Enum. See reservoir fluid kind.
+    :ivar rock_fluid_unit_feature_reference: Reference to a
+        RockFluidUnitFeature (a RESQML data object).
+    :ivar saturation_pressure: The saturation (or bubble point) pressure
+        for the fluid system.
+    :ivar solution_gor: The solution gas-oil ratio for this fluid
+        system.
+    :ivar standard_conditions: The standard temperature and pressure
+        used for the representation of this fluid system.
+    :ivar stock_tank_oil:
+    :ivar phases_present: The phases present for this fluid system.
+        Enum. See phase present.
+    :ivar reservoir_life_cycle_state: The reservoir life cycle state for
+        this fluid system. Enum. See reservoir life cycle state.
     """
 
-    comment: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Comment",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    country: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Country",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    county: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "County",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    state: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "State",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    field_value: Optional[NameStruct] = field(
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    formation_water: Optional[FormationWater] = field(
         default=None,
         metadata={
-            "name": "Field",
+            "name": "FormationWater",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    offshore_location: Optional[OffshoreLocation] = field(
+    natural_gas: Optional[NaturalGas] = field(
         default=None,
         metadata={
-            "name": "OffshoreLocation",
+            "name": "NaturalGas",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    reservoir_fluid_kind: Optional[ReservoirFluidKind] = field(
+        default=None,
+        metadata={
+            "name": "ReservoirFluidKind",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    rock_fluid_unit_feature_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "RockFluidUnitFeatureReference",
+            "type": "Element",
+        },
+    )
+    saturation_pressure: Optional[SaturationPressure] = field(
+        default=None,
+        metadata={
+            "name": "SaturationPressure",
+            "type": "Element",
+        },
+    )
+    solution_gor: Optional[VolumePerVolumeMeasure] = field(
+        default=None,
+        metadata={
+            "name": "SolutionGOR",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    standard_conditions: Optional[AbstractTemperaturePressure] = field(
+        default=None,
+        metadata={
+            "name": "StandardConditions",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    stock_tank_oil: Optional[StockTankOil] = field(
+        default=None,
+        metadata={
+            "name": "StockTankOil",
+            "type": "Element",
+        },
+    )
+    phases_present: Optional[PhasePresent] = field(
+        default=None,
+        metadata={
+            "name": "PhasesPresent",
+            "type": "Element",
+        },
+    )
+    reservoir_life_cycle_state: Optional[ReservoirLifeCycleState] = field(
+        default=None,
+        metadata={
+            "name": "ReservoirLifeCycleState",
+            "type": "Element",
         },
     )
 
@@ -15454,96 +19005,7 @@ class InjectedGas:
         metadata={
             "type": "Attribute",
             "required": True,
-        },
-    )
-
-
-@dataclass
-class IntegerData(AbstractMeasureDataType):
-    """
-    Integer data.
-
-    :ivar integer_value: The value of a dependent (data) variable in a
-        row of the curve table. The units of measure are specified in
-        the curve definition. The first value corresponds to order=1 for
-        columns where isIndex is false. The second to order=2. And so
-        on. The number of index and data values must match the number of
-        columns in the table.
-    """
-
-    integer_value: Optional[IntegerQualifiedCount] = field(
-        default=None,
-        metadata={
-            "name": "IntegerValue",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class OtherMeasurementTest:
-    """
-    Other measurement test.
-
-    :ivar fluid_characterization_table:
-    :ivar fluid_characterization_table_format_set:
-    :ivar remark: Remarks and comments about this data item.
-    :ivar test_number: An integer number to identify this test in a
-        sequence of tests.
-    :ivar other_measurement_test_step:
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    fluid_characterization_table: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "FluidCharacterizationTable",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    fluid_characterization_table_format_set: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "FluidCharacterizationTableFormatSet",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    other_measurement_test_step: List[OtherMeasurementTestStep] = field(
-        default_factory=list,
-        metadata={
-            "name": "OtherMeasurementTestStep",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -15558,7 +19020,7 @@ class ProducedGasProperties:
     :ivar vapor_composition: The vapor composition of this produced gas.
     """
 
-    produced_gas_gravity: List[str] = field(
+    produced_gas_gravity: List[DimensionlessMeasure] = field(
         default_factory=list,
         metadata={
             "name": "ProducedGasGravity",
@@ -15593,100 +19055,268 @@ class ProductDisposition(AbstractDisposition):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "pattern": r".*:.*",
         },
     )
 
 
 @dataclass
-class ProductFlowExpectedUnitProperty:
+class ProductFlowModel(AbstractObject):
     """
-    Defines expected properties of a facility represented by a unit.
+    The non-contextual content of a product flow model data object.
 
-    :ivar child_facility_identifier: The PRODML Relative Identifier (or
-        URI) of a child of the parent facility. The identifier path is
-        presumed to begin with the identity of the parent facility. This
-        identifies a sub-facility which is identified within the context
-        of the parent facilityParent2/facilityParent1/name
-        identification hierarchy. The property is only expected to be
-        defined for this child and not for the parent. For more
-        information about URIs, see the Energistics Identifier
-        Specification, which is available in the zip file when download
-        PRODML.
-    :ivar comment: A descriptive remark associated with this property.
-    :ivar deadband: Difference between two consecutive readings, which
-        must exceed deadband value to be accepted.
-    :ivar maximum_frequency: The maximum time difference from the last
-        sent event before the next event is sent.
-    :ivar property: The expected kind of facility property. Each
-        property is documented to have values of a particular type.
-    :ivar tag_alias: An alternative name for the sensor that  measures
-        the property.
-    :ivar expected_flow_qualifier:
+    :ivar comment: A descriptive remark about the model.
+    :ivar context_facility: The name and type of a facility whose
+        context is relevant to the represented installation.
+    :ivar dtim_end: The date and time of the termination of validity for
+        this model.
+    :ivar dtim_max: The maximum time index contained within the report.
+        The minimum and maximum indexes are server query parameters and
+        will be populated with valid values in a "get" result.
+    :ivar dtim_min: The minimum time index contained within the report.
+        The minimum and maximum indexes are server query parameters and
+        will be populated with valid values in a "get" result.
+    :ivar dtim_start: The date and time of the start of validity for
+        this model.
+    :ivar existence_time: The time for which "currently existing" data
+        is desired from the network. All connections (and related data)
+        existing at this time (i.e., start and end bracket this value)
+        will  be returned if requested. The existence time is a server
+        query parameter.
+    :ivar external_connect: Defines the external port in another Product
+        Flow Model to which an external port in this model is connected.
+        An external port should be connected to an external port with
+        the opposite direction. The connected external port must be in
+        another Product Flow Model. These connections should always be
+        defined on a one-to-one basis. For example, if a facility may
+        receive input from multiple other facilities then a separate
+        input port should be defined for each of those facilities. This
+        allows any question about mass balancing to be contained within
+        each individual model. The external port name must match the
+        name of an external port on the network that represents this
+        model.
+    :ivar installation: The name of the facility that is represented by
+        this model. The name can be qualified by a naming system. This
+        also defines the kind of facility.
+    :ivar network: The description of one named network within this
+        model. Each model is self contained but may reference other
+        newtorks for defining internal detail. One of the networks must
+        represent this model.
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    comment: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comment",
+            "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    context_facility: List[FacilityIdentifierStruct] = field(
+        default_factory=list,
+        metadata={
+            "name": "ContextFacility",
+            "type": "Element",
+        },
+    )
+    dtim_end: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimEnd",
+            "type": "Element",
+        },
+    )
+    dtim_max: Optional[EndpointQualifiedDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimMax",
+            "type": "Element",
+        },
+    )
+    dtim_min: Optional[EndpointQualifiedDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimMin",
+            "type": "Element",
+        },
+    )
+    dtim_start: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimStart",
+            "type": "Element",
+        },
+    )
+    existence_time: Optional[EndpointQualifiedDateTime] = field(
+        default=None,
+        metadata={
+            "name": "ExistenceTime",
+            "type": "Element",
+        },
+    )
+    external_connect: List[ProductFlowExternalReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "ExternalConnect",
+            "type": "Element",
+        },
+    )
+    installation: Optional[FacilityIdentifierStruct] = field(
+        default=None,
+        metadata={
+            "name": "Installation",
+            "type": "Element",
+        },
+    )
+    network: List[ProductFlowNetwork] = field(
+        default_factory=list,
+        metadata={
+            "name": "Network",
+            "type": "Element",
+            "min_occurs": 1,
+        },
+    )
+
+
+@dataclass
+class ProductFlowPort:
+    """
+    Product Flow Port Schema.
+
+    :ivar comment: A descriptive remark associated with this port.
+    :ivar direction: Defines whether this port is an inlet or outlet.
+        This is a nominal intended direction.
+    :ivar exposed: True ("true" or "1") indicates that the port is an
+        exposed internal port and cannot be used in a connection
+        external to the unit. False ("false" or "0") or not given
+        indicates a normal port.
+    :ivar facility: The name of the facility represented by this
+        ProductFlowPort The name can be qualified by a naming system.
+        The facility name is assumed to be unique within the context of
+        the facility represented by the unit. This also defines the kind
+        of facility.
+    :ivar facility_alias: An alternative name of a facility. This is
+        generally unique within a naming system. The above contextually
+        unique name should also be listed as an alias.
+    :ivar name: The name of the port within the context of the product
+        flow unit.
+    :ivar plan_name: The name of a network plan. This indicates a
+        planned port. All child network components must all be planned
+        and be part of the same plan. The parent unit must be part of
+        the same plan or be an actual. Not specified indicates an actual
+        port.
+    :ivar connected_node: Defines the node to which this port is
+        connected. A timestamp activates and deactivates the connection.
+        Only one connectedNode should be active at any one point in
+        time. There are no semantics for the node except common
+        connection. All ports that are connected to a node with the the
+        same name are inherently connected to each other. The name of
+        the node is only required to be unique within the context of the
+        current Product Flow Network (that is, not the overall model).
+        All ports must be connected to a node and whether or not any
+        other port is connected to the same node depends on the
+        requirements of the network. Any node that is internally
+        connected to only one port is presumably a candidate to be
+        connected to an external node. The behavior of ports connected
+        at a common node is as follows: a) There is no pressure drop
+        across the node. All ports connected to the node have the same
+        pressure. That is, there is an assumption of steady state fluid
+        flow. b) Conservation of mass exists across the node. The mass
+        into the node via all connected ports equals the mass out of the
+        node via all connected ports. c) The flow direction of a port
+        connected to the node may be transient. That is, flow direction
+        may change toward any port(s) if the relative internal pressure
+        of the Product Flow Units change and a new steady state is
+        achieved.
+    :ivar expected_flow_property: Defines the properties that are
+        expected to be measured at this port. This can also specify the
+        equipment tag(s) of the sensor that will read the value. Only
+        one of each property kind should be active at any point in time.
     :ivar expected_flow_product: Defines the expected flow and product
         pairs to be assigned to this port by a Product Volume report. A
-        set of expected qualifiers can be defined for each pair. The
-        aggregate of expectations on all properties should be a subset
-        of the aggregate of expectations on the port. If no expectations
-        are defined on the port then the port aggregate will be defined
-        by the properties.
+        set of expected qualifiers can be defined for each pair.
     :ivar uid: A unique identifier for this data element. It is not
         globally unique (not a uuid) and only need be unique within the
         context of the parent top-level object.
     """
 
-    child_facility_identifier: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "ChildFacilityIdentifier",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
     comment: List[str] = field(
         default_factory=list,
         metadata={
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    deadband: Optional[GeneralMeasureType] = field(
+    direction: Optional[ProductFlowPortType] = field(
         default=None,
         metadata={
-            "name": "Deadband",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    maximum_frequency: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MaximumFrequency",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    property: Optional[FacilityParameter] = field(
-        default=None,
-        metadata={
-            "name": "Property",
+            "name": "Direction",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
         },
     )
-    tag_alias: List[NameStruct] = field(
-        default_factory=list,
+    exposed: Optional[bool] = field(
+        default=None,
         metadata={
-            "name": "TagAlias",
+            "name": "Exposed",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    expected_flow_qualifier: Optional[ExpectedFlowQualifier] = field(
+    facility: Optional[FacilityIdentifierStruct] = field(
         default=None,
         metadata={
-            "name": "ExpectedFlowQualifier",
+            "name": "Facility",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    facility_alias: List[NameStruct] = field(
+        default_factory=list,
+        metadata={
+            "name": "FacilityAlias",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    name: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Name",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    plan_name: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "PlanName",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    connected_node: List[ConnectedNode] = field(
+        default_factory=list,
+        metadata={
+            "name": "ConnectedNode",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_occurs": 1,
+        },
+    )
+    expected_flow_property: List[ProductFlowExpectedUnitProperty] = field(
+        default_factory=list,
+        metadata={
+            "name": "ExpectedFlowProperty",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
@@ -15704,65 +19334,7 @@ class ProductFlowExpectedUnitProperty:
         metadata={
             "type": "Attribute",
             "required": True,
-        },
-    )
-
-
-@dataclass
-class ProductFlowExternalReference:
-    """
-    A reference to an external port in a different product flow model.This value
-    represents a foreign key from one element to another.
-
-    :ivar connected_model_reference: Reference to the connected model.
-    :ivar connected_port_reference: Reference to the connected port.
-    :ivar port_reference: Reference to a type of port.
-    :ivar connected_installation:
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top level object.
-    """
-
-    connected_model_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "ConnectedModelReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    connected_port_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "ConnectedPortReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    port_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "PortReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    connected_installation: Optional[FacilityIdentifierStruct] = field(
-        default=None,
-        metadata={
-            "name": "ConnectedInstallation",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -15793,7 +19365,7 @@ class ProductFluid(AbstractProductQuantity):
         productFluid in the fluidComponentSet.
     """
 
-    gross_energy_content: List[str] = field(
+    gross_energy_content: List[EnergyMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GrossEnergyContent",
@@ -15801,7 +19373,7 @@ class ProductFluid(AbstractProductQuantity):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    net_energy_content: List[str] = field(
+    net_energy_content: List[EnergyMeasure] = field(
         default_factory=list,
         metadata={
             "name": "NetEnergyContent",
@@ -15824,6 +19396,7 @@ class ProductFluid(AbstractProductQuantity):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "pattern": r".*:.*",
         },
     )
     product_fluid_reference: Optional[str] = field(
@@ -15832,66 +19405,7 @@ class ProductFluid(AbstractProductQuantity):
             "name": "productFluidReference",
             "type": "Attribute",
             "required": True,
-        },
-    )
-
-
-@dataclass
-class ProductVolumeBusinessUnit:
-    """
-    Product volume schema for defining business units.
-
-    :ivar description: A textual description of the business unit.
-    :ivar kind: The type of business unit.
-    :ivar name: The human contextual name of the business unit.
-    :ivar sub_unit: A component part of the unit. The composition of a
-        unit may vary with time. This defines the ownership share or
-        account information for a sub unit within the context of the
-        whole unit. For ownership shares, at any one point in time the
-        sum of the shares should be 100%.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    description: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Description",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    kind: Optional[BusinessUnitKind] = field(
-        default=None,
-        metadata={
-            "name": "Kind",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    name: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Name",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    sub_unit: List[ProductVolumeBusinessSubUnit] = field(
-        default_factory=list,
-        metadata={
-            "name": "SubUnit",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -15943,75 +19457,206 @@ class ProductVolumeComponentContent:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class ProductVolumeParameterSet:
+class ProductionOperationHse:
     """
-    Product Volume Facility Parameter Set Schema.
+    Operational Health, Safety and Environment Schema.
 
-    :ivar child_facility_identifier: The PRODML Relative Identifier (or
-        URI) of a child of the parent facility. The identifier path is
-        presumed to begin with the identity of the parent facility. This
-        identifies a sub-facility which is identified within the context
-        of the parent facilityParent2/facilityParent1/name
-        identification hierarchy. The property is only expected to be
-        defined for this child and not for the parent. For more
-        information about URIs, see the Energistics Identifier
-        Specification, which is available in the zip file when download
-        PRODML.
-    :ivar comment: A comment about the parameter.
-    :ivar coordinate_reference_system: The pointer to the coordinate
-        reference system (CRS). This is needed for coordinates such as
-        measured depth to specify the reference datum.
-    :ivar measure_class: If the value is a measure (value with unit of
-        measure), this defines the measurement class of the value. The
-        units of measure for the value must conform to the list allowed
-        by the measurement class in the unit dictionary file. Mutually
-        exclusive with curveDefinition.
-    :ivar name: The name of the facility parameter. This should reflect
-        the business semantics of all values in the set and not the
-        underlying kind. For example, specify "diameter" rather than
-        "length" or "distance".
-    :ivar period_kind: The type of period that is being reported.
-    :ivar port: The port to which this parameter is assigned. This must
-        be a port on the unit representing the parent facility of this
-        parameter. If not specified then the parameter represents the
-        unit.
-    :ivar product: The type of product that is being reported. This
-        would be useful for something like specifying a tank product
-        volume or level.
-    :ivar qualifier: Qualifies the type of parameter that is being
-        reported.
-    :ivar sub_qualifier: Defines a specialization of the qualifier
-        value. This should only be given if a qualifier is given.
-    :ivar version: A timestamp representing the version of this data. A
-        parameter set with a more recent timestamp will represent the
-        "current" version.
-    :ivar version_source: Identifies the source of the version. This
-        will commonly be the name of the software which created the
-        version.
-    :ivar curve_definition: If the value is a curve, this defines the
-        meaning of the one column in the table representing the curve.
-        Mutually exclusive with measureClass.
-    :ivar parameter: A parameter value, possibly at a time. If a time is
-        not given then only one parameter should be given. If a time is
-        specified with one value then time should be specified for all
-        values. Each value in a time series should be of the same
-        underling kind of value (for example, a length measure).
+    :ivar alarm_count: The number of system alarms that have occurred.
+    :ivar incident_count: The number of incidents or accidents and
+        injuries that were reported.
+    :ivar medical_treatment_count: The number of medical treatments that
+        have occurred.
+    :ivar safety_description: A textual description of safety
+        considerations.
+    :ivar safety_intro_count: The number of personnel safety
+        introductions that have occurred.
+    :ivar since_defined_situation: The amount of time since the most
+        recent defined hazard and accident situation (Norwegian DFU).
+    :ivar since_lost_time: The amount of time since the most recent
+        lost-time accident.
+    :ivar since_prevention_exercise: The amount of time since the most
+        recent accident-prevention exercise.
+    :ivar safety: Safety information at a specific installatino.
+    :ivar weather: Information about the weather at a point in time.
     :ivar uid: A unique identifier for this data element. It is not
         globally unique (not a uuid) and only need be unique within the
         context of the parent top-level object.
     """
 
-    child_facility_identifier: Optional[str] = field(
+    class Meta:
+        name = "ProductionOperationHSE"
+
+    alarm_count: Optional[int] = field(
         default=None,
         metadata={
-            "name": "ChildFacilityIdentifier",
+            "name": "AlarmCount",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    incident_count: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "IncidentCount",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    medical_treatment_count: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "MedicalTreatmentCount",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    safety_description: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "SafetyDescription",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    safety_intro_count: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "SafetyIntroCount",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    since_defined_situation: List[TimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "SinceDefinedSituation",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    since_lost_time: List[TimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "SinceLostTime",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    since_prevention_exercise: List[TimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "SincePreventionExercise",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    safety: List[ProductionOperationSafety] = field(
+        default_factory=list,
+        metadata={
+            "name": "Safety",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    weather: List[ProductionOperationWeather] = field(
+        default_factory=list,
+        metadata={
+            "name": "Weather",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ProductionOperationLostProduction:
+    """
+    Lost Production Schema.
+    """
+
+    volume_and_reason: List[LostVolumeAndReason] = field(
+        default_factory=list,
+        metadata={
+            "name": "VolumeAndReason",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    third_party_processing: List[
+        ProductionOperationThirdPartyProcessing
+    ] = field(
+        default_factory=list,
+        metadata={
+            "name": "ThirdPartyProcessing",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class Report(AbstractObject):
+    """
+    Report.
+
+    :ivar approval_date: The date that the report was approved.
+    :ivar approver:
+    :ivar comment: A textual comment about the report.
+    :ivar context_facility: The name and type of a facility whose
+        context is relevant to the represented installation.
+    :ivar date: The date that the report represents (i.e., not a year or
+        month). Only one of date, month or year should be specified.
+    :ivar date_end: The ending date that the report represents, if it
+        represents an interval.
+    :ivar geographic_context:
+    :ivar installation: The name of the facility which is represented by
+        this report. The name can be qualified by a naming system. This
+        also defines the kind of facility.
+    :ivar issue_date: The date that the report was issued.
+    :ivar issued_by:
+    :ivar kind: The type of report. This should define and constrain the
+        expected content of the report.
+    :ivar month: The month that the report represents (i.e., not a year,
+        date or date range). Only one of date, month or year should be
+        specified.
+    :ivar operator:
+    :ivar report_version: The current report version.
+    :ivar year: The year that the report represents (i.e., not a month,
+        date or date range). Only one of date, month or year should be
+        specified.
+    :ivar report_status: The current document version status.
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    approval_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "ApprovalDate",
+            "type": "Element",
+        },
+    )
+    approver: Optional[BusinessAssociate] = field(
+        default=None,
+        metadata={
+            "name": "Approver",
+            "type": "Element",
         },
     )
     comment: List[str] = field(
@@ -16019,219 +19664,35 @@ class ProductVolumeParameterSet:
         metadata={
             "name": "Comment",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    coordinate_reference_system: List[str] = field(
+    context_facility: List[FacilityIdentifierStruct] = field(
         default_factory=list,
         metadata={
-            "name": "CoordinateReferenceSystem",
+            "name": "ContextFacility",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    measure_class: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MeasureClass",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    name: Optional[FacilityParameter] = field(
+    date: Optional[XmlDate] = field(
         default=None,
         metadata={
-            "name": "Name",
+            "name": "Date",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
         },
     )
-    period_kind: Optional[ReportingDurationKind] = field(
+    date_end: Optional[XmlDate] = field(
         default=None,
         metadata={
-            "name": "PeriodKind",
+            "name": "DateEnd",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    port: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Port",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    product: Optional[ReportingProduct] = field(
+    geographic_context: Optional[GeographicContext] = field(
         default=None,
         metadata={
-            "name": "Product",
+            "name": "GeographicContext",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    qualifier: Optional[FlowQualifier] = field(
-        default=None,
-        metadata={
-            "name": "Qualifier",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    sub_qualifier: Optional[FlowSubQualifier] = field(
-        default=None,
-        metadata={
-            "name": "SubQualifier",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    version: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "Version",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    version_source: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "VersionSource",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    curve_definition: List[CurveDefinition] = field(
-        default_factory=list,
-        metadata={
-            "name": "CurveDefinition",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    parameter: List[ProductVolumeParameterValue] = field(
-        default_factory=list,
-        metadata={
-            "name": "Parameter",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "min_occurs": 1,
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ProductionOperationSafety:
-    """
-    Safety Information Schema.
-
-    :ivar comment: Safety related comment.
-    :ivar meantime_incident: The mean time between safety incidents.
-    :ivar safety_count:
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    comment: List[DatedComment] = field(
-        default_factory=list,
-        metadata={
-            "name": "Comment",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    meantime_incident: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MeantimeIncident",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    safety_count: List[SafetyCount] = field(
-        default_factory=list,
-        metadata={
-            "name": "SafetyCount",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ProductionOperationShutdown:
-    """
-    Information about a shutdown event.
-
-    :ivar activity: A description of main activities from time to time
-        during the shutdown period.
-    :ivar description: A general description of the shutdown with reason
-        and other relevant information.
-    :ivar dtim_end: The time the shutdown ended.
-    :ivar dtim_start: The time the shutdown started.
-    :ivar installation: The name of the installation which was shut
-        down. The name can be qualified by a naming system. This also
-        defines the kind of facility.
-    :ivar loss_gas_std_temp_pres: Estimated loss of gas deliveries
-        because of the shutdown. This volume has been corrected to
-        standard conditions of temperature and pressure.
-    :ivar loss_oil_std_temp_pres: Estimated loss of oil deliveries
-        because of the shutdown. This volume has been corrected to
-        standard conditions of temperature and pressure.
-    :ivar volumetric_down_time: Downtime when the installation is unable
-        to produce 100% of its capability.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    activity: List[DatedComment] = field(
-        default_factory=list,
-        metadata={
-            "name": "Activity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    description: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Description",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    dtim_end: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "DTimEnd",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    dtim_start: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "DTimStart",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
     installation: Optional[FacilityIdentifierStruct] = field(
@@ -16239,173 +19700,67 @@ class ProductionOperationShutdown:
         metadata={
             "name": "Installation",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    loss_gas_std_temp_pres: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "LossGasStdTempPres",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    loss_oil_std_temp_pres: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "LossOilStdTempPres",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    volumetric_down_time: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "VolumetricDownTime",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
+    issue_date: Optional[XmlDate] = field(
         default=None,
         metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ProductionOperationThirdPartyProcessing:
-    """
-    Production losses due to third-party processing.
-
-    :ivar gas_std_temp_pres: The estimated amount of gas lost. This
-        volume has been corrected to standard conditions of temperature
-        and pressure
-    :ivar installation: The name of the installation which performed the
-        processing. The name can be qualified by a naming system. This
-        also defines the kind of facility.
-    :ivar oil_std_temp_pres: The estimated amount of oil lost. This
-        volume has been corrected to standard conditions of temperature
-        and pressure
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    gas_std_temp_pres: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasStdTempPres",
+            "name": "IssueDate",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    installation: Optional[FacilityIdentifierStruct] = field(
+    issued_by: Optional[BusinessAssociate] = field(
         default=None,
         metadata={
-            "name": "Installation",
+            "name": "IssuedBy",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    oil_std_temp_pres: List[str] = field(
+    kind: List[str] = field(
         default_factory=list,
         metadata={
-            "name": "OilStdTempPres",
+            "name": "Kind",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    uid: Optional[str] = field(
+    month: Optional[str] = field(
         default=None,
         metadata={
-            "type": "Attribute",
-            "required": True,
+            "name": "Month",
+            "type": "Element",
+            "pattern": r"([1-9][0-9][0-9][0-9])-(([0][0-9])|([1][0-2]))",
         },
     )
-
-
-@dataclass
-class ProductionWellPeriod:
-    """
-    Period during which the well choke did not vary.
-
-    :ivar duration: The duration at the given choke setting.
-    :ivar remark: A descriptive remark relating to any significant
-        events during this period.
-    :ivar start_time: The start time at a given choke setting.
-    :ivar well_status: The status of the well.
-    :ivar product_rate:
-    :ivar well_flowing_condition:
-    """
-
-    duration: Optional[str] = field(
+    operator: Optional[BusinessAssociate] = field(
         default=None,
         metadata={
-            "name": "Duration",
+            "name": "Operator",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
         },
     )
-    remark: List[str] = field(
+    report_version: List[str] = field(
         default_factory=list,
         metadata={
-            "name": "Remark",
+            "name": "ReportVersion",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    start_time: Optional[XmlDateTime] = field(
+    year: Optional[int] = field(
         default=None,
         metadata={
-            "name": "StartTime",
+            "name": "Year",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
+            "min_inclusive": 1000,
+            "max_inclusive": 9999,
         },
     )
-    well_status: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WellStatus",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    product_rate: List[ProductRate] = field(
-        default_factory=list,
-        metadata={
-            "name": "ProductRate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    well_flowing_condition: Optional[WellFlowingCondition] = field(
+    report_status: Optional[ReportVersionStatus] = field(
         default=None,
         metadata={
-            "name": "WellFlowingCondition",
+            "name": "ReportStatus",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class PvtModelParameterSet:
-    """
-    A collection of parameters.
-    """
-
-    coefficient: List[PvtModelParameter] = field(
-        default_factory=list,
-        metadata={
-            "name": "Coefficient",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "min_occurs": 1,
         },
     )
 
@@ -16448,7 +19803,7 @@ class Stoanalysis:
             "required": True,
         },
     )
-    flash_from_pressure: List[str] = field(
+    flash_from_pressure: List[PressureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "FlashFromPressure",
@@ -16456,7 +19811,7 @@ class Stoanalysis:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    flash_from_temperature: List[str] = field(
+    flash_from_temperature: List[ThermodynamicTemperatureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "FlashFromTemperature",
@@ -16472,7 +19827,7 @@ class Stoanalysis:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    molecular_weight: List[str] = field(
+    molecular_weight: List[MolecularWeightMeasure] = field(
         default_factory=list,
         metadata={
             "name": "MolecularWeight",
@@ -16502,6 +19857,7 @@ class Stoanalysis:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     vapor_composition: Optional[VaporComposition] = field(
@@ -16565,7 +19921,7 @@ class SampleContaminant:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    density: List[str] = field(
+    density: List[MassPerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Density",
@@ -16579,9 +19935,10 @@ class SampleContaminant:
             "name": "Description",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    molecular_weight: List[str] = field(
+    molecular_weight: List[MolecularWeightMeasure] = field(
         default_factory=list,
         metadata={
             "name": "MolecularWeight",
@@ -16595,9 +19952,10 @@ class SampleContaminant:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    sample_of_contaminant_reference: List[str] = field(
+    sample_of_contaminant_reference: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "SampleOfContaminantReference",
@@ -16605,7 +19963,7 @@ class SampleContaminant:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    volume_fraction_live_sample: List[str] = field(
+    volume_fraction_live_sample: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "VolumeFractionLiveSample",
@@ -16613,7 +19971,7 @@ class SampleContaminant:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    volume_fraction_stock_tank: List[str] = field(
+    volume_fraction_stock_tank: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "VolumeFractionStockTank",
@@ -16621,7 +19979,7 @@ class SampleContaminant:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    weight_fraction_live_sample: List[str] = field(
+    weight_fraction_live_sample: List[MassPerMassMeasure] = field(
         default_factory=list,
         metadata={
             "name": "WeightFractionLiveSample",
@@ -16629,7 +19987,7 @@ class SampleContaminant:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    weight_fraction_stock_tank: List[str] = field(
+    weight_fraction_stock_tank: List[MassPerMassMeasure] = field(
         default_factory=list,
         metadata={
             "name": "WeightFractionStockTank",
@@ -16651,134 +20009,7 @@ class SampleContaminant:
         metadata={
             "type": "Attribute",
             "required": True,
-        },
-    )
-
-
-@dataclass
-class SampleIntegrityAndPreparation:
-    """
-    Sample integrity And preparation information.
-
-    :ivar basic_sediment_and_water: The basic sediment and water of the
-        sample when prepared for analysis.
-    :ivar free_water_volume: The free water volume of the sample when
-        prepared for analysis.
-    :ivar initial_volume: The initial volume of the sample when prepared
-        for analysis.
-    :ivar opening_date: The date when this fluid sample was opened.
-    :ivar opening_pressure: The opening pressure of the sample when
-        prepared for analysis.
-    :ivar opening_remark: Remarks and comments about the opening of the
-        sample.
-    :ivar opening_temperature: The opening temperature of the sample
-        when prepared for analysis.
-    :ivar water_content_in_hydrocarbon: The water content in hydrocarbon
-        of the sample when prepared for analysis.
-    :ivar sample_restoration:
-    :ivar saturation_pressure: The saturation (or bubble point) pressure
-        measured in this test.
-    :ivar saturation_temperature: The saturation temperature of the
-        sample when prepared for analysis.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    basic_sediment_and_water: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "BasicSedimentAndWater",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    free_water_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FreeWaterVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    initial_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "InitialVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    opening_date: Optional[XmlDate] = field(
-        default=None,
-        metadata={
-            "name": "OpeningDate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    opening_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "OpeningPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    opening_remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "OpeningRemark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    opening_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "OpeningTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_content_in_hydrocarbon: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterContentInHydrocarbon",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    sample_restoration: List[SampleRestoration] = field(
-        default_factory=list,
-        metadata={
-            "name": "SampleRestoration",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    saturation_pressure: Optional[SaturationPressure] = field(
-        default=None,
-        metadata={
-            "name": "SaturationPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    saturation_temperature: Optional[SaturationTemperature] = field(
-        default=None,
-        metadata={
-            "name": "SaturationTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -16817,7 +20048,7 @@ class SampleRecombinationRequirement:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    liquid_sample: List[str] = field(
+    liquid_sample: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "LiquidSample",
@@ -16833,7 +20064,7 @@ class SampleRecombinationRequirement:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    recombination_gor: List[str] = field(
+    recombination_gor: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "RecombinationGOR",
@@ -16841,7 +20072,7 @@ class SampleRecombinationRequirement:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    recombination_pressure: List[str] = field(
+    recombination_pressure: List[AbstractPressureValue] = field(
         default_factory=list,
         metadata={
             "name": "RecombinationPressure",
@@ -16857,7 +20088,7 @@ class SampleRecombinationRequirement:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    recombination_temperature: List[str] = field(
+    recombination_temperature: List[ThermodynamicTemperatureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "RecombinationTemperature",
@@ -16871,6 +20102,7 @@ class SampleRecombinationRequirement:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     vapor_composition: Optional[VaporComposition] = field(
@@ -16881,224 +20113,12 @@ class SampleRecombinationRequirement:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    vapor_sample: List[str] = field(
+    vapor_sample: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "VaporSample",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class SaturationTest:
-    """
-    Saturation test.
-
-    :ivar remark: Remarks and comments about this data item.
-    :ivar test_number: A number for this test for purposes of, e.g.,
-        tracking lab sequence.
-    :ivar test_temperature: The temperature of this test.
-    :ivar saturation_pressure: The saturation (or bubble point) pressure
-        measured in this test.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    test_temperature: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    saturation_pressure: Optional[SaturationPressure] = field(
-        default=None,
-        metadata={
-            "name": "SaturationPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class StringData(AbstractMeasureDataType):
-    """
-    String data.
-
-    :ivar string_value: The value of a dependent (data) variable in a
-        row of the curve table. The units of measure are specified in
-        the curve definition. The first value corresponds to order=1 for
-        columns where isIndex is false. The second to order=2. And so
-        on. The number of index and data values must match the number of
-        columns in the table.
-    """
-
-    string_value: Optional[KindQualifiedString] = field(
-        default=None,
-        metadata={
-            "name": "StringValue",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class SwellingTestStep:
-    """
-    Swelling test step.
-
-    :ivar constant_composition_expansion_test: A reference to a constant
-        composition expansion test associated with this swelling test.
-    :ivar density_at_saturation_point: The density at saturation point
-        for this swelling test step.
-    :ivar gor: The gas-oil ratio for this swelling test step.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar step_number: The step number is the index of a (P,T) step in
-        the overall test.
-    :ivar swelling_factor: The swelling factor for this swelling test
-        step.
-    :ivar transport_property_test_reference: A reference to a transport
-        property test associated with this swelling test.
-    :ivar incremental_gas_added: The incremental gas added for this
-        swelling test step.
-    :ivar cumulative_gas_added: The cumulative gas added for this
-        swelling test step.
-    :ivar swollen_volume: The swollen volume for this swelling test
-        step, relative to a reference volume.
-    :ivar saturation_pressure: The saturation (or bubble point) pressure
-        measured in this test.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    constant_composition_expansion_test: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ConstantCompositionExpansionTest",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    density_at_saturation_point: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "DensityAtSaturationPoint",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Gor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    step_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "StepNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    swelling_factor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SwellingFactor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    transport_property_test_reference: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TransportPropertyTestReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    incremental_gas_added: List[RefInjectedGasAdded] = field(
-        default_factory=list,
-        metadata={
-            "name": "IncrementalGasAdded",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    cumulative_gas_added: List[RefInjectedGasAdded] = field(
-        default_factory=list,
-        metadata={
-            "name": "CumulativeGasAdded",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    swollen_volume: Optional[RelativeVolumeRatio] = field(
-        default=None,
-        metadata={
-            "name": "SwollenVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    saturation_pressure: Optional[SaturationPressure] = field(
-        default=None,
-        metadata={
-            "name": "SaturationPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
         },
     )
 
@@ -17122,6 +20142,7 @@ class TestCondition:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     start_time: Optional[XmlDateTime] = field(
@@ -17133,7 +20154,7 @@ class TestCondition:
             "required": True,
         },
     )
-    test_duration: List[str] = field(
+    test_duration: List[TimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "TestDuration",
@@ -17168,221 +20189,209 @@ class TestCondition:
 
 
 @dataclass
-class TimeSeriesThreshold:
+class TimeSeriesStatistic(AbstractObject):
     """
-    Defines a value threshold window and the cumulative time duration that the data
-    was within that window.
+    Time series statistics data.
 
-    :ivar duration: The sum of the time intervals over the range of
-        dTimMin to dTimMax during which the values were within the
-        specified threshold range.
-    :ivar threshold_minimum: The lower bound of the threshold for
-        testing whether values are within a specific range.The element
-        "unit" defines the unit of measure of this value. At least one
-        of minimumValue and maximumValue must be specified. The
-        thresholdMinimum must be less than thresholdMaximum. If
-        thresholdMinimum is not specified then the minimum shall be
-        assumed to be minus infinity.
-    :ivar threshold_maximum: The upper bound of the threshold for
-        testing whether values are within a specific range. Element
-        "unit" defines the unit of measure of this value. At least one
-        of minimumValue and maximumValue must be specified. The
-        thresholdMaximum must be greater than thresholdMinimum. If
-        thresholdMaximum is not specified then the maximum shall be
-        assumed to be plus infinity.
+    :ivar comment: A comment about the time series.
+    :ivar key: A keyword value pair which characterizes the underlying
+        nature of this value. The key value may provide part of the
+        unique identity of an instance of a concept or it may
+        characterize the underlying concept. The key value will be
+        defined within the specified keyword naming system. This is
+        essentially a classification of the data in the specified system
+        (keyword).
+    :ivar maximum: The maximum value within the time range of dTimMin to
+        dTimMax. Element "unit" defines the unit of measure of this
+        value.
+    :ivar mean: The arithmetic mean (sum divided by count) of all values
+        within the time range of dTimMin to dTimMax. Element "unit"
+        defines the unit of measure of this value.
+    :ivar measure_class: Defines the type of measure that the time
+        series represents. If this is specified then unit must be
+        specified. This may be redundant to some information in the keys
+        but it is important for allowing an application to understand
+        the nature of a measure value even if it does not understand all
+        of the underlying nature.
+    :ivar median: The median value of all values within the time range
+        of dTimMin to dTimMax. Element "unit" defines the unit of
+        measure of this value.
+    :ivar minimum: The minimum value within the time range of dTimMin to
+        dTimMax. Element "unit" defines the unit of measure of this
+        value.
+    :ivar standard_deviation: The standard deviation of all values
+        within the time range of dTimMin to dTimMax. Element "unit"
+        defines the unit of measure of this value.
+    :ivar sum: The sum of all values within the time range of dTimMin to
+        dTimMax. Element "unit" defines the unit of measure of this
+        value.
+    :ivar unit: If the time series is a measure then this specifies the
+        unit of measure. The unit acronym must be chosen from the list
+        that is valid for the measure class. If this is specified then
+        the measure class must be specified.
+    :ivar dtim_min:
+    :ivar dtim_max:
+    :ivar time_at_threshold: Defines a value threshold window and the
+        time duration where values (within the time range of dTimMin to
+        dTimMax) were within that window.
     """
 
-    duration: Optional[str] = field(
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    comment: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comment",
+            "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    key: List[KeywordValueStruct] = field(
+        default_factory=list,
+        metadata={
+            "name": "Key",
+            "type": "Element",
+        },
+    )
+    maximum: List[DimensionlessMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Maximum",
+            "type": "Element",
+        },
+    )
+    mean: List[DimensionlessMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Mean",
+            "type": "Element",
+        },
+    )
+    measure_class: List[MeasureType] = field(
+        default_factory=list,
+        metadata={
+            "name": "MeasureClass",
+            "type": "Element",
+        },
+    )
+    median: List[DimensionlessMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Median",
+            "type": "Element",
+        },
+    )
+    minimum: List[DimensionlessMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Minimum",
+            "type": "Element",
+        },
+    )
+    standard_deviation: List[DimensionlessMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "StandardDeviation",
+            "type": "Element",
+        },
+    )
+    sum: List[DimensionlessMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Sum",
+            "type": "Element",
+        },
+    )
+    unit: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Unit",
+            "type": "Element",
+            "max_length": 32,
+        },
+    )
+    dtim_min: Optional[EndpointDateTime] = field(
         default=None,
         metadata={
-            "name": "Duration",
+            "name": "DTimMin",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
         },
     )
-    threshold_minimum: Optional[EndpointQuantity] = field(
+    dtim_max: Optional[EndpointDateTime] = field(
         default=None,
         metadata={
-            "name": "ThresholdMinimum",
+            "name": "DTimMax",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
         },
     )
-    threshold_maximum: Optional[EndpointQuantity] = field(
+    time_at_threshold: Optional[TimeSeriesThreshold] = field(
         default=None,
         metadata={
-            "name": "ThresholdMaximum",
+            "name": "TimeAtThreshold",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
 
 
 @dataclass
-class WellDatum:
+class WellContext:
     """
-    Defines the vertical datums associated with elevation, vertical depth and
-    measured depth coordinates within the context of a well.
+    Within the context of a WITSML Server, this data should duplicate the
+    equivalent information in the well object.
 
-    :ivar code: The code value that represents the type of reference
-        datum. This may represent a point on a device (e.g., kelly
-        bushing) or it may represent a vertical reference datum (e.g.,
-        mean sea level).
-    :ivar elevation:
-    :ivar kind: Since various activities may use different points as
-        measurement datums, it is useful to characterize the point based
-        on its usage. A well reference datum may have more than one such
-        characterization. For example, it may be the datum used by the
-        driller and logger for measuring their depths. Example usage
-        values would be 'permanent','driller', 'logger' 'WRP' (well
-        reference point) and 'SRP' (site reference point).
-    :ivar measured_depth: The measured depth coordinate of this
-        reference datum as measured from another datum. The measured
-        depth datum should either be the same as the elevation datum or
-        it should be relatable to the elevation datum through other
-        datums. Positive moving toward the bottomhole from the measured
-        depth datum. This should be given when a local reference is
-        "downhole", such as a kickoff point or ocean bottom template,
-        and the borehole may not be vertical. If a Depth is given then
-        an Elevation should also be given.
-    :ivar name: The human understandable contextual name of the
-        reference datum.
-    :ivar remark: A contextual description of the well reference datum.
-    :ivar wellbore:
-    :ivar abstract_datum:
-    :ivar horizontal_location:
-    :ivar default_elevation: True indicates that this is the default
-        reference datum for elevation coordinates. False or not given
-        indicates that this is not the default reference datum.
-        Elevation coordinates that do not specify a datum reference
-        should be assumed to be measured relative to the default
-        reference datum. Only one reference datum may be designated as
-        the default elevation datum for each well. Values are "true" (or
-        "1") and "false" ( or "0").
-    :ivar default_measured_depth: True indicates that this is the
-        default reference datum for measured depth coordinates. False or
-        not given indicates that this is not the default reference
-        datum. Measured depth coordinates that do not specify a datum
-        reference should be assumed to be measured relative to this
-        default reference datum. Only one reference datum may be
-        designated as the default measured depth datum for each well.
-        Values are "true" (or "1") and "false" ( or "0").
-    :ivar default_vertical_depth: True indicates that this is the
-        default reference datum for vertical depth coordinates. False or
-        not given indicates that this is not the default reference
-        datum. Vertical depth coordinates that do not specify a datum
-        reference should be assumed to be measured relative to the
-        default reference datum. Only one reference datum may be
-        designated as the default vertical depth datum for each well.
-        Values are "true" (or "1") and "false" ( or "0").
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
+    :ivar direction_well: POSC well direction. The direction of flow of
+        the fluids in a well facility (generally, injected or produced,
+        or some combination).
+    :ivar field_value: Name of the field in which the well is located.
+    :ivar fluid_well: POSC well fluid. The type of fluid being produced
+        from or injected into a well facility.
+    :ivar well_alias: An alias name associated with the well. If the
+        well name is associated with a naming system then it should be
+        included in this list.
+    :ivar well_datum:
     """
 
-    code: List[str] = field(
+    direction_well: Optional[WellDirection] = field(
+        default=None,
+        metadata={
+            "name": "DirectionWell",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    field_value: Optional[NameStruct] = field(
+        default=None,
+        metadata={
+            "name": "Field",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    fluid_well: Optional[WellFluid] = field(
+        default=None,
+        metadata={
+            "name": "FluidWell",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    well_alias: List[NameStruct] = field(
         default_factory=list,
         metadata={
-            "name": "Code",
+            "name": "WellAlias",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    elevation: Optional[WellElevationCoord] = field(
-        default=None,
-        metadata={
-            "name": "Elevation",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    kind: List[str] = field(
+    well_datum: List[WellDatum] = field(
         default_factory=list,
         metadata={
-            "name": "Kind",
+            "name": "WellDatum",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    measured_depth: Optional[MeasuredDepthCoord] = field(
-        default=None,
-        metadata={
-            "name": "MeasuredDepth",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    name: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Name",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    wellbore: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Wellbore",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    abstract_datum: Optional[AbstractDatum] = field(
-        default=None,
-        metadata={
-            "name": "AbstractDatum",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    horizontal_location: Optional[Location] = field(
-        default=None,
-        metadata={
-            "name": "HorizontalLocation",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    default_elevation: Optional[bool] = field(
-        default=None,
-        metadata={
-            "name": "DefaultElevation",
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-    default_measured_depth: Optional[bool] = field(
-        default=None,
-        metadata={
-            "name": "DefaultMeasuredDepth",
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-    default_vertical_depth: Optional[bool] = field(
-        default=None,
-        metadata={
-            "name": "DefaultVerticalDepth",
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
         },
     )
 
@@ -17410,7 +20419,7 @@ class WellTestInjectionTestData(AbstractWellTest):
         top and base depth, and the formation tested.
     """
 
-    choke_orifice_size: List[str] = field(
+    choke_orifice_size: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
             "name": "ChokeOrificeSize",
@@ -17418,7 +20427,7 @@ class WellTestInjectionTestData(AbstractWellTest):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    maximum_annular_pressure: List[str] = field(
+    maximum_annular_pressure: List[AbstractPressureValue] = field(
         default_factory=list,
         metadata={
             "name": "MaximumAnnularPressure",
@@ -17426,7 +20435,7 @@ class WellTestInjectionTestData(AbstractWellTest):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    minimum_annular_pressure: List[str] = field(
+    minimum_annular_pressure: List[AbstractPressureValue] = field(
         default_factory=list,
         metadata={
             "name": "MinimumAnnularPressure",
@@ -17434,7 +20443,7 @@ class WellTestInjectionTestData(AbstractWellTest):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    test_duration: List[str] = field(
+    test_duration: List[TimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "TestDuration",
@@ -17442,7 +20451,7 @@ class WellTestInjectionTestData(AbstractWellTest):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    wellhead_flowing_pressure: List[str] = field(
+    wellhead_flowing_pressure: List[AbstractPressureValue] = field(
         default_factory=list,
         metadata={
             "name": "WellheadFlowingPressure",
@@ -17450,7 +20459,7 @@ class WellTestInjectionTestData(AbstractWellTest):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    wellhead_maximum_pressure: List[str] = field(
+    wellhead_maximum_pressure: List[AbstractPressureValue] = field(
         default_factory=list,
         metadata={
             "name": "WellheadMaximumPressure",
@@ -17518,9 +20527,10 @@ class WellTestProductionTestData(AbstractWellTest):
             "name": "OperatingMethod",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    test_duration: List[str] = field(
+    test_duration: List[TimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "TestDuration",
@@ -17595,2320 +20605,6 @@ class WellTestProductionTestData(AbstractWellTest):
 
 
 @dataclass
-class WftTestData:
-    """
-    A reference to a set of formation tester data that was recorded.
-
-    :ivar curve_section: A reference to a specific interval of a
-        specific curve in a specific log.
-    :ivar parameter: Test parameters used here are either control
-        parameters used to govern the test or are single value
-        parameters measured by the test (and not by subsequent
-        analysis).
-    :ivar role: The role of the test data. The role applies either to a
-        curve or to a point parameter. See enum WftTestRoleData.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    curve_section: List[WftCurveSection] = field(
-        default_factory=list,
-        metadata={
-            "name": "CurveSection",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    parameter: List[WftInOutParameter] = field(
-        default_factory=list,
-        metadata={
-            "name": "Parameter",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    role: Optional[WftTestDataRole] = field(
-        default=None,
-        metadata={
-            "name": "Role",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class AbstractDtsEquipment:
-    """
-    The abstract class of equipment in the optical path from which all components
-    in the optical path inherit.
-
-    :ivar comment: A descriptive remark about the equipment (e.g.,
-        optical fiber).
-    :ivar manufacturer: The manufacturer for this item of equipment.
-    :ivar manufacturing_date: Date when the equipment (e.g., instrument
-        box) was manufactured.
-    :ivar name: The DTS instrument equipment name.
-    :ivar software_version: Latest known version of the
-        software/firmware that is running in the equipment
-    :ivar supplier: Contact details for the company/person supplying the
-        equipment.
-    :ivar supplier_model_number: The model number (alphanumeric) that is
-        used by the supplier to reference the type of fiber that is
-        supplied to the user.
-    :ivar supply_date: The date on which this fiber segment was
-        supplied.
-    :ivar type_value: The type of equipment. This might include the
-        model type.
-    """
-
-    comment: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Comment",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    manufacturer: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Manufacturer",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    manufacturing_date: Optional[XmlDate] = field(
-        default=None,
-        metadata={
-            "name": "ManufacturingDate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    name: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Name",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    software_version: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SoftwareVersion",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    supplier: Optional[BusinessAssociate] = field(
-        default=None,
-        metadata={
-            "name": "Supplier",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    supplier_model_number: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SupplierModelNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    supply_date: Optional[XmlDate] = field(
-        default=None,
-        metadata={
-            "name": "SupplyDate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    type_value: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Type",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class AbstractPvtModel:
-    """
-    Abstract class of  PVT model.
-    """
-
-    custom_pvt_model_extension: Optional[CustomPvtModelExtension] = field(
-        default=None,
-        metadata={
-            "name": "CustomPvtModelExtension",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pvt_model_parameter_set: Optional[PvtModelParameterSet] = field(
-        default=None,
-        metadata={
-            "name": "PvtModelParameterSet",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class AbstractSimpleProductVolume:
-    """The parent abstract class for any object that will be included in a
-    regulatory report.
-
-    Those objects must inherit from this abstract object.
-
-    :ivar approval_date: The date on which the report was approved.
-    :ivar fluid_component_catalog:
-    :ivar geographic_context: Geographic context for reporting entities.
-    :ivar operator:
-    :ivar standard_conditions: The condition-dependant measurements
-        (e.g.,  volumes) in this transfer are taken to be measured at
-        standard conditions. The element is mandatory in all the SPVR
-        objects.  A choice is available – either to supply the
-        temperature and pressure for all the volumes that follow, or to
-        choose from a list of standards organizations’ reference
-        conditions. Note that the enum list of standard conditions is
-        extensible, allowing for local measurement condition standards
-        to be used
-    """
-
-    approval_date: Optional[XmlDate] = field(
-        default=None,
-        metadata={
-            "name": "ApprovalDate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    fluid_component_catalog: Optional[FluidComponentCatalog] = field(
-        default=None,
-        metadata={
-            "name": "FluidComponentCatalog",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    geographic_context: Optional[GeographicContext] = field(
-        default=None,
-        metadata={
-            "name": "GeographicContext",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    operator: Optional[BusinessAssociate] = field(
-        default=None,
-        metadata={
-            "name": "Operator",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    standard_conditions: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "StandardConditions",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class AtmosphericFlashTestAndCompositionalAnalysis:
-    """
-    The flash test and compositional analysis.
-
-    :ivar atmospheric_pressure: The atmospheric pressure at the time of
-        this analysis.
-    :ivar atmospheric_temperature: The atmospheric temperature at the
-        time of this analysis.
-    :ivar avg_molecular_weight: The average molecular weight of the
-        sample for this test.
-    :ivar date: The date when this test was performed.
-    :ivar density_at_sample_pressureand_temperature: The density of the
-        sample at the pressure and temperature conditions of this test.
-    :ivar flash_gor: The gas-oil ratio of the flash in this analysis.
-    :ivar flash_to_pressure: The pressure to which the sample is flashed
-        in this analysis.
-    :ivar flash_to_temperature: The temperature to which the sample is
-        flashed in this analysis.
-    :ivar oil_formation_volume_factor: The formation volume factor for
-        the oil (liquid) phase at the conditions of this test--volume at
-        test conditions/volume at standard conditions.
-    :ivar overall_composition:
-    :ivar remark: Remarks and comments about this data item.
-    :ivar test_number: An integer number to identify this test in a
-        sequence of tests.
-    :ivar flashed_gas:
-    :ivar flashed_liquid:
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    atmospheric_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AtmosphericPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    atmospheric_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AtmosphericTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    avg_molecular_weight: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AvgMolecularWeight",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    date: Optional[XmlDate] = field(
-        default=None,
-        metadata={
-            "name": "Date",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    density_at_sample_pressureand_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "DensityAtSamplePressureandTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    flash_gor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FlashGOR",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    flash_to_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FlashToPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    flash_to_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FlashToTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    oil_formation_volume_factor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "OilFormationVolumeFactor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    overall_composition: Optional[OverallComposition] = field(
-        default=None,
-        metadata={
-            "name": "OverallComposition",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    flashed_gas: Optional[FlashedGas] = field(
-        default=None,
-        metadata={
-            "name": "FlashedGas",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    flashed_liquid: Optional[FlashedLiquid] = field(
-        default=None,
-        metadata={
-            "name": "FlashedLiquid",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ConstantCompositionExpansionTest:
-    """
-    The CCE test.
-
-    :ivar remark: Expected to be a yes or no value to indicate if
-        differential liberation/vaporization data are corrected to
-        separator conditions/flash data or not.
-    :ivar test_number: A number for this test for purposes of e.g.,
-        tracking lab sequence.
-    :ivar test_temperature: The temperature of this test.
-    :ivar constant_composition_expansion_test_step: Measured relative
-        volume ratio = measured volume/volume at Psat.
-    :ivar liquid_fraction_reference: Volume reference for the measured
-        liquid fraction in a constant composition expansion
-        test. Referenced to liquid volume at saturation pressure
-        (generally).
-    :ivar relative_volume_reference: Volume reference for the relative
-        volume ratio in a constant composition expansion
-        test. Referenced to liquid volume at saturation pressure
-        (generally).
-    :ivar saturation_pressure: The saturation (or bubble point) pressure
-        measured in this test.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    test_temperature: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    constant_composition_expansion_test_step: List[
-        ConstantCompositionExpansionTestStep
-    ] = field(
-        default_factory=list,
-        metadata={
-            "name": "ConstantCompositionExpansionTestStep",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    liquid_fraction_reference: List[FluidVolumeReference] = field(
-        default_factory=list,
-        metadata={
-            "name": "LiquidFractionReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    relative_volume_reference: List[FluidVolumeReference] = field(
-        default_factory=list,
-        metadata={
-            "name": "RelativeVolumeReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    saturation_pressure: Optional[SaturationPressure] = field(
-        default=None,
-        metadata={
-            "name": "SaturationPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ConstantVolumeDepletionTest:
-    """
-    The CVT test.
-
-    :ivar cumulative_gas_produced_reference_std: The volume is corrected
-        to standard conditions of temperature and pressure.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar test_number: A number for this test for purposes of, e.g.,
-        tracking lab sequence.
-    :ivar test_temperature: The temperature of this test.
-    :ivar cvd_test_step:
-    :ivar liquid_dropout_reference:
-    :ivar satuation_pressure:
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    cumulative_gas_produced_reference_std: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CumulativeGasProducedReferenceStd",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    test_temperature: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    cvd_test_step: List[FluidCvdTestStep] = field(
-        default_factory=list,
-        metadata={
-            "name": "CvdTestStep",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    liquid_dropout_reference: List[FluidVolumeReference] = field(
-        default_factory=list,
-        metadata={
-            "name": "LiquidDropoutReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    satuation_pressure: Optional[SaturationPressure] = field(
-        default=None,
-        metadata={
-            "name": "SatuationPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class DasProcessed:
-    """This object contains data objects for processed data types and has no data
-    attributes.
-
-    Currently only two processed data types have been defined: the frequency band extracted (FBE) and spectra. In the future other processed data types may be added.
-    Note that a DasProcessed object is optional and only present if DAS FBE or DAS spectra data is exchanged.
-    """
-
-    fbe: List[DasFbe] = field(
-        default_factory=list,
-        metadata={
-            "name": "Fbe",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    spectra: List[DasSpectra] = field(
-        default_factory=list,
-        metadata={
-            "name": "Spectra",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class DifferentialLiberationTest:
-    """
-    The differential liberation test.
-
-    :ivar correction_method: A flag to indicate if differential
-        liberation/vaporization data are corrected to separator
-        conditions/flash data or not.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar test_number: A number for this test for purposes of, e.g.,
-        tracking lab sequence.
-    :ivar test_temperature: The temperature of this test.
-    :ivar dl_test_step:
-    :ivar shrinkage_reference:
-    :ivar saturation_pressure: The saturation (or bubble point) pressure
-        measured in this test.
-    :ivar separator_conditions: Reference to a separator test element
-        that contains the separator conditions (stages) that apply to
-        this test.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    correction_method: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CorrectionMethod",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    test_temperature: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    dl_test_step: List[FluidDifferentialLiberationTestStep] = field(
-        default_factory=list,
-        metadata={
-            "name": "DlTestStep",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    shrinkage_reference: Optional[FluidVolumeReference] = field(
-        default=None,
-        metadata={
-            "name": "ShrinkageReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    saturation_pressure: Optional[SaturationPressure] = field(
-        default=None,
-        metadata={
-            "name": "SaturationPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    separator_conditions: Optional[SeparatorConditions] = field(
-        default=None,
-        metadata={
-            "name": "SeparatorConditions",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class FacilityIdentifier:
-    """
-    Contains details about the facility being surveyed, such as name, geographical
-    data, etc.
-
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    :ivar content:
-    """
-
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-    content: List[object] = field(
-        default_factory=list,
-        metadata={
-            "type": "Wildcard",
-            "namespace": "##any",
-            "mixed": True,
-            "choices": (
-                {
-                    "name": "BusinessUnit",
-                    "type": str,
-                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-                },
-                {
-                    "name": "Kind",
-                    "type": str,
-                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-                },
-                {
-                    "name": "Operator",
-                    "type": BusinessAssociate,
-                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-                },
-                {
-                    "name": "Installation",
-                    "type": FacilityIdentifierStruct,
-                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-                },
-                {
-                    "name": "ContextFacility",
-                    "type": FacilityIdentifierStruct,
-                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-                },
-                {
-                    "name": "GeographicContext",
-                    "type": GeographicContext,
-                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-                },
-                {
-                    "name": "Name",
-                    "type": NameStruct,
-                    "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-                },
-            ),
-        },
-    )
-
-
-@dataclass
-class FiberOpticalPathNetwork:
-    """The sequence of connected items of equipment along the optical path.
-
-    Represented by a flow network.
-
-    :ivar comment: Comment.
-    :ivar context_facility: Context facility.
-    :ivar dtime_end: DTimeEnd.
-    :ivar dtim_max: DTimMax.
-    :ivar dtim_min: DTimMin.
-    :ivar dtim_start: DTimStart.
-    :ivar existence_time: ExistenceTime.
-    :ivar external_connect:
-    :ivar installation: Installation.
-    :ivar network:
-    :ivar uid: Unique identifier of this object.
-    """
-
-    comment: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Comment",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    context_facility: List[FacilityIdentifierStruct] = field(
-        default_factory=list,
-        metadata={
-            "name": "ContextFacility",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "min_occurs": 1,
-        },
-    )
-    dtime_end: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "DTimeEnd",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    dtim_max: Optional[EndpointQualifiedDateTime] = field(
-        default=None,
-        metadata={
-            "name": "DTimMax",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    dtim_min: Optional[EndpointQualifiedDateTime] = field(
-        default=None,
-        metadata={
-            "name": "DTimMin",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    dtim_start: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "DTimStart",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    existence_time: Optional[EndpointQualifiedDateTime] = field(
-        default=None,
-        metadata={
-            "name": "ExistenceTime",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    external_connect: List[ProductFlowExternalReference] = field(
-        default_factory=list,
-        metadata={
-            "name": "ExternalConnect",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    installation: Optional[FacilityIdentifierStruct] = field(
-        default=None,
-        metadata={
-            "name": "Installation",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    network: List[ProductFlowNetwork] = field(
-        default_factory=list,
-        metadata={
-            "name": "Network",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "min_occurs": 1,
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class FluidCharacterizationTableFormatSet:
-    """
-    A set of table format definitions.
-    """
-
-    fluid_characterization_table_format: List[
-        FluidCharacterizationTableFormat
-    ] = field(
-        default_factory=list,
-        metadata={
-            "name": "FluidCharacterizationTableFormat",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "min_occurs": 1,
-        },
-    )
-
-
-@dataclass
-class FluidSampleAcquisition:
-    """Information common to any fluid sample taken.
-
-    Additional details can be captured in related data object depending
-    on the where the sample was taken, for example: downhole, separator,
-    wellhead, of the formation using a wireline formation tester (WFT).
-    If the tool used to capture samples has multiple containers, each
-    container has a separate instance of fluid sample acquisition.
-
-    :ivar acquisition_gor: The acquisition gas-oil ratio for this fluid
-        sample acquisition.
-    :ivar acquisition_pressure: The acquisition pressure when this
-        sample was taken.
-    :ivar acquisition_temperature: The acquisition temperature when this
-        sample was taken. .
-    :ivar acquisition_volume: The acquisition volume when this sample
-        was taken.
-    :ivar date: The date when the sample was taken.
-    :ivar fluid_sample_container_reference:
-    :ivar fluid_sample_reference:
-    :ivar formation_pressure: The formation pressure when this sample
-        was taken.
-    :ivar formation_temperature: The formation temperature when this
-        sample was taken.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar service_company: The service company who took the fluid
-        sample.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    acquisition_gor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AcquisitionGOR",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    acquisition_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AcquisitionPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    acquisition_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AcquisitionTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    acquisition_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AcquisitionVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    date: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "Date",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    fluid_sample_container_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "FluidSampleContainerReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    fluid_sample_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "FluidSampleReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    formation_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FormationPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    formation_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "FormationTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    service_company: Optional[BusinessAssociate] = field(
-        default=None,
-        metadata={
-            "name": "ServiceCompany",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class FluidSeparatorTest:
-    """
-    FluidSeparator  Test.
-
-    :ivar overall_gas_gravity: The overall gas gravity for this test.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar reservoir_temperature: The reservoir temperature for this
-        test.
-    :ivar saturated_oil_density: The saturated oil density for this
-        test.
-    :ivar saturated_oil_formation_volume_factor: The saturated oil
-        formation volume factor for this test.
-    :ivar separator_test_gor: The separator test GOR for this test.
-    :ivar test_number: A number for this test for purposes of, e.g.,
-        tracking lab sequence.
-    :ivar separator_test_step:
-    :ivar shrinkage_reference:
-    :ivar saturation_pressure: The saturation (or bubble point) pressure
-        measured in this test.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    overall_gas_gravity: Optional[float] = field(
-        default=None,
-        metadata={
-            "name": "OverallGasGravity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    reservoir_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ReservoirTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    saturated_oil_density: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SaturatedOilDensity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    saturated_oil_formation_volume_factor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SaturatedOilFormationVolumeFactor",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    separator_test_gor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SeparatorTestGOR",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    separator_test_step: List[FluidSeparatorTestStep] = field(
-        default_factory=list,
-        metadata={
-            "name": "SeparatorTestStep",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    shrinkage_reference: Optional[FluidVolumeReference] = field(
-        default=None,
-        metadata={
-            "name": "ShrinkageReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    saturation_pressure: Optional[SaturationPressure] = field(
-        default=None,
-        metadata={
-            "name": "SaturationPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ProductFlowPort:
-    """
-    Product Flow Port Schema.
-
-    :ivar comment: A descriptive remark associated with this port.
-    :ivar direction: Defines whether this port is an inlet or outlet.
-        This is a nominal intended direction.
-    :ivar exposed: True ("true" or "1") indicates that the port is an
-        exposed internal port and cannot be used in a connection
-        external to the unit. False ("false" or "0") or not given
-        indicates a normal port.
-    :ivar facility: The name of the facility represented by this
-        ProductFlowPort The name can be qualified by a naming system.
-        The facility name is assumed to be unique within the context of
-        the facility represented by the unit. This also defines the kind
-        of facility.
-    :ivar facility_alias: An alternative name of a facility. This is
-        generally unique within a naming system. The above contextually
-        unique name should also be listed as an alias.
-    :ivar name: The name of the port within the context of the product
-        flow unit.
-    :ivar plan_name: The name of a network plan. This indicates a
-        planned port. All child network components must all be planned
-        and be part of the same plan. The parent unit must be part of
-        the same plan or be an actual. Not specified indicates an actual
-        port.
-    :ivar connected_node: Defines the node to which this port is
-        connected. A timestamp activates and deactivates the connection.
-        Only one connectedNode should be active at any one point in
-        time. There are no semantics for the node except common
-        connection. All ports that are connected to a node with the the
-        same name are inherently connected to each other. The name of
-        the node is only required to be unique within the context of the
-        current Product Flow Network (that is, not the overall model).
-        All ports must be connected to a node and whether or not any
-        other port is connected to the same node depends on the
-        requirements of the network. Any node that is internally
-        connected to only one port is presumably a candidate to be
-        connected to an external node. The behavior of ports connected
-        at a common node is as follows: a) There is no pressure drop
-        across the node. All ports connected to the node have the same
-        pressure. That is, there is an assumption of steady state fluid
-        flow. b) Conservation of mass exists across the node. The mass
-        into the node via all connected ports equals the mass out of the
-        node via all connected ports. c) The flow direction of a port
-        connected to the node may be transient. That is, flow direction
-        may change toward any port(s) if the relative internal pressure
-        of the Product Flow Units change and a new steady state is
-        achieved.
-    :ivar expected_flow_property: Defines the properties that are
-        expected to be measured at this port. This can also specify the
-        equipment tag(s) of the sensor that will read the value. Only
-        one of each property kind should be active at any point in time.
-    :ivar expected_flow_product: Defines the expected flow and product
-        pairs to be assigned to this port by a Product Volume report. A
-        set of expected qualifiers can be defined for each pair.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    comment: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Comment",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    direction: Optional[ProductFlowPortType] = field(
-        default=None,
-        metadata={
-            "name": "Direction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    exposed: Optional[bool] = field(
-        default=None,
-        metadata={
-            "name": "Exposed",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    facility: Optional[FacilityIdentifierStruct] = field(
-        default=None,
-        metadata={
-            "name": "Facility",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    facility_alias: List[NameStruct] = field(
-        default_factory=list,
-        metadata={
-            "name": "FacilityAlias",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    name: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Name",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    plan_name: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PlanName",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    connected_node: List[ConnectedNode] = field(
-        default_factory=list,
-        metadata={
-            "name": "ConnectedNode",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "min_occurs": 1,
-        },
-    )
-    expected_flow_property: List[ProductFlowExpectedUnitProperty] = field(
-        default_factory=list,
-        metadata={
-            "name": "ExpectedFlowProperty",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    expected_flow_product: List[ProductFlowQualifierExpected] = field(
-        default_factory=list,
-        metadata={
-            "name": "ExpectedFlowProduct",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ProductVolumeBalanceDetail:
-    """
-    Product Volume Balance Detail Schema.
-
-    :ivar account_number: An account identifier for the balance.
-    :ivar owner: A pointer to the business unit which owns the product.
-    :ivar sample_analysis_result: A pointer to a fluid sample analysis
-        result object that is relevant to the balance. This sample may
-        have been acquired previous to or after this period and is used
-        for determining the allocated characteristics.
-    :ivar share: The owner's share of the product.
-    :ivar source_unit: Points to the business unit from which the
-        product originated.
-    :ivar volume_value:
-    :ivar event:
-    :ivar component_content:
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    account_number: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AccountNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    owner: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "Owner",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    sample_analysis_result: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SampleAnalysisResult",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    share: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Share",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    source_unit: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SourceUnit",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    volume_value: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "VolumeValue",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    event: List[ProductVolumeBalanceEvent] = field(
-        default_factory=list,
-        metadata={
-            "name": "Event",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    component_content: List[ProductVolumeComponentContent] = field(
-        default_factory=list,
-        metadata={
-            "name": "ComponentContent",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ProductionOperationHse:
-    """
-    Operational Health, Safety and Environment Schema.
-
-    :ivar alarm_count: The number of system alarms that have occurred.
-    :ivar incident_count: The number of incidents or accidents and
-        injuries that were reported.
-    :ivar medical_treatment_count: The number of medical treatments that
-        have occurred.
-    :ivar safety_description: A textual description of safety
-        considerations.
-    :ivar safety_intro_count: The number of personnel safety
-        introductions that have occurred.
-    :ivar since_defined_situation: The amount of time since the most
-        recent defined hazard and accident situation (Norwegian DFU).
-    :ivar since_lost_time: The amount of time since the most recent
-        lost-time accident.
-    :ivar since_prevention_exercise: The amount of time since the most
-        recent accident-prevention exercise.
-    :ivar safety: Safety information at a specific installatino.
-    :ivar weather: Information about the weather at a point in time.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    class Meta:
-        name = "ProductionOperationHSE"
-
-    alarm_count: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "AlarmCount",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    incident_count: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "IncidentCount",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    medical_treatment_count: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "MedicalTreatmentCount",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    safety_description: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SafetyDescription",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    safety_intro_count: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "SafetyIntroCount",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    since_defined_situation: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SinceDefinedSituation",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    since_lost_time: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SinceLostTime",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    since_prevention_exercise: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SincePreventionExercise",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    safety: List[ProductionOperationSafety] = field(
-        default_factory=list,
-        metadata={
-            "name": "Safety",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    weather: List[ProductionOperationWeather] = field(
-        default_factory=list,
-        metadata={
-            "name": "Weather",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class ProductionOperationLostProduction:
-    """
-    Lost Production Schema.
-    """
-
-    volume_and_reason: List[LostVolumeAndReason] = field(
-        default_factory=list,
-        metadata={
-            "name": "VolumeAndReason",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    third_party_processing: List[
-        ProductionOperationThirdPartyProcessing
-    ] = field(
-        default_factory=list,
-        metadata={
-            "name": "ThirdPartyProcessing",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class ReportingEntityVolumes:
-    """Contains all the volumes for a single reporting entity.
-
-    It contains a reference back to the reporting entity using its UUID
-    for reference.
-
-    :ivar duration: the duration of volume produced at facility
-    :ivar reporting_entity_reference:
-    :ivar start_date: The starting date of the month.
-    :ivar disposition:
-    :ivar closing_inventory:
-    :ivar opening_inventory:
-    :ivar deferred_production_event:
-    :ivar injection:
-    :ivar production:
-    """
-
-    duration: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Duration",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    reporting_entity_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "ReportingEntityReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    start_date: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "StartDate",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    disposition: List[AbstractDisposition] = field(
-        default_factory=list,
-        metadata={
-            "name": "Disposition",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    closing_inventory: List[AbstractProductQuantity] = field(
-        default_factory=list,
-        metadata={
-            "name": "ClosingInventory",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    opening_inventory: List[AbstractProductQuantity] = field(
-        default_factory=list,
-        metadata={
-            "name": "OpeningInventory",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    deferred_production_event: List[DeferredProductionEvent] = field(
-        default_factory=list,
-        metadata={
-            "name": "DeferredProductionEvent",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    injection: List[Injection] = field(
-        default_factory=list,
-        metadata={
-            "name": "Injection",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    production: List[Production] = field(
-        default_factory=list,
-        metadata={
-            "name": "Production",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class SlimTubeSpecification:
-    """Specifications of the slim tube used during a slim-tube test.
-
-    For definition of a slim tube and slim-tube test, see
-    http://www.glossary.oilfield.slb.com/Terms/s/slim-tube_test.aspx
-
-    :ivar cross_section_area: The cross section area of the slim tube.
-    :ivar inner_diameter: The inner diameter of the slim tube.
-    :ivar length: The length of the slim tube.
-    :ivar outer_diameter: The outer diameter of the slim tube.
-    :ivar packing_material: The packing material used in the slim tube.
-    :ivar permeability: The permeability of the slim tube.
-    :ivar pore_volume: The pore volume of the slim tube.
-    :ivar porosity: The porosity of the slim tube.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar injected_gas: Reference to the gas injected into the slim
-        tube.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    cross_section_area: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CrossSectionArea",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    inner_diameter: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "InnerDiameter",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    length: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Length",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    outer_diameter: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "OuterDiameter",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    packing_material: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PackingMaterial",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    permeability: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Permeability",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pore_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PoreVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    porosity: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Porosity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    injected_gas: List[InjectedGas] = field(
-        default_factory=list,
-        metadata={
-            "name": "InjectedGas",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class SlimTubeTestVolumeStep:
-    """
-    Slim-tube test volume step.
-
-    :ivar cumulative_oil_production_perc_ooip: The cumulative oil
-        production as a fraction of the original oil in place of the
-        slim-tube test volume step.
-    :ivar cumulative_oil_production_sto: The cumulative oil production
-        of stock stank oil for the slim-tube test volume step.
-    :ivar cumulative_produced_gor: The cumulative oil production GOR for
-        the slim-tube test volume step.
-    :ivar darcy_velocity: The Darcy velocity of the slim-tube test
-        volume step.
-    :ivar differential_pressure: The differential pressure of the slim-
-        tube test volume step.
-    :ivar incremental_produced_gor: The incremental produced GOR of the
-        slim-tube test volume step.
-    :ivar injected_pore_volume_fraction: The injected pore volume
-        fraction of the slim-tube test volume step.
-    :ivar injection_volume_at_pump_temperature: The injection volume at
-        pump temperature of the slim-tube test volume step.
-    :ivar injection_volume_at_test_temperature: The injection volume at
-        test temperature of the slim-tube test volume step.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar run_time: The run time of the slim-tube test volume step.
-    :ivar step_number: The step number is the index of a (P,T) step in
-        the overall test.
-    :ivar mass_balance:
-    :ivar produced_gas_properties:
-    :ivar produced_oil_properties:
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    cumulative_oil_production_perc_ooip: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CumulativeOilProductionPercOOIP",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    cumulative_oil_production_sto: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CumulativeOilProductionSTO",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    cumulative_produced_gor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "CumulativeProducedGOR",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    darcy_velocity: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "DarcyVelocity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    differential_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "DifferentialPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    incremental_produced_gor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "IncrementalProducedGOR",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    injected_pore_volume_fraction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "InjectedPoreVolumeFraction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    injection_volume_at_pump_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "InjectionVolumeAtPumpTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    injection_volume_at_test_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "InjectionVolumeAtTestTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    run_time: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "RunTime",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    step_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "StepNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    mass_balance: Optional[MassBalance] = field(
-        default=None,
-        metadata={
-            "name": "MassBalance",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    produced_gas_properties: Optional[ProducedGasProperties] = field(
-        default=None,
-        metadata={
-            "name": "ProducedGasProperties",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    produced_oil_properties: Optional[ProducedOilProperties] = field(
-        default=None,
-        metadata={
-            "name": "ProducedOilProperties",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class SwellingTest:
-    """
-    Swelling test.
-
-    :ivar remark: Remarks and comments about this data item.
-    :ivar test_number: An integer number to identify this test in a
-        sequence of tests.
-    :ivar test_temperature: The temperature of this test.
-    :ivar injected_gas: Reference to the gas injected during the
-        swelling test.
-    :ivar swelling_test_step:
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    test_temperature: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    injected_gas: List[InjectedGas] = field(
-        default_factory=list,
-        metadata={
-            "name": "InjectedGas",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    swelling_test_step: List[SwellingTestStep] = field(
-        default_factory=list,
-        metadata={
-            "name": "SwellingTestStep",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class VaporLiquidEquilibriumTest:
-    """
-    Properties and results for a vapor-liquid equilibrium (VLE) test.
-
-    :ivar atmospheric_flash_test_reference: Reference to the atmospheric
-        flash test for this VLE test.
-    :ivar gas_solvent_added: The gas solvent added for this VLE test.
-    :ivar liquid_composition: The liquid composition for this VLE test.
-    :ivar liquid_phase_volume: The liquid phase volume for this VLE
-        test.
-    :ivar liquid_transport_test_reference: A reference to a liquid
-        transport property test associated with this VLE test.
-    :ivar mixture_gas_solvent_mole_fraction: The mixture gas solvent
-        mole fraction for this VLE test.
-    :ivar mixture_gor: The mixture gas-oil ratio for this VLE test.
-    :ivar mixture_psat_test_temperature: The mixture saturation pressure
-        test temperature for this VLE test.
-    :ivar mixture_relative_volume_relative_to_psat: The mixture relative
-        volume relative to volume a saturation pressure for this VLE
-        test.
-    :ivar mixture_volume: The mixture volume for this VLE test.
-    :ivar remark: Remarks and comments about this data item.
-    :ivar test_number: An integer number to identify this test in a
-        sequence of tests.
-    :ivar test_pressure: The pressure of this test.
-    :ivar test_temperature: The temperature of this test.
-    :ivar vapor_composition: The vapor composition for this VLE test.
-    :ivar vapor_phase_volume: The vapor phase volume for this VLE test.
-    :ivar vapor_transport_test_reference: A reference to a vapor
-        transport property test associated with this VLE test.
-    :ivar injected_gas_added: Reference to the injected gas added for
-        this VLE test.
-    :ivar vapor_phase_density: The vapor phase density for this VLE
-        test.
-    :ivar liquid_phase_density: The liquid phase density for this VLE
-        test.
-    :ivar vapor_phase_viscosity: The vapor phase viscosity for this VLE
-        test.
-    :ivar cumulative_gas_added: Reference to the cumulative gas added
-        for this VLE test.
-    :ivar uid: A unique identifier for this data element. It is not
-        globally unique (not a uuid) and only need be unique within the
-        context of the parent top-level object.
-    """
-
-    atmospheric_flash_test_reference: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "AtmosphericFlashTestReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_solvent_added: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasSolventAdded",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    liquid_composition: List[LiquidComposition] = field(
-        default_factory=list,
-        metadata={
-            "name": "LiquidComposition",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    liquid_phase_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "LiquidPhaseVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    liquid_transport_test_reference: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "LiquidTransportTestReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mixture_gas_solvent_mole_fraction: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MixtureGasSolventMoleFraction",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mixture_gor: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MixtureGOR",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mixture_psat_test_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MixturePsatTestTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mixture_relative_volume_relative_to_psat: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MixtureRelativeVolumeRelativeToPsat",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    mixture_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "MixtureVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    remark: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Remark",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    test_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "TestPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    test_temperature: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    vapor_composition: List[FluidComponent] = field(
-        default_factory=list,
-        metadata={
-            "name": "VaporComposition",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    vapor_phase_volume: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "VaporPhaseVolume",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    vapor_transport_test_reference: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "VaporTransportTestReference",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    injected_gas_added: Optional[InjectedGas] = field(
-        default=None,
-        metadata={
-            "name": "InjectedGasAdded",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    vapor_phase_density: List[PhaseDensity] = field(
-        default_factory=list,
-        metadata={
-            "name": "VaporPhaseDensity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "min_occurs": 1,
-        },
-    )
-    liquid_phase_density: Optional[PhaseDensity] = field(
-        default=None,
-        metadata={
-            "name": "LiquidPhaseDensity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    vapor_phase_viscosity: Optional[PhaseViscosity] = field(
-        default=None,
-        metadata={
-            "name": "VaporPhaseViscosity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    cumulative_gas_added: Optional[RefInjectedGasAdded] = field(
-        default=None,
-        metadata={
-            "name": "CumulativeGasAdded",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    uid: Optional[str] = field(
-        default=None,
-        metadata={
-            "type": "Attribute",
-            "required": True,
-        },
-    )
-
-
-@dataclass
-class WaterAnalysis:
-    """
-    Water analysis.
-    """
-
-    sample_integrity_and_preparation: Optional[
-        SampleIntegrityAndPreparation
-    ] = field(
-        default=None,
-        metadata={
-            "name": "SampleIntegrityAndPreparation",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_analysis_test: List[WaterAnalysisTest] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterAnalysisTest",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    water_sample_component: List[WaterSampleComponent] = field(
-        default_factory=list,
-        metadata={
-            "name": "WaterSampleComponent",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class WellContext:
-    """
-    Within the context of a WITSML Server, this data should duplicate the
-    equivalent information in the well object.
-
-    :ivar direction_well: POSC well direction. The direction of flow of
-        the fluids in a well facility (generally, injected or produced,
-        or some combination).
-    :ivar field_value: Name of the field in which the well is located.
-    :ivar fluid_well: POSC well fluid. The type of fluid being produced
-        from or injected into a well facility.
-    :ivar well_alias: An alias name associated with the well. If the
-        well name is associated with a naming system then it should be
-        included in this list.
-    :ivar well_datum:
-    """
-
-    direction_well: Optional[WellDirection] = field(
-        default=None,
-        metadata={
-            "name": "DirectionWell",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    field_value: Optional[NameStruct] = field(
-        default=None,
-        metadata={
-            "name": "Field",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    fluid_well: Optional[WellFluid] = field(
-        default=None,
-        metadata={
-            "name": "FluidWell",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    well_alias: List[NameStruct] = field(
-        default_factory=list,
-        metadata={
-            "name": "WellAlias",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    well_datum: List[WellDatum] = field(
-        default_factory=list,
-        metadata={
-            "name": "WellDatum",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
 class WftTestResult:
     """
     A single result derived from analysis of formation tester data.
@@ -19972,6 +20668,7 @@ class WftTestResult:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     input_parameter: List[WftInOutParameter] = field(
@@ -20020,6 +20717,7 @@ class WftTestResult:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -20071,52 +20769,868 @@ class AbstractCorrelationModel(AbstractPvtModel):
 
 
 @dataclass
-class AssetProductionVolumes(AbstractSimpleProductVolume):
-    """Contains all volume data for all reporting entities (e.g., area, field,
-    wells, etc.).
+class AbstractSimpleProductVolume(AbstractObject):
+    """The parent abstract class for any object that will be included in a
+    regulatory report.
 
-    Although named "volumes" in line with industry usage, different
-    quantities may be reported, such as volume, mass, and energy
-    content.
+    Those objects must inherit from this abstract object.
 
-    :ivar end_date: The end date of report period.
-    :ivar nominal_period: Nominal period.
-    :ivar start_date: The start date of the reporting period.
-    :ivar reporting_entity_volumes:
+    :ivar approval_date: The date on which the report was approved.
+    :ivar fluid_component_catalog:
+    :ivar geographic_context: Geographic context for reporting entities.
+    :ivar operator:
+    :ivar standard_conditions: The condition-dependant measurements
+        (e.g.,  volumes) in this transfer are taken to be measured at
+        standard conditions. The element is mandatory in all the SPVR
+        objects.  A choice is available – either to supply the
+        temperature and pressure for all the volumes that follow, or to
+        choose from a list of standards organizations’ reference
+        conditions. Note that the enum list of standard conditions is
+        extensible, allowing for local measurement condition standards
+        to be used
+    """
+
+    approval_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "ApprovalDate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    fluid_component_catalog: Optional[FluidComponentCatalog] = field(
+        default=None,
+        metadata={
+            "name": "FluidComponentCatalog",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    geographic_context: Optional[GeographicContext] = field(
+        default=None,
+        metadata={
+            "name": "GeographicContext",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    operator: Optional[BusinessAssociate] = field(
+        default=None,
+        metadata={
+            "name": "Operator",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    standard_conditions: Optional[AbstractTemperaturePressure] = field(
+        default=None,
+        metadata={
+            "name": "StandardConditions",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class AtmosphericFlashTestAndCompositionalAnalysis:
+    """
+    The flash test and compositional analysis.
+
+    :ivar atmospheric_pressure: The atmospheric pressure at the time of
+        this analysis.
+    :ivar atmospheric_temperature: The atmospheric temperature at the
+        time of this analysis.
+    :ivar avg_molecular_weight: The average molecular weight of the
+        sample for this test.
+    :ivar date: The date when this test was performed.
+    :ivar density_at_sample_pressureand_temperature: The density of the
+        sample at the pressure and temperature conditions of this test.
+    :ivar flash_gor: The gas-oil ratio of the flash in this analysis.
+    :ivar flash_to_pressure: The pressure to which the sample is flashed
+        in this analysis.
+    :ivar flash_to_temperature: The temperature to which the sample is
+        flashed in this analysis.
+    :ivar oil_formation_volume_factor: The formation volume factor for
+        the oil (liquid) phase at the conditions of this test--volume at
+        test conditions/volume at standard conditions.
+    :ivar overall_composition:
+    :ivar remark: Remarks and comments about this data item.
+    :ivar test_number: An integer number to identify this test in a
+        sequence of tests.
+    :ivar flashed_gas:
+    :ivar flashed_liquid:
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    atmospheric_pressure: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AtmosphericPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    atmospheric_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AtmosphericTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    avg_molecular_weight: List[MolecularWeightMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "AvgMolecularWeight",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "Date",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    density_at_sample_pressureand_temperature: List[
+        MassPerVolumeMeasure
+    ] = field(
+        default_factory=list,
+        metadata={
+            "name": "DensityAtSamplePressureandTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    flash_gor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "FlashGOR",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    flash_to_pressure: List[AbstractPressureValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "FlashToPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    flash_to_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "FlashToTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    oil_formation_volume_factor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "OilFormationVolumeFactor",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    overall_composition: Optional[OverallComposition] = field(
+        default=None,
+        metadata={
+            "name": "OverallComposition",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    test_number: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "TestNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    flashed_gas: Optional[FlashedGas] = field(
+        default=None,
+        metadata={
+            "name": "FlashedGas",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    flashed_liquid: Optional[FlashedLiquid] = field(
+        default=None,
+        metadata={
+            "name": "FlashedLiquid",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ConstantCompositionExpansionTest:
+    """
+    The CCE test.
+
+    :ivar remark: Expected to be a yes or no value to indicate if
+        differential liberation/vaporization data are corrected to
+        separator conditions/flash data or not.
+    :ivar test_number: A number for this test for purposes of e.g.,
+        tracking lab sequence.
+    :ivar test_temperature: The temperature of this test.
+    :ivar constant_composition_expansion_test_step: Measured relative
+        volume ratio = measured volume/volume at Psat.
+    :ivar liquid_fraction_reference: Volume reference for the measured
+        liquid fraction in a constant composition expansion
+        test. Referenced to liquid volume at saturation pressure
+        (generally).
+    :ivar relative_volume_reference: Volume reference for the relative
+        volume ratio in a constant composition expansion
+        test. Referenced to liquid volume at saturation pressure
+        (generally).
+    :ivar saturation_pressure: The saturation (or bubble point) pressure
+        measured in this test.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    test_number: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "TestNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    test_temperature: Optional[ThermodynamicTemperatureMeasure] = field(
+        default=None,
+        metadata={
+            "name": "TestTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    constant_composition_expansion_test_step: List[
+        ConstantCompositionExpansionTestStep
+    ] = field(
+        default_factory=list,
+        metadata={
+            "name": "ConstantCompositionExpansionTestStep",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    liquid_fraction_reference: List[FluidVolumeReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "LiquidFractionReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    relative_volume_reference: List[FluidVolumeReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "RelativeVolumeReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    saturation_pressure: Optional[SaturationPressure] = field(
+        default=None,
+        metadata={
+            "name": "SaturationPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ConstantVolumeDepletionTest:
+    """
+    The CVT test.
+
+    :ivar cumulative_gas_produced_reference_std: The volume is corrected
+        to standard conditions of temperature and pressure.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar test_number: A number for this test for purposes of, e.g.,
+        tracking lab sequence.
+    :ivar test_temperature: The temperature of this test.
+    :ivar cvd_test_step:
+    :ivar liquid_dropout_reference:
+    :ivar satuation_pressure:
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    cumulative_gas_produced_reference_std: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CumulativeGasProducedReferenceStd",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    test_number: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "TestNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    test_temperature: Optional[ThermodynamicTemperatureMeasure] = field(
+        default=None,
+        metadata={
+            "name": "TestTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    cvd_test_step: List[FluidCvdTestStep] = field(
+        default_factory=list,
+        metadata={
+            "name": "CvdTestStep",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    liquid_dropout_reference: List[FluidVolumeReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "LiquidDropoutReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    satuation_pressure: Optional[SaturationPressure] = field(
+        default=None,
+        metadata={
+            "name": "SatuationPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class DasAcquisition(AbstractObject):
+    """
+    Contains metadata about the DAS acquisition common to the various types of data
+    acquired during the acquisition, which includes DAS measurement instrument
+    data, fiber optical path, time zone, and core acquisition settings like pulse
+    rate and gauge length, measurement start time and whether or not this was a
+    triggered measurement.
+
+    :ivar acquisition_description: Free format description of the
+        acquired DAS data.
+    :ivar acquisition_id: A universally unique identifier (UUID) for an
+        instance of a DAS acquisition.
+    :ivar das_instrument_box: Description of the measurement instrument.
+        Often referred to as interrogator unit or IU.
+    :ivar facility_id: This is a human-readable name for the facility or
+        facilities which this acquisition is measuring.
+    :ivar gauge_length: A distance (length along the fiber) which the
+        DAS interrogator unit manufacturer designs and implements by
+        hardware or software to affect the interrogator unit spatial
+        resolution.
+    :ivar gauge_length_unit: Only required in an HDF5 (H5) file to
+        record the unit of measure of the gauge length.
+    :ivar maximum_frequency: The maximum signal frequency a measurement
+        instrument can provide as specified by the vendor. This is the
+        Nyquist frequency (or some fraction thereof) of PulseRate.
+    :ivar measurement_start_time: The time-date specification of the
+        beginning of a data ‘sample’ in a ‘time series’ in ISO 8601
+        compatible format. This is typically a GPS-locked time
+        measurement.
+    :ivar minimum_frequency: The minimum signal frequency a measurement
+        instrument can provide as specified by the vendor.
+    :ivar number_of_loci: The total number of ‘loci’ (acoustic sample
+        points) acquired by the measurement instrument in a single
+        ‘scan’ of the fiber.
+    :ivar optical_path: Description of the fiber optical path. A fiber
+        optical path consists of a series of fibers, connectors, etc.
+        together forming the path for the light pulse emitted from the
+        measurement instrument.
+    :ivar pulse_rate: The rate at which the interrogator unit
+        interrogates the fiber sensor. For most interrogators, this
+        element is informally known as the ‘pulse rate’.
+    :ivar pulse_width: The width of the ‘pulse’ sent down the fiber.
+    :ivar pulse_width_unit: Only required in an HDF5 (H5) file to record
+        the unit of measure of the pulse width. Default is nanoseconds
+        (ns).
+    :ivar spatial_sampling_interval: The separation between two
+        consecutive ‘spatial sample’ points on the fiber at which the
+        signal is measured. Not to be confused with ‘spatial
+        resolution’.
+    :ivar spatial_sampling_interval_unit: Only required in an HDF5 (H5)
+        file to record the unit of measure of the sampling interval.
+    :ivar start_locus_index: The first ‘locus’ acquired by the
+        interrogator unit. Where ‘Locus Index 0’ is the acoustic sample
+        point at the connector of the measurement instrument.
+    :ivar triggered_measurement: Measurement for an acquisition that
+        requires synchronization between a transmitting source (Tx) and
+        a recording (Rx) measurement system. It must be recorded for
+        every measurement regardless of what application it will serve.
+    :ivar vendor_code: Description of the vendor providing the DAS data
+        acquisition service. Note that in the HDF5 (H5) file, this is a
+        single string describing vendor name and some additional
+        information that the vendor deems relevant, e.g., ‘VendorX FBE
+        data version 2.3’.
+    :ivar calibration:
+    :ivar custom:
+    :ivar processed:
+    :ivar raw:
     """
 
     class Meta:
         namespace = "http://www.energistics.org/energyml/data/prodmlv2"
 
-    end_date: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "EndDate",
-            "type": "Element",
-            "required": True,
-        },
-    )
-    nominal_period: Optional[Union[ReportingDurationKind, str]] = field(
-        default=None,
-        metadata={
-            "name": "NominalPeriod",
-            "type": "Element",
-            "required": True,
-        },
-    )
-    start_date: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "StartDate",
-            "type": "Element",
-            "required": True,
-        },
-    )
-    reporting_entity_volumes: List[ReportingEntityVolumes] = field(
+    acquisition_description: List[str] = field(
         default_factory=list,
         metadata={
-            "name": "ReportingEntityVolumes",
+            "name": "AcquisitionDescription",
             "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    acquisition_id: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "AcquisitionId",
+            "type": "Element",
+            "required": True,
+            "pattern": r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}",
+        },
+    )
+    das_instrument_box: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "DasInstrumentBox",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    facility_id: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "FacilityId",
+            "type": "Element",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    gauge_length: Optional[LengthMeasure] = field(
+        default=None,
+        metadata={
+            "name": "GaugeLength",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    gauge_length_unit: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "GaugeLengthUnit",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    maximum_frequency: Optional[FrequencyMeasure] = field(
+        default=None,
+        metadata={
+            "name": "MaximumFrequency",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    measurement_start_time: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "MeasurementStartTime",
+            "type": "Element",
+            "required": True,
+            "pattern": r".+T.+[Z+\-].*",
+        },
+    )
+    minimum_frequency: Optional[FrequencyMeasure] = field(
+        default=None,
+        metadata={
+            "name": "MinimumFrequency",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    number_of_loci: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "NumberOfLoci",
+            "type": "Element",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    optical_path: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "OpticalPath",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    pulse_rate: Optional[FrequencyMeasure] = field(
+        default=None,
+        metadata={
+            "name": "PulseRate",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    pulse_width: Optional[TimeMeasure] = field(
+        default=None,
+        metadata={
+            "name": "PulseWidth",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    pulse_width_unit: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "PulseWidthUnit",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    spatial_sampling_interval: Optional[LengthMeasure] = field(
+        default=None,
+        metadata={
+            "name": "SpatialSamplingInterval",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    spatial_sampling_interval_unit: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "SpatialSamplingIntervalUnit",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    start_locus_index: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "StartLocusIndex",
+            "type": "Element",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    triggered_measurement: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "TriggeredMeasurement",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    vendor_code: Optional[BusinessAssociate] = field(
+        default=None,
+        metadata={
+            "name": "VendorCode",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    calibration: List[DasCalibration] = field(
+        default_factory=list,
+        metadata={
+            "name": "Calibration",
+            "type": "Element",
+        },
+    )
+    custom: Optional[DasCustom] = field(
+        default=None,
+        metadata={
+            "name": "Custom",
+            "type": "Element",
+        },
+    )
+    processed: Optional[DasProcessed] = field(
+        default=None,
+        metadata={
+            "name": "Processed",
+            "type": "Element",
+        },
+    )
+    raw: List[DasRaw] = field(
+        default_factory=list,
+        metadata={
+            "name": "Raw",
+            "type": "Element",
+        },
+    )
+
+
+@dataclass
+class DasInstrumentBox(AbstractObject):
+    """
+    The group of elements corresponding to a DAS instrument box.
+
+    :ivar facility_identifier: Identifies the facility to which an
+        instrument is attached.  Type is the PRODML Common Facility
+        Identifier.
+    :ivar firmware_version: Firmware version of the DAS Instrument box.
+    :ivar instrument: The general data of an instrument, including
+        vendor information, in the installed system.
+    :ivar instrument_box_description: An identification tag for the
+        instrument box. A serial number is a type of identification tag
+        however some tags contain many pieces of information. This
+        structure just identifies the tag and does not describe the
+        contents.
+    :ivar parameter: Additional parameters to define the instrument box
+        as a piece of equipment. These should not be parameters to
+        define the installation or use of the box in the wellbore, or
+        other system. This element should be used only if an appropriate
+        parameter is not available as an element, or in the calibration
+        operation.
+    :ivar patch_cord: Description of the patch cord connecting the fiber
+        optic path to the DAS instrument box connector.
+    :ivar serial_number: An identification tag for the instrument box. A
+        serial number is a type of identification tag however some tags
+        contain many pieces of information. This structure just
+        identifies the tag and does not describe the contents.
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    facility_identifier: Optional[FacilityIdentifier] = field(
+        default=None,
+        metadata={
+            "name": "FacilityIdentifier",
+            "type": "Element",
+        },
+    )
+    firmware_version: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "FirmwareVersion",
+            "type": "Element",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    instrument: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Instrument",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    instrument_box_description: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "InstrumentBoxDescription",
+            "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    parameter: List[IndexedObject] = field(
+        default_factory=list,
+        metadata={
+            "name": "Parameter",
+            "type": "Element",
+        },
+    )
+    patch_cord: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "PatchCord",
+            "type": "Element",
+        },
+    )
+    serial_number: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "SerialNumber",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class DifferentialLiberationTest:
+    """
+    The differential liberation test.
+
+    :ivar correction_method: A flag to indicate if differential
+        liberation/vaporization data are corrected to separator
+        conditions/flash data or not.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar test_number: A number for this test for purposes of, e.g.,
+        tracking lab sequence.
+    :ivar test_temperature: The temperature of this test.
+    :ivar dl_test_step:
+    :ivar shrinkage_reference:
+    :ivar saturation_pressure: The saturation (or bubble point) pressure
+        measured in this test.
+    :ivar separator_conditions: Reference to a separator test element
+        that contains the separator conditions (stages) that apply to
+        this test.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    correction_method: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "CorrectionMethod",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    test_number: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "TestNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    test_temperature: Optional[ThermodynamicTemperatureMeasure] = field(
+        default=None,
+        metadata={
+            "name": "TestTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    dl_test_step: List[FluidDifferentialLiberationTestStep] = field(
+        default_factory=list,
+        metadata={
+            "name": "DlTestStep",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    shrinkage_reference: Optional[FluidVolumeReference] = field(
+        default=None,
+        metadata={
+            "name": "ShrinkageReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    saturation_pressure: Optional[SaturationPressure] = field(
+        default=None,
+        metadata={
+            "name": "SaturationPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    separator_conditions: Optional[SeparatorConditions] = field(
+        default=None,
+        metadata={
+            "name": "SeparatorConditions",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -20141,7 +21655,7 @@ class DownholeSampleAcquisition(FluidSampleAcquisition):
         object) where this downhole sample was taken.
     """
 
-    base_md: List[str] = field(
+    base_md: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
             "name": "BaseMD",
@@ -20149,7 +21663,7 @@ class DownholeSampleAcquisition(FluidSampleAcquisition):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    production_well_test: List[str] = field(
+    production_well_test: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "ProductionWellTest",
@@ -20157,13 +21671,14 @@ class DownholeSampleAcquisition(FluidSampleAcquisition):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    sampling_run: Optional[str] = field(
+    sampling_run: Optional[int] = field(
         default=None,
         metadata={
             "name": "SamplingRun",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
     tool_kind: List[str] = field(
@@ -20172,9 +21687,10 @@ class DownholeSampleAcquisition(FluidSampleAcquisition):
             "name": "ToolKind",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    top_md: Optional[str] = field(
+    top_md: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "TopMD",
@@ -20183,7 +21699,7 @@ class DownholeSampleAcquisition(FluidSampleAcquisition):
             "required": True,
         },
     )
-    wellbore_completion_reference: List[str] = field(
+    wellbore_completion_reference: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "WellboreCompletionReference",
@@ -20191,12 +21707,254 @@ class DownholeSampleAcquisition(FluidSampleAcquisition):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    wellbore_reference: Optional[str] = field(
+    wellbore_reference: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "WellboreReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class DtsInstalledSystem(AbstractObject):
+    """
+    The group of elements corresponding to a DTS installed system.
+
+    :ivar comment: Comment about this installed system.
+    :ivar date_max: The maximum date index contained within the object.
+        The minimum and maximum indexes are server query parameters and
+        are populated with valid values in a "get" result. For a
+        description of the behavior related to this parameter in WITSML
+        v1.4.1, see the WITSML API Specification appendix on "Special
+        Handling" of growing objects.
+    :ivar date_min: The minimum date index contained within the object.
+        The minimum and maximum indexes are server query parameters and
+        are populated with valid values in a "get" result. That is, all
+        measurements for a well in the specified period defined by the
+        min/max. For a description of the behavior related to this
+        parameter in WITSML v1.4.1, see the WITSML API Specification
+        appendix on "Special Handling" of growing objects.
+    :ivar facility_identifier:
+    :ivar instrument_box_reference: A reference to the instrument box
+        data object used in this installed system.
+    :ivar optical_budget: Total light budget available for the
+        installation. This is generally measured in decibels, and
+        indicates the total power loss for two-way travel of the light
+        in the installed fiber.
+    :ivar optical_path_length: The length of the fiber installed in the
+        wellbore.
+    :ivar optical_path_reference: A reference to the optical path data
+        object that is used in this installed system.
+    :ivar dts_calibration: Calibration parameters vary from vendor to
+        vendor, depending on the calibration method being used. This is
+        a general type that allows a calibration date, business
+        associate, and many  name/value pairs.
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    comment: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comment",
+            "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    date_max: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DateMax",
+            "type": "Element",
+        },
+    )
+    date_min: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DateMin",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    facility_identifier: Optional[FacilityIdentifier] = field(
+        default=None,
+        metadata={
+            "name": "FacilityIdentifier",
+            "type": "Element",
+        },
+    )
+    instrument_box_reference: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "InstrumentBoxReference",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    optical_budget: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "OpticalBudget",
+            "type": "Element",
+        },
+    )
+    optical_path_length: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "OpticalPathLength",
+            "type": "Element",
+        },
+    )
+    optical_path_reference: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "OpticalPathReference",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    dts_calibration: List[DtsCalibration] = field(
+        default_factory=list,
+        metadata={
+            "name": "DtsCalibration",
+            "type": "Element",
+        },
+    )
+
+
+@dataclass
+class DtsMeasurement(AbstractObject):
+    """
+    The group of elements corresponding to a DTS measurement.
+
+    :ivar bad_set_flag: Set to 'true' when a measurement is included but
+        is known to be bad (i.e., all the values are null). Use this
+        flag in situations when you want to keep track of the fact that
+        a measurement was generated/received, however the measurement
+        was bad.
+    :ivar diagnostic_parameters: Diagnostic information generated by the
+        instrument box at the time the measurement was taken.
+    :ivar empty_set_flag: Set to 'true' when the measurement set is
+        empty (only the header is provided). Use this flag for
+        situations when the instrument box attempts to get a reading,
+        but nothing is generated (fiber is disconnected, for example).
+    :ivar facility_identifier:
+    :ivar installed_system_reference: Reference to the installed system
+        used to take the measurement (combination of instrument box and
+        optical path).
+    :ivar measurement_tags: This supports user-defined "tags" (in the
+        form of text strings) to be attached to the measurement.
+        Example: to indicate other operations under way at the time
+        (e.g., start of injection).
+    :ivar time_end: Time when the installed system finished taking the
+        measurement.
+    :ivar time_since_instrument_startup: Length of time that the
+        instrument box has been up and running since its last power up.
+    :ivar time_start: Time when the installed system began taking the
+        measurement.
+    :ivar interpretation_log:
+    :ivar measurement_trace: Header data for raw (measured) traces
+        collections
+    :ivar measurement_configuration: Enum. The configuration of the
+        optical path. This may be varied from measurement to
+        measurement, independent of the fiber path network.
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    bad_set_flag: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "BadSetFlag",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    diagnostic_parameters: List[ExtensionNameValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "DiagnosticParameters",
+            "type": "Element",
+        },
+    )
+    empty_set_flag: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "EmptySetFlag",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    facility_identifier: Optional[FacilityIdentifier] = field(
+        default=None,
+        metadata={
+            "name": "FacilityIdentifier",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    installed_system_reference: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "InstalledSystemReference",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    measurement_tags: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "MeasurementTags",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    time_end: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "TimeEnd",
+            "type": "Element",
+        },
+    )
+    time_since_instrument_startup: List[TimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TimeSinceInstrumentStartup",
+            "type": "Element",
+        },
+    )
+    time_start: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "TimeStart",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    interpretation_log: Optional[DtsInterpretationLogSet] = field(
+        default=None,
+        metadata={
+            "name": "InterpretationLog",
+            "type": "Element",
+        },
+    )
+    measurement_trace: List[DtsMeasurementTrace] = field(
+        default_factory=list,
+        metadata={
+            "name": "MeasurementTrace",
+            "type": "Element",
+        },
+    )
+    measurement_configuration: Optional[OpticalPathConfiguration] = field(
+        default=None,
+        metadata={
+            "name": "MeasurementConfiguration",
+            "type": "Element",
             "required": True,
         },
     )
@@ -20216,7 +21974,7 @@ class FacilitySampleAcquisition(FluidSampleAcquisition):
         where this sample was taken.
     """
 
-    facility: List[str] = field(
+    facility: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "Facility",
@@ -20224,7 +21982,7 @@ class FacilitySampleAcquisition(FluidSampleAcquisition):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    facility_pressure: Optional[str] = field(
+    facility_pressure: Optional[AbstractPressureValue] = field(
         default=None,
         metadata={
             "name": "FacilityPressure",
@@ -20233,7 +21991,7 @@ class FacilitySampleAcquisition(FluidSampleAcquisition):
             "required": True,
         },
     )
-    facility_temperature: Optional[str] = field(
+    facility_temperature: Optional[ThermodynamicTemperatureMeasure] = field(
         default=None,
         metadata={
             "name": "FacilityTemperature",
@@ -20248,6 +22006,7 @@ class FacilitySampleAcquisition(FluidSampleAcquisition):
             "name": "SamplingPoint",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
 
@@ -20268,7 +22027,7 @@ class FiberCommon(AbstractDtsEquipment):
     :ivar uid: Unique identifier of this object.
     """
 
-    loss: List[str] = field(
+    loss: List[DimensionlessMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Loss",
@@ -20282,9 +22041,10 @@ class FiberCommon(AbstractDtsEquipment):
             "name": "ReasonForDecommissioning",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    reflectance: List[str] = field(
+    reflectance: List[DimensionlessMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Reflectance",
@@ -20296,6 +22056,117 @@ class FiberCommon(AbstractDtsEquipment):
         default=None,
         metadata={
             "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class FluidAnalysis(AbstractObject):
+    """
+    Fluid analysis.
+
+    :ivar analysis_description: The description about the analysis.
+    :ivar analysis_purpose: The purpose of this analysis.
+    :ivar analysis_site: The location site of the analysis.
+    :ivar fluid_sample_reference:
+    :ivar lab_contact: The name of the analyst or user who is
+        responsible for the results.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar request_date: The date the analysis was requested.
+    :ivar standard_conditions: The standard temperature and pressure
+        used for the representation of this fluid analysis.
+    :ivar fluid_analysis_report:
+    :ivar sample_contaminant:
+    :ivar analysis_quality: Enum for the quality of this analysis.  See
+        sample quality.
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    analysis_description: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "AnalysisDescription",
+            "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    analysis_purpose: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "AnalysisPurpose",
+            "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    analysis_site: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "AnalysisSite",
+            "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    fluid_sample_reference: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "FluidSampleReference",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    lab_contact: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "LabContact",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    request_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "RequestDate",
+            "type": "Element",
+        },
+    )
+    standard_conditions: List[AbstractTemperaturePressure] = field(
+        default_factory=list,
+        metadata={
+            "name": "StandardConditions",
+            "type": "Element",
+        },
+    )
+    fluid_analysis_report: List[FluidAnalysisReport] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidAnalysisReport",
+            "type": "Element",
+        },
+    )
+    sample_contaminant: List[SampleContaminant] = field(
+        default_factory=list,
+        metadata={
+            "name": "SampleContaminant",
+            "type": "Element",
+        },
+    )
+    analysis_quality: Optional[SampleQuality] = field(
+        default=None,
+        metadata={
+            "name": "AnalysisQuality",
+            "type": "Element",
             "required": True,
         },
     )
@@ -20330,9 +22201,10 @@ class FluidCharacterizationModel:
             "name": "Name",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    reference_pressure: List[str] = field(
+    reference_pressure: List[AbstractPressureValue] = field(
         default_factory=list,
         metadata={
             "name": "ReferencePressure",
@@ -20340,7 +22212,7 @@ class FluidCharacterizationModel:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    reference_stock_tank_pressure: List[str] = field(
+    reference_stock_tank_pressure: List[AbstractPressureValue] = field(
         default_factory=list,
         metadata={
             "name": "ReferenceStockTankPressure",
@@ -20348,7 +22220,9 @@ class FluidCharacterizationModel:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    reference_stock_tank_temperature: List[str] = field(
+    reference_stock_tank_temperature: List[
+        ThermodynamicTemperatureMeasure
+    ] = field(
         default_factory=list,
         metadata={
             "name": "ReferenceStockTankTemperature",
@@ -20356,7 +22230,7 @@ class FluidCharacterizationModel:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    reference_temperature: List[str] = field(
+    reference_temperature: List[ThermodynamicTemperatureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "ReferenceTemperature",
@@ -20370,6 +22244,7 @@ class FluidCharacterizationModel:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     model_specification: Optional[AbstractPvtModel] = field(
@@ -20401,6 +22276,293 @@ class FluidCharacterizationModel:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class FluidSample(AbstractObject):
+    """
+    The fluid sample.
+
+    :ivar fluid_system_reference:
+    :ivar original_sample_container_reference:
+    :ivar remark: Remarks and comments about this data item.
+    :ivar representative: Boolean to state whether the sample is
+        representative or not.
+    :ivar rock_fluid_unit_feature_reference: Reference to a
+        RockFluidUnitFeature (a RESQML feature).
+    :ivar sample_disposition: The sample disposition, if any.
+    :ivar fluid_sample_acquisition_job_source:
+    :ivar fluid_sample_chainof_custody_event: chain of chustody
+    :ivar fluid_sample_composition:
+    :ivar sample_kind: The kind of sample. Enum.  See fluid sample kind.
+    :ivar sample_recombination_requirement:
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    fluid_system_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidSystemReference",
+            "type": "Element",
+        },
+    )
+    original_sample_container_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "OriginalSampleContainerReference",
+            "type": "Element",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    representative: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "Representative",
+            "type": "Element",
+        },
+    )
+    rock_fluid_unit_feature_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "RockFluidUnitFeatureReference",
+            "type": "Element",
+        },
+    )
+    sample_disposition: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "SampleDisposition",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    fluid_sample_acquisition_job_source: Optional[
+        FluidSampleAcquisitionJobSource
+    ] = field(
+        default=None,
+        metadata={
+            "name": "FluidSampleAcquisitionJobSource",
+            "type": "Element",
+        },
+    )
+    fluid_sample_chainof_custody_event: List[
+        FluidSampleChainofCustodyEvent
+    ] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidSampleChainofCustodyEvent",
+            "type": "Element",
+        },
+    )
+    fluid_sample_composition: List[FluidSampleComposition] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidSampleComposition",
+            "type": "Element",
+        },
+    )
+    sample_kind: Optional[FluidSampleKind] = field(
+        default=None,
+        metadata={
+            "name": "SampleKind",
+            "type": "Element",
+        },
+    )
+    sample_recombination_requirement: Optional[
+        SampleRecombinationRequirement
+    ] = field(
+        default=None,
+        metadata={
+            "name": "SampleRecombinationRequirement",
+            "type": "Element",
+        },
+    )
+
+
+@dataclass
+class FluidSampleAcquisitionJob(AbstractObject):
+    """
+    Information about the job that results in acquiring a fluid sample.
+
+    :ivar estimated_start_date: The date when fluid acquisition started.
+    :ivar field_note_reference: The reference uid of an attached object
+        that stores the field note.
+    :ivar fluid_system_reference:
+    :ivar operation: A reference to an operation described in another
+        data object, which contains the details of the acquisition.
+    :ivar fluid_sample_acquisition:
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    estimated_start_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "EstimatedStartDate",
+            "type": "Element",
+        },
+    )
+    field_note_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "FieldNoteReference",
+            "type": "Element",
+        },
+    )
+    fluid_system_reference: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "FluidSystemReference",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    operation: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Operation",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    fluid_sample_acquisition: List[FluidSampleAcquisition] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidSampleAcquisition",
+            "type": "Element",
+        },
+    )
+
+
+@dataclass
+class FluidSeparatorTest:
+    """
+    FluidSeparator  Test.
+
+    :ivar overall_gas_gravity: The overall gas gravity for this test.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar reservoir_temperature: The reservoir temperature for this
+        test.
+    :ivar saturated_oil_density: The saturated oil density for this
+        test.
+    :ivar saturated_oil_formation_volume_factor: The saturated oil
+        formation volume factor for this test.
+    :ivar separator_test_gor: The separator test GOR for this test.
+    :ivar test_number: A number for this test for purposes of, e.g.,
+        tracking lab sequence.
+    :ivar separator_test_step:
+    :ivar shrinkage_reference:
+    :ivar saturation_pressure: The saturation (or bubble point) pressure
+        measured in this test.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    overall_gas_gravity: Optional[float] = field(
+        default=None,
+        metadata={
+            "name": "OverallGasGravity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    reservoir_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ReservoirTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    saturated_oil_density: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "SaturatedOilDensity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    saturated_oil_formation_volume_factor: List[
+        VolumePerVolumeMeasure
+    ] = field(
+        default_factory=list,
+        metadata={
+            "name": "SaturatedOilFormationVolumeFactor",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    separator_test_gor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "SeparatorTestGOR",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    test_number: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "TestNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    separator_test_step: List[FluidSeparatorTestStep] = field(
+        default_factory=list,
+        metadata={
+            "name": "SeparatorTestStep",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    shrinkage_reference: Optional[FluidVolumeReference] = field(
+        default=None,
+        metadata={
+            "name": "ShrinkageReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    saturation_pressure: Optional[SaturationPressure] = field(
+        default=None,
+        metadata={
+            "name": "SaturationPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -20486,6 +22648,7 @@ class ProductFlowUnit:
             "name": "Comment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     context_facility: List[FacilityIdentifierStruct] = field(
@@ -20534,6 +22697,7 @@ class ProductFlowUnit:
             "name": "InternalNetworkReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     name: List[str] = field(
@@ -20542,6 +22706,7 @@ class ProductFlowUnit:
             "name": "Name",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     plan_name: List[str] = field(
@@ -20550,6 +22715,7 @@ class ProductFlowUnit:
             "name": "PlanName",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     expected_property: List[ProductFlowExpectedUnitProperty] = field(
@@ -20581,71 +22747,98 @@ class ProductFlowUnit:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class ProductVolumeBalanceSet:
+class ProductVolumeBalanceDetail:
     """
-    Product Flow Balance Set Schema.
+    Product Volume Balance Detail Schema.
 
-    :ivar cargo_batch_number: A cargo batch number. Used if the vessel
-        needs to temporarily disconnect for some reason (e.g., weather).
-    :ivar cargo_number: A cargo identifier for the product.
-    :ivar shipper: The name of the shipper
-    :ivar kind: Defines the aspect being described.
-    :ivar balance_detail:
-    :ivar destination:
+    :ivar account_number: An account identifier for the balance.
+    :ivar owner: A pointer to the business unit which owns the product.
+    :ivar sample_analysis_result: A pointer to a fluid sample analysis
+        result object that is relevant to the balance. This sample may
+        have been acquired previous to or after this period and is used
+        for determining the allocated characteristics.
+    :ivar share: The owner's share of the product.
+    :ivar source_unit: Points to the business unit from which the
+        product originated.
+    :ivar volume_value:
+    :ivar event:
+    :ivar component_content:
     :ivar uid: A unique identifier for this data element. It is not
         globally unique (not a uuid) and only need be unique within the
         context of the parent top-level object.
     """
 
-    cargo_batch_number: Optional[int] = field(
-        default=None,
-        metadata={
-            "name": "CargoBatchNumber",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    cargo_number: List[str] = field(
+    account_number: List[str] = field(
         default_factory=list,
         metadata={
-            "name": "CargoNumber",
+            "name": "AccountNumber",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    shipper: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "Shipper",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    kind: Optional[BalanceFlowPart] = field(
+    owner: Optional[str] = field(
         default=None,
         metadata={
-            "name": "Kind",
+            "name": "Owner",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "max_length": 64,
         },
     )
-    balance_detail: List[ProductVolumeBalanceDetail] = field(
+    sample_analysis_result: List[str] = field(
         default_factory=list,
         metadata={
-            "name": "BalanceDetail",
+            "name": "SampleAnalysisResult",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    share: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Share",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    destination: Optional[ProductVolumeDestination] = field(
-        default=None,
+    source_unit: List[str] = field(
+        default_factory=list,
         metadata={
-            "name": "Destination",
+            "name": "SourceUnit",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    volume_value: List[VolumeValue] = field(
+        default_factory=list,
+        metadata={
+            "name": "VolumeValue",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    event: List[ProductVolumeBalanceEvent] = field(
+        default_factory=list,
+        metadata={
+            "name": "Event",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    component_content: List[ProductVolumeComponentContent] = field(
+        default_factory=list,
+        metadata={
+            "name": "ComponentContent",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
@@ -20655,6 +22848,7 @@ class ProductVolumeBalanceSet:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -20745,50 +22939,94 @@ class ProductionOperationActivity:
 
 
 @dataclass
-class ProductionWellTest(AbstractSimpleProductVolume):
-    """Production well test data is designed to be transferred upon an event
-    happening (the well test being conducted)  or on demand, rather than
-    periodically as for asset production volumes.
+class ReportingEntityVolumes:
+    """Contains all the volumes for a single reporting entity.
 
-    For this reason, it is standalone object.
+    It contains a reference back to the reporting entity using its UUID
+    for reference.
 
-    :ivar reporting_entity:
-    :ivar validate: Validate.
-    :ivar well_test_method: Description or name of the method used to
-        conduct the well test.
-    :ivar test_condition:
+    :ivar duration: the duration of volume produced at facility
+    :ivar reporting_entity_reference:
+    :ivar start_date: The starting date of the month.
+    :ivar disposition:
+    :ivar closing_inventory:
+    :ivar opening_inventory:
+    :ivar deferred_production_event:
+    :ivar injection:
+    :ivar production:
     """
 
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-    reporting_entity: List[str] = field(
+    duration: List[TimeMeasure] = field(
         default_factory=list,
         metadata={
-            "name": "ReportingEntity",
+            "name": "Duration",
             "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    validate: Optional[bool] = field(
+    reporting_entity_reference: Optional[DataObjectReference] = field(
         default=None,
         metadata={
-            "name": "Validate",
+            "name": "ReportingEntityReference",
             "type": "Element",
-        },
-    )
-    well_test_method: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "WellTestMethod",
-            "type": "Element",
-        },
-    )
-    test_condition: Optional[TestCondition] = field(
-        default=None,
-        metadata={
-            "name": "TestCondition",
-            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+        },
+    )
+    start_date: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "StartDate",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    disposition: List[AbstractDisposition] = field(
+        default_factory=list,
+        metadata={
+            "name": "Disposition",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    closing_inventory: List[AbstractProductQuantity] = field(
+        default_factory=list,
+        metadata={
+            "name": "ClosingInventory",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    opening_inventory: List[AbstractProductQuantity] = field(
+        default_factory=list,
+        metadata={
+            "name": "OpeningInventory",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    deferred_production_event: List[DeferredProductionEvent] = field(
+        default_factory=list,
+        metadata={
+            "name": "DeferredProductionEvent",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    injection: List[Injection] = field(
+        default_factory=list,
+        metadata={
+            "name": "Injection",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    production: List[Production] = field(
+        default_factory=list,
+        metadata={
+            "name": "Production",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
 
@@ -20823,7 +23061,7 @@ class SeparatorSampleAcquisition(FluidSampleAcquisition):
         (WITSML data object) where this sample was taken.
     """
 
-    corrected_gas_rate: List[str] = field(
+    corrected_gas_rate: List[VolumePerTimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "CorrectedGasRate",
@@ -20831,7 +23069,7 @@ class SeparatorSampleAcquisition(FluidSampleAcquisition):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    corrected_oil_rate: List[str] = field(
+    corrected_oil_rate: List[VolumePerTimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "CorrectedOilRate",
@@ -20839,7 +23077,7 @@ class SeparatorSampleAcquisition(FluidSampleAcquisition):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    corrected_water_rate: List[str] = field(
+    corrected_water_rate: List[VolumePerTimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "CorrectedWaterRate",
@@ -20847,7 +23085,7 @@ class SeparatorSampleAcquisition(FluidSampleAcquisition):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    measured_gas_rate: List[str] = field(
+    measured_gas_rate: List[VolumePerTimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "MeasuredGasRate",
@@ -20855,7 +23093,7 @@ class SeparatorSampleAcquisition(FluidSampleAcquisition):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    measured_oil_rate: List[str] = field(
+    measured_oil_rate: List[VolumePerTimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "MeasuredOilRate",
@@ -20863,7 +23101,7 @@ class SeparatorSampleAcquisition(FluidSampleAcquisition):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    measured_water_rate: List[str] = field(
+    measured_water_rate: List[VolumePerTimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "MeasuredWaterRate",
@@ -20871,7 +23109,7 @@ class SeparatorSampleAcquisition(FluidSampleAcquisition):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    production_well_test: List[str] = field(
+    production_well_test: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "ProductionWellTest",
@@ -20885,6 +23123,7 @@ class SeparatorSampleAcquisition(FluidSampleAcquisition):
             "name": "SamplingPoint",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     separator: Optional[str] = field(
@@ -20894,9 +23133,10 @@ class SeparatorSampleAcquisition(FluidSampleAcquisition):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
-    separator_pressure: Optional[str] = field(
+    separator_pressure: Optional[AbstractPressureValue] = field(
         default=None,
         metadata={
             "name": "SeparatorPressure",
@@ -20905,7 +23145,7 @@ class SeparatorSampleAcquisition(FluidSampleAcquisition):
             "required": True,
         },
     )
-    separator_temperature: Optional[str] = field(
+    separator_temperature: Optional[ThermodynamicTemperatureMeasure] = field(
         default=None,
         metadata={
             "name": "SeparatorTemperature",
@@ -20914,7 +23154,7 @@ class SeparatorSampleAcquisition(FluidSampleAcquisition):
             "required": True,
         },
     )
-    well_completion_reference: List[str] = field(
+    well_completion_reference: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "WellCompletionReference",
@@ -20925,16 +23165,302 @@ class SeparatorSampleAcquisition(FluidSampleAcquisition):
 
 
 @dataclass
-class SlimTubeTestStep:
-    """
-    Slim-tube test step.
+class SlimTubeSpecification:
+    """Specifications of the slim tube used during a slim-tube test.
 
+    For definition of a slim tube and slim-tube test, see
+    http://www.glossary.oilfield.slb.com/Terms/s/slim-tube_test.aspx
+
+    :ivar cross_section_area: The cross section area of the slim tube.
+    :ivar inner_diameter: The inner diameter of the slim tube.
+    :ivar length: The length of the slim tube.
+    :ivar outer_diameter: The outer diameter of the slim tube.
+    :ivar packing_material: The packing material used in the slim tube.
+    :ivar permeability: The permeability of the slim tube.
+    :ivar pore_volume: The pore volume of the slim tube.
+    :ivar porosity: The porosity of the slim tube.
     :ivar remark: Remarks and comments about this data item.
-    :ivar step_average_pressure: The average pressure for this slim-tube
-        test step.
+    :ivar injected_gas: Reference to the gas injected into the slim
+        tube.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    cross_section_area: List[AreaMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CrossSectionArea",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    inner_diameter: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "InnerDiameter",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    length: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Length",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    outer_diameter: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "OuterDiameter",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    packing_material: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "PackingMaterial",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    permeability: List[PermeabilityRockMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Permeability",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    pore_volume: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "PoreVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    porosity: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "Porosity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    injected_gas: List[InjectedGas] = field(
+        default_factory=list,
+        metadata={
+            "name": "InjectedGas",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class SlimTubeTestVolumeStep:
+    """
+    Slim-tube test volume step.
+
+    :ivar cumulative_oil_production_perc_ooip: The cumulative oil
+        production as a fraction of the original oil in place of the
+        slim-tube test volume step.
+    :ivar cumulative_oil_production_sto: The cumulative oil production
+        of stock stank oil for the slim-tube test volume step.
+    :ivar cumulative_produced_gor: The cumulative oil production GOR for
+        the slim-tube test volume step.
+    :ivar darcy_velocity: The Darcy velocity of the slim-tube test
+        volume step.
+    :ivar differential_pressure: The differential pressure of the slim-
+        tube test volume step.
+    :ivar incremental_produced_gor: The incremental produced GOR of the
+        slim-tube test volume step.
+    :ivar injected_pore_volume_fraction: The injected pore volume
+        fraction of the slim-tube test volume step.
+    :ivar injection_volume_at_pump_temperature: The injection volume at
+        pump temperature of the slim-tube test volume step.
+    :ivar injection_volume_at_test_temperature: The injection volume at
+        test temperature of the slim-tube test volume step.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar run_time: The run time of the slim-tube test volume step.
     :ivar step_number: The step number is the index of a (P,T) step in
         the overall test.
-    :ivar slim_tube_test_volume_step:
+    :ivar mass_balance:
+    :ivar produced_gas_properties:
+    :ivar produced_oil_properties:
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    cumulative_oil_production_perc_ooip: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CumulativeOilProductionPercOOIP",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    cumulative_oil_production_sto: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CumulativeOilProductionSTO",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    cumulative_produced_gor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "CumulativeProducedGOR",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    darcy_velocity: List[LengthPerTimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "DarcyVelocity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    differential_pressure: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "DifferentialPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    incremental_produced_gor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "IncrementalProducedGOR",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    injected_pore_volume_fraction: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "InjectedPoreVolumeFraction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    injection_volume_at_pump_temperature: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "InjectionVolumeAtPumpTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    injection_volume_at_test_temperature: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "InjectionVolumeAtTestTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    run_time: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "RunTime",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    step_number: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "StepNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    mass_balance: Optional[MassBalance] = field(
+        default=None,
+        metadata={
+            "name": "MassBalance",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    produced_gas_properties: Optional[ProducedGasProperties] = field(
+        default=None,
+        metadata={
+            "name": "ProducedGasProperties",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    produced_oil_properties: Optional[ProducedOilProperties] = field(
+        default=None,
+        metadata={
+            "name": "ProducedOilProperties",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class SwellingTest:
+    """
+    Swelling test.
+
+    :ivar remark: Remarks and comments about this data item.
+    :ivar test_number: An integer number to identify this test in a
+        sequence of tests.
+    :ivar test_temperature: The temperature of this test.
+    :ivar injected_gas: Reference to the gas injected during the
+        swelling test.
+    :ivar swelling_test_step:
     :ivar uid: A unique identifier for this data element. It is not
         globally unique (not a uuid) and only need be unique within the
         context of the parent top-level object.
@@ -20946,29 +23472,40 @@ class SlimTubeTestStep:
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    step_average_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "StepAveragePressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    step_number: Optional[str] = field(
+    test_number: Optional[int] = field(
         default=None,
         metadata={
-            "name": "StepNumber",
+            "name": "TestNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    test_temperature: Optional[ThermodynamicTemperatureMeasure] = field(
+        default=None,
+        metadata={
+            "name": "TestTemperature",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
         },
     )
-    slim_tube_test_volume_step: List[SlimTubeTestVolumeStep] = field(
+    injected_gas: List[InjectedGas] = field(
         default_factory=list,
         metadata={
-            "name": "SlimTubeTestVolumeStep",
+            "name": "InjectedGas",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    swelling_test_step: List[SwellingTestStep] = field(
+        default_factory=list,
+        metadata={
+            "name": "SwellingTestStep",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
@@ -20978,198 +23515,255 @@ class SlimTubeTestStep:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class TerminalLifting(AbstractSimpleProductVolume):
+class VaporLiquidEquilibriumTest:
     """
-    Summarizes product import to or export from an asset by ship.
+    Properties and results for a vapor-liquid equilibrium (VLE) test.
 
-    :ivar certificate_number: The certificate number for the document
-        that defines the lifting onto the tanker.
-    :ivar destination_terminal_reference:
-    :ivar end_time: The date and time when the lifting ended.
-    :ivar loading_terminal_reference:
-    :ivar start_time: The date and time when the lifting began.
-    :ivar tanker_reference:
-    :ivar product_quantity: The amount of product lifted.
-    """
-
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-    certificate_number: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "CertificateNumber",
-            "type": "Element",
-            "required": True,
-        },
-    )
-    destination_terminal_reference: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "DestinationTerminalReference",
-            "type": "Element",
-        },
-    )
-    end_time: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "EndTime",
-            "type": "Element",
-        },
-    )
-    loading_terminal_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "LoadingTerminalReference",
-            "type": "Element",
-            "required": True,
-        },
-    )
-    start_time: Optional[XmlDateTime] = field(
-        default=None,
-        metadata={
-            "name": "StartTime",
-            "type": "Element",
-        },
-    )
-    tanker_reference: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TankerReference",
-            "type": "Element",
-            "required": True,
-        },
-    )
-    product_quantity: List[ProductFluid] = field(
-        default_factory=list,
-        metadata={
-            "name": "ProductQuantity",
-            "type": "Element",
-        },
-    )
-
-
-@dataclass
-class Transfer(AbstractSimpleProductVolume):
-    """Information about products transferred across asset group boundaries or
-    leaving the jurisdiction of an operator.
-
-    This may include pipeline exports, output to refineries, etc.
-
-    :ivar destination_facility_reference:
-    :ivar end_time: Date and time when the transfer ended.
-    :ivar source_facility_reference:
-    :ivar start_time: The date and time when the transfer began.
-    :ivar product_transfer_quantity: The amount of product transferred.
-    :ivar transfer_kind: Specifies the kind of transfer. See enum
-        TransferKind.
+    :ivar atmospheric_flash_test_reference: Reference to the atmospheric
+        flash test for this VLE test.
+    :ivar gas_solvent_added: The gas solvent added for this VLE test.
+    :ivar liquid_composition: The liquid composition for this VLE test.
+    :ivar liquid_phase_volume: The liquid phase volume for this VLE
+        test.
+    :ivar liquid_transport_test_reference: A reference to a liquid
+        transport property test associated with this VLE test.
+    :ivar mixture_gas_solvent_mole_fraction: The mixture gas solvent
+        mole fraction for this VLE test.
+    :ivar mixture_gor: The mixture gas-oil ratio for this VLE test.
+    :ivar mixture_psat_test_temperature: The mixture saturation pressure
+        test temperature for this VLE test.
+    :ivar mixture_relative_volume_relative_to_psat: The mixture relative
+        volume relative to volume a saturation pressure for this VLE
+        test.
+    :ivar mixture_volume: The mixture volume for this VLE test.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar test_number: An integer number to identify this test in a
+        sequence of tests.
+    :ivar test_pressure: The pressure of this test.
+    :ivar test_temperature: The temperature of this test.
+    :ivar vapor_composition: The vapor composition for this VLE test.
+    :ivar vapor_phase_volume: The vapor phase volume for this VLE test.
+    :ivar vapor_transport_test_reference: A reference to a vapor
+        transport property test associated with this VLE test.
+    :ivar injected_gas_added: Reference to the injected gas added for
+        this VLE test.
+    :ivar vapor_phase_density: The vapor phase density for this VLE
+        test.
+    :ivar liquid_phase_density: The liquid phase density for this VLE
+        test.
+    :ivar vapor_phase_viscosity: The vapor phase viscosity for this VLE
+        test.
+    :ivar cumulative_gas_added: Reference to the cumulative gas added
+        for this VLE test.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
     """
 
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-    destination_facility_reference: Optional[str] = field(
+    atmospheric_flash_test_reference: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "AtmosphericFlashTestReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    gas_solvent_added: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasSolventAdded",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    liquid_composition: List[LiquidComposition] = field(
+        default_factory=list,
+        metadata={
+            "name": "LiquidComposition",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    liquid_phase_volume: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "LiquidPhaseVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    liquid_transport_test_reference: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "LiquidTransportTestReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    mixture_gas_solvent_mole_fraction: List[
+        AmountOfSubstancePerAmountOfSubstanceMeasure
+    ] = field(
+        default_factory=list,
+        metadata={
+            "name": "MixtureGasSolventMoleFraction",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mixture_gor: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MixtureGOR",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mixture_psat_test_temperature: List[
+        ThermodynamicTemperatureMeasure
+    ] = field(
+        default_factory=list,
+        metadata={
+            "name": "MixturePsatTestTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mixture_relative_volume_relative_to_psat: List[
+        VolumePerVolumeMeasure
+    ] = field(
+        default_factory=list,
+        metadata={
+            "name": "MixtureRelativeVolumeRelativeToPsat",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    mixture_volume: List[VolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "MixtureVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    test_number: Optional[int] = field(
         default=None,
         metadata={
-            "name": "DestinationFacilityReference",
+            "name": "TestNumber",
             "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    test_pressure: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "TestPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    test_temperature: Optional[ThermodynamicTemperatureMeasure] = field(
+        default=None,
+        metadata={
+            "name": "TestTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
         },
     )
-    end_time: Optional[XmlDateTime] = field(
-        default=None,
+    vapor_composition: List[FluidComponent] = field(
+        default_factory=list,
         metadata={
-            "name": "EndTime",
+            "name": "VaporComposition",
             "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    source_facility_reference: Optional[str] = field(
+    vapor_phase_volume: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "VaporPhaseVolume",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    vapor_transport_test_reference: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "VaporTransportTestReference",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    injected_gas_added: Optional[InjectedGas] = field(
         default=None,
         metadata={
-            "name": "SourceFacilityReference",
+            "name": "InjectedGasAdded",
             "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    vapor_phase_density: List[PhaseDensity] = field(
+        default_factory=list,
+        metadata={
+            "name": "VaporPhaseDensity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "min_occurs": 1,
+        },
+    )
+    liquid_phase_density: Optional[PhaseDensity] = field(
+        default=None,
+        metadata={
+            "name": "LiquidPhaseDensity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
         },
     )
-    start_time: Optional[XmlDateTime] = field(
+    vapor_phase_viscosity: Optional[PhaseViscosity] = field(
         default=None,
         metadata={
-            "name": "StartTime",
+            "name": "VaporPhaseViscosity",
             "type": "Element",
-        },
-    )
-    product_transfer_quantity: List[ProductFluid] = field(
-        default_factory=list,
-        metadata={
-            "name": "ProductTransferQuantity",
-            "type": "Element",
-        },
-    )
-    transfer_kind: Optional[TransferKind] = field(
-        default=None,
-        metadata={
-            "name": "TransferKind",
-            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
         },
     )
-
-
-@dataclass
-class WellProductionParameters(AbstractSimpleProductVolume):
-    """
-    Captures well production parameters associated with a well reporting entity.
-
-    :ivar end_date: The ending date of the reporting period.
-    :ivar nominal_period: Name or identifier for the reporting period to
-        which the well production parameters apply.
-    :ivar reporting_entity_reference:
-    :ivar start_date: The starting date of the reporting period.
-    :ivar production_period: Details of production at a specific choke
-        setting.
-    """
-
-    class Meta:
-        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
-
-    end_date: Optional[XmlDate] = field(
+    cumulative_gas_added: Optional[RefInjectedGasAdded] = field(
         default=None,
         metadata={
-            "name": "EndDate",
+            "name": "CumulativeGasAdded",
             "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    nominal_period: Optional[Union[ReportingDurationKind, str]] = field(
+    uid: Optional[str] = field(
         default=None,
         metadata={
-            "name": "NominalPeriod",
-            "type": "Element",
-        },
-    )
-    reporting_entity_reference: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ReportingEntityReference",
-            "type": "Element",
-        },
-    )
-    start_date: Optional[XmlDate] = field(
-        default=None,
-        metadata={
-            "name": "StartDate",
-            "type": "Element",
-        },
-    )
-    production_period: List[ProductionWellPeriod] = field(
-        default_factory=list,
-        metadata={
-            "name": "ProductionPeriod",
-            "type": "Element",
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
         },
     )
 
@@ -21192,7 +23786,7 @@ class WellheadSampleAcquisition(FluidSampleAcquisition):
         where this sample was taken.
     """
 
-    production_well_test: List[str] = field(
+    production_well_test: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "ProductionWellTest",
@@ -21206,9 +23800,10 @@ class WellheadSampleAcquisition(FluidSampleAcquisition):
             "name": "SamplingPoint",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    well_completion_reference: List[str] = field(
+    well_completion_reference: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "WellCompletionReference",
@@ -21216,7 +23811,7 @@ class WellheadSampleAcquisition(FluidSampleAcquisition):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    wellhead_pressure: Optional[str] = field(
+    wellhead_pressure: Optional[AbstractPressureValue] = field(
         default=None,
         metadata={
             "name": "WellheadPressure",
@@ -21225,7 +23820,7 @@ class WellheadSampleAcquisition(FluidSampleAcquisition):
             "required": True,
         },
     )
-    wellhead_temperature: Optional[str] = field(
+    wellhead_temperature: Optional[ThermodynamicTemperatureMeasure] = field(
         default=None,
         metadata={
             "name": "WellheadTemperature",
@@ -21234,7 +23829,7 @@ class WellheadSampleAcquisition(FluidSampleAcquisition):
             "required": True,
         },
     )
-    well_reference: List[str] = field(
+    well_reference: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "WellReference",
@@ -21285,7 +23880,7 @@ class WftSampleAcquisition:
         context of the parent top-level object.
     """
 
-    cushion_pressure: List[str] = field(
+    cushion_pressure: List[AbstractPressureValue] = field(
         default_factory=list,
         metadata={
             "name": "CushionPressure",
@@ -21315,6 +23910,7 @@ class WftSampleAcquisition:
             "name": "FieldComment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     gross_fluid_kind: List[str] = field(
@@ -21323,6 +23919,7 @@ class WftSampleAcquisition:
             "name": "GrossFluidKind",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     interpretation_comment: List[str] = field(
@@ -21331,6 +23928,7 @@ class WftSampleAcquisition:
             "name": "InterpretationComment",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
     kind: List[str] = field(
@@ -21339,6 +23937,7 @@ class WftSampleAcquisition:
             "name": "Kind",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     sample_carrier_slot_name: List[str] = field(
@@ -21347,9 +23946,10 @@ class WftSampleAcquisition:
             "name": "SampleCarrierSlotName",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    sample_container: List[str] = field(
+    sample_container: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "SampleContainer",
@@ -21363,6 +23963,7 @@ class WftSampleAcquisition:
             "name": "SampleContainerConfiguration",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     sample_container_name: List[str] = field(
@@ -21371,6 +23972,7 @@ class WftSampleAcquisition:
             "name": "SampleContainerName",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     sample_name: List[str] = field(
@@ -21379,9 +23981,10 @@ class WftSampleAcquisition:
             "name": "SampleName",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    sample_reference: List[str] = field(
+    sample_reference: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "SampleReference",
@@ -21395,6 +23998,7 @@ class WftSampleAcquisition:
             "name": "Test",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     tool_section_name: List[str] = field(
@@ -21403,6 +24007,7 @@ class WftSampleAcquisition:
             "name": "ToolSectionName",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     test_data: List[WftTestData] = field(
@@ -21426,6 +24031,7 @@ class WftSampleAcquisition:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -21443,7 +24049,7 @@ class WftSampleAcquisitionJob(FluidSampleAcquisition):
         WFT run data object  where this sample was obtained.
     """
 
-    wft_run: Optional[str] = field(
+    wft_run: Optional[DataObjectReference] = field(
         default=None,
         metadata={
             "name": "WftRun",
@@ -21459,6 +24065,7 @@ class WftSampleAcquisitionJob(FluidSampleAcquisition):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
     wft_station: Optional[str] = field(
@@ -21468,6 +24075,7 @@ class WftSampleAcquisitionJob(FluidSampleAcquisition):
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -21528,6 +24136,7 @@ class WftTest:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -21571,12 +24180,64 @@ class AbstractCorrelationViscosityModel(AbstractCorrelationModel):
         viscosity model.
     """
 
-    molecular_weight: List[str] = field(
+    molecular_weight: List[MolecularWeightMeasure] = field(
         default_factory=list,
         metadata={
             "name": "MolecularWeight",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class AssetProductionVolumes(AbstractSimpleProductVolume):
+    """Contains all volume data for all reporting entities (e.g., area, field,
+    wells, etc.).
+
+    Although named "volumes" in line with industry usage, different
+    quantities may be reported, such as volume, mass, and energy
+    content.
+
+    :ivar end_date: The end date of report period.
+    :ivar nominal_period: Nominal period.
+    :ivar start_date: The start date of the reporting period.
+    :ivar reporting_entity_volumes:
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    end_date: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "EndDate",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    nominal_period: Optional[Union[ReportingDurationKind, str]] = field(
+        default=None,
+        metadata={
+            "name": "NominalPeriod",
+            "type": "Element",
+            "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+    start_date: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "StartDate",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    reporting_entity_volumes: List[ReportingEntityVolumes] = field(
+        default_factory=list,
+        metadata={
+            "name": "ReportingEntityVolumes",
+            "type": "Element",
         },
     )
 
@@ -21603,6 +24264,126 @@ class CorrelationThermalModel(AbstractCorrelationModel):
     made abstract and have concrete classes it inherits from, similar to
     EoS.
     """
+
+
+@dataclass
+class DtsInstrumentBox(AbstractObject):
+    """
+    The group of elements corresponding to a DTS instrument box.
+
+    :ivar facility_identifier:
+    :ivar instrument_calibration: Calibration parameters vary from
+        vendor to vendor, depending on the calibration method being
+        used. This is a general type that allows a calibration date,
+        business associate, and many  name/value pairs.
+    :ivar internal_oven_location_far: Far distance of the oven from the
+        beginning of the fiber.
+    :ivar internal_oven_location_near: Near distance of the oven from
+        the beginning of the fiber.
+    :ivar parameter: Additional parameters to define the instrument box
+        as a piece of equipment. These should not be parameters to
+        define the installation or use of the box in the wellbore or
+        other system. Only use this element if an appropriate parameter
+        is not available as an element or in the calibration operation.
+    :ivar reference_coil_temperature: The temperature of the oven.
+    :ivar serial_number: An identification tag for the instrument box. A
+        serial number is a type of identification tag; however, some
+        tags contain many pieces of information. This structure only
+        identifies the tag and does not describe the contents.
+    :ivar startup_time: The duration of time from the initial powering
+        on of the instrument until the first temperature measurement is
+        permitted.
+    :ivar warmup_time: The duration of time starting from the initiation
+        of the first temperature measurement until the unit complies
+        with the stated values of the main measurement specifications.
+    :ivar dts_patch_cord: Information regarding the patch cord used to
+        connect the instrument box to the start of the optical fiber
+        path.
+    :ivar instrument:
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    facility_identifier: Optional[FacilityIdentifier] = field(
+        default=None,
+        metadata={
+            "name": "FacilityIdentifier",
+            "type": "Element",
+        },
+    )
+    instrument_calibration: List[DtsCalibration] = field(
+        default_factory=list,
+        metadata={
+            "name": "InstrumentCalibration",
+            "type": "Element",
+        },
+    )
+    internal_oven_location_far: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "InternalOvenLocationFar",
+            "type": "Element",
+        },
+    )
+    internal_oven_location_near: List[LengthMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "InternalOvenLocationNear",
+            "type": "Element",
+        },
+    )
+    parameter: List[IndexedObject] = field(
+        default_factory=list,
+        metadata={
+            "name": "Parameter",
+            "type": "Element",
+        },
+    )
+    reference_coil_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ReferenceCoilTemperature",
+            "type": "Element",
+        },
+    )
+    serial_number: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "SerialNumber",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    startup_time: List[TimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "StartupTime",
+            "type": "Element",
+        },
+    )
+    warmup_time: List[TimeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "WarmupTime",
+            "type": "Element",
+        },
+    )
+    dts_patch_cord: Optional[DtsPatchCord] = field(
+        default=None,
+        metadata={
+            "name": "DtsPatchCord",
+            "type": "Element",
+        },
+    )
+    instrument: Optional[Instrument] = field(
+        default=None,
+        metadata={
+            "name": "Instrument",
+            "type": "Element",
+            "required": True,
+        },
+    )
 
 
 @dataclass
@@ -21702,7 +24483,7 @@ class FiberOpticalPathSegment(FiberCommon):
         be a quantity type with a frequency unit such as Hz.
     """
 
-    cladded_diameter: List[str] = field(
+    cladded_diameter: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
             "name": "CladdedDiameter",
@@ -21716,9 +24497,10 @@ class FiberOpticalPathSegment(FiberCommon):
             "name": "Coating",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    core_diameter: List[str] = field(
+    core_diameter: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
             "name": "CoreDiameter",
@@ -21732,9 +24514,10 @@ class FiberOpticalPathSegment(FiberCommon):
             "name": "CoreType",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    fiber_length: Optional[str] = field(
+    fiber_length: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "FiberLength",
@@ -21749,6 +24532,7 @@ class FiberOpticalPathSegment(FiberCommon):
             "name": "Jacket",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     mode: Optional[FiberMode] = field(
@@ -21759,7 +24543,7 @@ class FiberOpticalPathSegment(FiberCommon):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    outside_diameter: List[str] = field(
+    outside_diameter: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OutsideDiameter",
@@ -21767,7 +24551,7 @@ class FiberOpticalPathSegment(FiberCommon):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    over_stuffing: List[str] = field(
+    over_stuffing: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OverStuffing",
@@ -21783,7 +24567,7 @@ class FiberOpticalPathSegment(FiberCommon):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    spool_length: List[str] = field(
+    spool_length: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
             "name": "SpoolLength",
@@ -21797,6 +24581,7 @@ class FiberOpticalPathSegment(FiberCommon):
             "name": "SpoolNumberTag",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     cable_type: Optional[CableType] = field(
@@ -21850,7 +24635,7 @@ class FiberSplice(FiberCommon):
     :ivar fiber_splice_type: Enum. The type of splice.
     """
 
-    bend_angle: List[str] = field(
+    bend_angle: List[PlaneAngleUom] = field(
         default_factory=list,
         metadata={
             "name": "BendAngle",
@@ -21858,7 +24643,7 @@ class FiberSplice(FiberCommon):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    pressure_rating: List[str] = field(
+    pressure_rating: List[PressureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "PressureRating",
@@ -21872,6 +24657,7 @@ class FiberSplice(FiberCommon):
             "name": "ProtectorType",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     splice_equipment_used_reference: List[str] = field(
@@ -21880,6 +24666,7 @@ class FiberSplice(FiberCommon):
             "name": "SpliceEquipmentUsedReference",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     stripping_type: List[str] = field(
@@ -21888,6 +24675,7 @@ class FiberSplice(FiberCommon):
             "name": "StrippingType",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     fiber_splice_type: Optional[FiberSpliceTypes] = field(
@@ -21932,43 +24720,174 @@ class FiberTurnaround(FiberCommon):
 
 
 @dataclass
-class ProductVolumePeriod:
+class FluidCharacterization(AbstractObject):
     """
-    Product Volume Period Schema.
+    Fluid characterization.
 
-    :ivar comment: A time-stamped remark about the amounts.
-    :ivar date_time:
-    :ivar kind: The type of period that is being reported. If not
-        specified and a time is not given then the period is defined by
-        the reporting period.
-    :ivar properties:
-    :ivar alert: An indication of some sort of abnormal condition
-        relative the values in this period.
-    :ivar balance_set: Provides the sales context for this period.
-    :ivar component_content: The relative amount of a component product
-        in the product stream.
+    :ivar fluid_component_catalog: The fluid component catalog for this
+        fluid characterization.
+    :ivar fluid_system:
+    :ivar fluid_system_characterization_type: The kind of fluid
+        characterization.
+    :ivar intended_usage: The intended usage of the fluid
+        characterization.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar rock_fluid_unit_feature_reference: Reference to a rock fluid
+        unit feature (a RESQML feature).
+    :ivar standard_conditions: The standard temperature and pressure
+        used for the representation of this fluid characterization.
+    :ivar application_source: The software used to generate  the fluid
+        characterization.
+    :ivar application_target: The software which is the consumer of the
+        fluid characterization.
+    :ivar fluid_characterization_model: The model used to generate the
+        fluid characterization.
+    :ivar fluid_characterization_source: Reference to the fluid analysis
+        tests which were the source data for this fluid
+        characterization.
+    :ivar fluid_characterization_table_format_set: The collection of
+        fluid characterization table formats.
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    fluid_component_catalog: Optional[FluidComponentCatalog] = field(
+        default=None,
+        metadata={
+            "name": "FluidComponentCatalog",
+            "type": "Element",
+        },
+    )
+    fluid_system: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidSystem",
+            "type": "Element",
+        },
+    )
+    fluid_system_characterization_type: Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "FluidSystemCharacterizationType",
+            "type": "Element",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    intended_usage: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "IntendedUsage",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "max_length": 2000,
+        },
+    )
+    rock_fluid_unit_feature_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "RockFluidUnitFeatureReference",
+            "type": "Element",
+        },
+    )
+    standard_conditions: List[AbstractTemperaturePressure] = field(
+        default_factory=list,
+        metadata={
+            "name": "StandardConditions",
+            "type": "Element",
+        },
+    )
+    application_source: Optional[ApplicationInfo] = field(
+        default=None,
+        metadata={
+            "name": "ApplicationSource",
+            "type": "Element",
+        },
+    )
+    application_target: List[ApplicationInfo] = field(
+        default_factory=list,
+        metadata={
+            "name": "ApplicationTarget",
+            "type": "Element",
+        },
+    )
+    fluid_characterization_model: List[FluidCharacterizationModel] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidCharacterizationModel",
+            "type": "Element",
+        },
+    )
+    fluid_characterization_source: List[FluidCharacterizationSource] = field(
+        default_factory=list,
+        metadata={
+            "name": "FluidCharacterizationSource",
+            "type": "Element",
+        },
+    )
+    fluid_characterization_table_format_set: Optional[
+        FluidCharacterizationTableFormatSet
+    ] = field(
+        default=None,
+        metadata={
+            "name": "FluidCharacterizationTableFormatSet",
+            "type": "Element",
+        },
+    )
+
+
+@dataclass
+class ProductVolumeBalanceSet:
+    """
+    Product Flow Balance Set Schema.
+
+    :ivar cargo_batch_number: A cargo batch number. Used if the vessel
+        needs to temporarily disconnect for some reason (e.g., weather).
+    :ivar cargo_number: A cargo identifier for the product.
+    :ivar shipper: The name of the shipper
+    :ivar kind: Defines the aspect being described.
+    :ivar balance_detail:
+    :ivar destination:
     :ivar uid: A unique identifier for this data element. It is not
         globally unique (not a uuid) and only need be unique within the
         context of the parent top-level object.
     """
 
-    comment: List[DatedComment] = field(
-        default_factory=list,
-        metadata={
-            "name": "Comment",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    date_time: Optional[AbstractDateTimeType] = field(
+    cargo_batch_number: Optional[int] = field(
         default=None,
         metadata={
-            "name": "DateTime",
+            "name": "CargoBatchNumber",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    kind: Optional[ReportingDurationKind] = field(
+    cargo_number: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "CargoNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    shipper: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Shipper",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
+        },
+    )
+    kind: Optional[BalanceFlowPart] = field(
         default=None,
         metadata={
             "name": "Kind",
@@ -21976,34 +24895,18 @@ class ProductVolumePeriod:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    properties: Optional[CommonPropertiesProductVolume] = field(
-        default=None,
-        metadata={
-            "name": "Properties",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    alert: Optional[ProductVolumeAlert] = field(
-        default=None,
-        metadata={
-            "name": "Alert",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    balance_set: List[ProductVolumeBalanceSet] = field(
+    balance_detail: List[ProductVolumeBalanceDetail] = field(
         default_factory=list,
         metadata={
-            "name": "BalanceSet",
+            "name": "BalanceDetail",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    component_content: List[ProductVolumeComponentContent] = field(
-        default_factory=list,
+    destination: Optional[ProductVolumeDestination] = field(
+        default=None,
         metadata={
-            "name": "ComponentContent",
+            "name": "Destination",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
@@ -22013,6 +24916,7 @@ class ProductVolumePeriod:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -22060,7 +24964,7 @@ class ProductionOperationInstallationReport:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    work: List[str] = field(
+    work: List[TimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Work",
@@ -22068,7 +24972,7 @@ class ProductionOperationInstallationReport:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    work_month_to_date: List[str] = field(
+    work_month_to_date: List[TimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "WorkMonthToDate",
@@ -22076,7 +24980,7 @@ class ProductionOperationInstallationReport:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    work_year_to_date: List[str] = field(
+    work_year_to_date: List[TimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "WorkYearToDate",
@@ -22113,76 +25017,108 @@ class ProductionOperationInstallationReport:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class SlimTubeTest:
-    """Attributes of a slim-tube test.
+class ProductionWellTest(AbstractSimpleProductVolume):
+    """Production well test data is designed to be transferred upon an event
+    happening (the well test being conducted)  or on demand, rather than
+    periodically as for asset production volumes.
 
-    For definition of a slim-tube test, see
-    http://www.glossary.oilfield.slb.com/Terms/s/slim-tube_test.aspx
+    For this reason, it is standalone object.
 
-    :ivar pump_temperature: The pump temperature during the slim-tube
-        test.
+    :ivar reporting_entity:
+    :ivar validate: Validate.
+    :ivar well_test_method: Description or name of the method used to
+        conduct the well test.
+    :ivar test_condition:
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    reporting_entity: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "ReportingEntity",
+            "type": "Element",
+        },
+    )
+    validate: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "Validate",
+            "type": "Element",
+        },
+    )
+    well_test_method: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "WellTestMethod",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    test_condition: Optional[TestCondition] = field(
+        default=None,
+        metadata={
+            "name": "TestCondition",
+            "type": "Element",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class SlimTubeTestStep:
+    """
+    Slim-tube test step.
+
     :ivar remark: Remarks and comments about this data item.
-    :ivar test_number: An integer number to identify this test in a
-        sequence of tests.
-    :ivar test_temperature: The temperature of this test.
-    :ivar slim_tube_specification:
-    :ivar slim_tube_test_pressure_step:
+    :ivar step_average_pressure: The average pressure for this slim-tube
+        test step.
+    :ivar step_number: The step number is the index of a (P,T) step in
+        the overall test.
+    :ivar slim_tube_test_volume_step:
     :ivar uid: A unique identifier for this data element. It is not
         globally unique (not a uuid) and only need be unique within the
         context of the parent top-level object.
     """
 
-    pump_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PumpTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
     remark: List[str] = field(
         default_factory=list,
         metadata={
             "name": "Remark",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    test_number: Optional[str] = field(
+    step_average_pressure: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "StepAveragePressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    step_number: Optional[int] = field(
         default=None,
         metadata={
-            "name": "TestNumber",
+            "name": "StepNumber",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "min_inclusive": 0,
         },
     )
-    test_temperature: Optional[str] = field(
-        default=None,
-        metadata={
-            "name": "TestTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-            "required": True,
-        },
-    )
-    slim_tube_specification: List[SlimTubeSpecification] = field(
+    slim_tube_test_volume_step: List[SlimTubeTestVolumeStep] = field(
         default_factory=list,
         metadata={
-            "name": "SlimTubeSpecification",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    slim_tube_test_pressure_step: List[SlimTubeTestStep] = field(
-        default_factory=list,
-        metadata={
-            "name": "SlimTubeTestPressureStep",
+            "name": "SlimTubeTestVolumeStep",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
@@ -22192,22 +25128,178 @@ class SlimTubeTest:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class TerminalLiftingDisposition(AbstractDisposition):
-    """Use to report  terminal lifting as dispositions within the periodic asset
-    production volumes reporting.
+class TerminalLifting(AbstractSimpleProductVolume):
+    """
+    Summarizes product import to or export from an asset by ship.
 
-    The components of petroleum disposition are stock change, crude oil losses, refinery inputs, exports, and products supplied for domestic consumption (https://www.eia.gov/dnav/pet/TblDefs/pet_sum_crdsnd_tbldef2.asp)
+    :ivar certificate_number: The certificate number for the document
+        that defines the lifting onto the tanker.
+    :ivar destination_terminal_reference:
+    :ivar end_time: The date and time when the lifting ended.
+    :ivar loading_terminal_reference:
+    :ivar start_time: The date and time when the lifting began.
+    :ivar tanker_reference:
+    :ivar product_quantity: The amount of product lifted.
     """
 
-    terminal_lifting: Optional[TerminalLifting] = field(
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    certificate_number: Optional[str] = field(
         default=None,
         metadata={
-            "name": "TerminalLifting",
+            "name": "CertificateNumber",
+            "type": "Element",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+    destination_terminal_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "DestinationTerminalReference",
+            "type": "Element",
+        },
+    )
+    end_time: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "EndTime",
+            "type": "Element",
+        },
+    )
+    loading_terminal_reference: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "LoadingTerminalReference",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    start_time: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "StartTime",
+            "type": "Element",
+        },
+    )
+    tanker_reference: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "TankerReference",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    product_quantity: List[ProductFluid] = field(
+        default_factory=list,
+        metadata={
+            "name": "ProductQuantity",
+            "type": "Element",
+        },
+    )
+
+
+@dataclass
+class Transfer(AbstractSimpleProductVolume):
+    """Information about products transferred across asset group boundaries or
+    leaving the jurisdiction of an operator.
+
+    This may include pipeline exports, output to refineries, etc.
+
+    :ivar destination_facility_reference:
+    :ivar end_time: Date and time when the transfer ended.
+    :ivar source_facility_reference:
+    :ivar start_time: The date and time when the transfer began.
+    :ivar product_transfer_quantity: The amount of product transferred.
+    :ivar transfer_kind: Specifies the kind of transfer. See enum
+        TransferKind.
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    destination_facility_reference: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "DestinationFacilityReference",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    end_time: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "EndTime",
+            "type": "Element",
+        },
+    )
+    source_facility_reference: Optional[DataObjectReference] = field(
+        default=None,
+        metadata={
+            "name": "SourceFacilityReference",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    start_time: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "StartTime",
+            "type": "Element",
+        },
+    )
+    product_transfer_quantity: List[ProductFluid] = field(
+        default_factory=list,
+        metadata={
+            "name": "ProductTransferQuantity",
+            "type": "Element",
+        },
+    )
+    transfer_kind: Optional[TransferKind] = field(
+        default=None,
+        metadata={
+            "name": "TransferKind",
+            "type": "Element",
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class WaterAnalysis(FluidAnalysis):
+    """
+    Water analysis.
+    """
+
+    sample_integrity_and_preparation: Optional[
+        SampleIntegrityAndPreparation
+    ] = field(
+        default=None,
+        metadata={
+            "name": "SampleIntegrityAndPreparation",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_analysis_test: List[WaterAnalysisTest] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterAnalysisTest",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    water_sample_component: List[WaterSampleComponent] = field(
+        default_factory=list,
+        metadata={
+            "name": "WaterSampleComponent",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
@@ -22215,19 +25307,56 @@ class TerminalLiftingDisposition(AbstractDisposition):
 
 
 @dataclass
-class TransferDisposition(AbstractDisposition):
-    """Use to report  a transfer as dispositions within the periodic asset
-    production volumes reporting.
+class WellProductionParameters(AbstractSimpleProductVolume):
+    """
+    Captures well production parameters associated with a well reporting entity.
 
-    The components of petroleum disposition are stock change, crude oil losses, refinery inputs, exports, and products supplied for domestic consumption (https://www.eia.gov/dnav/pet/TblDefs/pet_sum_crdsnd_tbldef2.asp)
+    :ivar end_date: The ending date of the reporting period.
+    :ivar nominal_period: Name or identifier for the reporting period to
+        which the well production parameters apply.
+    :ivar reporting_entity_reference:
+    :ivar start_date: The starting date of the reporting period.
+    :ivar production_period: Details of production at a specific choke
+        setting.
     """
 
-    transfer: Optional[Transfer] = field(
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    end_date: Optional[XmlDate] = field(
         default=None,
         metadata={
-            "name": "Transfer",
+            "name": "EndDate",
             "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    nominal_period: Optional[Union[ReportingDurationKind, str]] = field(
+        default=None,
+        metadata={
+            "name": "NominalPeriod",
+            "type": "Element",
+            "pattern": r".*:.*",
+        },
+    )
+    reporting_entity_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "ReportingEntityReference",
+            "type": "Element",
+        },
+    )
+    start_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "StartDate",
+            "type": "Element",
+        },
+    )
+    production_period: List[ProductionWellPeriod] = field(
+        default_factory=list,
+        metadata={
+            "name": "ProductionPeriod",
+            "type": "Element",
         },
     )
 
@@ -22278,9 +25407,10 @@ class WftStation:
             "name": "Description",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
         },
     )
-    dia_probe: List[str] = field(
+    dia_probe: List[LengthMeasure] = field(
         default_factory=list,
         metadata={
             "name": "DiaProbe",
@@ -22304,7 +25434,7 @@ class WftStation:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    log_reference: List[str] = field(
+    log_reference: List[DataObjectReference] = field(
         default_factory=list,
         metadata={
             "name": "LogReference",
@@ -22336,6 +25466,7 @@ class WftStation:
             "name": "Station",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     event: List[WftEvent] = field(
@@ -22393,6 +25524,7 @@ class WftStation:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -22408,7 +25540,7 @@ class AbstractCorrelationGasViscosityModel(AbstractCorrelationViscosityModel):
         viscosity model.
     """
 
-    gas_viscosity: List[str] = field(
+    gas_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "GasViscosity",
@@ -22416,7 +25548,7 @@ class AbstractCorrelationGasViscosityModel(AbstractCorrelationViscosityModel):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    reservoir_temperature: List[str] = field(
+    reservoir_temperature: List[ThermodynamicTemperatureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "ReservoirTemperature",
@@ -22441,7 +25573,7 @@ class AbstractCorrelationViscosityBubblePointModel(
         bubble point viscosity model.
     """
 
-    bubble_point_oil_viscosity: List[str] = field(
+    bubble_point_oil_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "BubblePointOilViscosity",
@@ -22449,7 +25581,7 @@ class AbstractCorrelationViscosityBubblePointModel(
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    dead_oil_viscosity: List[str] = field(
+    dead_oil_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "DeadOilViscosity",
@@ -22457,7 +25589,7 @@ class AbstractCorrelationViscosityBubblePointModel(
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    solution_gas_oil_rate: List[str] = field(
+    solution_gas_oil_rate: List[DimensionlessMeasure] = field(
         default_factory=list,
         metadata={
             "name": "SolutionGasOilRate",
@@ -22478,7 +25610,7 @@ class AbstractCorrelationViscosityDeadModel(AbstractCorrelationViscosityModel):
         oil viscosity model.
     """
 
-    dead_oil_viscosity: List[str] = field(
+    dead_oil_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "DeadOilViscosity",
@@ -22486,7 +25618,7 @@ class AbstractCorrelationViscosityDeadModel(AbstractCorrelationViscosityModel):
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    reservoir_temperature: List[str] = field(
+    reservoir_temperature: List[ThermodynamicTemperatureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "ReservoirTemperature",
@@ -22513,7 +25645,7 @@ class AbstractCorrelationViscosityUndersaturatedModel(
         output from the under saturated viscosity model.
     """
 
-    bubble_point_oil_viscosity: List[str] = field(
+    bubble_point_oil_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "BubblePointOilViscosity",
@@ -22521,7 +25653,7 @@ class AbstractCorrelationViscosityUndersaturatedModel(
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    bubble_point_pressure: List[str] = field(
+    bubble_point_pressure: List[PressureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "BubblePointPressure",
@@ -22529,7 +25661,7 @@ class AbstractCorrelationViscosityUndersaturatedModel(
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    pressure: List[str] = field(
+    pressure: List[PressureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Pressure",
@@ -22537,7 +25669,7 @@ class AbstractCorrelationViscosityUndersaturatedModel(
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    undersaturated_oil_viscosity: List[str] = field(
+    undersaturated_oil_viscosity: List[DynamicViscosityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "UndersaturatedOilViscosity",
@@ -22615,6 +25747,7 @@ class FiberOtdr:
             "name": "DataInOTDRFile",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     dtim_run: Optional[XmlDateTime] = field(
@@ -22626,7 +25759,7 @@ class FiberOtdr:
             "required": True,
         },
     )
-    extension_name_value: List[str] = field(
+    extension_name_value: List[ExtensionNameValue] = field(
         default_factory=list,
         metadata={
             "name": "ExtensionNameValue",
@@ -22649,9 +25782,10 @@ class FiberOtdr:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
             "required": True,
+            "max_length": 64,
         },
     )
-    optical_path_distance_end: Optional[str] = field(
+    optical_path_distance_end: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "OpticalPathDistanceEnd",
@@ -22660,7 +25794,7 @@ class FiberOtdr:
             "required": True,
         },
     )
-    optical_path_distance_start: Optional[str] = field(
+    optical_path_distance_start: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "OpticalPathDistanceStart",
@@ -22675,9 +25809,10 @@ class FiberOtdr:
             "name": "OTDRImageFile",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    wavelength: Optional[str] = field(
+    wavelength: Optional[LengthMeasure] = field(
         default=None,
         metadata={
             "name": "Wavelength",
@@ -22716,6 +25851,7 @@ class FiberOtdr:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
@@ -22802,7 +25938,798 @@ class FrictionTheory(AbstractCompositionalViscosityModel):
 
 
 @dataclass
-class HydrocarbonAnalysis:
+class LohrenzBrayClarkCorrelation(AbstractCompositionalViscosityModel):
+    """
+    Lohrenz-Bray-ClarkCorrelation.
+    """
+
+    class Meta:
+        name = "Lohrenz-Bray-ClarkCorrelation"
+
+
+@dataclass
+class PengRobinson76Eos(AbstractCompositionalEoSmodel):
+    """
+    PengRobinson76_EOS.
+    """
+
+    class Meta:
+        name = "PengRobinson76_EOS"
+
+
+@dataclass
+class PengRobinson78Eos(AbstractCompositionalEoSmodel):
+    """
+    PengRobinson78_EOS.
+    """
+
+    class Meta:
+        name = "PengRobinson78_EOS"
+
+
+@dataclass
+class ProductVolumePeriod:
+    """
+    Product Volume Period Schema.
+
+    :ivar comment: A time-stamped remark about the amounts.
+    :ivar date_time:
+    :ivar kind: The type of period that is being reported. If not
+        specified and a time is not given then the period is defined by
+        the reporting period.
+    :ivar properties:
+    :ivar alert: An indication of some sort of abnormal condition
+        relative the values in this period.
+    :ivar balance_set: Provides the sales context for this period.
+    :ivar component_content: The relative amount of a component product
+        in the product stream.
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    comment: List[DatedComment] = field(
+        default_factory=list,
+        metadata={
+            "name": "Comment",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    date_time: Optional[AbstractDateTimeType] = field(
+        default=None,
+        metadata={
+            "name": "DateTime",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    kind: Optional[ReportingDurationKind] = field(
+        default=None,
+        metadata={
+            "name": "Kind",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    properties: Optional[CommonPropertiesProductVolume] = field(
+        default=None,
+        metadata={
+            "name": "Properties",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    alert: Optional[ProductVolumeAlert] = field(
+        default=None,
+        metadata={
+            "name": "Alert",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    balance_set: List[ProductVolumeBalanceSet] = field(
+        default_factory=list,
+        metadata={
+            "name": "BalanceSet",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    component_content: List[ProductVolumeComponentContent] = field(
+        default_factory=list,
+        metadata={
+            "name": "ComponentContent",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ProductionOperation(AbstractObject):
+    """
+    The non-contextual content of a Production Operation object.
+
+    :ivar approval_date: The date that the report was approved.
+    :ivar approver:
+    :ivar context_facility: The name and type of a facility whose
+        context is relevant to the represented installation.
+    :ivar date_time:
+    :ivar geographic_context: The geographic context of the report.
+    :ivar installation: The name of the facility which is represented by
+        this report. The name can be qualified by a naming system. This
+        also defines the kind of facility.
+    :ivar issue_date: The date that the report was issued.
+    :ivar issued_by:
+    :ivar kind: The type of report.
+    :ivar operator:
+    :ivar period_kind: The type of period that is being reported. This
+        value must be consistent with the reporting start and end
+        values.
+    :ivar title: The title of the report, if different from the name of
+        the report.
+    :ivar installation_report: A report for each installation
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    approval_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "ApprovalDate",
+            "type": "Element",
+        },
+    )
+    approver: Optional[BusinessAssociate] = field(
+        default=None,
+        metadata={
+            "name": "Approver",
+            "type": "Element",
+        },
+    )
+    context_facility: List[FacilityIdentifierStruct] = field(
+        default_factory=list,
+        metadata={
+            "name": "ContextFacility",
+            "type": "Element",
+        },
+    )
+    date_time: Optional[AbstractDateTimeType] = field(
+        default=None,
+        metadata={
+            "name": "DateTime",
+            "type": "Element",
+        },
+    )
+    geographic_context: Optional[GeographicContext] = field(
+        default=None,
+        metadata={
+            "name": "GeographicContext",
+            "type": "Element",
+        },
+    )
+    installation: Optional[FacilityIdentifierStruct] = field(
+        default=None,
+        metadata={
+            "name": "Installation",
+            "type": "Element",
+        },
+    )
+    issue_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "IssueDate",
+            "type": "Element",
+        },
+    )
+    issued_by: Optional[BusinessAssociate] = field(
+        default=None,
+        metadata={
+            "name": "IssuedBy",
+            "type": "Element",
+        },
+    )
+    kind: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Kind",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    operator: Optional[BusinessAssociate] = field(
+        default=None,
+        metadata={
+            "name": "Operator",
+            "type": "Element",
+        },
+    )
+    period_kind: Optional[ReportingDurationKind] = field(
+        default=None,
+        metadata={
+            "name": "PeriodKind",
+            "type": "Element",
+        },
+    )
+    title: Optional[NameStruct] = field(
+        default=None,
+        metadata={
+            "name": "Title",
+            "type": "Element",
+        },
+    )
+    installation_report: List[ProductionOperationInstallationReport] = field(
+        default_factory=list,
+        metadata={
+            "name": "InstallationReport",
+            "type": "Element",
+        },
+    )
+
+
+@dataclass
+class SlimTubeTest:
+    """Attributes of a slim-tube test.
+
+    For definition of a slim-tube test, see
+    http://www.glossary.oilfield.slb.com/Terms/s/slim-tube_test.aspx
+
+    :ivar pump_temperature: The pump temperature during the slim-tube
+        test.
+    :ivar remark: Remarks and comments about this data item.
+    :ivar test_number: An integer number to identify this test in a
+        sequence of tests.
+    :ivar test_temperature: The temperature of this test.
+    :ivar slim_tube_specification:
+    :ivar slim_tube_test_pressure_step:
+    :ivar uid: A unique identifier for this data element. It is not
+        globally unique (not a uuid) and only need be unique within the
+        context of the parent top-level object.
+    """
+
+    pump_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "PumpTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    remark: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Remark",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 2000,
+        },
+    )
+    test_number: Optional[int] = field(
+        default=None,
+        metadata={
+            "name": "TestNumber",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+    test_temperature: Optional[ThermodynamicTemperatureMeasure] = field(
+        default=None,
+        metadata={
+            "name": "TestTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "required": True,
+        },
+    )
+    slim_tube_specification: List[SlimTubeSpecification] = field(
+        default_factory=list,
+        metadata={
+            "name": "SlimTubeSpecification",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    slim_tube_test_pressure_step: List[SlimTubeTestStep] = field(
+        default_factory=list,
+        metadata={
+            "name": "SlimTubeTestPressureStep",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    uid: Optional[str] = field(
+        default=None,
+        metadata={
+            "type": "Attribute",
+            "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class SrkEos(AbstractCompositionalEoSmodel):
+    """
+    Srk_EOS.
+    """
+
+    class Meta:
+        name = "Srk_EOS"
+
+
+@dataclass
+class TerminalLiftingDisposition(AbstractDisposition):
+    """Use to report  terminal lifting as dispositions within the periodic asset
+    production volumes reporting.
+
+    The components of petroleum disposition are stock change, crude oil losses, refinery inputs, exports, and products supplied for domestic consumption (https://www.eia.gov/dnav/pet/TblDefs/pet_sum_crdsnd_tbldef2.asp)
+    """
+
+    terminal_lifting: Optional[TerminalLifting] = field(
+        default=None,
+        metadata={
+            "name": "TerminalLifting",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class TransferDisposition(AbstractDisposition):
+    """Use to report  a transfer as dispositions within the periodic asset
+    production volumes reporting.
+
+    The components of petroleum disposition are stock change, crude oil losses, refinery inputs, exports, and products supplied for domestic consumption (https://www.eia.gov/dnav/pet/TblDefs/pet_sum_crdsnd_tbldef2.asp)
+    """
+
+    transfer: Optional[Transfer] = field(
+        default=None,
+        metadata={
+            "name": "Transfer",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class WftRun(AbstractObject):
+    """
+    Information about a WFT run.
+
+    :ivar dtim_end: The date and time when the data collection
+        completed.
+    :ivar dtim_start: The date and time when the data collection
+        started.
+    :ivar max_index: The maximum station depth within this WFT. This is
+        an API "structural-range" query parameter for growing objects.
+    :ivar min_index: The minimum station depth within this WFT run. This
+        is an API "structural-range" query parameter for growing
+        objects.
+    :ivar object_growing: The growing state of the object. This value is
+        only relevant within the context of a server. This is an API
+        server parameter related to a WITSML "growing" object (e.g.,
+        trajectory, logs, mud logs).
+    :ivar service_company: Name of contractor who provided the service.
+    :ivar tie_in_log_reference: References a log containing a WFT tie-in
+        (e.g. gamma ray) log vs. depth data.
+    :ivar wellbore_reference:
+    :ivar station:
+    :ivar result:
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    dtim_end: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimEnd",
+            "type": "Element",
+        },
+    )
+    dtim_start: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimStart",
+            "type": "Element",
+        },
+    )
+    max_index: Optional[MeasuredDepthCoord] = field(
+        default=None,
+        metadata={
+            "name": "MaxIndex",
+            "type": "Element",
+        },
+    )
+    min_index: Optional[MeasuredDepthCoord] = field(
+        default=None,
+        metadata={
+            "name": "MinIndex",
+            "type": "Element",
+        },
+    )
+    object_growing: Optional[bool] = field(
+        default=None,
+        metadata={
+            "name": "ObjectGrowing",
+            "type": "Element",
+        },
+    )
+    service_company: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "ServiceCompany",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    tie_in_log_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "TieInLogReference",
+            "type": "Element",
+        },
+    )
+    wellbore_reference: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "WellboreReference",
+            "type": "Element",
+        },
+    )
+    station: List[WftStation] = field(
+        default_factory=list,
+        metadata={
+            "name": "Station",
+            "type": "Element",
+        },
+    )
+    result: List[WftTestResult] = field(
+        default_factory=list,
+        metadata={
+            "name": "Result",
+            "type": "Element",
+        },
+    )
+
+
+@dataclass
+class BerganAndSuttonUndersaturated(
+    AbstractCorrelationViscosityUndersaturatedModel
+):
+    """
+    Bergan And Sutton-Undersaturated.
+    """
+
+    class Meta:
+        name = "BerganAndSutton-Undersaturated"
+
+
+@dataclass
+class BerganSuttonDead(AbstractCorrelationViscosityDeadModel):
+    """
+    BerganSutton-Dead.
+
+    :ivar dead_oil_viscosity_at100_f: The dead oil viscosity at 100 f
+        input to the dead oil viscosity model.
+    :ivar dead_oil_viscosity_at210_f: The dead oil viscosity at 210 f
+        input to the dead oil viscosity model.
+    """
+
+    class Meta:
+        name = "BerganSutton-Dead"
+
+    dead_oil_viscosity_at100_f: List[DynamicViscosityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "DeadOilViscosityAt100F",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    dead_oil_viscosity_at210_f: List[DynamicViscosityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "DeadOilViscosityAt210F",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class BergmanSuttonBubblePoint(AbstractCorrelationViscosityBubblePointModel):
+    """
+    BergmanSutton-BubblePoint.
+    """
+
+    class Meta:
+        name = "BergmanSutton-BubblePoint"
+
+
+@dataclass
+class CarrDempsey(AbstractCorrelationGasViscosityModel):
+    """
+    CarrDempsey.
+
+    :ivar gas_molar_weight: The molecular weight of the gas as an input
+        to this viscosity correlation.
+    :ivar gas_viscosity_at1_atm: The gas viscosity at 1 atm for the
+        viscosity correlation.
+    :ivar pseudo_reduced_pressure: The pseudo reduced pressure for the
+        viscosity correlation.
+    :ivar pseudo_reduced_temperature: The pseudo reducedtemperature for
+        the viscosity correlation.
+    """
+
+    gas_molar_weight: List[MolecularWeightMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasMolarWeight",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_viscosity_at1_atm: List[DynamicViscosityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasViscosityAt1Atm",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    pseudo_reduced_pressure: List[PressurePerPressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "PseudoReducedPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    pseudo_reduced_temperature: List[
+        ThermodynamicTemperaturePerThermodynamicTemperatureMeasure
+    ] = field(
+        default_factory=list,
+        metadata={
+            "name": "PseudoReducedTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class DeGhettoBubblePoint(AbstractCorrelationViscosityBubblePointModel):
+    """
+    DeGhetto-BubblePoint.
+    """
+
+    class Meta:
+        name = "DeGhetto-BubblePoint"
+
+
+@dataclass
+class DeGhettoDead(AbstractCorrelationViscosityDeadModel):
+    """
+    DeGhetto-Dead.
+
+    :ivar oil_apiat_stock_tank: The oil API at stock tank for the
+        viscosity correlation.
+    """
+
+    class Meta:
+        name = "DeGhetto-Dead"
+
+    oil_apiat_stock_tank: List[ApigravityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "OilAPIAtStockTank",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class DeGhettoUndersaturated(AbstractCorrelationViscosityUndersaturatedModel):
+    """
+    DeGhetto-Undersaturated.
+
+    :ivar reservoir_temperature: The reservoir temperature for the
+        viscosity correlation.
+    :ivar solution_gas_oil_ratio: The solution gas-oil ratio for the
+        viscosity correlation.
+    """
+
+    class Meta:
+        name = "DeGhetto-Undersaturated"
+
+    reservoir_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ReservoirTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    solution_gas_oil_ratio: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "SolutionGasOilRatio",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class DindorukChristmanBubblePoint(
+    AbstractCorrelationViscosityBubblePointModel
+):
+    """
+    DindorukChristman-BubblePoint.
+    """
+
+    class Meta:
+        name = "DindorukChristman-BubblePoint"
+
+
+@dataclass
+class DindorukChristmanDead(AbstractCorrelationViscosityDeadModel):
+    """
+    DindorukChristman-Dead.
+
+    :ivar oil_gravity_at_stock_tank: The oil gravity at stock tank for
+        the viscosity correlation.
+    """
+
+    class Meta:
+        name = "DindorukChristman-Dead"
+
+    oil_gravity_at_stock_tank: List[ApigravityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "OilGravityAtStockTank",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class DindorukChristmanUndersaturated(
+    AbstractCorrelationViscosityUndersaturatedModel
+):
+    """
+    DindorukChristman-Undersaturated.
+
+    :ivar reservoir_temperature: The reservoir temperature for the
+        viscosity correlation.
+    :ivar solution_gas_oil_ratio: The solution gas-oil ratio for the
+        viscosity correlation.
+    """
+
+    class Meta:
+        name = "DindorukChristman-Undersaturated"
+
+    reservoir_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "ReservoirTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    solution_gas_oil_ratio: List[VolumePerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "SolutionGasOilRatio",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class FiberOpticalPath(AbstractObject):
+    """The optical fiber path used for distributed property surveys, e.g.
+    temperature (DTS) or acoustics (DAS).
+
+    Comprises a number of items of equipment, such as fiber segments and
+    connectors of various types.
+
+    :ivar facility_identifier:
+    :ivar installing_vendor: The vendor who performed the physical
+        deployment
+    :ivar facility_mapping: Relates distances measured along the optical
+        path to specific lengths along facilities (wellbores or
+        pipelines).
+    :ivar inventory: The list of equipment used in the optical path.
+        Equipment may be used in the optical path for different periods
+        of time, so this inventory contains all items of equipment which
+        are used at some period of time.
+    :ivar optical_path_network:
+    :ivar otdr: This records the result arrays along with context
+        information for an Optical Time Domain Reflectometry (OTDR)
+        survey. The arrays will define the relative scattered power from
+        the Rayleigh scattering vs distance along the fiber. The actual
+        data values are recorded in a OTDR file and/or image file, which
+        are referenced in subelements.
+    :ivar defect: A zone of the fibre which has defective optical
+        properties (e.g., darkening).
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    facility_identifier: Optional[FacilityIdentifier] = field(
+        default=None,
+        metadata={
+            "name": "FacilityIdentifier",
+            "type": "Element",
+        },
+    )
+    installing_vendor: Optional[BusinessAssociate] = field(
+        default=None,
+        metadata={
+            "name": "InstallingVendor",
+            "type": "Element",
+        },
+    )
+    facility_mapping: List[FiberFacilityMapping] = field(
+        default_factory=list,
+        metadata={
+            "name": "FacilityMapping",
+            "type": "Element",
+        },
+    )
+    inventory: Optional[FiberOpticalPathInventory] = field(
+        default=None,
+        metadata={
+            "name": "Inventory",
+            "type": "Element",
+            "required": True,
+        },
+    )
+    optical_path_network: List[FiberOpticalPathNetwork] = field(
+        default_factory=list,
+        metadata={
+            "name": "OpticalPathNetwork",
+            "type": "Element",
+        },
+    )
+    otdr: List[FiberOtdr] = field(
+        default_factory=list,
+        metadata={
+            "name": "Otdr",
+            "type": "Element",
+        },
+    )
+    defect: List[FiberPathDefect] = field(
+        default_factory=list,
+        metadata={
+            "name": "Defect",
+            "type": "Element",
+        },
+    )
+
+
+@dataclass
+class HydrocarbonAnalysis(FluidAnalysis):
     """
     Hydrocarbon fluid analysis.
 
@@ -22965,33 +26892,185 @@ class HydrocarbonAnalysis:
 
 
 @dataclass
-class LohrenzBrayClarkCorrelation(AbstractCompositionalViscosityModel):
+class LeeGonzalez(AbstractCorrelationGasViscosityModel):
     """
-    Lohrenz-Bray-ClarkCorrelation.
+    LeeGonzalez.
+
+    :ivar gas_density: The gas density at the conditions for this
+        viscosity correlation to be used.
+    :ivar gas_molar_weight: The molecular weight of the gas as an input
+        to this viscosity correlation.
     """
 
-    class Meta:
-        name = "Lohrenz-Bray-ClarkCorrelation"
+    gas_density: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasDensity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_molar_weight: List[MolecularWeightMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasMolarWeight",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
 
 
 @dataclass
-class PengRobinson76Eos(AbstractCompositionalEoSmodel):
+class LondonoArcherBlasinggame(AbstractCorrelationGasViscosityModel):
     """
-    PengRobinson76_EOS.
+    LondonoArcherBlasinggame.
+
+    :ivar gas_density: The gas density at the conditions for this
+        viscosity correlation to be used.
+    :ivar gas_viscosity_at1_atm: The gas viscosity at 1 atm for the
+        viscosity correlation.
+    :ivar gas_viscosity_coefficient1_atm:
     """
 
-    class Meta:
-        name = "PengRobinson76_EOS"
+    gas_density: List[MassPerVolumeMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasDensity",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_viscosity_at1_atm: List[DynamicViscosityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasViscosityAt1Atm",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_viscosity_coefficient1_atm: List[PvtModelParameter] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasViscosityCoefficient1Atm",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
 
 
 @dataclass
-class PengRobinson78Eos(AbstractCompositionalEoSmodel):
+class Lucas(AbstractCorrelationGasViscosityModel):
     """
-    PengRobinson78_EOS.
+    Lucas.
+
+    :ivar gas_molar_weight: The molecular weight of the gas as an input
+        to this viscosity correlation.
+    :ivar gas_viscosity_at1_atm: The gas viscosity at 1 atm for the
+        viscosity correlation.
+    :ivar pseudo_critical_pressure: The pseudo critical pressure for the
+        viscosity correlation.
+    :ivar pseudo_critical_temperature: The pseudo critical temperature
+        for the viscosity correlation.
+    :ivar pseudo_reduced_pressure: The pseudo reduced pressure for the
+        viscosity correlation.
+    :ivar pseudo_reduced_temperature: The pseudo reduced temperature for
+        the viscosity correlation.
+    """
+
+    gas_molar_weight: List[MolecularWeightMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasMolarWeight",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    gas_viscosity_at1_atm: List[DynamicViscosityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "GasViscosityAt1Atm",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    pseudo_critical_pressure: List[PressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "PseudoCriticalPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    pseudo_critical_temperature: List[ThermodynamicTemperatureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "PseudoCriticalTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    pseudo_reduced_pressure: List[PressurePerPressureMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "PseudoReducedPressure",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+    pseudo_reduced_temperature: List[
+        ThermodynamicTemperaturePerThermodynamicTemperatureMeasure
+    ] = field(
+        default_factory=list,
+        metadata={
+            "name": "PseudoReducedTemperature",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class PetroskyFarshadBubblePoint(AbstractCorrelationViscosityBubblePointModel):
+    """
+    PetroskyFarshad-BubblePoint.
     """
 
     class Meta:
-        name = "PengRobinson78_EOS"
+        name = "PetroskyFarshad-BubblePoint"
+
+
+@dataclass
+class PetroskyFarshadDead(AbstractCorrelationViscosityDeadModel):
+    """
+    PetroskyFarshad-Dead.
+
+    :ivar oil_gravity_at_stock_tank: The oil gravity at stock tank
+        conditions for this viscosity correlation.
+    """
+
+    class Meta:
+        name = "PetroskyFarshad-Dead"
+
+    oil_gravity_at_stock_tank: List[ApigravityMeasure] = field(
+        default_factory=list,
+        metadata={
+            "name": "OilGravityAtStockTank",
+            "type": "Element",
+            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+        },
+    )
+
+
+@dataclass
+class PetroskyFarshadUndersaturated(
+    AbstractCorrelationViscosityUndersaturatedModel
+):
+    """
+    PetroskyFarshad-Undersaturated.
+    """
+
+    class Meta:
+        name = "PetroskyFarshad-Undersaturated"
 
 
 @dataclass
@@ -23027,7 +27106,7 @@ class ProductVolumeProduct:
             "required": True,
         },
     )
-    mass_fraction: List[str] = field(
+    mass_fraction: List[MassPerMassMeasure] = field(
         default_factory=list,
         metadata={
             "name": "MassFraction",
@@ -23035,7 +27114,7 @@ class ProductVolumeProduct:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    mole_fraction: List[str] = field(
+    mole_fraction: List[AmountOfSubstancePerAmountOfSubstanceMeasure] = field(
         default_factory=list,
         metadata={
             "name": "MoleFraction",
@@ -23099,212 +27178,34 @@ class ProductVolumeProduct:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
         },
     )
 
 
 @dataclass
-class SrkEos(AbstractCompositionalEoSmodel):
+class StandingBubblePoint(AbstractCorrelationViscosityBubblePointModel):
     """
-    Srk_EOS.
+    Standing-BubblePoint.
     """
 
     class Meta:
-        name = "Srk_EOS"
+        name = "Standing-BubblePoint"
 
 
 @dataclass
-class BerganAndSuttonUndersaturated(
-    AbstractCorrelationViscosityUndersaturatedModel
-):
+class StandingDead(AbstractCorrelationViscosityDeadModel):
     """
-    Bergan And Sutton-Undersaturated.
-    """
-
-    class Meta:
-        name = "BerganAndSutton-Undersaturated"
-
-
-@dataclass
-class BerganSuttonDead(AbstractCorrelationViscosityDeadModel):
-    """
-    BerganSutton-Dead.
-
-    :ivar dead_oil_viscosity_at100_f: The dead oil viscosity at 100 f
-        input to the dead oil viscosity model.
-    :ivar dead_oil_viscosity_at210_f: The dead oil viscosity at 210 f
-        input to the dead oil viscosity model.
-    """
-
-    class Meta:
-        name = "BerganSutton-Dead"
-
-    dead_oil_viscosity_at100_f: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "DeadOilViscosityAt100F",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    dead_oil_viscosity_at210_f: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "DeadOilViscosityAt210F",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class BergmanSuttonBubblePoint(AbstractCorrelationViscosityBubblePointModel):
-    """
-    BergmanSutton-BubblePoint.
-    """
-
-    class Meta:
-        name = "BergmanSutton-BubblePoint"
-
-
-@dataclass
-class CarrDempsey(AbstractCorrelationGasViscosityModel):
-    """
-    CarrDempsey.
-
-    :ivar gas_molar_weight: The molecular weight of the gas as an input
-        to this viscosity correlation.
-    :ivar gas_viscosity_at1_atm: The gas viscosity at 1 atm for the
-        viscosity correlation.
-    :ivar pseudo_reduced_pressure: The pseudo reduced pressure for the
-        viscosity correlation.
-    :ivar pseudo_reduced_temperature: The pseudo reducedtemperature for
-        the viscosity correlation.
-    """
-
-    gas_molar_weight: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasMolarWeight",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_viscosity_at1_atm: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasViscosityAt1Atm",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pseudo_reduced_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PseudoReducedPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pseudo_reduced_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PseudoReducedTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class DeGhettoBubblePoint(AbstractCorrelationViscosityBubblePointModel):
-    """
-    DeGhetto-BubblePoint.
-    """
-
-    class Meta:
-        name = "DeGhetto-BubblePoint"
-
-
-@dataclass
-class DeGhettoDead(AbstractCorrelationViscosityDeadModel):
-    """
-    DeGhetto-Dead.
-
-    :ivar oil_apiat_stock_tank: The oil API at stock tank for the
-        viscosity correlation.
-    """
-
-    class Meta:
-        name = "DeGhetto-Dead"
-
-    oil_apiat_stock_tank: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "OilAPIAtStockTank",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class DeGhettoUndersaturated(AbstractCorrelationViscosityUndersaturatedModel):
-    """
-    DeGhetto-Undersaturated.
-
-    :ivar reservoir_temperature: The reservoir temperature for the
-        viscosity correlation.
-    :ivar solution_gas_oil_ratio: The solution gas-oil ratio for the
-        viscosity correlation.
-    """
-
-    class Meta:
-        name = "DeGhetto-Undersaturated"
-
-    reservoir_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ReservoirTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    solution_gas_oil_ratio: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SolutionGasOilRatio",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class DindorukChristmanBubblePoint(
-    AbstractCorrelationViscosityBubblePointModel
-):
-    """
-    DindorukChristman-BubblePoint.
-    """
-
-    class Meta:
-        name = "DindorukChristman-BubblePoint"
-
-
-@dataclass
-class DindorukChristmanDead(AbstractCorrelationViscosityDeadModel):
-    """
-    DindorukChristman-Dead.
+    Standing-Dead.
 
     :ivar oil_gravity_at_stock_tank: The oil gravity at stock tank for
-        the viscosity correlation.
+        the viscosity model.
     """
 
     class Meta:
-        name = "DindorukChristman-Dead"
+        name = "Standing-Dead"
 
-    oil_gravity_at_stock_tank: List[str] = field(
+    oil_gravity_at_stock_tank: List[ApigravityMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OilGravityAtStockTank",
@@ -23315,22 +27216,20 @@ class DindorukChristmanDead(AbstractCorrelationViscosityDeadModel):
 
 
 @dataclass
-class DindorukChristmanUndersaturated(
-    AbstractCorrelationViscosityUndersaturatedModel
-):
+class StandingUndersaturated(AbstractCorrelationViscosityUndersaturatedModel):
     """
-    DindorukChristman-Undersaturated.
+    Standing-Undersaturated.
 
     :ivar reservoir_temperature: The reservoir temperature for the
-        viscosity correlation.
-    :ivar solution_gas_oil_ratio: The solution gas-oil ratio for the
-        viscosity correlation.
+        viscosity model.
+    :ivar solution_gas_oil_ratio: The solution gas oil ratio for the
+        viscosity model.
     """
 
     class Meta:
-        name = "DindorukChristman-Undersaturated"
+        name = "Standing-Undersaturated"
 
-    reservoir_temperature: List[str] = field(
+    reservoir_temperature: List[ThermodynamicTemperatureMeasure] = field(
         default_factory=list,
         metadata={
             "name": "ReservoirTemperature",
@@ -23338,7 +27237,7 @@ class DindorukChristmanUndersaturated(
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    solution_gas_oil_ratio: List[str] = field(
+    solution_gas_oil_ratio: List[VolumePerVolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "SolutionGasOilRatio",
@@ -23346,186 +27245,6 @@ class DindorukChristmanUndersaturated(
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-
-
-@dataclass
-class LeeGonzalez(AbstractCorrelationGasViscosityModel):
-    """
-    LeeGonzalez.
-
-    :ivar gas_density: The gas density at the conditions for this
-        viscosity correlation to be used.
-    :ivar gas_molar_weight: The molecular weight of the gas as an input
-        to this viscosity correlation.
-    """
-
-    gas_density: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasDensity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_molar_weight: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasMolarWeight",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class LondonoArcherBlasinggame(AbstractCorrelationGasViscosityModel):
-    """
-    LondonoArcherBlasinggame.
-
-    :ivar gas_density: The gas density at the conditions for this
-        viscosity correlation to be used.
-    :ivar gas_viscosity_at1_atm: The gas viscosity at 1 atm for the
-        viscosity correlation.
-    :ivar gas_viscosity_coefficient1_atm:
-    """
-
-    gas_density: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasDensity",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_viscosity_at1_atm: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasViscosityAt1Atm",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_viscosity_coefficient1_atm: List[PvtModelParameter] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasViscosityCoefficient1Atm",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class Lucas(AbstractCorrelationGasViscosityModel):
-    """
-    Lucas.
-
-    :ivar gas_molar_weight: The molecular weight of the gas as an input
-        to this viscosity correlation.
-    :ivar gas_viscosity_at1_atm: The gas viscosity at 1 atm for the
-        viscosity correlation.
-    :ivar pseudo_critical_pressure: The pseudo critical pressure for the
-        viscosity correlation.
-    :ivar pseudo_critical_temperature: The pseudo critical temperature
-        for the viscosity correlation.
-    :ivar pseudo_reduced_pressure: The pseudo reduced pressure for the
-        viscosity correlation.
-    :ivar pseudo_reduced_temperature: The pseudo reduced temperature for
-        the viscosity correlation.
-    """
-
-    gas_molar_weight: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasMolarWeight",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    gas_viscosity_at1_atm: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "GasViscosityAt1Atm",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pseudo_critical_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PseudoCriticalPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pseudo_critical_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PseudoCriticalTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pseudo_reduced_pressure: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PseudoReducedPressure",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    pseudo_reduced_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "PseudoReducedTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class PetroskyFarshadBubblePoint(AbstractCorrelationViscosityBubblePointModel):
-    """
-    PetroskyFarshad-BubblePoint.
-    """
-
-    class Meta:
-        name = "PetroskyFarshad-BubblePoint"
-
-
-@dataclass
-class PetroskyFarshadDead(AbstractCorrelationViscosityDeadModel):
-    """
-    PetroskyFarshad-Dead.
-
-    :ivar oil_gravity_at_stock_tank: The oil gravity at stock tank
-        conditions for this viscosity correlation.
-    """
-
-    class Meta:
-        name = "PetroskyFarshad-Dead"
-
-    oil_gravity_at_stock_tank: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "OilGravityAtStockTank",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class PetroskyFarshadUndersaturated(
-    AbstractCorrelationViscosityUndersaturatedModel
-):
-    """
-    PetroskyFarshad-Undersaturated.
-    """
-
-    class Meta:
-        name = "PetroskyFarshad-Undersaturated"
 
 
 @dataclass
@@ -23603,6 +27322,7 @@ class ProductVolumeFlow:
             "name": "Name",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     port: List[str] = field(
@@ -23611,6 +27331,7 @@ class ProductVolumeFlow:
             "name": "Port",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     qualifier: Optional[FlowQualifier] = field(
@@ -23627,6 +27348,7 @@ class ProductVolumeFlow:
             "name": "SourceFlow",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     sub_qualifier: Optional[FlowSubQualifier] = field(
@@ -23643,6 +27365,7 @@ class ProductVolumeFlow:
             "name": "Version",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "pattern": r".+T.+[Z+\-].*",
         },
     )
     version_source: List[str] = field(
@@ -23651,6 +27374,7 @@ class ProductVolumeFlow:
             "name": "VersionSource",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     properties: Optional[CommonPropertiesProductVolume] = field(
@@ -23682,70 +27406,7 @@ class ProductVolumeFlow:
         metadata={
             "type": "Attribute",
             "required": True,
-        },
-    )
-
-
-@dataclass
-class StandingBubblePoint(AbstractCorrelationViscosityBubblePointModel):
-    """
-    Standing-BubblePoint.
-    """
-
-    class Meta:
-        name = "Standing-BubblePoint"
-
-
-@dataclass
-class StandingDead(AbstractCorrelationViscosityDeadModel):
-    """
-    Standing-Dead.
-
-    :ivar oil_gravity_at_stock_tank: The oil gravity at stock tank for
-        the viscosity model.
-    """
-
-    class Meta:
-        name = "Standing-Dead"
-
-    oil_gravity_at_stock_tank: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "OilGravityAtStockTank",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-
-
-@dataclass
-class StandingUndersaturated(AbstractCorrelationViscosityUndersaturatedModel):
-    """
-    Standing-Undersaturated.
-
-    :ivar reservoir_temperature: The reservoir temperature for the
-        viscosity model.
-    :ivar solution_gas_oil_ratio: The solution gas oil ratio for the
-        viscosity model.
-    """
-
-    class Meta:
-        name = "Standing-Undersaturated"
-
-    reservoir_temperature: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "ReservoirTemperature",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
-        },
-    )
-    solution_gas_oil_ratio: List[str] = field(
-        default_factory=list,
-        metadata={
-            "name": "SolutionGasOilRatio",
-            "type": "Element",
-            "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
 
@@ -23790,7 +27451,7 @@ class ProductVolumeFacility:
         context of the parent top-level object.
     """
 
-    capacity: List[str] = field(
+    capacity: List[VolumeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "Capacity",
@@ -23861,9 +27522,10 @@ class ProductVolumeFacility:
             "name": "NetWork",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
-    operation_time: List[str] = field(
+    operation_time: List[TimeMeasure] = field(
         default_factory=list,
         metadata={
             "name": "OperationTime",
@@ -23871,7 +27533,7 @@ class ProductVolumeFacility:
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
         },
     )
-    status_well: List[str] = field(
+    status_well: List[WellStatus] = field(
         default_factory=list,
         metadata={
             "name": "StatusWell",
@@ -23885,6 +27547,7 @@ class ProductVolumeFacility:
             "name": "Unit",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/prodmlv2",
+            "max_length": 64,
         },
     )
     well_injecting: Optional[bool] = field(
@@ -23932,5 +27595,219 @@ class ProductVolumeFacility:
         metadata={
             "type": "Attribute",
             "required": True,
+            "max_length": 64,
+        },
+    )
+
+
+@dataclass
+class ProductVolume(AbstractObject):
+    """
+    The non-contextual content of a product volume object.
+
+    :ivar approval_date: The date that the report was approved.
+    :ivar approver: The person or company that approved the report. This
+        may contain the role of the person or company within the context
+        of the report.
+    :ivar context_facility: The name and type of a facility whose
+        context is relevant to the represented installation.
+    :ivar date_time:
+    :ivar dtim_current: The definition of the "current time" index for
+        this report. The current time index is a server query parameter
+        which requests the selection of a single node from a recurring
+        "period" set (e.g., the data related to one point in a time
+        series). For the purposes of this parameter, a "period" without
+        any time data should be assumed to have the time associated with
+        the overall report.
+    :ivar dtim_max: The maximum time index contained within the report.
+        For the purposes of this parameter, a "period" or "facility
+        parameter" without any time data should be assumed to have the
+        time associated with the overall report. The minimum and maximum
+        indexes are server query parameters and will be populated with
+        valid values in a "get" result.
+    :ivar dtim_min: The minimum time index contained within the report.
+        For the purposes of this parameter, a "period" or "facility
+        parameter" without any time data should be assumed to have the
+        time associated with the overall report. The minimum and maximum
+        indexes are server query parameters and will be populated with
+        valid values in a "get" result.
+    :ivar geographic_context: The geographic context of the report.
+    :ivar installation: The name of the facility which is represented by
+        this report. The name can be qualified by a naming system. This
+        also defines the kind of facility.
+    :ivar issue_date: The date that the report was issued.
+    :ivar issued_by: The person or company that issued the report. This
+        may contain the role of the person or company within the context
+        of the report.
+    :ivar kind: The type of report.
+    :ivar operator: The operator of the facilities in the report.
+    :ivar period_kind: The type of period that is being reported. This
+        value must be consistent with the reporting start and end
+        values.
+    :ivar product_flow_model:
+    :ivar standard_temp_pres: Defines the default standard temperature
+        and pressure to which all volumes, densities and flow rates in
+        this report have been corrected. The default may be locally
+        overridden for an individual value. If not specified, then the
+        conditions must be presumed to be ambient conditions (i.e.,
+        uncorrected) unless otherwise specified at a local level.
+    :ivar title: The tile of the report if different from the name of
+        the report.
+    :ivar calculation_method: The calculation method for  "filling in"
+        values in an indexed set. If not given, the default is that no
+        calculations are performed to create data where none exists
+        within an existing set. This is not to be construed as to
+        prevent concepts such as simulation and forecasting from being
+        applied in order to create a new set. This is a server query
+        parameter.
+    :ivar business_unit: A business unit and related account or
+        ownership share information.
+    :ivar facility: A facility for which product information is being
+        reported.
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/prodmlv2"
+
+    approval_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "ApprovalDate",
+            "type": "Element",
+        },
+    )
+    approver: Optional[BusinessAssociate] = field(
+        default=None,
+        metadata={
+            "name": "Approver",
+            "type": "Element",
+        },
+    )
+    context_facility: List[FacilityIdentifierStruct] = field(
+        default_factory=list,
+        metadata={
+            "name": "ContextFacility",
+            "type": "Element",
+        },
+    )
+    date_time: Optional[AbstractDateTimeType] = field(
+        default=None,
+        metadata={
+            "name": "DateTime",
+            "type": "Element",
+        },
+    )
+    dtim_current: Optional[XmlDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimCurrent",
+            "type": "Element",
+        },
+    )
+    dtim_max: Optional[EndpointQualifiedDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimMax",
+            "type": "Element",
+        },
+    )
+    dtim_min: Optional[EndpointQualifiedDateTime] = field(
+        default=None,
+        metadata={
+            "name": "DTimMin",
+            "type": "Element",
+        },
+    )
+    geographic_context: Optional[GeographicContext] = field(
+        default=None,
+        metadata={
+            "name": "GeographicContext",
+            "type": "Element",
+        },
+    )
+    installation: Optional[FacilityIdentifierStruct] = field(
+        default=None,
+        metadata={
+            "name": "Installation",
+            "type": "Element",
+        },
+    )
+    issue_date: Optional[XmlDate] = field(
+        default=None,
+        metadata={
+            "name": "IssueDate",
+            "type": "Element",
+        },
+    )
+    issued_by: Optional[BusinessAssociate] = field(
+        default=None,
+        metadata={
+            "name": "IssuedBy",
+            "type": "Element",
+        },
+    )
+    kind: List[str] = field(
+        default_factory=list,
+        metadata={
+            "name": "Kind",
+            "type": "Element",
+            "max_length": 64,
+        },
+    )
+    operator: Optional[BusinessAssociate] = field(
+        default=None,
+        metadata={
+            "name": "Operator",
+            "type": "Element",
+        },
+    )
+    period_kind: Optional[ReportingDurationKind] = field(
+        default=None,
+        metadata={
+            "name": "PeriodKind",
+            "type": "Element",
+        },
+    )
+    product_flow_model: List[DataObjectReference] = field(
+        default_factory=list,
+        metadata={
+            "name": "ProductFlowModel",
+            "type": "Element",
+        },
+    )
+    standard_temp_pres: List[ReferenceCondition] = field(
+        default_factory=list,
+        metadata={
+            "name": "StandardTempPres",
+            "type": "Element",
+        },
+    )
+    title: Optional[NameStruct] = field(
+        default=None,
+        metadata={
+            "name": "Title",
+            "type": "Element",
+        },
+    )
+    calculation_method: Optional[CalculationMethod] = field(
+        default=None,
+        metadata={
+            "name": "CalculationMethod",
+            "type": "Element",
+        },
+    )
+    business_unit: List[ProductVolumeBusinessUnit] = field(
+        default_factory=list,
+        metadata={
+            "name": "BusinessUnit",
+            "type": "Element",
+        },
+    )
+    facility: List[ProductVolumeFacility] = field(
+        default_factory=list,
+        metadata={
+            "name": "Facility",
+            "type": "Element",
+            "min_occurs": 1,
         },
     )

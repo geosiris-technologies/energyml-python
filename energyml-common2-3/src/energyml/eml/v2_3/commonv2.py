@@ -136,6 +136,24 @@ class AbstractInterval:
 
 
 @dataclass
+class AbstractMeasure:
+    """The intended abstract supertype of all quantities that have a value with a
+    unit of measure.
+
+    The unit of measure is in the uom attribute of the subtypes. This
+    type allows all quantities to be profiled to be a 'float' instead of
+    a 'double'.
+    """
+
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
 class AbstractParameterKey:
     """Abstract class describing a key used to identify a parameter value.
 
@@ -158,6 +176,23 @@ class AbstractPressureValue:
 @dataclass
 class AbstractProjectedCrs:
     pass
+
+
+@dataclass
+class AbstractString:
+    """The intended abstract supertype of all strings.
+
+    This abstract type allows the control over whitespace for all
+    strings to be defined at a high level. This type should not be used
+    directly except to derive another type.
+    """
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
 
 
 @dataclass
@@ -715,6 +750,16 @@ class BooleanArrayStatistics:
             "name": "ValuesMode",
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/commonv2",
+        },
+    )
+
+
+@dataclass
+class BooleanXmlArrayList:
+    value: List[bool] = field(
+        default_factory=list,
+        metadata={
+            "tokens": True,
         },
     )
 
@@ -1775,6 +1820,17 @@ class EnergyUom(Enum):
     U_J = "uJ"
 
 
+@dataclass
+class EnumExtensionPattern:
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
 class ExistenceKind(Enum):
     """A list of lifecycle states like actual, required, planned, predicted, etc.
 
@@ -2129,6 +2185,16 @@ class FloatingPointType(Enum):
     ARRAY_OF_DOUBLE64_BE = "arrayOfDouble64BE"
 
 
+@dataclass
+class FloatingPointXmlArrayList:
+    value: List[float] = field(
+        default_factory=list,
+        metadata={
+            "tokens": True,
+        },
+    )
+
+
 class ForceAreaUom(Enum):
     """
     :cvar DYNE_CM2: dyne square centimetre
@@ -2381,6 +2447,17 @@ class GenericMeasure:
             "max_length": 32,
         },
     )
+
+
+class GeochronologicalRank(Enum):
+    """Qualifier for the geological time denoted by the GeochronologicalUnit: eon, era, epoch, etc."""
+
+    EON = "eon"
+    ERA = "era"
+    PERIOD = "period"
+    EPOCH = "epoch"
+    AGE = "age"
+    CHRON = "chron"
 
 
 @dataclass
@@ -2786,6 +2863,16 @@ class IntegerType(Enum):
     ARRAY_OF_UINT64_BE = "arrayOfUInt64BE"
 
 
+@dataclass
+class IntegerXmlArrayList:
+    value: List[int] = field(
+        default_factory=list,
+        metadata={
+            "tokens": True,
+        },
+    )
+
+
 class IsothermalCompressibilityUom(Enum):
     """
     :cvar DM3_K_W_H: cubic decimetre per kilowatt hour
@@ -2988,6 +3075,16 @@ class LegacyVolumeUom(Enum):
     SCF = "scf"
     SCM = "scm"
     STB = "stb"
+
+
+@dataclass
+class LengthOrTimeMeasureExt:
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
 
 
 class LengthPerLengthUom(Enum):
@@ -3354,6 +3451,505 @@ class LinearThermalExpansionUom(Enum):
     IN_IN_DELTA_F = "in/(in.deltaF)"
     M_M_DELTA_K = "m/(m.deltaK)"
     MM_MM_DELTA_K = "mm/(mm.deltaK)"
+
+
+class LithologyKind(Enum):
+    """
+    A description of minerals or accessories that constitute a fractional part of a
+    lithology description.
+    """
+
+    ALKALI_FELDSPAR_RHYOLITE = "alkali feldspar rhyolite"
+    ALKALI_OLIVINE_BASALT = "alkali olivine basalt"
+    AMPHIBOLITE = "amphibolite"
+    ANDESITE = "andesite"
+    ANHYDRITE = "anhydrite"
+    ANORTHOSITIC_ROCK = "anorthositic rock"
+    ANTHRACITE = "anthracite"
+    APLITE = "aplite"
+    ARENITE = "arenite"
+    ARGILLACEOUS = "argillaceous"
+    ARKOSE = "arkose"
+    BASALT = "basalt"
+    BASANITE = "basanite"
+    BAUXITE = "bauxite"
+    BITUMINOUS_COAL = "bituminous coal"
+    BLUESCHIST_METAMORPHIC_ROCK = "blueschist metamorphic rock"
+    BONINITE = "boninite"
+    BRECCIA = "breccia"
+    CARBONATE_OOZE = "carbonate ooze"
+    CARBONATITE = "carbonatite"
+    CHALK = "chalk"
+    CHERT = "chert"
+    CLAY = "clay"
+    CLAYSTONE = "claystone"
+    COAL = "coal"
+    CONGLOMERATE = "conglomerate"
+    DACITE = "dacite"
+    DIABASE = "diabase"
+    DIAMICTITE = "diamictite"
+    DIORITE = "diorite"
+    DIORITOID = "dioritoid"
+    DOLERITIC_ROCK = "doleritic rock"
+    DOLOMITE = "dolomite"
+    DOLOMITIC = "dolomitic"
+    ECLOGITE = "eclogite"
+    EXOTIC_ALKALINE_ROCK = "exotic alkaline rock"
+    FELDSPAR = "feldspar"
+    FELDSPATHIC_ARENITE = "feldspathic arenite"
+    FINE_GRAINED_IGNEOUS_ROCK = "fine grained igneous rock"
+    FOID_DIORITOID = "foid dioritoid"
+    FOID_GABBROID = "foid gabbroid"
+    FOID_SYENITOID = "foid syenitoid"
+    FOIDITE = "foidite"
+    FOIDITOID = "foiditoid"
+    FOIDOLITE = "foidolite"
+    FOLIATED_METAMORPHIC_ROCK = "foliated metamorphic rock"
+    FRAGMENTAL_IGNEOUS_ROCK = "fragmental igneous rock"
+    GABBRO = "gabbro"
+    GABBROIC_ROCK = "gabbroic rock"
+    GABBROID = "gabbroid"
+    GLAUCONITE = "glauconite"
+    GNEISS = "gneiss"
+    GRANITE = "granite"
+    GRANODIORITE = "granodiorite"
+    GRANOFELS = "granofels"
+    GRANULITE = "granulite"
+    GRAVEL = "gravel"
+    GREENSTONE = "greenstone"
+    GUMBO = "gumbo"
+    GYPSUM = "gypsum"
+    HALITE = "halite"
+    HORNFELS = "hornfels"
+    IGNEOUS_ROCK = "igneous rock"
+    IMPACT_GENERATED_MATERIAL = "impact generated material"
+    IMPURE_DOLOMITE = "impure dolomite"
+    IMPURE_LIMESTONE = "impure limestone"
+    INTRUSIVE_ROCK_PLUTONIC = "intrusive rock (plutonic)"
+    IRON_RICH_SEDIMENTARY_ROCK = "iron rich sedimentary rock"
+    KALSILITIC_AND_MELILITIC_ROCKS = "kalsilitic and melilitic rocks"
+    KOMATIITIC_ROCK = "komatiitic rock"
+    LATITIC_ROCK = "latitic rock"
+    LIGNITE = "lignite"
+    LIME_BOUNDSTONE = "lime boundstone"
+    LIME_FRAMESTONE = "lime framestone"
+    LIME_GRAINSTONE = "lime grainstone"
+    LIME_MUDSTONE = "lime mudstone"
+    LIME_PACKSTONE = "lime packstone"
+    LIME_WACKESTONE = "lime wackestone"
+    LIMESTONE = "limestone"
+    MARBLE = "marble"
+    MARL = "marl"
+    METAMORPHIC_ROCK = "metamorphic rock"
+    MICA_SCHIST = "mica schist"
+    MIGMATITE = "migmatite"
+    MONZOGABBRO = "monzogabbro"
+    MUD = "mud"
+    MUDSTONE = "mudstone"
+    MYLONITIC_ROCK = "mylonitic rock"
+    NO_DESCRIPTION = "no description"
+    NO_SAMPLE = "no sample"
+    OOZE = "ooze"
+    OPHIOLITE = "ophiolite"
+    ORGANIC_BEARING_MUDSTONE = "organic bearing mudstone"
+    PEAT = "peat"
+    PEGMATITE = "pegmatite"
+    PERIDOTITE = "peridotite"
+    PHANERITIC_IGNEOUS_ROCK = "phaneritic igneous rock"
+    PHONOLITE = "phonolite"
+    PHONOLITOID = "phonolitoid"
+    PHOSPHATE = "phosphate"
+    PHOSPHATE_ROCK = "phosphate rock"
+    PHYLLITE = "phyllite"
+    PORPHYRY = "porphyry"
+    POTASSIUM_AND_MAGNESIUM_SALTS = "potassium and magnesium salts"
+    PYROCLASTIC_BRECCIA = "pyroclastic breccia"
+    PYROCLASTIC_ROCK = "pyroclastic rock"
+    PYROXENITE = "pyroxenite"
+    QUARTZ_ARENITE = "quartz arenite"
+    QUARTZITE = "quartzite"
+    RHYOLITE = "rhyolite"
+    ROCK_SALT = "rock salt"
+    SAND = "sand"
+    SANDSTONE = "sandstone"
+    SANDY = "sandy"
+    SAPROPEL = "sapropel"
+    SCHIST = "schist"
+    SERPENTINITE = "serpentinite"
+    SHALE = "shale"
+    SILICEOUS_OOZE = "siliceous ooze"
+    SILT = "silt"
+    SILTSTONE = "siltstone"
+    SKARN = "skarn"
+    SLATE = "slate"
+    SPILITE = "spilite"
+    SYENITE = "syenite"
+    SYENITOID = "syenitoid"
+    SYLVITE = "sylvite"
+    TEPHRITE = "tephrite"
+    TEPHRITOID = "tephritoid"
+    THOLEIITIC_BASALT = "tholeiitic basalt"
+    TONALITE = "tonalite"
+    TRACHYTE = "trachyte"
+    TRACHYTIC_ROCK = "trachytic rock"
+    TRACHYTOID = "trachytoid"
+    TRAVERTINE = "travertine"
+    TUFF = "tuff"
+    TUFFITE = "tuffite"
+    ULTRABASIC = "ultrabasic"
+    UNDIFFERENTIATED = "undifferentiated"
+    UNKNOWN = "unknown"
+    WACKE = "wacke"
+
+
+class LithologyQualifierKind(Enum):
+    ALKALI_FELDSPAR_RHYOLITE = "alkali feldspar rhyolite"
+    ALKALI_OLIVINE_BASALT = "alkali olivine basalt"
+    AMPHIBOLITE = "amphibolite"
+    AMPHIBOLITIC = "amphibolitic"
+    ANDESITE = "andesite"
+    ANDESITIC = "andesitic"
+    ANHYDRITE = "anhydrite"
+    ANHYDRITIC = "anhydritic"
+    ANKERITE = "ankerite"
+    ANKERITIC = "ankeritic"
+    ANORTHOSITIC_ROCK = "anorthositic rock"
+    ANTHRACITE = "anthracite"
+    ANTHRACITIC = "anthracitic"
+    APLITE = "aplite"
+    APLITIC = "aplitic"
+    ARENITE = "arenite"
+    ARENITIC = "arenitic"
+    ARGILLACEOUS = "argillaceous"
+    ARKOSE = "arkose"
+    ARKOSIC = "arkosic"
+    BARITE = "barite"
+    BARITIC = "baritic"
+    BASALT = "basalt"
+    BASALTIC = "basaltic"
+    BASANITE = "basanite"
+    BASANITIC = "basanitic"
+    BAUXITE = "bauxite"
+    BAUXITIC = "bauxitic"
+    BELEMNITES = "belemnites"
+    BELEMNITIC = "belemnitic"
+    BIOTURBATED = "bioturbated"
+    BIOTURBATION = "bioturbation"
+    BITUMEN = "bitumen"
+    BITUMINOUS = "bituminous"
+    BITUMINOUS_COAL = "bituminous coal"
+    BLUESCHIST_METAMORPHIC_ROCK = "blueschist metamorphic rock"
+    BONINITE = "boninite"
+    BRECCIA = "breccia"
+    BRECCIATED = "brecciated"
+    BRYOZOAN = "bryozoan"
+    BRYOZOANS = "bryozoans"
+    BURROWED = "burrowed"
+    BURROWS = "burrows"
+    CALCAREOUS = "calcareous"
+    CALCITE = "calcite"
+    CALCITE_CONCRETION = "calcite concretion"
+    CALCITIC = "calcitic"
+    CARBONACEOUS = "carbonaceous"
+    CARBONATE_OOZE = "carbonate ooze"
+    CARBONATITE = "carbonatite"
+    CARBONATITIC = "carbonatitic"
+    CHALK = "chalk"
+    CHALKY = "chalky"
+    CHAMOSITE = "chamosite"
+    CHAMOSITIC = "chamositic"
+    CHERT = "chert"
+    CHERTY = "cherty"
+    CHLORITE = "chlorite"
+    CHLORITIC = "chloritic"
+    CLAY = "clay"
+    CLAYSTONE = "claystone"
+    COAL = "coal"
+    CONCRETIONARY = "concretionary"
+    CONCRETIONS = "concretions"
+    CONGLOMERATE = "conglomerate"
+    CONGLOMERATIC = "conglomeratic"
+    CORAL_FRAGMENTS = "coral fragments"
+    CORALLINE = "coralline"
+    CRINOIDAL = "crinoidal"
+    CRINOIDS = "crinoids"
+    DACITE = "dacite"
+    DACITIC = "dacitic"
+    DIABASE = "diabase"
+    DIABASIC = "diabasic"
+    DIAMICTITE = "diamictite"
+    DIAMICTITIC = "diamictitic"
+    DIATOMACEOUS = "diatomaceous"
+    DIATOMS = "diatoms"
+    DIORITE = "diorite"
+    DIORITIC = "dioritic"
+    DIORITOID = "dioritoid"
+    DIORITOIDIC = "dioritoidic"
+    DOLERITIC_ROCK = "doleritic rock"
+    DOLOMITE = "dolomite"
+    DOLOMITE_CONCRETION = "dolomite concretion"
+    DOLOMITE_STRINGER = "dolomite stringer"
+    DOLOMITIC = "dolomitic"
+    ECLOGITE = "eclogite"
+    ECLOGITIC = "eclogitic"
+    EXOTIC_ALKALINE_ROCK = "exotic alkaline rock"
+    FELDSPAR = "feldspar"
+    FELDSPARIC = "feldsparic"
+    FELDSPATHIC = "feldspathic"
+    FELDSPATHIC_ARENITE = "feldspathic arenite"
+    FERRUGINOUS = "ferruginous"
+    FINE_GRAINED_IGNEOUS_ROCK = "fine grained igneous rock"
+    FOID_DIORITOID = "foid dioritoid"
+    FOID_GABBROID = "foid gabbroid"
+    FOID_SYENITOID = "foid syenitoid"
+    FOIDITE = "foidite"
+    FOIDITIC = "foiditic"
+    FOIDITOID = "foiditoid"
+    FOIDOLITE = "foidolite"
+    FOIDOLITIC = "foidolitic"
+    FOLIATED_METAMORPHIC_ROCK = "foliated metamorphic rock"
+    FORAMINIFERA = "foraminifera"
+    FORAMINIFEROUS = "foraminiferous"
+    FORAMS = "forams"
+    FOSSIL_FRAGMENTS = "fossil fragments"
+    FOSSILIFEROUS = "fossiliferous"
+    FOSSILS_UNDIFFERENTIATED = "fossils undifferentiated"
+    FRAGMENTAL_IGNEOUS_ROCK = "fragmental igneous rock"
+    GABBRO = "gabbro"
+    GABBROIC = "gabbroic"
+    GABBROIC_ROCK = "gabbroic rock"
+    GABBROID = "gabbroid"
+    GABBROIDIC = "gabbroidic"
+    GILSONITE = "gilsonite"
+    GILSONITIC = "gilsonitic"
+    GLAUCONITE = "glauconite"
+    GLAUCONITIC = "glauconitic"
+    GNEISS = "gneiss"
+    GNEISSIC = "gneissic"
+    GRANITE = "granite"
+    GRANITIC = "granitic"
+    GRANODIORITE = "granodiorite"
+    GRANODIORITIC = "granodioritic"
+    GRANOFELS = "granofels"
+    GRANULITE = "granulite"
+    GRANULITIC = "granulitic"
+    GRAVEL = "gravel"
+    GRAVELLY = "gravelly"
+    GREENSTONE = "greenstone"
+    GUMBO = "gumbo"
+    GYPSIFEROUS = "gypsiferous"
+    GYPSUM = "gypsum"
+    HALITE = "halite"
+    HALITIC = "halitic"
+    HORNFELS = "hornfels"
+    HORNFELSIC = "hornfelsic"
+    IGNEOUS = "igneous"
+    IGNEOUS_ROCK = "igneous rock"
+    ILLITE = "illite"
+    ILLITIC = "illitic"
+    IMPACT_GENERATED_MATERIAL = "impact generated material"
+    IMPURE_DOLOMITE = "impure dolomite"
+    IMPURE_LIMESTONE = "impure limestone"
+    INTRUSIVE_ROCK_PLUTONIC = "intrusive rock (plutonic)"
+    IRON_RICH_SEDIMENTARY_ROCK = "iron rich sedimentary rock"
+    KALSILITIC_AND_MELILITIC_ROCKS = "kalsilitic and melilitic rocks"
+    KAOLINITE = "kaolinite"
+    KAOLINITIC = "kaolinitic"
+    KOMATIITIC_ROCK = "komatiitic rock"
+    LATITIC_ROCK = "latitic rock"
+    LIGNITE = "lignite"
+    LIGNITIC = "lignitic"
+    LIME_BOUNDSTONE = "lime boundstone"
+    LIME_FRAMESTONE = "lime framestone"
+    LIME_GRAINSTONE = "lime grainstone"
+    LIME_MUDSTONE = "lime mudstone"
+    LIME_PACKSTONE = "lime packstone"
+    LIME_WACKESTONE = "lime wackestone"
+    LIMESTONE = "limestone"
+    LIMESTONE_STRINGER = "limestone stringer"
+    LITHIC = "lithic"
+    LITHIC_FRAGMENTS = "lithic fragments"
+    MARBLE = "marble"
+    MARCASITE = "marcasite"
+    MARCASITIC = "marcasitic"
+    MARL = "marl"
+    MARLY = "marly"
+    METAMORPHIC_ROCK = "metamorphic rock"
+    MICA = "mica"
+    MICA_SCHIST = "mica schist"
+    MICACEOUS = "micaceous"
+    MICROFOSSILIFEROUS = "microfossiliferous"
+    MICROFOSSILS = "microfossils"
+    MIGMATITE = "migmatite"
+    MIGMATITIC = "migmatitic"
+    MONZOGABBRO = "monzogabbro"
+    MONZOGABBROIC = "monzogabbroic"
+    MUD = "mud"
+    MUDDY = "muddy"
+    MUDSTONE = "mudstone"
+    MYLONITIC_ROCK = "mylonitic rock"
+    NO_SAMPLE = "no sample"
+    ONCOLITE = "oncolite"
+    ONCOLITHS = "oncoliths"
+    ONCOLITIC = "oncolitic"
+    OOIDS = "ooids"
+    OOLITHS = "ooliths"
+    OOLITIC = "oolitic"
+    OOZE = "ooze"
+    OPHIOLITE = "ophiolite"
+    OPHIOLITIC = "ophiolitic"
+    ORGANIC_BEARING_MUDSTONE = "organic bearing mudstone"
+    OSTRACODAL = "ostracodal"
+    OSTRACODS = "ostracods"
+    PEAT = "peat"
+    PEATY = "peaty"
+    PEBBLE = "pebble"
+    PEBBLY = "pebbly"
+    PEGMATITE = "pegmatite"
+    PEGMATITIC = "pegmatitic"
+    PELLETAL = "pelletal"
+    PELLETS = "pellets"
+    PELOIDAL = "peloidal"
+    PELOIDS = "peloids"
+    PERIDOTITE = "peridotite"
+    PERIDOTITIC = "peridotitic"
+    PHANERITIC_IGNEOUS_ROCK = "phaneritic igneous rock"
+    PHONOLITE = "phonolite"
+    PHONOLITIC = "phonolitic"
+    PHONOLITOID = "phonolitoid"
+    PHOSPHATE = "phosphate"
+    PHOSPHATE_ROCK = "phosphate rock"
+    PHOSPHATIC = "phosphatic"
+    PHYLLITE = "phyllite"
+    PHYLLITIC = "phyllitic"
+    PISOLITE = "pisolite"
+    PISOLITHS = "pisoliths"
+    PISOLITIC = "pisolitic"
+    PLANT_REMAINS = "plant remains"
+    PORPHYRITIC = "porphyritic"
+    PORPHYRY = "porphyry"
+    POTASSIUM_AND_MAGNESIUM_SALTS = "potassium and magnesium salts"
+    PYRITE = "pyrite"
+    PYRITIC = "pyritic"
+    PYROCLASTIC_BRECCIA = "pyroclastic breccia"
+    PYROCLASTIC_ROCK = "pyroclastic rock"
+    PYROXENITE = "pyroxenite"
+    PYROXENITIC = "pyroxenitic"
+    QUARTIFEROUS = "quartiferous"
+    QUARTZ = "quartz"
+    QUARTZ_ARENITE = "quartz arenite"
+    QUARTZITE = "quartzite"
+    QUARTZITIC = "quartzitic"
+    RADIOLARIA = "radiolaria"
+    RADIOLARIAN = "radiolarian"
+    RHYOLITE = "rhyolite"
+    RHYOLITIC = "rhyolitic"
+    ROCK_SALT = "rock salt"
+    ROOTLETS = "rootlets"
+    SALTY = "salty"
+    SAND = "sand"
+    SANDSTONE = "sandstone"
+    SANDY = "sandy"
+    SAPROPEL = "sapropel"
+    SAPROPELIC = "sapropelic"
+    SCHIST = "schist"
+    SCHISTY = "schisty"
+    SEPENTINITIC = "sepentinitic"
+    SERPENTINITE = "serpentinite"
+    SHALE = "shale"
+    SHALY = "shaly"
+    SHELL_FRAGMENTS = "shell fragments"
+    SHELLY = "shelly"
+    SIDERITE = "siderite"
+    SIDERITE_CONCRETION = "siderite concretion"
+    SIDERITIC = "sideritic"
+    SILICEOUS_OOZE = "siliceous ooze"
+    SILT = "silt"
+    SILTSTONE = "siltstone"
+    SILTY = "silty"
+    SKARN = "skarn"
+    SKARNY = "skarny"
+    SLATE = "slate"
+    SLATY = "slaty"
+    SMECTITE = "smectite"
+    SMECTITIC = "smectitic"
+    SPICULAR = "spicular"
+    SPICULES = "spicules"
+    SPILITE = "spilite"
+    SPILITIC = "spilitic"
+    STYLOLITES = "stylolites"
+    STYLOLITIC = "stylolitic"
+    SYENITE = "syenite"
+    SYENITIC = "syenitic"
+    SYENITOID = "syenitoid"
+    SYLVITE = "sylvite"
+    SYLVITIC = "sylvitic"
+    TARRY = "tarry"
+    TEPHRITE = "tephrite"
+    TEPHRITIC = "tephritic"
+    TEPHRITOID = "tephritoid"
+    THOLEIITIC_BASALT = "tholeiitic basalt"
+    TONALITE = "tonalite"
+    TONALITIC = "tonalitic"
+    TRACHYTE = "trachyte"
+    TRACHYTIC = "trachytic"
+    TRACHYTIC_ROCK = "trachytic rock"
+    TRACHYTOID = "trachytoid"
+    TRAVERTINE = "travertine"
+    TUFF = "tuff"
+    TUFFACEOUS = "tuffaceous"
+    TUFFITE = "tuffite"
+    TUFFITIC = "tuffitic"
+    ULTRABASIC = "ultrabasic"
+    UNDIFFERENTIATED = "undifferentiated"
+    UNKNOWN = "unknown"
+    WACKE = "wacke"
+
+
+class LithostratigraphicRank(Enum):
+    """
+    Specifies the unit of lithostratigraphy.
+
+    :cvar GROUP: A succession of two or more contiguous or associated
+        formations with significant and diagnostic lithologic properties
+        in common. Formations need not be aggregated into groups unless
+        doing so provides a useful means of simplifying stratigraphic
+        classification in certain regions or certain intervals.
+        Thickness of a stratigraphic succession is not a valid reason
+        for defining a unit as a group rather than a formation. The
+        component formations of a group need not be everywhere the same.
+    :cvar FORMATION: The primary formal unit of lithostratigraphic
+        classification. Formations are the only formal
+        lithostratigraphic units into which the stratigraphic column
+        everywhere should be divided completely on the basis of
+        lithology. The contrast in lithology between formations required
+        to justify their establishment varies with the complexity of the
+        geology of a region and the detail needed for geologic mapping
+        and to work out its geologic history. No formation is considered
+        justifiable and useful that cannot be delineated at the scale of
+        geologic mapping practiced in the region. The thickness of
+        formations may range from less than a meter to several thousand
+        meters.
+    :cvar MEMBER: The formal lithostratigraphic unit next in rank below
+        a formation. It possesses lithologic properties distinguishing
+        it from adjacent parts of the formation. No fixed standard is
+        required for the extent and thickness of a member. A formation
+        need not be divided into members unless a useful purpose is thus
+        served. Some formations may be completely divided into members;
+        others may have only certain parts designated as members. A
+        member may extend from one formation to another.
+    :cvar BED: The smallest formal unit in the hierarchy of sedimentary
+        lithostratigraphic units, e.g. a single stratum lithologically
+        distinguishable from other layers above and below. Customarily
+        only distinctive beds (key beds, marker beds) particularly
+        useful for stratigraphic purposes are given proper names and
+        considered formal lithostratigraphic units.
+    """
+
+    GROUP = "group"
+    FORMATION = "formation"
+    MEMBER = "member"
+    BED = "bed"
 
 
 class LogarithmicPowerRatioPerLengthUom(Enum):
@@ -3979,6 +4575,24 @@ class MassUom(Enum):
     UG = "ug"
 
 
+class MatrixCementKind(Enum):
+    """Lithology matrix/cement description.
+
+    The list of standard values is contained in the WITSML
+    enumValues.xml file.
+    """
+
+    ANKERITE = "ankerite"
+    CALCITE = "calcite"
+    CHLORITE = "chlorite"
+    DOLOMITE = "dolomite"
+    ILLITE = "illite"
+    KAOLINITE = "kaolinite"
+    QUARTZ = "quartz"
+    SIDERITE = "siderite"
+    SMECTITE = "smectite"
+
+
 class MeasureType(Enum):
     """Measure class values.
 
@@ -4351,6 +4965,17 @@ class NameStruct:
     )
 
 
+@dataclass
+class NonNegativeLong:
+    value: Optional[int] = field(
+        default=None,
+        metadata={
+            "required": True,
+            "min_inclusive": 0,
+        },
+    )
+
+
 class NormalizedPowerUom(Enum):
     """
     :cvar B_W: bel watt
@@ -4716,6 +5341,28 @@ class PlaneAngleUom(Enum):
     REV = "rev"
     SECA = "seca"
     URAD = "urad"
+
+
+@dataclass
+class PositiveDouble:
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+            "min_exclusive": 0.0,
+        },
+    )
+
+
+@dataclass
+class PositiveLong:
+    value: Optional[int] = field(
+        default=None,
+        metadata={
+            "required": True,
+            "min_inclusive": 1,
+        },
+    )
 
 
 class PotentialDifferencePerPowerDropUom(Enum):
@@ -5241,6 +5888,52 @@ class PrincipalMeridian(Enum):
     WASHINGTON_MERIDIAN = "Washington Meridian"
     WILLIAMETTE_MERIDIAN = "Williamette Meridian"
     WIND_RIVER_MERIDIAN = "Wind River Meridian"
+
+
+@dataclass
+class PublicLandSurveySystemQuarterSection:
+    """Some combination of NE, NW, SW, SE, N2, S2, E2, W2, C, TRxx, LTnn.
+
+    USA Public Land Survey System.
+    """
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "max_length": 64,
+            "pattern": r"(NE|NW|SW|SE|N2|S2|E2|W2|C|LT[0-9]{2,2}|TR[a-zA-Z0-9]{1,2}){1,3}",
+        },
+    )
+
+
+@dataclass
+class PublicLandSurveySystemQuarterTownship:
+    """Designates a particular quarter of a township (Ohio only).
+
+    USA Public Land Survey System.
+    """
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "max_length": 64,
+            "pattern": r"NE|NW|SW|SE",
+        },
+    )
+
+
+@dataclass
+class QualifiedType:
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "max_length": 256,
+            "pattern": r"(witsml|resqml|prodml|eml|custom)[1-9]\d\.\w+",
+        },
+    )
 
 
 class QuantityTypeKind(Enum):
@@ -5912,6 +6605,24 @@ class SecondMomentOfAreaUom(Enum):
     M4 = "m4"
 
 
+@dataclass
+class SectionNumber:
+    """Sections are numbered "1" through "36." Irregular sections may be designated
+    with a single value after a decimal point.
+
+    USA Public Land Survey System.
+    """
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "max_length": 64,
+            "pattern": r"[+]?([1-9]|[1-2][0-9]|3[0-6])\.?[0-9]?",
+        },
+    )
+
+
 class SignalingEventPerTimeUom(Enum):
     """
     :cvar BD: baud
@@ -5949,6 +6660,39 @@ class SpecificHeatCapacityUom(Enum):
     KCAL_TH_KG_DELTA_C = "kcal[th]/(kg.deltaC)"
     K_J_KG_DELTA_K = "kJ/(kg.deltaK)"
     K_W_H_KG_DELTA_C = "kW.h/(kg.deltaC)"
+
+
+@dataclass
+class String2000:
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "max_length": 2000,
+        },
+    )
+
+
+@dataclass
+class String256:
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "max_length": 256,
+        },
+    )
+
+
+@dataclass
+class String64:
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "max_length": 64,
+        },
+    )
 
 
 @dataclass
@@ -6231,6 +6975,17 @@ class TimePerVolumeUom(Enum):
     S_QT_US = "s/qt[US]"
 
 
+@dataclass
+class TimeStamp:
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "pattern": r".+T.+[Z+\-].*",
+        },
+    )
+
+
 class TimeUom(Enum):
     """
     :cvar VALUE_1_2_MS: half of millisecond
@@ -6283,6 +7038,42 @@ class TimeUom(Enum):
     TA_T = "Ta[t]"
     US = "us"
     WK = "wk"
+
+
+@dataclass
+class TimeZone:
+    """
+    A time zone conforming to the XSD:dateTime specification.
+    """
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "max_length": 64,
+            "pattern": r"[Z]|([\-+](([01][0-9])|(2[0-3])):[0-5][0-9])",
+        },
+    )
+
+
+@dataclass
+class TypeEnum:
+    """The intended abstract supertype of all enumerated "types".
+
+    This abstract type allows the maximum length of a type enumeration
+    to be centrally defined. This type should not be used directly
+    except to derive another type. It should also be used for
+    uncontrolled strings which are candidates to become enumerations at
+    a future date.
+    """
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "max_length": 64,
+        },
+    )
 
 
 class UnitOfMeasure(Enum):
@@ -7753,6 +8544,56 @@ class UnitOfMeasure(Enum):
 
 
 @dataclass
+class UnitlessMeasure:
+    """A unitless measure is a measure which has no unit of measure symbol, but
+    could be a real physical measurement.
+
+    Examples would be pH, wire gauge (AWG and BWG) and shoe size. This
+    is different from a dimensionless measure which represents a ratio
+    whose units of measure have cancelled each other. DImensionless
+    measures can have units of measure (like ppm or %) or may not have a
+    displayable unit of measure symbol (in which case the units symbol
+    Euc is used in a data transfer).
+    """
+
+    value: Optional[float] = field(
+        default=None,
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class UomEnum:
+    """The intended supertype of all "units of measure".
+
+    This abstract type allows the maximum length of a UOM enumeration to
+    be centrally defined. This type is abstract in the sense that it
+    should not be used directly except to derive another type.
+    """
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "max_length": 32,
+        },
+    )
+
+
+@dataclass
+class UuidString:
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "pattern": r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}",
+        },
+    )
+
+
+@dataclass
 class Vector:
     component1: Optional[float] = field(
         default=None,
@@ -8906,6 +9747,19 @@ class ApigammaRayMeasureExt:
 
 
 @dataclass
+class ApigammaRayUomExt:
+    class Meta:
+        name = "APIGammaRayUomExt"
+
+    value: Union[ApigammaRayUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ApigravityMeasure:
     class Meta:
         name = "APIGravityMeasure"
@@ -8941,6 +9795,19 @@ class ApigravityMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ApigravityUomExt:
+    class Meta:
+        name = "APIGravityUomExt"
+
+    value: Union[ApigravityUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -8988,6 +9855,19 @@ class ApineutronMeasureExt:
 
 
 @dataclass
+class ApineutronUomExt:
+    class Meta:
+        name = "APINeutronUomExt"
+
+    value: Union[ApineutronUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class AbsorbedDoseMeasure:
     value: Optional[float] = field(
         default=None,
@@ -9017,6 +9897,16 @@ class AbsorbedDoseMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class AbsorbedDoseUomExt:
+    value: Union[AbsorbedDoseUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -9212,6 +10102,36 @@ class ActivityOfRadioactivityPerVolumeMeasureExt:
 
 
 @dataclass
+class ActivityOfRadioactivityPerVolumeUomExt:
+    value: Union[ActivityOfRadioactivityPerVolumeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ActivityOfRadioactivityUomExt:
+    value: Union[ActivityOfRadioactivityUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class AliasIdentifierKindExt:
+    value: Union[AliasIdentifierKind, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class AmountOfSubstanceMeasure:
     value: Optional[float] = field(
         default=None,
@@ -9284,6 +10204,16 @@ class AmountOfSubstancePerAmountOfSubstanceMeasureExt:
 
 
 @dataclass
+class AmountOfSubstancePerAmountOfSubstanceUomExt:
+    value: Union[AmountOfSubstancePerAmountOfSubstanceUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class AmountOfSubstancePerAreaMeasure:
     value: Optional[float] = field(
         default=None,
@@ -9313,6 +10243,16 @@ class AmountOfSubstancePerAreaMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class AmountOfSubstancePerAreaUomExt:
+    value: Union[AmountOfSubstancePerAreaUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -9389,6 +10329,26 @@ class AmountOfSubstancePerTimePerAreaMeasureExt:
 
 
 @dataclass
+class AmountOfSubstancePerTimePerAreaUomExt:
+    value: Union[AmountOfSubstancePerTimePerAreaUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class AmountOfSubstancePerTimeUomExt:
+    value: Union[AmountOfSubstancePerTimeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class AmountOfSubstancePerVolumeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -9418,6 +10378,26 @@ class AmountOfSubstancePerVolumeMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class AmountOfSubstancePerVolumeUomExt:
+    value: Union[AmountOfSubstancePerVolumeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class AmountOfSubstanceUomExt:
+    value: Union[AmountOfSubstanceUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -9459,6 +10439,16 @@ class AnglePerLengthMeasureExt:
 
 
 @dataclass
+class AnglePerLengthUomExt:
+    value: Union[AnglePerLengthUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class AnglePerVolumeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -9488,6 +10478,16 @@ class AnglePerVolumeMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class AnglePerVolumeUomExt:
+    value: Union[AnglePerVolumeUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -9529,6 +10529,16 @@ class AngularAccelerationMeasureExt:
 
 
 @dataclass
+class AngularAccelerationUomExt:
+    value: Union[AngularAccelerationUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class AngularVelocityMeasure:
     value: Optional[float] = field(
         default=None,
@@ -9558,6 +10568,16 @@ class AngularVelocityMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class AngularVelocityUomExt:
+    value: Union[AngularVelocityUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -9634,6 +10654,16 @@ class AreaPerAmountOfSubstanceMeasureExt:
 
 
 @dataclass
+class AreaPerAmountOfSubstanceUomExt:
+    value: Union[AreaPerAmountOfSubstanceUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class AreaPerAreaMeasure:
     value: Optional[float] = field(
         default=None,
@@ -9663,6 +10693,16 @@ class AreaPerAreaMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class AreaPerAreaUomExt:
+    value: Union[AreaPerAreaUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -9704,6 +10744,16 @@ class AreaPerCountMeasureExt:
 
 
 @dataclass
+class AreaPerCountUomExt:
+    value: Union[AreaPerCountUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class AreaPerMassMeasure:
     value: Optional[float] = field(
         default=None,
@@ -9733,6 +10783,16 @@ class AreaPerMassMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class AreaPerMassUomExt:
+    value: Union[AreaPerMassUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -9774,6 +10834,16 @@ class AreaPerTimeMeasureExt:
 
 
 @dataclass
+class AreaPerTimeUomExt:
+    value: Union[AreaPerTimeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class AreaPerVolumeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -9803,6 +10873,26 @@ class AreaPerVolumeMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class AreaPerVolumeUomExt:
+    value: Union[AreaPerVolumeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class AreaUomExt:
+    value: Union[AreaUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -9844,6 +10934,16 @@ class AttenuationPerFrequencyIntervalMeasureExt:
 
 
 @dataclass
+class AttenuationPerFrequencyIntervalUomExt:
+    value: Union[AttenuationPerFrequencyIntervalUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class CapacitanceMeasure:
     value: Optional[float] = field(
         default=None,
@@ -9873,6 +10973,16 @@ class CapacitanceMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class CapacitanceUomExt:
+    value: Union[CapacitanceUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -9914,6 +11024,34 @@ class CationExchangeCapacityMeasureExt:
 
 
 @dataclass
+class CationExchangeCapacityUomExt:
+    value: Union[CationExchangeCapacityUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class CollectionKindExt:
+    """An Energistics modeling pattern that allows an implementation to extend the
+    defined list of enumerations.
+
+    A writer can use this field to write a string (enumeration) that is
+    not part of the official enumeration. A reader must accept this text
+    but is not required to understand or process it.
+    """
+
+    value: Union[CollectionKind, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class DataTransferSpeedMeasure:
     value: Optional[float] = field(
         default=None,
@@ -9943,6 +11081,16 @@ class DataTransferSpeedMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class DataTransferSpeedUomExt:
+    value: Union[DataTransferSpeedUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -10008,6 +11156,16 @@ class DiffusionCoefficientMeasureExt:
 
 
 @dataclass
+class DiffusionCoefficientUomExt:
+    value: Union[DiffusionCoefficientUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class DiffusiveTimeOfFlightMeasure:
     value: Optional[float] = field(
         default=None,
@@ -10037,6 +11195,16 @@ class DiffusiveTimeOfFlightMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class DiffusiveTimeOfFlightUomExt:
+    value: Union[DiffusiveTimeOfFlightUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -10078,6 +11246,16 @@ class DigitalStorageMeasureExt:
 
 
 @dataclass
+class DigitalStorageUomExt:
+    value: Union[DigitalStorageUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class DimensionlessMeasure:
     value: Optional[float] = field(
         default=None,
@@ -10107,6 +11285,16 @@ class DimensionlessMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class DimensionlessUomExt:
+    value: Union[DimensionlessUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -10148,6 +11336,16 @@ class DipoleMomentMeasureExt:
 
 
 @dataclass
+class DipoleMomentUomExt:
+    value: Union[DipoleMomentUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class DoseEquivalentMeasure:
     value: Optional[float] = field(
         default=None,
@@ -10183,6 +11381,16 @@ class DoseEquivalentMeasureExt:
 
 
 @dataclass
+class DoseEquivalentUomExt:
+    value: Union[DoseEquivalentUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class DynamicViscosityMeasure:
     value: Optional[float] = field(
         default=None,
@@ -10212,6 +11420,16 @@ class DynamicViscosityMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class DynamicViscosityUomExt:
+    value: Union[DynamicViscosityUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -10288,6 +11506,16 @@ class ElectricChargePerAreaMeasureExt:
 
 
 @dataclass
+class ElectricChargePerAreaUomExt:
+    value: Union[ElectricChargePerAreaUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ElectricChargePerMassMeasure:
     value: Optional[float] = field(
         default=None,
@@ -10317,6 +11545,16 @@ class ElectricChargePerMassMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ElectricChargePerMassUomExt:
+    value: Union[ElectricChargePerMassUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -10358,6 +11596,26 @@ class ElectricChargePerVolumeMeasureExt:
 
 
 @dataclass
+class ElectricChargePerVolumeUomExt:
+    value: Union[ElectricChargePerVolumeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ElectricChargeUomExt:
+    value: Union[ElectricChargeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ElectricConductanceMeasure:
     value: Optional[float] = field(
         default=None,
@@ -10387,6 +11645,16 @@ class ElectricConductanceMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ElectricConductanceUomExt:
+    value: Union[ElectricConductanceUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -10428,6 +11696,16 @@ class ElectricConductivityMeasureExt:
 
 
 @dataclass
+class ElectricConductivityUomExt:
+    value: Union[ElectricConductivityUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ElectricCurrentDensityMeasure:
     value: Optional[float] = field(
         default=None,
@@ -10457,6 +11735,16 @@ class ElectricCurrentDensityMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ElectricCurrentDensityUomExt:
+    value: Union[ElectricCurrentDensityUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -10498,6 +11786,16 @@ class ElectricCurrentMeasureExt:
 
 
 @dataclass
+class ElectricCurrentUomExt:
+    value: Union[ElectricCurrentUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ElectricFieldStrengthMeasure:
     value: Optional[float] = field(
         default=None,
@@ -10533,6 +11831,16 @@ class ElectricFieldStrengthMeasureExt:
 
 
 @dataclass
+class ElectricFieldStrengthUomExt:
+    value: Union[ElectricFieldStrengthUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ElectricPotentialDifferenceMeasure:
     value: Optional[float] = field(
         default=None,
@@ -10562,6 +11870,16 @@ class ElectricPotentialDifferenceMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ElectricPotentialDifferenceUomExt:
+    value: Union[ElectricPotentialDifferenceUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -10638,6 +11956,26 @@ class ElectricResistancePerLengthMeasureExt:
 
 
 @dataclass
+class ElectricResistancePerLengthUomExt:
+    value: Union[ElectricResistancePerLengthUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ElectricResistanceUomExt:
+    value: Union[ElectricResistanceUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ElectricalResistivityMeasure:
     value: Optional[float] = field(
         default=None,
@@ -10673,6 +12011,16 @@ class ElectricalResistivityMeasureExt:
 
 
 @dataclass
+class ElectricalResistivityUomExt:
+    value: Union[ElectricalResistivityUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ElectromagneticMomentMeasure:
     value: Optional[float] = field(
         default=None,
@@ -10702,6 +12050,16 @@ class ElectromagneticMomentMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ElectromagneticMomentUomExt:
+    value: Union[ElectromagneticMomentUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -10769,6 +12127,16 @@ class EnergyLengthPerAreaMeasureExt:
 
 
 @dataclass
+class EnergyLengthPerAreaUomExt:
+    value: Union[EnergyLengthPerAreaUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class EnergyLengthPerTimeAreaTemperatureMeasure:
     value: Optional[float] = field(
         default=None,
@@ -10798,6 +12166,16 @@ class EnergyLengthPerTimeAreaTemperatureMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class EnergyLengthPerTimeAreaTemperatureUomExt:
+    value: Union[EnergyLengthPerTimeAreaTemperatureUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -10874,6 +12252,16 @@ class EnergyPerAreaMeasureExt:
 
 
 @dataclass
+class EnergyPerAreaUomExt:
+    value: Union[EnergyPerAreaUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class EnergyPerLengthMeasure:
     value: Optional[float] = field(
         default=None,
@@ -10903,6 +12291,16 @@ class EnergyPerLengthMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class EnergyPerLengthUomExt:
+    value: Union[EnergyPerLengthUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -10979,6 +12377,26 @@ class EnergyPerMassPerTimeMeasureExt:
 
 
 @dataclass
+class EnergyPerMassPerTimeUomExt:
+    value: Union[EnergyPerMassPerTimeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class EnergyPerMassUomExt:
+    value: Union[EnergyPerMassUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class EnergyPerVolumeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -11014,6 +12432,44 @@ class EnergyPerVolumeMeasureExt:
 
 
 @dataclass
+class EnergyPerVolumeUomExt:
+    value: Union[EnergyPerVolumeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class EnergyUomExt:
+    value: Union[EnergyUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ExistenceKindExt:
+    """An Energistics modeling pattern  that allows an implementation to extend the
+    ExistenceKind enumeration.
+
+    A writer can use this field to write a string (enumeration) that is
+    not part of the official enumeration. A reader must accept this text
+    but is not required to understand or process it.
+    """
+
+    value: Union[ExistenceKind, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ExternalDataArray:
     """A concatenation of ExternalDataArrayParts, which are pointers to a whole or
     to a sub-selection of an existing array that is in a different file (than the
@@ -11031,6 +12487,20 @@ class ExternalDataArray:
             "type": "Element",
             "namespace": "http://www.energistics.org/energyml/data/commonv2",
             "min_occurs": 1,
+        },
+    )
+
+
+@dataclass
+class FacetExt:
+    """
+    The extensible enumeration of facets.
+    """
+
+    value: Union[Facet, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
         },
     )
 
@@ -11079,6 +12549,20 @@ class FacilityLifecyclePeriod:
 
 
 @dataclass
+class FacilityLifecycleStateExt:
+    """
+    The extensible enumeration of facility life cycle states.
+    """
+
+    value: Union[FacilityLifecycleState, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ForceAreaMeasure:
     value: Optional[float] = field(
         default=None,
@@ -11114,6 +12598,16 @@ class ForceAreaMeasureExt:
 
 
 @dataclass
+class ForceAreaUomExt:
+    value: Union[ForceAreaUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ForceLengthPerLengthMeasure:
     value: Optional[float] = field(
         default=None,
@@ -11143,6 +12637,16 @@ class ForceLengthPerLengthMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ForceLengthPerLengthUomExt:
+    value: Union[ForceLengthPerLengthUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -11219,6 +12723,16 @@ class ForcePerForceMeasureExt:
 
 
 @dataclass
+class ForcePerForceUomExt:
+    value: Union[ForcePerForceUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ForcePerLengthMeasure:
     value: Optional[float] = field(
         default=None,
@@ -11248,6 +12762,16 @@ class ForcePerLengthMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ForcePerLengthUomExt:
+    value: Union[ForcePerLengthUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -11289,6 +12813,26 @@ class ForcePerVolumeMeasureExt:
 
 
 @dataclass
+class ForcePerVolumeUomExt:
+    value: Union[ForcePerVolumeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ForceUomExt:
+    value: Union[ForceUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class FrequencyIntervalMeasure:
     value: Optional[float] = field(
         default=None,
@@ -11324,6 +12868,16 @@ class FrequencyIntervalMeasureExt:
 
 
 @dataclass
+class FrequencyIntervalUomExt:
+    value: Union[FrequencyIntervalUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class FrequencyMeasure:
     value: Optional[float] = field(
         default=None,
@@ -11353,6 +12907,16 @@ class FrequencyMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class FrequencyUomExt:
+    value: Union[FrequencyUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -11592,6 +13156,16 @@ class HeatCapacityMeasureExt:
 
 
 @dataclass
+class HeatCapacityUomExt:
+    value: Union[HeatCapacityUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class HeatFlowRateMeasure:
     value: Optional[float] = field(
         default=None,
@@ -11627,6 +13201,16 @@ class HeatFlowRateMeasureExt:
 
 
 @dataclass
+class HeatFlowRateUomExt:
+    value: Union[HeatFlowRateUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class HeatTransferCoefficientMeasure:
     value: Optional[float] = field(
         default=None,
@@ -11656,6 +13240,16 @@ class HeatTransferCoefficientMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class HeatTransferCoefficientUomExt:
+    value: Union[HeatTransferCoefficientUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -11746,6 +13340,16 @@ class IlluminanceMeasureExt:
 
 
 @dataclass
+class IlluminanceUomExt:
+    value: Union[IlluminanceUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class InductanceMeasure:
     value: Optional[float] = field(
         default=None,
@@ -11775,6 +13379,16 @@ class InductanceMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class InductanceUomExt:
+    value: Union[InductanceUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -11816,6 +13430,16 @@ class IsothermalCompressibilityMeasureExt:
 
 
 @dataclass
+class IsothermalCompressibilityUomExt:
+    value: Union[IsothermalCompressibilityUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class KinematicViscosityMeasure:
     value: Optional[float] = field(
         default=None,
@@ -11845,6 +13469,33 @@ class KinematicViscosityMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class KinematicViscosityUomExt:
+    value: Union[KinematicViscosityUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class LengthAndTimeUomExt:
+    """This is a union of the units of measure for both length and time, plus the
+    extensibility pattern.
+
+    Use of this will allow an attribute to validate on either time or
+    depth (or lateral distance) units.
+    """
+
+    value: Union[LengthUom, TimeUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -11921,6 +13572,16 @@ class LengthPerLengthMeasureExt:
 
 
 @dataclass
+class LengthPerLengthUomExt:
+    value: Union[LengthPerLengthUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class LengthPerMassMeasure:
     value: Optional[float] = field(
         default=None,
@@ -11950,6 +13611,16 @@ class LengthPerMassMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class LengthPerMassUomExt:
+    value: Union[LengthPerMassUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -11991,6 +13662,16 @@ class LengthPerPressureMeasureExt:
 
 
 @dataclass
+class LengthPerPressureUomExt:
+    value: Union[LengthPerPressureUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class LengthPerTemperatureMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12020,6 +13701,16 @@ class LengthPerTemperatureMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class LengthPerTemperatureUomExt:
+    value: Union[LengthPerTemperatureUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -12061,6 +13752,16 @@ class LengthPerTimeMeasureExt:
 
 
 @dataclass
+class LengthPerTimeUomExt:
+    value: Union[LengthPerTimeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class LengthPerVolumeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12090,6 +13791,26 @@ class LengthPerVolumeMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class LengthPerVolumeUomExt:
+    value: Union[LengthPerVolumeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class LengthUomExt:
+    value: Union[LengthUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -12131,6 +13852,16 @@ class LightExposureMeasureExt:
 
 
 @dataclass
+class LightExposureUomExt:
+    value: Union[LightExposureUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class LinearAccelerationMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12166,6 +13897,16 @@ class LinearAccelerationMeasureExt:
 
 
 @dataclass
+class LinearAccelerationUomExt:
+    value: Union[LinearAccelerationUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class LinearThermalExpansionMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12195,6 +13936,36 @@ class LinearThermalExpansionMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class LinearThermalExpansionUomExt:
+    value: Union[LinearThermalExpansionUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class LithologyKindExt:
+    value: Union[LithologyKind, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class LithologyQualifierKindExt:
+    value: Union[LithologyQualifierKind, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -12271,6 +14042,26 @@ class LogarithmicPowerRatioPerLengthMeasureExt:
 
 
 @dataclass
+class LogarithmicPowerRatioPerLengthUomExt:
+    value: Union[LogarithmicPowerRatioPerLengthUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class LogarithmicPowerRatioUomExt:
+    value: Union[LogarithmicPowerRatioUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class LuminanceMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12300,6 +14091,16 @@ class LuminanceMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class LuminanceUomExt:
+    value: Union[LuminanceUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -12341,6 +14142,16 @@ class LuminousEfficacyMeasureExt:
 
 
 @dataclass
+class LuminousEfficacyUomExt:
+    value: Union[LuminousEfficacyUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class LuminousFluxMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12370,6 +14181,16 @@ class LuminousFluxMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class LuminousFluxUomExt:
+    value: Union[LuminousFluxUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -12411,6 +14232,16 @@ class LuminousIntensityMeasureExt:
 
 
 @dataclass
+class LuminousIntensityUomExt:
+    value: Union[LuminousIntensityUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class MagneticDipoleMomentMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12446,6 +14277,16 @@ class MagneticDipoleMomentMeasureExt:
 
 
 @dataclass
+class MagneticDipoleMomentUomExt:
+    value: Union[MagneticDipoleMomentUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class MagneticFieldStrengthMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12475,6 +14316,16 @@ class MagneticFieldStrengthMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MagneticFieldStrengthUomExt:
+    value: Union[MagneticFieldStrengthUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -12551,6 +14402,26 @@ class MagneticFluxDensityPerLengthMeasureExt:
 
 
 @dataclass
+class MagneticFluxDensityPerLengthUomExt:
+    value: Union[MagneticFluxDensityPerLengthUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MagneticFluxDensityUomExt:
+    value: Union[MagneticFluxDensityUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class MagneticFluxMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12580,6 +14451,16 @@ class MagneticFluxMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MagneticFluxUomExt:
+    value: Union[MagneticFluxUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -12621,6 +14502,16 @@ class MagneticPermeabilityMeasureExt:
 
 
 @dataclass
+class MagneticPermeabilityUomExt:
+    value: Union[MagneticPermeabilityUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class MagneticVectorPotentialMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12656,6 +14547,16 @@ class MagneticVectorPotentialMeasureExt:
 
 
 @dataclass
+class MagneticVectorPotentialUomExt:
+    value: Union[MagneticVectorPotentialUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class MassLengthMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12685,6 +14586,16 @@ class MassLengthMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MassLengthUomExt:
+    value: Union[MassLengthUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -12761,6 +14672,16 @@ class MassPerAreaMeasureExt:
 
 
 @dataclass
+class MassPerAreaUomExt:
+    value: Union[MassPerAreaUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class MassPerEnergyMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12790,6 +14711,16 @@ class MassPerEnergyMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MassPerEnergyUomExt:
+    value: Union[MassPerEnergyUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -12831,6 +14762,16 @@ class MassPerLengthMeasureExt:
 
 
 @dataclass
+class MassPerLengthUomExt:
+    value: Union[MassPerLengthUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class MassPerMassMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12860,6 +14801,16 @@ class MassPerMassMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MassPerMassUomExt:
+    value: Union[MassPerMassUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -12936,6 +14887,16 @@ class MassPerTimePerAreaMeasureExt:
 
 
 @dataclass
+class MassPerTimePerAreaUomExt:
+    value: Union[MassPerTimePerAreaUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class MassPerTimePerLengthMeasure:
     value: Optional[float] = field(
         default=None,
@@ -12965,6 +14926,26 @@ class MassPerTimePerLengthMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MassPerTimePerLengthUomExt:
+    value: Union[MassPerTimePerLengthUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MassPerTimeUomExt:
+    value: Union[MassPerTimeUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -13043,6 +15024,16 @@ class MassPerVolumePerLengthMeasureExt:
 
 
 @dataclass
+class MassPerVolumePerLengthUomExt:
+    value: Union[MassPerVolumePerLengthUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class MassPerVolumePerPressureMeasure:
     value: Optional[float] = field(
         default=None,
@@ -13072,6 +15063,16 @@ class MassPerVolumePerPressureMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MassPerVolumePerPressureUomExt:
+    value: Union[MassPerVolumePerPressureUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -13113,6 +15114,46 @@ class MassPerVolumePerTemperatureMeasureExt:
 
 
 @dataclass
+class MassPerVolumePerTemperatureUomExt:
+    value: Union[MassPerVolumePerTemperatureUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MassPerVolumeUomExt:
+    value: Union[MassPerVolumeUom, str, LegacyMassPerVolumeUom] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MassUomExt:
+    value: Union[MassUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MatrixCementKindExt:
+    value: Union[MatrixCementKind, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class MobilityMeasure:
     value: Optional[float] = field(
         default=None,
@@ -13142,6 +15183,16 @@ class MobilityMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MobilityUomExt:
+    value: Union[MobilityUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -13183,6 +15234,16 @@ class MolarEnergyMeasureExt:
 
 
 @dataclass
+class MolarEnergyUomExt:
+    value: Union[MolarEnergyUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class MolarHeatCapacityMeasure:
     value: Optional[float] = field(
         default=None,
@@ -13212,6 +15273,16 @@ class MolarHeatCapacityMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MolarHeatCapacityUomExt:
+    value: Union[MolarHeatCapacityUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -13253,6 +15324,16 @@ class MolarVolumeMeasureExt:
 
 
 @dataclass
+class MolarVolumeUomExt:
+    value: Union[MolarVolumeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class MolecularWeightMeasure:
     value: Optional[float] = field(
         default=None,
@@ -13282,6 +15363,16 @@ class MolecularWeightMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MolecularWeightUomExt:
+    value: Union[MolecularWeightUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -13323,6 +15414,16 @@ class MomentOfForceMeasureExt:
 
 
 @dataclass
+class MomentOfForceUomExt:
+    value: Union[MomentOfForceUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class MomentOfInertiaMeasure:
     value: Optional[float] = field(
         default=None,
@@ -13352,6 +15453,16 @@ class MomentOfInertiaMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class MomentOfInertiaUomExt:
+    value: Union[MomentOfInertiaUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -13393,6 +15504,16 @@ class MomentumMeasureExt:
 
 
 @dataclass
+class MomentumUomExt:
+    value: Union[MomentumUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class NormalizedPowerMeasure:
     value: Optional[float] = field(
         default=None,
@@ -13422,6 +15543,16 @@ class NormalizedPowerMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class NormalizedPowerUomExt:
+    value: Union[NormalizedPowerUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -13538,6 +15669,16 @@ class ObjectAlias:
 
 
 @dataclass
+class OrganizationKindExt:
+    value: Union[OrganizationKind, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class PermeabilityLengthMeasure:
     value: Optional[float] = field(
         default=None,
@@ -13567,6 +15708,16 @@ class PermeabilityLengthMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PermeabilityLengthUomExt:
+    value: Union[PermeabilityLengthUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -13608,6 +15759,16 @@ class PermeabilityRockMeasureExt:
 
 
 @dataclass
+class PermeabilityRockUomExt:
+    value: Union[PermeabilityRockUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class PermittivityMeasure:
     value: Optional[float] = field(
         default=None,
@@ -13637,6 +15798,16 @@ class PermittivityMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PermittivityUomExt:
+    value: Union[PermittivityUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -13724,6 +15895,16 @@ class PlaneAngleMeasureExt:
 
 
 @dataclass
+class PlaneAngleUomExt:
+    value: Union[PlaneAngleUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class PotentialDifferencePerPowerDropMeasure:
     value: Optional[float] = field(
         default=None,
@@ -13753,6 +15934,16 @@ class PotentialDifferencePerPowerDropMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PotentialDifferencePerPowerDropUomExt:
+    value: Union[PotentialDifferencePerPowerDropUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -13829,6 +16020,16 @@ class PowerPerAreaMeasureExt:
 
 
 @dataclass
+class PowerPerAreaUomExt:
+    value: Union[PowerPerAreaUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class PowerPerPowerMeasure:
     value: Optional[float] = field(
         default=None,
@@ -13864,6 +16065,16 @@ class PowerPerPowerMeasureExt:
 
 
 @dataclass
+class PowerPerPowerUomExt:
+    value: Union[PowerPerPowerUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class PowerPerVolumeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -13893,6 +16104,26 @@ class PowerPerVolumeMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PowerPerVolumeUomExt:
+    value: Union[PowerPerVolumeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PowerUomExt:
+    value: Union[PowerUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -14018,6 +16249,26 @@ class PressurePerFlowrateSquaredMeasureExt:
 
 
 @dataclass
+class PressurePerFlowrateSquaredUomExt:
+    value: Union[PressurePerFlowrateSquaredUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PressurePerFlowrateUomExt:
+    value: Union[PressurePerFlowrateUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class PressurePerPressureMeasure:
     value: Optional[float] = field(
         default=None,
@@ -14047,6 +16298,16 @@ class PressurePerPressureMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PressurePerPressureUomExt:
+    value: Union[PressurePerPressureUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -14088,6 +16349,16 @@ class PressurePerTimeMeasureExt:
 
 
 @dataclass
+class PressurePerTimeUomExt:
+    value: Union[PressurePerTimeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class PressurePerVolumeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -14119,6 +16390,18 @@ class PressurePerVolumeMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PressurePerVolumeUomExt:
+    value: Union[
+        PressurePerVolumeUom, str, LegacyPressurePerVolumeUom
+    ] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -14195,6 +16478,26 @@ class PressureSquaredPerForceTimePerAreaMeasureExt:
 
 
 @dataclass
+class PressureSquaredPerForceTimePerAreaUomExt:
+    value: Union[PressureSquaredPerForceTimePerAreaUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PressureSquaredUomExt:
+    value: Union[PressureSquaredUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class PressureTimePerVolumeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -14224,6 +16527,26 @@ class PressureTimePerVolumeMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PressureTimePerVolumeUomExt:
+    value: Union[PressureTimePerVolumeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class PressureUomExt:
+    value: Union[PressureUom, str, LegacyPressureUom] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -14462,6 +16785,19 @@ class PublicLandSurveySystemLocation:
 
 
 @dataclass
+class QuantityTypeKindExt:
+    class Meta:
+        name = "QuantityClassKindExt"
+
+    value: Union[QuantityTypeKind, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class QuantityOfLightMeasure:
     value: Optional[float] = field(
         default=None,
@@ -14491,6 +16827,16 @@ class QuantityOfLightMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class QuantityOfLightUomExt:
+    value: Union[QuantityOfLightUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -14532,6 +16878,16 @@ class RadianceMeasureExt:
 
 
 @dataclass
+class RadianceUomExt:
+    value: Union[RadianceUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class RadiantIntensityMeasure:
     value: Optional[float] = field(
         default=None,
@@ -14567,6 +16923,16 @@ class RadiantIntensityMeasureExt:
 
 
 @dataclass
+class RadiantIntensityUomExt:
+    value: Union[RadiantIntensityUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ReciprocalAreaMeasure:
     value: Optional[float] = field(
         default=None,
@@ -14596,6 +16962,16 @@ class ReciprocalAreaMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ReciprocalAreaUomExt:
+    value: Union[ReciprocalAreaUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -14639,6 +17015,16 @@ class ReciprocalElectricPotentialDifferenceMeasureExt:
 
 
 @dataclass
+class ReciprocalElectricPotentialDifferenceUomExt:
+    value: Union[ReciprocalElectricPotentialDifferenceUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ReciprocalForceMeasure:
     value: Optional[float] = field(
         default=None,
@@ -14674,6 +17060,16 @@ class ReciprocalForceMeasureExt:
 
 
 @dataclass
+class ReciprocalForceUomExt:
+    value: Union[ReciprocalForceUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ReciprocalLengthMeasure:
     value: Optional[float] = field(
         default=None,
@@ -14703,6 +17099,16 @@ class ReciprocalLengthMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ReciprocalLengthUomExt:
+    value: Union[ReciprocalLengthUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -14779,6 +17185,26 @@ class ReciprocalMassTimeMeasureExt:
 
 
 @dataclass
+class ReciprocalMassTimeUomExt:
+    value: Union[ReciprocalMassTimeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ReciprocalMassUomExt:
+    value: Union[ReciprocalMassUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ReciprocalPressureMeasure:
     value: Optional[float] = field(
         default=None,
@@ -14808,6 +17234,16 @@ class ReciprocalPressureMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ReciprocalPressureUomExt:
+    value: Union[ReciprocalPressureUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -14849,6 +17285,16 @@ class ReciprocalTimeMeasureExt:
 
 
 @dataclass
+class ReciprocalTimeUomExt:
+    value: Union[ReciprocalTimeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ReciprocalVolumeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -14878,6 +17324,36 @@ class ReciprocalVolumeMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ReciprocalVolumeUomExt:
+    value: Union[ReciprocalVolumeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ReferenceConditionExt:
+    value: Union[ReferenceCondition, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ReferencePointKindExt:
+    value: Union[ReferencePointKind, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -14967,6 +17443,16 @@ class ReluctanceMeasureExt:
 
 
 @dataclass
+class ReluctanceUomExt:
+    value: Union[ReluctanceUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ScalarInterval(AbstractInterval):
     min_value: Optional[GenericMeasure] = field(
         default=None,
@@ -15024,6 +17510,16 @@ class SecondMomentOfAreaMeasureExt:
 
 
 @dataclass
+class SecondMomentOfAreaUomExt:
+    value: Union[SecondMomentOfAreaUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class SignalingEventPerTimeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -15053,6 +17549,16 @@ class SignalingEventPerTimeMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class SignalingEventPerTimeUomExt:
+    value: Union[SignalingEventPerTimeUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -15094,6 +17600,16 @@ class SolidAngleMeasureExt:
 
 
 @dataclass
+class SolidAngleUomExt:
+    value: Union[SolidAngleUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class SpecificHeatCapacityMeasure:
     value: Optional[float] = field(
         default=None,
@@ -15123,6 +17639,16 @@ class SpecificHeatCapacityMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class SpecificHeatCapacityUomExt:
+    value: Union[SpecificHeatCapacityUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -15217,6 +17743,16 @@ class TemperatureIntervalPerLengthMeasureExt:
 
 
 @dataclass
+class TemperatureIntervalPerLengthUomExt:
+    value: Union[TemperatureIntervalPerLengthUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class TemperatureIntervalPerPressureMeasure:
     value: Optional[float] = field(
         default=None,
@@ -15246,6 +17782,16 @@ class TemperatureIntervalPerPressureMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class TemperatureIntervalPerPressureUomExt:
+    value: Union[TemperatureIntervalPerPressureUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -15287,6 +17833,26 @@ class TemperatureIntervalPerTimeMeasureExt:
 
 
 @dataclass
+class TemperatureIntervalPerTimeUomExt:
+    value: Union[TemperatureIntervalPerTimeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class TemperatureIntervalUomExt:
+    value: Union[TemperatureIntervalUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ThermalConductanceMeasure:
     value: Optional[float] = field(
         default=None,
@@ -15316,6 +17882,16 @@ class ThermalConductanceMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ThermalConductanceUomExt:
+    value: Union[ThermalConductanceUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -15357,6 +17933,16 @@ class ThermalConductivityMeasureExt:
 
 
 @dataclass
+class ThermalConductivityUomExt:
+    value: Union[ThermalConductivityUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ThermalDiffusivityMeasure:
     value: Optional[float] = field(
         default=None,
@@ -15386,6 +17972,16 @@ class ThermalDiffusivityMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ThermalDiffusivityUomExt:
+    value: Union[ThermalDiffusivityUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -15427,6 +18023,16 @@ class ThermalInsulanceMeasureExt:
 
 
 @dataclass
+class ThermalInsulanceUomExt:
+    value: Union[ThermalInsulanceUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class ThermalResistanceMeasure:
     value: Optional[float] = field(
         default=None,
@@ -15456,6 +18062,16 @@ class ThermalResistanceMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ThermalResistanceUomExt:
+    value: Union[ThermalResistanceUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -15536,6 +18152,28 @@ class ThermodynamicTemperaturePerThermodynamicTemperatureMeasureExt:
 
 
 @dataclass
+class ThermodynamicTemperaturePerThermodynamicTemperatureUomExt:
+    value: Union[
+        ThermodynamicTemperaturePerThermodynamicTemperatureUom, str
+    ] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class ThermodynamicTemperatureUomExt:
+    value: Union[ThermodynamicTemperatureUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class TimeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -15606,6 +18244,16 @@ class TimePerLengthMeasureExt:
 
 
 @dataclass
+class TimePerLengthUomExt:
+    value: Union[TimePerLengthUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class TimePerMassMeasure:
     value: Optional[float] = field(
         default=None,
@@ -15635,6 +18283,16 @@ class TimePerMassMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class TimePerMassUomExt:
+    value: Union[TimePerMassUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -15676,6 +18334,16 @@ class TimePerTimeMeasureExt:
 
 
 @dataclass
+class TimePerTimeUomExt:
+    value: Union[TimePerTimeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class TimePerVolumeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -15705,6 +18373,45 @@ class TimePerVolumeMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class TimePerVolumeUomExt:
+    value: Union[TimePerVolumeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class TimeUomExt:
+    value: Union[TimeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class UnitOfMeasureExt:
+    """A variant of UnitOfMeasure which has been extended to allow any user-defined
+    unit of measure which follows an authority:unit pattern; the colon is
+    mandatory.
+
+    This class is implemented in XML as a union between the list of
+    valid units per the prevailing Energistics Units of Measure
+    Specification and an XML pattern which mandates the central colon.
+    """
+
+    value: Union[LegacyUnitOfMeasure, UnitOfMeasure, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -15779,6 +18486,16 @@ class VerticalCoordinateMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class VerticalCoordinateUomExt:
+    value: Union[VerticalCoordinateUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -15899,6 +18616,16 @@ class VolumeFlowRatePerVolumeFlowRateMeasureExt:
 
 
 @dataclass
+class VolumeFlowRatePerVolumeFlowRateUomExt:
+    value: Union[VolumeFlowRatePerVolumeFlowRateUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class VolumeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -15971,6 +18698,16 @@ class VolumePerAreaMeasureExt:
 
 
 @dataclass
+class VolumePerAreaUomExt:
+    value: Union[VolumePerAreaUom, str, LegacyVolumePerAreaUom] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class VolumePerLengthMeasure:
     value: Optional[float] = field(
         default=None,
@@ -16000,6 +18737,16 @@ class VolumePerLengthMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class VolumePerLengthUomExt:
+    value: Union[VolumePerLengthUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -16041,6 +18788,16 @@ class VolumePerMassMeasureExt:
 
 
 @dataclass
+class VolumePerMassUomExt:
+    value: Union[VolumePerMassUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class VolumePerPressureMeasure:
     value: Optional[float] = field(
         default=None,
@@ -16070,6 +18827,16 @@ class VolumePerPressureMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class VolumePerPressureUomExt:
+    value: Union[VolumePerPressureUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -16111,6 +18878,16 @@ class VolumePerRotationMeasureExt:
 
 
 @dataclass
+class VolumePerRotationUomExt:
+    value: Union[VolumePerRotationUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class VolumePerTimeLengthMeasure:
     value: Optional[float] = field(
         default=None,
@@ -16140,6 +18917,16 @@ class VolumePerTimeLengthMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class VolumePerTimeLengthUomExt:
+    value: Union[VolumePerTimeLengthUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -16218,6 +19005,16 @@ class VolumePerTimePerAreaMeasureExt:
 
 
 @dataclass
+class VolumePerTimePerAreaUomExt:
+    value: Union[VolumePerTimePerAreaUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class VolumePerTimePerLengthMeasure:
     value: Optional[float] = field(
         default=None,
@@ -16247,6 +19044,16 @@ class VolumePerTimePerLengthMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class VolumePerTimePerLengthUomExt:
+    value: Union[VolumePerTimePerLengthUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -16288,6 +19095,16 @@ class VolumePerTimePerPressureLengthMeasureExt:
 
 
 @dataclass
+class VolumePerTimePerPressureLengthUomExt:
+    value: Union[VolumePerTimePerPressureLengthUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class VolumePerTimePerPressureMeasure:
     value: Optional[float] = field(
         default=None,
@@ -16317,6 +19134,16 @@ class VolumePerTimePerPressureMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class VolumePerTimePerPressureUomExt:
+    value: Union[VolumePerTimePerPressureUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -16358,6 +19185,16 @@ class VolumePerTimePerTimeMeasureExt:
 
 
 @dataclass
+class VolumePerTimePerTimeUomExt:
+    value: Union[VolumePerTimePerTimeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class VolumePerTimePerVolumeMeasure:
     value: Optional[float] = field(
         default=None,
@@ -16387,6 +19224,26 @@ class VolumePerTimePerVolumeMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class VolumePerTimePerVolumeUomExt:
+    value: Union[VolumePerTimePerVolumeUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class VolumePerTimeUomExt:
+    value: Union[VolumePerTimeUom, str, LegacyVolumePerTimeUom] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -16430,6 +19287,26 @@ class VolumePerVolumeMeasureExt:
 
 
 @dataclass
+class VolumePerVolumeUomExt:
+    value: Union[VolumePerVolumeUom, str, LegacyVolumePerVolumeUom] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class VolumeUomExt:
+    value: Union[VolumeUom, str, LegacyVolumeUom] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class VolumetricHeatTransferCoefficientMeasure:
     value: Optional[float] = field(
         default=None,
@@ -16465,6 +19342,16 @@ class VolumetricHeatTransferCoefficientMeasureExt:
 
 
 @dataclass
+class VolumetricHeatTransferCoefficientUomExt:
+    value: Union[VolumetricHeatTransferCoefficientUom, str] = field(
+        default="",
+        metadata={
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
 class VolumetricThermalExpansionMeasure:
     value: Optional[float] = field(
         default=None,
@@ -16494,6 +19381,16 @@ class VolumetricThermalExpansionMeasureExt:
         metadata={
             "type": "Attribute",
             "required": True,
+            "pattern": r".*:.*",
+        },
+    )
+
+
+@dataclass
+class VolumetricThermalExpansionUomExt:
+    value: Union[VolumetricThermalExpansionUom, str] = field(
+        default="",
+        metadata={
             "pattern": r".*:.*",
         },
     )
@@ -18361,6 +21258,26 @@ class AbstractCompoundCrs(AbstractObject):
             "required": True,
         },
     )
+
+
+@dataclass
+class AbstractContextualObject(AbstractObject):
+    """
+    Substitution group for contextual data objects.
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/commonv2"
+
+
+@dataclass
+class AbstractDataObject(AbstractObject):
+    """
+    Substitution group for normative data objects.
+    """
+
+    class Meta:
+        namespace = "http://www.energistics.org/energyml/data/commonv2"
 
 
 @dataclass

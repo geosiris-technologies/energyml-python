@@ -739,6 +739,22 @@ class Valid:
 
 
 @dataclass
+class ContentType:
+    class Meta:
+        target_namespace = (
+            "http://schemas.openxmlformats.org/package/2006/content-types"
+        )
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "pattern": r"(((([\p{IsBasicLatin}-[\p{Cc}\(\)<>@,;:\"/\[\]\?=\{\}\s\t]])+))/((([\p{IsBasicLatin}-[\p{Cc}\(\)<>@,;:\"/\[\]\?=\{\}\s\t]])+))((\s+)*;(\s+)*(((([\p{IsBasicLatin}-[\p{Cc}\(\)<>@,;:\"/\[\]\?=\{\}\s\t]])+))=((([\p{IsBasicLatin}-[\p{Cc}\(\)<>@,;:\"/\[\]\?=\{\}\s\t]])+)|(\"(([\p{IsLatin-1Supplement}\p{IsBasicLatin}-[\p{Cc}\"\n\r]]|(\s+))|(\\[\p{IsBasicLatin}]))*\"))))*)",
+        },
+    )
+
+
+@dataclass
 class Default:
     class Meta:
         namespace = (
@@ -761,6 +777,22 @@ class Default:
             "type": "Attribute",
             "required": True,
             "pattern": r"(((([\p{IsBasicLatin}-[\p{Cc}\(\)<>@,;:\"/\[\]\?=\{\}\s\t]])+))/((([\p{IsBasicLatin}-[\p{Cc}\(\)<>@,;:\"/\[\]\?=\{\}\s\t]])+))((\s+)*;(\s+)*(((([\p{IsBasicLatin}-[\p{Cc}\(\)<>@,;:\"/\[\]\?=\{\}\s\t]])+))=((([\p{IsBasicLatin}-[\p{Cc}\(\)<>@,;:\"/\[\]\?=\{\}\s\t]])+)|(\"(([\p{IsLatin-1Supplement}\p{IsBasicLatin}-[\p{Cc}\"\n\r]]|(\s+))|(\\[\p{IsBasicLatin}]))*\"))))*)",
+        },
+    )
+
+
+@dataclass
+class Extension:
+    class Meta:
+        target_namespace = (
+            "http://schemas.openxmlformats.org/package/2006/content-types"
+        )
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+            "pattern": r"([!$&'\(\)\*\+,:=]|(%[0-9a-fA-F][0-9a-fA-F])|[:@]|[a-zA-Z0-9\-_~])+",
         },
     )
 
@@ -796,8 +828,41 @@ class TargetMode(Enum):
     INTERNAL = "Internal"
 
 
+@dataclass
+class Base:
+    class Meta:
+        name = "base"
+        namespace = "http://www.w3.org/XML/1998/namespace"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+
+
+@dataclass
+class Id:
+    class Meta:
+        name = "id"
+        namespace = "http://www.w3.org/XML/1998/namespace"
+
+    value: str = field(
+        default="",
+        metadata={
+            "required": True,
+        },
+    )
+
+
 class LangValue(Enum):
     VALUE = ""
+
+
+class SpaceValue(Enum):
+    DEFAULT = "default"
+    PRESERVE = "preserve"
 
 
 @dataclass
@@ -1653,6 +1718,31 @@ class Relationship:
             "required": True,
         },
     )
+
+
+@dataclass
+class Lang:
+    class Meta:
+        name = "lang"
+        namespace = "http://www.w3.org/XML/1998/namespace"
+
+    value: Union[str, LangValue] = field(default="")
+
+
+@dataclass
+class Space:
+    class Meta:
+        name = "space"
+        namespace = "http://www.w3.org/XML/1998/namespace"
+
+    value: Optional[SpaceValue] = field(default=None)
+
+
+@dataclass
+class AnyType(SimpleLiteral):
+    class Meta:
+        name = "any"
+        namespace = "http://purl.org/dc/elements/1.1/"
 
 
 @dataclass
