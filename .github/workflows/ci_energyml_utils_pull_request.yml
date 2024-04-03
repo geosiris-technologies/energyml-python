@@ -23,7 +23,7 @@ jobs:
     steps:
 
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -34,12 +34,10 @@ jobs:
 
       - name: Build
         run: |
-          poetry install
-          poetry self add "poetry-dynamic-versioning[plugin]"
           poetry build
 
       - name: Save build artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: dist-artifact
           path: dist/
@@ -57,7 +55,7 @@ jobs:
           fetch-depth: 0
 
       - name: Get build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: dist-artifact
           path: dist/
