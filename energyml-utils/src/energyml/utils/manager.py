@@ -29,6 +29,12 @@ RELATED_MODULES = [
 
 
 def get_related_energyml_modules_name(cls: Union[type, Any]) -> List[str]:
+    """
+    Return the list of all energyml modules related to another one.
+    For example resqml 2.0.1 is related to common 2.0
+    :param cls:
+    :return:
+    """
     if isinstance(cls, type):
         for related in RELATED_MODULES:
             if cls.__module__ in related:
@@ -38,7 +44,11 @@ def get_related_energyml_modules_name(cls: Union[type, Any]) -> List[str]:
     return []
 
 
-def dict_energyml_modules():
+def dict_energyml_modules() -> List:
+    """
+    List all accessible energyml python modules
+    :return:
+    """
     modules = {}
 
     energyml_module = importlib.import_module("energyml")
@@ -73,6 +83,11 @@ def list_energyml_modules():
 
 
 def list_classes(module_path: str) -> List:
+    """
+    List all accessible classes from a specific module
+    :param module_path:
+    :return:
+    """
     try:
         module = importlib.import_module(module_path)
         class_list = []
@@ -86,6 +101,11 @@ def list_classes(module_path: str) -> List:
 
 
 def get_sub_classes(cls: type) -> List[type]:
+    """
+    Return all classes that extends the class :param:`cls`.
+    :param cls:
+    :return:
+    """
     sub_classes = []
     for related in get_related_energyml_modules_name(cls):
         try:

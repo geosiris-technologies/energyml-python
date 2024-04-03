@@ -59,6 +59,11 @@ class HDF5FileReader(DatasetReader):
 
 
 def get_hdf_reference(obj) -> List[Any]:
+    """
+    See :func:`get_hdf_reference_with_path`. Only the value is returned, not the dot path into the object
+    :param obj:
+    :return:
+    """
     return [
         val
         for path, val in get_hdf_reference_with_path(obj=obj)
@@ -66,6 +71,13 @@ def get_hdf_reference(obj) -> List[Any]:
 
 
 def get_hdf_reference_with_path(obj: any) -> List[Tuple[str, Any]]:
+    """
+    See :func:`search_attribute_matching_name_with_path`. Search an attribute with type matching regex
+    "(PathInHdfFile|PathInExternalFile)".
+
+    :param obj:
+    :return: [ (Dot_Path_In_Obj, value), ...]
+    """
     return search_attribute_matching_name_with_path(
         obj,
         "(PathInHdfFile|PathInExternalFile)"
@@ -78,6 +90,14 @@ def get_crs_obj(
         root_obj: Optional[Any] = None,
         epc: Optional[Epc] = None
 ) -> Optional[Any]:
+    """
+    Search for the CRS object related to :param:`context_obj` into the :param:`epc`
+    :param context_obj:
+    :param path_in_root:
+    :param root_obj:
+    :param epc:
+    :return:
+    """
     crs_list = search_attribute_matching_name(context_obj, r"\.*Crs", search_in_sub_obj=True, deep_search=False)
     if crs_list is not None and len(crs_list) > 0:
         crs = epc.get_object_by_identifier(get_obj_identifier(crs_list[0]))
@@ -107,6 +127,14 @@ def get_hdf5_path_from_external_path(
         root_obj: Optional[Any] = None,
         epc: Optional[Epc] = None
 ) -> Optional[str]:
+    """
+    Return the hdf5 file path (Searches for "uri" attribute or in :param:`epc` rels files).
+    :param external_path_obj: can be an attribute of an ExternalDataArrayPart
+    :param path_in_root:
+    :param root_obj:
+    :param epc:
+    :return:
+    """
     if isinstance(external_path_obj, str):
         # external_path_obj is maybe an attribute of an ExternalDataArrayPart, now search upper in the object
         upper_path = path_in_root[:path_in_root.rindex(".")]
@@ -117,12 +145,12 @@ def get_hdf5_path_from_external_path(
             epc=epc,
         )
     elif type(external_path_obj).__name__ == "ExternalDataArrayPart":
-        epc_folder = epc.get_epc_file_foler()
+        epc_folder = epc.get_epc_file_folder()
         h5_uri = search_attribute_matching_name(external_path_obj, "uri")
         if h5_uri is not None and len(h5_uri) > 0:
             return f"{epc_folder}/{h5_uri[0]}"
     else:
-        epc_folder = epc.get_epc_file_foler()
+        epc_folder = epc.get_epc_file_folder()
         hdf_proxy = search_attribute_matching_name(external_path_obj, "HdfProxy")[0]
         if hdf_proxy is not None:
             hdf_proxy_obj = epc.get_object_by_identifier(get_obj_identifier(hdf_proxy))

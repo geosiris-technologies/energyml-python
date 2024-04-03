@@ -4,7 +4,7 @@ import inspect
 import sys
 from typing import Any, Optional, Callable, Literal, List, Union, Tuple
 
-from src.energyml.utils.data.hdf import get_hdf5_path_from_external_path, HDF5FileReader, get_hdf_reference
+from src.energyml.utils.data.hdf import get_hdf5_path_from_external_path, HDF5FileReader, get_hdf_reference, get_crs_obj
 from src.energyml.utils.epc import Epc, get_obj_identifier
 from src.energyml.utils.introspection import snake_case, get_object_attribute_no_verif, \
     search_attribute_matching_name_with_path, search_attribute_matching_name, flatten_concatenation, \
@@ -52,6 +52,11 @@ _ARRAY_NAMES_ = [
 
 
 def get_array_reader_function(array_type_name: str) -> Optional[Callable]:
+    """
+    Returns the name of the potential appropriate function to read an object with type is named :param array_type_name
+    :param array_type_name: the initial type name
+    :return:
+    """
     for name, obj in inspect.getmembers(sys.modules[__name__]):
         if name == f"read_{snake_case(array_type_name)}":
             return obj
@@ -59,6 +64,11 @@ def get_array_reader_function(array_type_name: str) -> Optional[Callable]:
 
 
 def _array_name_mapping(array_type_name: str) -> str:
+    """
+    Transform the type name to match existing reader function
+    :param array_type_name:
+    :return:
+    """
     array_type_name = array_type_name.replace("3D", "3d").replace("2D", "2d")
     if array_type_name.endswith("ConstantArray"):
         return "ConstantArray"
@@ -79,7 +89,15 @@ def read_array(
         root_obj: Optional[Any] = None,
         path_in_root: Optional[str] = None,
         epc: Optional[Epc] = None
-):
+) -> List[Any]:
+    """
+    Read an array and return a list. The array is read depending on its type. see. :py:func:`energyml.utils.data.helper.get_supported_array`
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    """
     if isinstance(energyml_array, list):
         return energyml_array
     array_type_name = _array_name_mapping(type(energyml_array).__name__)
@@ -97,11 +115,19 @@ def read_array(
         raise Exception(f"Type {array_type_name} is not supported\n\t{energyml_array}: \n\tfunction read_{snake_case(array_type_name)} not found")
 
 
-def get_supported_array():
+def get_supported_array() -> List[str]:
+    """
+    Return a list of the supported arrays for the use of :py:func:`energyml.utils.data.helper.read_array` function.
+    :return:
+    """
     return [x for x in _ARRAY_NAMES_ if get_array_reader_function(_array_name_mapping(x)) is not None]
 
 
 def get_not_supported_array():
+    """
+    Return a list of the NOT supported arrays for the use of :py:func:`energyml.utils.data.helper.read_array` function.
+    :return:
+    """
     return [x for x in _ARRAY_NAMES_ if get_array_reader_function(_array_name_mapping(x)) is None]
 
 
@@ -110,7 +136,15 @@ def read_constant_array(
         root_obj: Optional[Any] = None,
         path_in_root: Optional[str] = None,
         epc: Optional[Epc] = None
-):
+) -> List[Any]:
+    """
+    Read a constant array ( BooleanConstantArray, DoubleConstantArray, FloatingPointConstantArray, IntegerConstantArray ...)
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    """
     # print(f"Reading constant array\n\t{energyml_array}")
 
     value = get_object_attribute_no_verif(energyml_array, "value")
@@ -126,7 +160,15 @@ def read_xml_array(
         root_obj: Optional[Any] = None,
         path_in_root: Optional[str] = None,
         epc: Optional[Epc] = None
-):
+) -> List[Any]:
+    """
+    Read a xml array ( BooleanXmlArray, FloatingPointXmlArray, IntegerXmlArray, StringXmlArray ...)
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    """
     values = get_object_attribute_no_verif(energyml_array, "values")
     # count = get_object_attribute_no_verif(energyml_array, "count_per_value")
     return values
@@ -137,7 +179,15 @@ def read_jagged_array(
         root_obj: Optional[Any] = None,
         path_in_root: Optional[str] = None,
         epc: Optional[Epc] = None
-):
+) -> List[Any]:
+    """
+    Read a jagged array
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    """
     elements = read_array(
         energyml_array=get_object_attribute_no_verif(energyml_array, "elements"),
         root_obj=root_obj,
@@ -164,7 +214,15 @@ def read_external_array(
         root_obj: Optional[Any] = None,
         path_in_root: Optional[str] = None,
         epc: Optional[Epc] = None
-):
+) -> List[Any]:
+    """
+    Read an external array (BooleanExternalArray, BooleanHdf5Array, DoubleHdf5Array, IntegerHdf5Array, StringExternalArray ...)
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    """
     hdf5_path = get_hdf5_path_from_external_path(
                 external_path_obj=energyml_array,
                 path_in_root=path_in_root,
@@ -177,19 +235,13 @@ def read_external_array(
     result_array = h5_reader.read_array(hdf5_path, path_in_external)
 
     if path_in_root.lower().endswith("points") and len(result_array) > 0 and len(result_array[0]) == 3:
-        crs_dor_list = search_attribute_in_upper_matching_name(
-            obj=energyml_array,
-            name_rgx="\\.*crs",
+        crs = get_crs_obj(
+            context_obj=energyml_array,
+            path_in_root=path_in_root,
             root_obj=root_obj,
-            current_path=path_in_root,
+            epc=epc,
         )
-
-        zincreasing_downward = False
-        if crs_dor_list is not None and len(crs_dor_list) > 0:
-            try:
-                zincreasing_downward = search_attribute_matching_name(epc.get_object_by_identifier(get_obj_identifier(crs_dor_list[0])), "ZIncreasingDownward")[0]
-            except Exception as e:
-                print(e)
+        zincreasing_downward = is_z_reversed(crs)
 
         if zincreasing_downward:
             result_array = list(map(lambda p: [p[0], p[1], -p[2]], result_array))
@@ -203,6 +255,14 @@ def read_int_double_lattice_array(
         path_in_root: Optional[str] = None,
         epc: Optional[Epc] = None
 ):
+    """
+    Read DoubleLatticeArray or IntegerLatticeArray.
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    """
     start_value = get_object_attribute_no_verif(energyml_array, "start_value")
     offset = get_object_attribute_no_verif(energyml_array, "offset")
 
@@ -218,7 +278,12 @@ def read_int_double_lattice_array(
     # return result
 
 
-def _point_as_array(point: Any) -> list:
+def _point_as_array(point: Any) -> List:
+    """
+    Transform a point that has "coordinate1", "coordinate2", "coordinate3" as attributes into a list.
+    :param point:
+    :return:
+    """
     return [
         get_object_attribute_no_verif(point, "coordinate1"),
         get_object_attribute_no_verif(point, "coordinate2"),
@@ -227,10 +292,26 @@ def _point_as_array(point: Any) -> list:
 
 
 def prod_n_tab(val: Union[float, int, str], tab: List[Union[float, int, str]]):
+    """
+    Multiply every value of the list 'tab' by the constant 'val'
+    :param val:
+    :param tab:
+    :return:
+    """
     return list(map(lambda x: x*val, tab))
 
 
 def sum_lists(l1: List, l2: List):
+    """
+    Sums 2 lists values.
+
+    Example:
+        [1,1,1] and [2,2,3,6] gives : [3,3,4,6]
+
+    :param l1:
+    :param l2:
+    :return:
+    """
     return [l1[i] + l2[i] for i in range(min(len(l1), len(l2)))]+max(l1, l2, key=len)[min(len(l1), len(l2)):]
 
 
@@ -240,6 +321,14 @@ def read_point3d_zvalue_array(
         path_in_root: Optional[str] = None,
         epc: Optional[Epc] = None
 ):
+    """
+    Read a Point3D2ValueArray
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    """
     supporting_geometry = get_object_attribute_no_verif(energyml_array, "supporting_geometry")
     sup_geom_array = read_array(
         energyml_array=supporting_geometry,
@@ -255,8 +344,6 @@ def read_point3d_zvalue_array(
         path_in_root=path_in_root + ".ZValues",
         epc=epc,
     ))
-
-    # print(zvalues_array)
 
     count = 0
 
@@ -277,6 +364,17 @@ def read_point3d_from_representation_lattice_array(
         path_in_root: Optional[str] = None,
         epc: Optional[Epc] = None
 ):
+    """
+    Read a Point3DFromRepresentationLatticeArray.
+
+    Note: Only works for Grid2DRepresentation.
+
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    """
     supporting_rep_identifier = get_obj_identifier(get_object_attribute_no_verif(energyml_array, "supporting_representation"))
     print(f"energyml_array : {energyml_array}\n\t{supporting_rep_identifier}")
     supporting_rep = epc.get_object_by_identifier(supporting_rep_identifier)
@@ -324,6 +422,17 @@ def read_point3d_lattice_array(
         path_in_root: Optional[str] = None,
         epc: Optional[Epc] = None
 ) -> List:
+    """
+    Read a Point3DLatticeArray.
+
+    Note: If a CRS is found and its 'ZIncreasingDownward' is set to true or its
+
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    """
     result = []
     origin = _point_as_array(get_object_attribute_no_verif(energyml_array, "origin"))
     offset = get_object_attribute_no_verif(energyml_array, "offset")
@@ -346,18 +455,13 @@ def read_point3d_lattice_array(
             current_path=path_in_root,
         )
 
-        crs_dor_list = search_attribute_in_upper_matching_name(
-            obj=energyml_array,
-            name_rgx="\\.*crs",
+        crs = get_crs_obj(
+            context_obj=energyml_array,
+            path_in_root=path_in_root,
             root_obj=root_obj,
-            current_path=path_in_root,
+            epc=epc,
         )
-        zincreasing_downward = False
-        if crs_dor_list is not None and len(crs_dor_list) > 0:
-            try:
-                zincreasing_downward = search_attribute_matching_name(epc.get_object_by_identifier(get_obj_identifier(crs_dor_list[0])), "ZIncreasingDownward")[0]
-            except Exception as e:
-                print(e)
+        zincreasing_downward = is_z_reversed(crs)
 
         slowest_vec = _point_as_array(get_object_attribute_no_verif(slowest, "offset"))
         slowest_spacing = read_array(get_object_attribute_no_verif(slowest, "spacing"))
@@ -411,6 +515,28 @@ def read_point3d_lattice_array(
         raise Exception(f"{type(energyml_array)} read with an offset of length {len(offset)} is not supported")
 
     return result
+
+
+def is_z_reversed(crs: Optional[Any]) -> bool:
+    """
+    Returns True if the Z axe is reverse (ZIncreasingDownward=='True' or VerticalAxis.Direction=='down')
+    :param crs:
+    :return: By default, False is returned (if 'crs' is None)
+    """
+    reverse_z_values = False
+    if crs is not None:
+        # resqml 201
+        zincreasing_downward = search_attribute_matching_name(crs, "ZIncreasingDownward")
+        if len(zincreasing_downward) > 0:
+            reverse_z_values = zincreasing_downward[0]
+
+        # resqml >= 22
+        vert_axis = search_attribute_matching_name(crs, "VerticalAxis.Direction")
+        if len(vert_axis) > 0:
+            reverse_z_values = vert_axis[0].lower() == "down"
+
+    return reverse_z_values
+
 
 # def read_boolean_constant_array(
 #         energyml_array: Any,

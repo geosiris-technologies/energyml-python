@@ -12,6 +12,9 @@ ENERGYML_NAMESPACES = {
     "witsml": "http://www.energistics.org/energyml/data/witsmlv2",
     "resqml": "http://www.energistics.org/energyml/data/resqmlv2",
 }
+"""
+dict of all energyml namespaces
+"""  # pylint: disable=W0105
 
 ENERGYML_NAMESPACES_PACKAGE = {
     "eml": ["http://www.energistics.org/energyml/data/commonv2"],
@@ -23,6 +26,9 @@ ENERGYML_NAMESPACES_PACKAGE = {
         "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
     ],
 }
+"""
+dict of all energyml namespace packages
+"""  # pylint: disable=W0105
 
 REGEX_UUID_NO_GRP = (
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"

@@ -268,7 +268,7 @@ if __name__ == "__main__":
     # print("Supported : ", get_supported_array())
     # print("Not supported : ", get_not_supported_array())
 
-    # read_h5_grid2d()
+    read_h5_grid2d()
     # read_h5_grid2d_bis()
     # print(REGEX_CONTENT_TYPE)
 

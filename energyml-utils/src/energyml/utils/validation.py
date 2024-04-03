@@ -55,6 +55,11 @@ class MandatoryError(ValidationObjectError):
 
 
 def validate_epc(epc: Epc) -> List[ValidationError]:
+    """
+    Verify if all :param:`epc`'s objects are valid.
+    :param epc:
+    :return:
+    """
     errs = []
     for obj in epc.energyml_objects:
         errs = errs + patterns_verification(obj)
@@ -65,6 +70,12 @@ def validate_epc(epc: Epc) -> List[ValidationError]:
 
 
 def dor_verification(energyml_objects: List[Any]) -> List[ValidationError]:
+    """
+    Verification for DOR. An error is raised if DORs contains wrong information, or if a referenced object is unknown
+    in the :param:`epc`.
+    :param energyml_objects:
+    :return:
+    """
     errs = []
 
     dict_obj_identifier = {
@@ -169,12 +180,24 @@ def dor_verification(energyml_objects: List[Any]) -> List[ValidationError]:
 
 
 def patterns_verification(obj: Any) -> List[ValidationError]:
+    """
+    Verification on object values, using the patterns defined in the original energyml xsd files.
+    :param obj:
+    :return:
+    """
     return _patterns_verification(obj, obj, "")
 
 
 def _patterns_verification(
     obj: Any, root_obj: Any, current_attribute_dot_path: str = ""
 ) -> List[ValidationError]:
+    """
+    Verification on object values, using the patterns defined in the original energyml xsd files.
+    :param obj:
+    :param root_obj:
+    :param current_attribute_dot_path:
+    :return:
+    """
     error_list = []
 
     if isinstance(obj, list):
@@ -294,6 +317,11 @@ def validate_attribute(
 
 
 def correct_dor(energyml_objects: List[Any]) -> None:
+    """
+    Fix DOR errors (missing object_version, wrong title, wrong content-type/qualified-type ...)
+    :param energyml_objects:
+    :return:
+    """
     dict_obj_identifier = {
         get_obj_identifier(obj): obj for obj in energyml_objects
     }

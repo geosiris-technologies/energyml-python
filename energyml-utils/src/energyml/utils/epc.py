@@ -148,6 +148,10 @@ class Epc:
     # EXPORT functions
 
     def gen_opc_content_type(self) -> Types:
+        """
+        Generates a :class:`Types` instance and fill it with energyml objects :class:`Override` values
+        :return:
+        """
         ct = Types()
         rels_default = Default()
         rels_default.content_type = RELS_CONTENT_TYPE
@@ -172,7 +176,7 @@ class Epc:
 
     def export_file(self, path: Optional[str] = None) -> None:
         """
-        Export the epc file. If :param path is None, the epc 'self.epc_file_path' is used
+        Export the epc file. If :param:`path` is None, the epc 'self.epc_file_path' is used
         :param path:
         :return:
         """
@@ -183,6 +187,10 @@ class Epc:
             f.write(epc_io.getbuffer())
 
     def export_io(self) -> BytesIO:
+        """
+        Export the epc file into a :class:`BytesIO` instance. The result is an 'in-memory' zip file.
+        :return:
+        """
         zip_buffer = BytesIO()
 
         with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
@@ -250,7 +258,7 @@ class Epc:
         }
 
         obj_rels = {
-            gen_rels_path(map_obj_id_to_obj.get(obj_id), export_version=self.export_version): Relationships(
+            gen_rels_path(energyml_object=map_obj_id_to_obj.get(obj_id), export_version=self.export_version): Relationships(
                 relationship=obj_rels + (self.additional_rels[obj_id] if obj_id in self.additional_rels else []),
 
             )
@@ -274,11 +282,17 @@ class Epc:
     # -----------
 
     def get_object_by_uuid(self, uuid: str) -> List[Any]:
+        """
+        Search all objects with the uuid :param:`uuid`.
+        :param uuid:
+        :return:
+        """
         return list(filter(lambda o: get_obj_uuid(o) == uuid, self.energyml_objects))
 
     def get_object_by_identifier(self, identifier: str) -> Optional[Any]:
         """
-        :param identifier: given by the function @get_obj_identifier
+        Search an object by its identifier.
+        :param identifier: given by the function :func:`get_obj_identifier`
         :return:
         """
         for o in self.energyml_objects:
@@ -286,7 +300,7 @@ class Epc:
                 return o
         return None
 
-    def get_epc_file_foler(self) -> Optional[str]:
+    def get_epc_file_folder(self) -> Optional[str]:
         if self.epc_file_path is not None and len(self.epc_file_path) > 0:
             folders_and_name = re.split(r"[\\/]", self.epc_file_path)
             if len(folders_and_name) > 1:
@@ -306,6 +320,10 @@ class Epc:
 
     @classmethod
     def read_stream(cls, epc_file_io: BytesIO):  # returns an Epc instance
+        """
+        :param epc_file_io:
+        :return: an :class:`EPC` instance
+        """
         try:
             _read_files = []
             obj_list = []
@@ -418,7 +436,7 @@ class Epc:
 
 def get_obj_identifier(obj: Any) -> str:
     """
-    Generate an objet identifier as : 'OBJ_UUID.OBJ_VERSION'
+    Generates an objet identifier as : 'OBJ_UUID.OBJ_VERSION'
     If the object version is None, the result is 'OBJ_UUID.'
     :param obj:
     :return: str
@@ -457,6 +475,12 @@ def gen_core_props_path(export_version: EpcExportVersion = EpcExportVersion.CLAS
 
 def gen_energyml_object_path(energyml_object: Union[str, Any],
                              export_version: EpcExportVersion = EpcExportVersion.CLASSIC):
+    """
+    Generate a path to store the :param:`energyml_object` into an epc file (depending on the :param:`export_version`)
+    :param energyml_object:
+    :param export_version:
+    :return:
+    """
     if isinstance(energyml_object, str):
         energyml_object = read_energyml_xml_str(energyml_object)
 
@@ -477,14 +501,26 @@ def gen_energyml_object_path(energyml_object: Union[str, Any],
 
 
 def get_file_folder_and_name_from_path(path: str) -> Tuple[str, str]:
+    """
+    Returns a tuple (FOLDER_PATH, FILE_NAME)
+    :param path:
+    :return:
+    """
     obj_folder = path[:path.rindex("/") + 1] if "/" in path else ""
     obj_file_name = path[path.rindex("/") + 1:] if "/" in path else path
     return obj_folder, obj_file_name
 
 
-def gen_rels_path(obj: Any,
+def gen_rels_path(energyml_object: Any,
                   export_version: EpcExportVersion = EpcExportVersion.CLASSIC
                   ) -> str:
+    """
+    Generate a path to store the :param:`energyml_object` rels file into an epc file
+    (depending on the :param:`export_version`)
+    :param energyml_object:
+    :param export_version:
+    :return:
+    """
     if isinstance(obj, CoreProperties):
         return f"{RELS_FOLDER_NAME}/.rels"
     else:
@@ -493,5 +529,10 @@ def gen_rels_path(obj: Any,
         return f"{obj_folder}{RELS_FOLDER_NAME}/{obj_file_name}.rels"
 
 
-def get_epc_content_type_path() -> str:
+def get_epc_content_type_path(export_version: EpcExportVersion = EpcExportVersion.CLASSIC) -> str:
+    """
+    Generate a path to store the "[Content_Types].xml" file into an epc file
+    (depending on the :param:`export_version`)
+    :return:
+    """
     return "[Content_Types].xml"

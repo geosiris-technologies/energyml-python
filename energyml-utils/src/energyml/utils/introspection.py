@@ -21,7 +21,7 @@ primitives = (bool, str, int, float, type(None))
 
 def is_enum(cls: Union[type, Any]):
     """
-    Returns True if @cls is an Enum
+    Returns True if :param:`cls` is an Enum
     :param cls:
     :return:
     """
@@ -32,7 +32,7 @@ def is_enum(cls: Union[type, Any]):
 
 def is_primitive(cls: Union[type, Any]) -> bool:
     """
-    Returns True if @cls is a primitiv type or extends Enum
+    Returns True if :param:`cls` is a primitiv type or extends Enum
     :param cls:
     :return: bool
     """
@@ -43,7 +43,7 @@ def is_primitive(cls: Union[type, Any]) -> bool:
 
 def is_abstract(cls: Union[type, Any]) -> bool:
     """
-    Returns True if @cls is an abstract class
+    Returns True if :param:`cls` is an abstract class
     :param cls:
     :return: bool
     """
@@ -52,11 +52,21 @@ def is_abstract(cls: Union[type, Any]) -> bool:
     return is_abstract(type(cls))
 
 
-def get_class_methods(cls: Union[type, Any]):
+def get_class_methods(cls: Union[type, Any]) -> List[str]:
+    """
+    Returns the list of the methods names for a specific class.
+    :param cls:
+    :return:
+    """
     return [func for func in dir(cls) if callable(getattr(cls, func)) and not func.startswith("__") and not isinstance(getattr(cls, func), type)]
 
 
 def get_class_from_name(class_name_and_module: str) -> Optional[type]:
+    """
+    Return a :class:`type` object matching with the name :param:`class_name_and_module`.
+    :param class_name_and_module:
+    :return:
+    """
     module_name = class_name_and_module[: class_name_and_module.rindex(".")]
     last_ns_part = class_name_and_module[
                    class_name_and_module.rindex(".") + 1:
@@ -85,6 +95,11 @@ def get_class_from_name(class_name_and_module: str) -> Optional[type]:
 
 
 def get_class_from_content_type(content_type: str) -> Optional[type]:
+    """
+    Return a :class:`type` object matching with the content-type :param:`content_type`.
+    :param content_type:
+    :return:
+    """
     ct = parse_content_type(content_type)
     domain = ct.group("domain")
     if domain is None:
@@ -120,6 +135,7 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
 
 
 def snake_case(s: str) -> str:
+    """ Transform a str into snake case. """
     s = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', s)
     s = re.sub('__([A-Z])', r'_\1', s)
     s = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s)
@@ -127,10 +143,20 @@ def snake_case(s: str) -> str:
 
 
 def pascal_case(s: str) -> str:
+    """ Transform a str into pascal case. """
     return snake_case(s).replace("_", " ").title().replace(" ", "")
 
 
-def flatten_concatenation(matrix):
+def flatten_concatenation(matrix) -> List:
+    """
+    Flatten a matrix.
+
+    Example :
+        [ [a,b,c], [d,e,f], [ [x,y,z], [0] ] ]
+        will be translated in: [a, b, c, d, e, f, [x,y,z], [0]]
+    :param matrix:
+    :return:
+    """
     flat_list = []
     for row in matrix:
         flat_list += row
@@ -138,6 +164,11 @@ def flatten_concatenation(matrix):
 
 
 def import_related_module(energyml_module_name: str) -> None:
+    """
+    Import related modules for a specific energyml module. (See. :const:`RELATED_MODULES`)
+    :param energyml_module_name:
+    :return:
+    """
     for related in RELATED_MODULES:
         if energyml_module_name in related:
             for m in related:
@@ -149,6 +180,11 @@ def import_related_module(energyml_module_name: str) -> None:
 
 
 def get_class_fields(cls: Union[type, Any]) -> Dict[str, Field]:
+    """
+    Return all class fields names, mapped to their :class:`Field` value.
+    :param cls:
+    :return:
+    """
     if not isinstance(cls, type):  # if cls is an instance
         cls = type(cls)
     try:
@@ -259,6 +295,15 @@ def get_object_attribute_advanced(obj: Any, attr_dot_path: str) -> Any:
 
 
 def get_object_attribute_no_verif(obj: Any, attr_name: str) -> Any:
+    """
+    Return the value of the attribute named after param :param:`attr_name` without verification (may raise an exception
+    if it doesn't exists).
+
+    Note: attr_name="0" will work if :param:`obj` is of type :class:`List`
+    :param obj:
+    :param attr_name:
+    :return:
+    """
     if isinstance(obj, list):
         return obj[int(attr_name)]
     elif isinstance(obj, dict):
@@ -298,6 +343,7 @@ def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:
 
 
 def get_obj_type(obj: Any) -> str:
+    """ Return the type name of an object. If obj is already a :class:`type`, return its __name__"""
     if isinstance(obj, type):
         return str(obj.__name__)
     return get_obj_type(type(obj))
@@ -398,6 +444,15 @@ def search_attribute_in_upper_matching_name(
         re_flags=re.IGNORECASE,
         current_path: str = "",
 ) -> Optional[Any]:
+    """
+    See :func:`search_attribute_matching_type_with_path`. It only returns the value not the path
+    :param obj:
+    :param name_rgx:
+    :param root_obj:
+    :param re_flags:
+    :param current_path:
+    :return:
+    """
     elt_list = search_attribute_matching_name(obj, name_rgx, search_in_sub_obj=False, deep_search=False)
     if elt_list is not None and len(elt_list) > 0:
         return elt_list
@@ -424,6 +479,16 @@ def search_attribute_matching_type(
         deep_search: bool = True,  # Search inside a matching object
         super_class_search: bool = True,  # Search inside in super classes of the object
 ) -> List[Any]:
+    """
+    See :func:`search_attribute_matching_type_with_path`. It only returns the value not the path
+    :param obj:
+    :param type_rgx:
+    :param re_flags:
+    :param return_self:
+    :param deep_search:
+    :param super_class_search:
+    :return:
+    """
     return [
         val
         for path, val in search_attribute_matching_type_with_path(
@@ -538,6 +603,16 @@ def search_attribute_matching_name(
         deep_search: bool = True,  # Search inside a matching object
         search_in_sub_obj: bool = True,  # Search in obj attributes
 ) -> List[Any]:
+    """
+    See :func:`search_attribute_matching_name_with_path`. It only returns the value not the path
+
+    :param obj:
+    :param name_rgx:
+    :param re_flags:
+    :param deep_search:
+    :param search_in_sub_obj:
+    :return:
+    """
     return [
         val
         for path, val in search_attribute_matching_name_with_path(
@@ -554,14 +629,28 @@ def search_attribute_matching_name(
 
 
 def gen_uuid() -> str:
+    """
+    Generate a new uuid.
+    :return:
+    """
     return str(uuid_mod.uuid4())
 
 
 def get_obj_uuid(obj: Any) -> str:
+    """
+    Return the object uuid (attribute must match the following regex : "[Uu]u?id|UUID").
+    :param obj:
+    :return:
+    """
     return get_object_attribute_rgx(obj, "[Uu]u?id|UUID")
 
 
 def get_obj_version(obj: Any) -> str:
+    """
+    Return the object version (check for "object_version" or "version_string" attribute).
+    :param obj:
+    :return:
+    """
     try:
         return get_object_attribute_no_verif(obj, "object_version")
     except AttributeError as e:
@@ -573,6 +662,11 @@ def get_obj_version(obj: Any) -> str:
 
 
 def get_direct_dor_list(obj: Any) -> List[Any]:
+    """
+    Search all sub attribute of type "DataObjectreference".
+    :param obj:
+    :return:
+    """
     return search_attribute_matching_type(obj, "DataObjectreference")
 
 
@@ -618,6 +712,7 @@ def get_object_type_for_file_path_from_class(cls) -> str:
 
 
 def now(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> int:
+    """ Return an epoch value """
     return int(datetime.datetime.timestamp(datetime.datetime.now(time_zone)))
 
 
@@ -642,6 +737,12 @@ def epoch_to_date(epoch_value: int, time_zone=datetime.timezone(datetime.timedel
 
 
 def get_class_from_simple_name(simple_name: str, energyml_module_context=None) -> type:
+    """
+    Search for a :class:`type` depending on the simple class name :param:`simple_name`.
+    :param simple_name:
+    :param energyml_module_context:
+    :return:
+    """
     if energyml_module_context is None:
         energyml_module_context = []
     try:
@@ -655,18 +756,16 @@ def get_class_from_simple_name(simple_name: str, energyml_module_context=None) -
             except ModuleNotFoundError:
                 pass
         return eval(simple_name)
-        # if energyml_module_context is not None:
-        #     for module_name in energyml_module_context:
-        #         print(f"\ttry for {simple_name.replace(e.name, module_name + '.' + e.name)}")
-        #         try:
-        #             return eval(f"{simple_name.replace(e.name, module_name + '.' + e.name)}")
-        #         except Exception as e2:
-        #             print(e2)
-        #             pass
-        # raise e
 
 
 def _gen_str_from_attribute_name(attribute_name: Optional[str], _parent_class: Optional[type]=None) -> str:
+    """
+    Generate a str from the attribute name. The result is not the same for an attribute named "Uuid" than for an
+    attribute named "mime_type" for example.
+    :param attribute_name:
+    :param _parent_class:
+    :return:
+    """
     attribute_name_lw = attribute_name.lower()
     if attribute_name is not None:
         if attribute_name_lw == "uuid" or attribute_name_lw == "uid":
@@ -693,6 +792,11 @@ def _gen_str_from_attribute_name(attribute_name: Optional[str], _parent_class: O
 
 
 def random_value_from_class(cls: type):
+    """
+    Generate a random value for a :class:`type`. All attributes should be filled with random values.
+    :param cls:
+    :return:
+    """
     energyml_module_context = []
     if not is_primitive(cls):
         # import_related_module(cls.__module__)
@@ -701,6 +805,15 @@ def random_value_from_class(cls: type):
 
 
 def _random_value_from_class(cls: Any, energyml_module_context: List[str], attribute_name: Optional[str] = None, _parent_class: Optional[type]=None):
+    """
+    Generate a random value for a :class:`type`. All attributes should be filled with random values.
+    :param cls:
+    :param energyml_module_context:
+    :param attribute_name:
+    :param _parent_class: the :class:`type`of the parent object
+    :return:
+    """
+
     try:
         if isinstance(cls, str) or cls == str:
             return _gen_str_from_attribute_name(attribute_name, _parent_class)
