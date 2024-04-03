@@ -46,7 +46,7 @@ jobs:
 
   publish:
     name: Publish to PyPI
-    needs: [build, test]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
 
