@@ -8,7 +8,7 @@ name: Publish (pypiTest)
 
 defaults:
   run:
-    working-directory: dart_project
+    working-directory: energyml-utils
 
 on:
   push:
