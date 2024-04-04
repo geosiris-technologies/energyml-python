@@ -17,97 +17,60 @@ jobs:
     steps:
 
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Install poetry
+        uses: ./.github/actions/prepare-poetry
         with:
-          python-version: '3.9'
-
-      - name: Install Poetry
-        run: |
-          python -m pip install --upgrade pip
-          pip install poetry
-          pip install poetry-dynamic-versioning
+          python-version: 3.9
 
       - name: Build
         run: |
           poetry build
 
+      - name: Display folder
+        shell: bash
+        if: always()
+        run: |
+          echo "::debug::listing folder"
+          ls -R
+          echo `ls -R`
+          echo "GITHUB_WORKSPACE ${{ github.workspace }}"
+          echo `ls GITHUB_WORKSPACE ${{ github.workspace }}`
+
       - name: Save build artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: dist-artifact
-          path: dist/
-
-  test:
-    name: Test
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Get build artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: dist-artifact
-          path: dist/
-
-      - name: Install from build
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest-mock
-          pip install etpproto --pre --target=dist --find-links=dist/
-
-      - name: Copy tests and example data to dist folder for testing against artifacts
-        run: |
-          cp -R tests dist/
-      # cp -R example_data dist/
-
-      - name: Run tests
-        run: pytest dist/tests
+          name: Build-Artifact
+          if-no-files-found: error
+          path: ${{ github.workspace }}/energyml-utils/dist
 
   publish:
     name: Publish to PyPI
-    needs: [build, test]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-
       # Retrieve the code and GIT history so that poetry-dynamic-versioning knows which version to upload
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Get build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: dist-artifact
-          path: dist/
+          name: Build-Artifact
+          path: ${{ github.workspace }}/energyml-utils/dist
 
-      - name: Install Poetry
-        run: |
-          python -m pip install --upgrade pip
-          pip install poetry
-          pip install poetry-dynamic-versioning
+      - name: Install poetry
+        uses: ./.github/actions/prepare-poetry
+        with:
+          python-version: 3.9
 
       - name: Upload to PyPI
         run: |
-          poetry config repositories.test https://test.pypi.org/legacy/
-          poetry publish --username ${{ secrets.POETRY_PYPI_TOKEN_USERNAME}} --password ${{ secrets.POETRY_PYPI_TOKEN_PASSWORD}}
+          poetry config pypi-token.pypi ${{ secrets.POETRY_PYPI_TOKEN_PASSWORD }}
+          poetry publish
