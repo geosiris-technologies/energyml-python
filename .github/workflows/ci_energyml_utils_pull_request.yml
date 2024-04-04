@@ -47,8 +47,9 @@ jobs:
       - name: Save build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist-artifact
-          path: dist/
+          name: Build-Artifact
+          if-no-files-found: error
+          path: dist
 
   publish:
     name: Publish to PyPI
@@ -65,8 +66,8 @@ jobs:
       - name: Get build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: dist-artifact
-          path: dist/
+          name: Build-Artifact
+          path: dist
 
       - name: Install poetry
         uses: ./.github/actions/prepare-poetry
