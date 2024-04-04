@@ -1,0 +1,76 @@
+##
+## Copyright (c) 2023-2024 Geosiris.
+## SPDX-License-Identifier: Apache-2.0
+##
+---
+
+name: Publish release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install poetry
+        uses: ./.github/actions/prepare-poetry
+        with:
+          python-version: 3.9
+
+      - name: Build
+        run: |
+          poetry build
+
+      - name: Display folder
+        shell: bash
+        if: always()
+        run: |
+          echo "::debug::listing folder"
+          ls -R
+          echo `ls -R`
+          echo "GITHUB_WORKSPACE ${{ github.workspace }}"
+          echo `ls GITHUB_WORKSPACE ${{ github.workspace }}`
+
+      - name: Save build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Build-Artifact
+          if-no-files-found: error
+          path: ${{ github.workspace }}/energyml-utils/dist
+
+  publish:
+    name: Publish to PyPI
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+
+      # Retrieve the code and GIT history so that poetry-dynamic-versioning knows which version to upload
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: Build-Artifact
+          path: ${{ github.workspace }}/energyml-utils/dist
+
+      - name: Install poetry
+        uses: ./.github/actions/prepare-poetry
+        with:
+          python-version: 3.9
+
+      - name: Upload to PyPI
+        run: |
+          poetry config pypi-token.pypi ${{ secrets.POETRY_PYPI_TOKEN_PASSWORD }}
+          poetry publish
