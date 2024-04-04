@@ -6,6 +6,10 @@
 
 name: Publish release
 
+defaults:
+  run:
+    working-directory: energyml-utils
+
 on:
   release:
     types: [published]
