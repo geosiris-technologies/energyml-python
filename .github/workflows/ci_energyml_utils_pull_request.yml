@@ -69,7 +69,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: Build-Artifact
-          path: ${{ github.workspace }}/dist
+          path: ${{ github.workspace }}/energyml-utils/dist
 
       - name: Install poetry
         uses: ./.github/actions/prepare-poetry
