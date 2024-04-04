@@ -69,7 +69,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: Build-Artifact
-          path: dist
+          path: ${{ github.workspace }}/dist
 
       - name: Install poetry
         uses: ./.github/actions/prepare-poetry
