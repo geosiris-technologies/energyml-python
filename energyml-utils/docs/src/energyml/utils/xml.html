@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>src.energyml.utils.xml API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>src.energyml.utils.xml</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># Copyright (c) 2023-2024 Geosiris.
+# SPDX-License-Identifier: Apache-2.0
+import re
+from io import BytesIO
+from typing import Optional, Any, Union
+
+from lxml import etree as ETREE  # type: Any
+
+ENERGYML_NAMESPACES = {
+    &#34;eml&#34;: &#34;http://www.energistics.org/energyml/data/commonv2&#34;,
+    &#34;prodml&#34;: &#34;http://www.energistics.org/energyml/data/prodmlv2&#34;,
+    &#34;witsml&#34;: &#34;http://www.energistics.org/energyml/data/witsmlv2&#34;,
+    &#34;resqml&#34;: &#34;http://www.energistics.org/energyml/data/resqmlv2&#34;,
+}
+&#34;&#34;&#34;
+dict of all energyml namespaces
+&#34;&#34;&#34;  # pylint: disable=W0105
+
+ENERGYML_NAMESPACES_PACKAGE = {
+    &#34;eml&#34;: [&#34;http://www.energistics.org/energyml/data/commonv2&#34;],
+    &#34;prodml&#34;: [&#34;http://www.energistics.org/energyml/data/prodmlv2&#34;],
+    &#34;witsml&#34;: [&#34;http://www.energistics.org/energyml/data/witsmlv2&#34;],
+    &#34;resqml&#34;: [&#34;http://www.energistics.org/energyml/data/resqmlv2&#34;],
+    &#34;opc&#34;: [
+        &#34;http://schemas.openxmlformats.org/package/2006/content-types&#34;,
+        &#34;http://schemas.openxmlformats.org/package/2006/metadata/core-properties&#34;
+    ],
+}
+&#34;&#34;&#34;
+dict of all energyml namespace packages
+&#34;&#34;&#34;  # pylint: disable=W0105
+
+REGEX_UUID_NO_GRP = (
+    r&#34;[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}&#34;
+)
+REGEX_UUID = r&#34;(?P&lt;uuid&gt;&#34; + REGEX_UUID_NO_GRP + &#34;)&#34;
+REGEX_DOMAIN_VERSION = r&#34;(?P&lt;domainVersion&gt;(?P&lt;versionNum&gt;([\d]+[\._])*\d)\s*(?P&lt;dev&gt;dev\s*(?P&lt;devNum&gt;[\d]+))?)&#34;
+REGEX_DOMAIN_VERSION_FLAT = r&#34;(?P&lt;domainVersion&gt;(?P&lt;versionNumFlat&gt;([\d]+)*\d)\s*(?P&lt;dev&gt;dev\s*(?P&lt;devNum&gt;[\d]+))?)&#34;
+
+
+# ContentType
+REGEX_MIME_TYPE_MEDIA = r&#34;(?P&lt;media&gt;application|audio|font|example|image|message|model|multipart|text|video)&#34;
+REGEX_CT_ENERGYML_DOMAIN = r&#34;(?P&lt;energymlDomain&gt;x-(?P&lt;domain&gt;[\w]+)\+xml)&#34;
+REGEX_CT_XML_DOMAIN = r&#34;(?P&lt;xmlRawDomain&gt;(x\-)?(?P&lt;xmlDomain&gt;.+)\+xml)&#34;
+REGEX_CT_TOKEN_VERSION = r&#34;version=&#34; + REGEX_DOMAIN_VERSION
+REGEX_CT_TOKEN_TYPE = r&#34;type=(?P&lt;type&gt;[\w\_]+)&#34;
+
+REGEX_CONTENT_TYPE = (
+        REGEX_MIME_TYPE_MEDIA + &#34;/&#34;
+        + &#34;(?P&lt;rawDomain&gt;(&#34; + REGEX_CT_ENERGYML_DOMAIN + &#34;)|(&#34; + REGEX_CT_XML_DOMAIN + r&#34;)|([\w-]+\.?)+)&#34;
+        + &#34;(;((&#34; + REGEX_CT_TOKEN_VERSION + &#34;)|(&#34; + REGEX_CT_TOKEN_TYPE + &#34;)))*&#34;
+)
+REGEX_QUALIFIED_TYPE = (
+        r&#34;(?P&lt;domain&gt;[a-zA-Z]+)&#34; + REGEX_DOMAIN_VERSION_FLAT + r&#34;\.(?P&lt;type&gt;[\w_]+)&#34;
+)
+# =========
+
+REGEX_SCHEMA_VERSION = (
+        r&#34;(?P&lt;name&gt;[eE]ml|[cC]ommon|[rR]esqml|[wW]itsml|[pP]rodml)?\s*v?&#34;
+        + REGEX_DOMAIN_VERSION
+        + r&#34;\s*$&#34;
+)
+
+REGEX_ENERGYML_FILE_NAME_OLD = r&#34;(?P&lt;type&gt;[\w]+)_&#34; + REGEX_UUID_NO_GRP + r&#34;\.xml$&#34;
+REGEX_ENERGYML_FILE_NAME_NEW = (
+        REGEX_UUID_NO_GRP + r&#34;\.(?P&lt;objectVersion&gt;\d+(\.\d+)*)\.xml$&#34;
+)
+REGEX_ENERGYML_FILE_NAME = (
+    rf&#34;^(.*/)?({REGEX_ENERGYML_FILE_NAME_OLD})|({REGEX_ENERGYML_FILE_NAME_NEW})&#34;
+)
+
+REGEX_XML_HEADER = r&#34;^\s*\&lt;\?xml\s+((encoding\s*=\s*\&#34;(?P&lt;encoding&gt;[^\&#34;]+)\&#34;|version\s*=\s*\&#34;(?P&lt;version&gt;[^\&#34;]+)\&#34;|standalone\s*=\s*\&#34;(?P&lt;standalone&gt;[^\&#34;]+)\&#34;)\s+)+&#34;
+
+
+def get_pkg_from_namespace(namespace: str) -&gt; Optional[str]:
+    for (k, v) in ENERGYML_NAMESPACES_PACKAGE.items():
+        if namespace in v:
+            return k
+    return None
+
+
+def is_energyml_content_type(content_type: str) -&gt; bool:
+    ct = parse_content_type(content_type)
+    return ct.group(&#34;domain&#34;) is not None
+
+
+def get_root_namespace(tree: ETREE.Element) -&gt; str:
+    return tree.nsmap[tree.prefix]
+
+
+def get_class_name_from_xml(tree: ETREE.Element) -&gt; str:
+    root_namespace = get_root_namespace(tree)
+    pkg = get_pkg_from_namespace(root_namespace)
+    if pkg is None:
+        print(f&#34;No pkg found for elt {tree}&#34;)
+    else:
+        if pkg == &#34;opc&#34;:
+            return &#34;energyml.opc.opc.&#34; + get_root_type(tree)
+        else:
+            schema_version = find_schema_version_in_element(tree).replace(&#34;.&#34;, &#34;_&#34;).replace(&#34;-&#34;, &#34;_&#34;)
+            if pkg == &#34;resqml&#34; and schema_version == &#34;2_0&#34;:
+                schema_version = &#34;2_0_1&#34;
+            return (&#34;energyml.&#34; + pkg
+                    + &#34;.v&#34; + schema_version
+                    + &#34;.&#34;
+                    + root_namespace[root_namespace.rindex(&#34;/&#34;) + 1:]
+                    + &#34;.&#34; + get_root_type(tree)
+                    )
+
+
+def get_xml_encoding(xml_content: str) -&gt; Optional[str]:
+    try:
+        m = re.search(REGEX_XML_HEADER, xml_content)
+        return m.group(&#34;encoding&#34;)
+    except AttributeError:
+        return &#34;utf-8&#34;
+
+
+def get_tree(xml_content: Union[bytes, str]) -&gt; ETREE.Element:
+    xml_bytes = xml_content
+    if isinstance(xml_bytes, str):
+        xml_bytes = xml_content.encode(encoding=get_xml_encoding(xml_content).strip().lower())
+
+    return ETREE.parse(BytesIO(xml_bytes)).getroot()
+
+
+def energyml_xpath(tree: ETREE.Element, xpath: str) -&gt; Optional[list]:
+    &#34;&#34;&#34;A xpath research that knows energyml namespaces&#34;&#34;&#34;
+    try:
+        return ETREE.XPath(xpath, namespaces=ENERGYML_NAMESPACES)(tree)
+    except TypeError:
+        return None
+
+
+def search_element_has_child_xpath(tree: ETREE.Element, child_name: str) -&gt; list:
+    &#34;&#34;&#34;
+    Search elements that has a child named (xml tag) as &#39;child_name&#39;.
+    Warning : child_name must contain the namespace (see. ENERGYML_NAMESPACES)
+    &#34;&#34;&#34;
+    return list(x for x in energyml_xpath(tree, f&#34;//{child_name}/..&#34;))
+
+
+def get_uuid(tree: ETREE.Element) -&gt; str:
+    _uuids = tree.xpath(&#34;@uuid&#34;)
+    if len(_uuids) &lt;= 0:
+        _uuids = tree.xpath(&#34;@UUID&#34;)
+    if len(_uuids) &lt;= 0:
+        _uuids = tree.xpath(&#34;@uid&#34;)
+    if len(_uuids) &lt;= 0:
+        _uuids = tree.xpath(&#34;@UID&#34;)
+    return _uuids[0]
+
+
+def get_root_type(tree: ETREE.Element) -&gt; str:
+    &#34;&#34;&#34; Returns the type (xml tag) of the element without the namespace &#34;&#34;&#34;
+    return tree.xpath(&#34;local-name()&#34;)
+
+
+def find_schema_version_in_element(tree: ETREE.ElementTree) -&gt; str:
+    &#34;&#34;&#34;Find the &#34;SchemaVersion&#34; inside an xml content of a energyml file
+
+    :param tree: An energyml xml file content.
+    :type tree: bytes
+
+    :returns: The SchemaVersion that contains only the version number. For example, if the xml
+        file contains : SchemaVersion=&#34;Resqml 2.0.1&#34;
+            the result will be : &#34;2.0.1&#34;
+    :rtype: str
+    &#34;&#34;&#34;
+    _schema_version = tree.xpath(&#34;@schemaVersion&#34;)
+    if _schema_version is None:
+        _schema_version = tree.xpath(&#34;@SchemaVersion&#34;)
+
+    if _schema_version is not None:
+        match_version = re.search(r&#34;\d+(\.\d+)*&#34;, _schema_version[0])
+        if match_version is not None:
+            return match_version.group(0)
+    return &#34;&#34;
+
+
+def parse_content_type(ct: str):
+    return re.search(REGEX_CONTENT_TYPE, ct)</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-variables">Global variables</h2>
+<dl>
+<dt id="src.energyml.utils.xml.ENERGYML_NAMESPACES"><code class="name">var <span class="ident">ENERGYML_NAMESPACES</span></code></dt>
+<dd>
+<div class="desc"><p>dict of all energyml namespaces</p></div>
+</dd>
+<dt id="src.energyml.utils.xml.ENERGYML_NAMESPACES_PACKAGE"><code class="name">var <span class="ident">ENERGYML_NAMESPACES_PACKAGE</span></code></dt>
+<dd>
+<div class="desc"><p>dict of all energyml namespace packages</p></div>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="src.energyml.utils.xml.energyml_xpath"><code class="name flex">
+<span>def <span class="ident">energyml_xpath</span></span>(<span>tree: <cyfunction Element at 0x0000021AE77ADBE0>, xpath: str) ‑> Optional[list]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>A xpath research that knows energyml namespaces</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def energyml_xpath(tree: ETREE.Element, xpath: str) -&gt; Optional[list]:
+    &#34;&#34;&#34;A xpath research that knows energyml namespaces&#34;&#34;&#34;
+    try:
+        return ETREE.XPath(xpath, namespaces=ENERGYML_NAMESPACES)(tree)
+    except TypeError:
+        return None</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.xml.find_schema_version_in_element"><code class="name flex">
+<span>def <span class="ident">find_schema_version_in_element</span></span>(<span>tree: <cyfunction ElementTree at 0x0000021AE77ADFF0>) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Find the "SchemaVersion" inside an xml content of a energyml file</p>
+<p>:param tree: An energyml xml file content.
+:type tree: bytes</p>
+<p>:returns: The SchemaVersion that contains only the version number. For example, if the xml
+file contains : SchemaVersion="Resqml 2.0.1"
+the result will be : "2.0.1"
+:rtype: str</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def find_schema_version_in_element(tree: ETREE.ElementTree) -&gt; str:
+    &#34;&#34;&#34;Find the &#34;SchemaVersion&#34; inside an xml content of a energyml file
+
+    :param tree: An energyml xml file content.
+    :type tree: bytes
+
+    :returns: The SchemaVersion that contains only the version number. For example, if the xml
+        file contains : SchemaVersion=&#34;Resqml 2.0.1&#34;
+            the result will be : &#34;2.0.1&#34;
+    :rtype: str
+    &#34;&#34;&#34;
+    _schema_version = tree.xpath(&#34;@schemaVersion&#34;)
+    if _schema_version is None:
+        _schema_version = tree.xpath(&#34;@SchemaVersion&#34;)
+
+    if _schema_version is not None:
+        match_version = re.search(r&#34;\d+(\.\d+)*&#34;, _schema_version[0])
+        if match_version is not None:
+            return match_version.group(0)
+    return &#34;&#34;</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.xml.get_class_name_from_xml"><code class="name flex">
+<span>def <span class="ident">get_class_name_from_xml</span></span>(<span>tree: <cyfunction Element at 0x0000021AE77ADBE0>) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_class_name_from_xml(tree: ETREE.Element) -&gt; str:
+    root_namespace = get_root_namespace(tree)
+    pkg = get_pkg_from_namespace(root_namespace)
+    if pkg is None:
+        print(f&#34;No pkg found for elt {tree}&#34;)
+    else:
+        if pkg == &#34;opc&#34;:
+            return &#34;energyml.opc.opc.&#34; + get_root_type(tree)
+        else:
+            schema_version = find_schema_version_in_element(tree).replace(&#34;.&#34;, &#34;_&#34;).replace(&#34;-&#34;, &#34;_&#34;)
+            if pkg == &#34;resqml&#34; and schema_version == &#34;2_0&#34;:
+                schema_version = &#34;2_0_1&#34;
+            return (&#34;energyml.&#34; + pkg
+                    + &#34;.v&#34; + schema_version
+                    + &#34;.&#34;
+                    + root_namespace[root_namespace.rindex(&#34;/&#34;) + 1:]
+                    + &#34;.&#34; + get_root_type(tree)
+                    )</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.xml.get_pkg_from_namespace"><code class="name flex">
+<span>def <span class="ident">get_pkg_from_namespace</span></span>(<span>namespace: str) ‑> Optional[str]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_pkg_from_namespace(namespace: str) -&gt; Optional[str]:
+    for (k, v) in ENERGYML_NAMESPACES_PACKAGE.items():
+        if namespace in v:
+            return k
+    return None</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.xml.get_root_namespace"><code class="name flex">
+<span>def <span class="ident">get_root_namespace</span></span>(<span>tree: <cyfunction Element at 0x0000021AE77ADBE0>) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_root_namespace(tree: ETREE.Element) -&gt; str:
+    return tree.nsmap[tree.prefix]</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.xml.get_root_type"><code class="name flex">
+<span>def <span class="ident">get_root_type</span></span>(<span>tree: <cyfunction Element at 0x0000021AE77ADBE0>) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the type (xml tag) of the element without the namespace</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_root_type(tree: ETREE.Element) -&gt; str:
+    &#34;&#34;&#34; Returns the type (xml tag) of the element without the namespace &#34;&#34;&#34;
+    return tree.xpath(&#34;local-name()&#34;)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.xml.get_tree"><code class="name flex">
+<span>def <span class="ident">get_tree</span></span>(<span>xml_content: Union[bytes, str]) ‑> <cyfunction Element at 0x0000021AE77ADBE0></span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_tree(xml_content: Union[bytes, str]) -&gt; ETREE.Element:
+    xml_bytes = xml_content
+    if isinstance(xml_bytes, str):
+        xml_bytes = xml_content.encode(encoding=get_xml_encoding(xml_content).strip().lower())
+
+    return ETREE.parse(BytesIO(xml_bytes)).getroot()</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.xml.get_uuid"><code class="name flex">
+<span>def <span class="ident">get_uuid</span></span>(<span>tree: <cyfunction Element at 0x0000021AE77ADBE0>) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_uuid(tree: ETREE.Element) -&gt; str:
+    _uuids = tree.xpath(&#34;@uuid&#34;)
+    if len(_uuids) &lt;= 0:
+        _uuids = tree.xpath(&#34;@UUID&#34;)
+    if len(_uuids) &lt;= 0:
+        _uuids = tree.xpath(&#34;@uid&#34;)
+    if len(_uuids) &lt;= 0:
+        _uuids = tree.xpath(&#34;@UID&#34;)
+    return _uuids[0]</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.xml.get_xml_encoding"><code class="name flex">
+<span>def <span class="ident">get_xml_encoding</span></span>(<span>xml_content: str) ‑> Optional[str]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_xml_encoding(xml_content: str) -&gt; Optional[str]:
+    try:
+        m = re.search(REGEX_XML_HEADER, xml_content)
+        return m.group(&#34;encoding&#34;)
+    except AttributeError:
+        return &#34;utf-8&#34;</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.xml.is_energyml_content_type"><code class="name flex">
+<span>def <span class="ident">is_energyml_content_type</span></span>(<span>content_type: str) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_energyml_content_type(content_type: str) -&gt; bool:
+    ct = parse_content_type(content_type)
+    return ct.group(&#34;domain&#34;) is not None</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.xml.parse_content_type"><code class="name flex">
+<span>def <span class="ident">parse_content_type</span></span>(<span>ct: str)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def parse_content_type(ct: str):
+    return re.search(REGEX_CONTENT_TYPE, ct)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.xml.search_element_has_child_xpath"><code class="name flex">
+<span>def <span class="ident">search_element_has_child_xpath</span></span>(<span>tree: <cyfunction Element at 0x0000021AE77ADBE0>, child_name: str) ‑> list</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Search elements that has a child named (xml tag) as 'child_name'.
+Warning : child_name must contain the namespace (see. ENERGYML_NAMESPACES)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def search_element_has_child_xpath(tree: ETREE.Element, child_name: str) -&gt; list:
+    &#34;&#34;&#34;
+    Search elements that has a child named (xml tag) as &#39;child_name&#39;.
+    Warning : child_name must contain the namespace (see. ENERGYML_NAMESPACES)
+    &#34;&#34;&#34;
+    return list(x for x in energyml_xpath(tree, f&#34;//{child_name}/..&#34;))</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="src.energyml.utils" href="index.html">src.energyml.utils</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-variables">Global variables</a></h3>
+<ul class="">
+<li><code><a title="src.energyml.utils.xml.ENERGYML_NAMESPACES" href="#src.energyml.utils.xml.ENERGYML_NAMESPACES">ENERGYML_NAMESPACES</a></code></li>
+<li><code><a title="src.energyml.utils.xml.ENERGYML_NAMESPACES_PACKAGE" href="#src.energyml.utils.xml.ENERGYML_NAMESPACES_PACKAGE">ENERGYML_NAMESPACES_PACKAGE</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="src.energyml.utils.xml.energyml_xpath" href="#src.energyml.utils.xml.energyml_xpath">energyml_xpath</a></code></li>
+<li><code><a title="src.energyml.utils.xml.find_schema_version_in_element" href="#src.energyml.utils.xml.find_schema_version_in_element">find_schema_version_in_element</a></code></li>
+<li><code><a title="src.energyml.utils.xml.get_class_name_from_xml" href="#src.energyml.utils.xml.get_class_name_from_xml">get_class_name_from_xml</a></code></li>
+<li><code><a title="src.energyml.utils.xml.get_pkg_from_namespace" href="#src.energyml.utils.xml.get_pkg_from_namespace">get_pkg_from_namespace</a></code></li>
+<li><code><a title="src.energyml.utils.xml.get_root_namespace" href="#src.energyml.utils.xml.get_root_namespace">get_root_namespace</a></code></li>
+<li><code><a title="src.energyml.utils.xml.get_root_type" href="#src.energyml.utils.xml.get_root_type">get_root_type</a></code></li>
+<li><code><a title="src.energyml.utils.xml.get_tree" href="#src.energyml.utils.xml.get_tree">get_tree</a></code></li>
+<li><code><a title="src.energyml.utils.xml.get_uuid" href="#src.energyml.utils.xml.get_uuid">get_uuid</a></code></li>
+<li><code><a title="src.energyml.utils.xml.get_xml_encoding" href="#src.energyml.utils.xml.get_xml_encoding">get_xml_encoding</a></code></li>
+<li><code><a title="src.energyml.utils.xml.is_energyml_content_type" href="#src.energyml.utils.xml.is_energyml_content_type">is_energyml_content_type</a></code></li>
+<li><code><a title="src.energyml.utils.xml.parse_content_type" href="#src.energyml.utils.xml.parse_content_type">parse_content_type</a></code></li>
+<li><code><a title="src.energyml.utils.xml.search_element_has_child_xpath" href="#src.energyml.utils.xml.search_element_has_child_xpath">search_element_has_child_xpath</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

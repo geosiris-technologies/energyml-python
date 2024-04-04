@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>src.energyml.utils.data.hdf API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>src.energyml.utils.data.hdf</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># Copyright (c) 2023-2024 Geosiris.
+# SPDX-License-Identifier: Apache-2.0
+from dataclasses import dataclass
+from io import BytesIO
+from typing import Optional, List, Tuple, Any, Union
+
+import h5py
+
+from ..epc import Epc, get_obj_identifier, ObjectNotFoundNotException, \
+    EPCRelsRelationshipType
+from ..introspection import search_attribute_matching_name_with_path, search_attribute_matching_name, \
+    get_obj_uuid, get_object_attribute
+
+
+@dataclass
+class DatasetReader:
+    def read_array(self, source: str, path_in_external_file: str) -&gt; Optional[List[Any]]:
+        return None
+
+    def get_array_dimension(self, source: str, path_in_external_file: str) -&gt; Optional[List[Any]]:
+        return None
+
+
+@dataclass
+class ETPReader(DatasetReader):
+    def read_array(self, obj_uri: str, path_in_external_file: str) -&gt; Optional[List[Any]]:
+        return None
+
+    def get_array_dimension(self, source: str, path_in_external_file: str) -&gt; Optional[List[Any]]:
+        return None
+
+
+@dataclass
+class HDF5FileReader(DatasetReader):
+    def read_array(self, source: Union[BytesIO, str], path_in_external_file: str) -&gt; Optional[List[Any]]:
+        with h5py.File(source, &#34;r&#34;) as f:
+            d_group = f[path_in_external_file]
+            return d_group[()].tolist()
+
+    def get_array_dimension(self, source: Union[BytesIO, str], path_in_external_file: str) -&gt; Optional[List[Any]]:
+        with h5py.File(source, &#34;r&#34;) as f:
+            return list(f[path_in_external_file].shape)
+
+    def extract_h5_datasets(
+            self, input_h5: Union[BytesIO, str], output_h5: Union[BytesIO, str], h5_datasets_paths: List[str]
+    ) -&gt; None:
+        &#34;&#34;&#34;
+        Copy all dataset from :param input_h5 matching with paths in :param h5_datasets_paths into the :param output
+        :param input_h5:
+        :param output_h5:
+        :param h5_datasets_paths:
+        :return:
+        &#34;&#34;&#34;
+        if len(h5_datasets_paths) &gt; 0:
+            with h5py.File(output_h5, &#34;w&#34;) as f_dest:
+                with h5py.File(input_h5, &#34;r&#34;) as f_src:
+                    for dataset in h5_datasets_paths:
+                        f_dest.create_dataset(dataset, data=f_src[dataset])
+
+
+def get_hdf_reference(obj) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    See :func:`get_hdf_reference_with_path`. Only the value is returned, not the dot path into the object
+    :param obj:
+    :return:
+    &#34;&#34;&#34;
+    return [
+        val
+        for path, val in get_hdf_reference_with_path(obj=obj)
+    ]
+
+
+def get_hdf_reference_with_path(obj: any) -&gt; List[Tuple[str, Any]]:
+    &#34;&#34;&#34;
+    See :func:`search_attribute_matching_name_with_path`. Search an attribute with type matching regex
+    &#34;(PathInHdfFile|PathInExternalFile)&#34;.
+
+    :param obj:
+    :return: [ (Dot_Path_In_Obj, value), ...]
+    &#34;&#34;&#34;
+    return search_attribute_matching_name_with_path(
+        obj,
+        &#34;(PathInHdfFile|PathInExternalFile)&#34;
+    )
+
+
+def get_crs_obj(
+        context_obj: Any,
+        path_in_root: Optional[str] = None,
+        root_obj: Optional[Any] = None,
+        epc: Optional[Epc] = None
+) -&gt; Optional[Any]:
+    &#34;&#34;&#34;
+    Search for the CRS object related to :param:`context_obj` into the :param:`epc`
+    :param context_obj:
+    :param path_in_root:
+    :param root_obj:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    crs_list = search_attribute_matching_name(context_obj, r&#34;\.*Crs&#34;, search_in_sub_obj=True, deep_search=False)
+    if crs_list is not None and len(crs_list) &gt; 0:
+        crs = epc.get_object_by_identifier(get_obj_identifier(crs_list[0]))
+        if crs is None:
+            crs = epc.get_object_by_uuid(get_obj_uuid(crs_list[0]))
+        if crs is None:
+            raise ObjectNotFoundNotException(get_obj_identifier(crs_list[0]))
+        if crs is not None:
+            return crs
+
+    if context_obj != root_obj:
+        upper_path = path_in_root[:path_in_root.rindex(&#34;.&#34;)]
+        if len(upper_path) &gt; 0:
+            return get_crs_obj(
+                context_obj=get_object_attribute(root_obj, upper_path),
+                path_in_root=upper_path,
+                root_obj=root_obj,
+                epc=epc,
+            )
+
+    return None
+
+
+def get_hdf5_path_from_external_path(
+        external_path_obj: Any,
+        path_in_root: Optional[str] = None,
+        root_obj: Optional[Any] = None,
+        epc: Optional[Epc] = None
+) -&gt; Optional[str]:
+    &#34;&#34;&#34;
+    Return the hdf5 file path (Searches for &#34;uri&#34; attribute or in :param:`epc` rels files).
+    :param external_path_obj: can be an attribute of an ExternalDataArrayPart
+    :param path_in_root:
+    :param root_obj:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    if isinstance(external_path_obj, str):
+        # external_path_obj is maybe an attribute of an ExternalDataArrayPart, now search upper in the object
+        upper_path = path_in_root[:path_in_root.rindex(&#34;.&#34;)]
+        return get_hdf5_path_from_external_path(
+            external_path_obj=get_object_attribute(root_obj, upper_path),
+            path_in_root=upper_path,
+            root_obj=root_obj,
+            epc=epc,
+        )
+    elif type(external_path_obj).__name__ == &#34;ExternalDataArrayPart&#34;:
+        epc_folder = epc.get_epc_file_folder()
+        h5_uri = search_attribute_matching_name(external_path_obj, &#34;uri&#34;)
+        if h5_uri is not None and len(h5_uri) &gt; 0:
+            return f&#34;{epc_folder}/{h5_uri[0]}&#34;
+    else:
+        epc_folder = epc.get_epc_file_folder()
+        hdf_proxy = search_attribute_matching_name(external_path_obj, &#34;HdfProxy&#34;)[0]
+        if hdf_proxy is not None:
+            hdf_proxy_obj = epc.get_object_by_identifier(get_obj_identifier(hdf_proxy))
+            if hdf_proxy_obj is not None:
+                for rel in epc.additional_rels.get(get_obj_identifier(hdf_proxy_obj), []):
+                    # print(f&#34;\trel : {rel}&#34;)
+                    if rel.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
+                        return f&#34;{epc_folder}/{rel.target}&#34;
+    return None</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="src.energyml.utils.data.hdf.get_crs_obj"><code class="name flex">
+<span>def <span class="ident">get_crs_obj</span></span>(<span>context_obj: Any, path_in_root: Optional[str] = None, root_obj: Optional[Any] = None, epc: Optional[<a title="src.energyml.utils.epc.Epc" href="../epc.html#src.energyml.utils.epc.Epc">Epc</a>] = None) ‑> Optional[Any]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Search for the CRS object related to :param:<code>context_obj</code> into the :param:<code>epc</code>
+:param context_obj:
+:param path_in_root:
+:param root_obj:
+:param epc:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_crs_obj(
+        context_obj: Any,
+        path_in_root: Optional[str] = None,
+        root_obj: Optional[Any] = None,
+        epc: Optional[Epc] = None
+) -&gt; Optional[Any]:
+    &#34;&#34;&#34;
+    Search for the CRS object related to :param:`context_obj` into the :param:`epc`
+    :param context_obj:
+    :param path_in_root:
+    :param root_obj:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    crs_list = search_attribute_matching_name(context_obj, r&#34;\.*Crs&#34;, search_in_sub_obj=True, deep_search=False)
+    if crs_list is not None and len(crs_list) &gt; 0:
+        crs = epc.get_object_by_identifier(get_obj_identifier(crs_list[0]))
+        if crs is None:
+            crs = epc.get_object_by_uuid(get_obj_uuid(crs_list[0]))
+        if crs is None:
+            raise ObjectNotFoundNotException(get_obj_identifier(crs_list[0]))
+        if crs is not None:
+            return crs
+
+    if context_obj != root_obj:
+        upper_path = path_in_root[:path_in_root.rindex(&#34;.&#34;)]
+        if len(upper_path) &gt; 0:
+            return get_crs_obj(
+                context_obj=get_object_attribute(root_obj, upper_path),
+                path_in_root=upper_path,
+                root_obj=root_obj,
+                epc=epc,
+            )
+
+    return None</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.hdf.get_hdf5_path_from_external_path"><code class="name flex">
+<span>def <span class="ident">get_hdf5_path_from_external_path</span></span>(<span>external_path_obj: Any, path_in_root: Optional[str] = None, root_obj: Optional[Any] = None, epc: Optional[<a title="src.energyml.utils.epc.Epc" href="../epc.html#src.energyml.utils.epc.Epc">Epc</a>] = None) ‑> Optional[str]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return the hdf5 file path (Searches for "uri" attribute or in :param:<code>epc</code> rels files).
+:param external_path_obj: can be an attribute of an ExternalDataArrayPart
+:param path_in_root:
+:param root_obj:
+:param epc:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_hdf5_path_from_external_path(
+        external_path_obj: Any,
+        path_in_root: Optional[str] = None,
+        root_obj: Optional[Any] = None,
+        epc: Optional[Epc] = None
+) -&gt; Optional[str]:
+    &#34;&#34;&#34;
+    Return the hdf5 file path (Searches for &#34;uri&#34; attribute or in :param:`epc` rels files).
+    :param external_path_obj: can be an attribute of an ExternalDataArrayPart
+    :param path_in_root:
+    :param root_obj:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    if isinstance(external_path_obj, str):
+        # external_path_obj is maybe an attribute of an ExternalDataArrayPart, now search upper in the object
+        upper_path = path_in_root[:path_in_root.rindex(&#34;.&#34;)]
+        return get_hdf5_path_from_external_path(
+            external_path_obj=get_object_attribute(root_obj, upper_path),
+            path_in_root=upper_path,
+            root_obj=root_obj,
+            epc=epc,
+        )
+    elif type(external_path_obj).__name__ == &#34;ExternalDataArrayPart&#34;:
+        epc_folder = epc.get_epc_file_folder()
+        h5_uri = search_attribute_matching_name(external_path_obj, &#34;uri&#34;)
+        if h5_uri is not None and len(h5_uri) &gt; 0:
+            return f&#34;{epc_folder}/{h5_uri[0]}&#34;
+    else:
+        epc_folder = epc.get_epc_file_folder()
+        hdf_proxy = search_attribute_matching_name(external_path_obj, &#34;HdfProxy&#34;)[0]
+        if hdf_proxy is not None:
+            hdf_proxy_obj = epc.get_object_by_identifier(get_obj_identifier(hdf_proxy))
+            if hdf_proxy_obj is not None:
+                for rel in epc.additional_rels.get(get_obj_identifier(hdf_proxy_obj), []):
+                    # print(f&#34;\trel : {rel}&#34;)
+                    if rel.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
+                        return f&#34;{epc_folder}/{rel.target}&#34;
+    return None</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.hdf.get_hdf_reference"><code class="name flex">
+<span>def <span class="ident">get_hdf_reference</span></span>(<span>obj) ‑> List[Any]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>See :func:<code><a title="src.energyml.utils.data.hdf.get_hdf_reference_with_path" href="#src.energyml.utils.data.hdf.get_hdf_reference_with_path">get_hdf_reference_with_path()</a></code>. Only the value is returned, not the dot path into the object
+:param obj:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_hdf_reference(obj) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    See :func:`get_hdf_reference_with_path`. Only the value is returned, not the dot path into the object
+    :param obj:
+    :return:
+    &#34;&#34;&#34;
+    return [
+        val
+        for path, val in get_hdf_reference_with_path(obj=obj)
+    ]</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.hdf.get_hdf_reference_with_path"><code class="name flex">
+<span>def <span class="ident">get_hdf_reference_with_path</span></span>(<span>obj: <built-in function any>) ‑> List[Tuple[str, Any]]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>See :func:<code>search_attribute_matching_name_with_path</code>. Search an attribute with type matching regex
+"(PathInHdfFile|PathInExternalFile)".</p>
+<p>:param obj:
+:return: [ (Dot_Path_In_Obj, value), &hellip;]</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_hdf_reference_with_path(obj: any) -&gt; List[Tuple[str, Any]]:
+    &#34;&#34;&#34;
+    See :func:`search_attribute_matching_name_with_path`. Search an attribute with type matching regex
+    &#34;(PathInHdfFile|PathInExternalFile)&#34;.
+
+    :param obj:
+    :return: [ (Dot_Path_In_Obj, value), ...]
+    &#34;&#34;&#34;
+    return search_attribute_matching_name_with_path(
+        obj,
+        &#34;(PathInHdfFile|PathInExternalFile)&#34;
+    )</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="src.energyml.utils.data.hdf.DatasetReader"><code class="flex name class">
+<span>class <span class="ident">DatasetReader</span></span>
+</code></dt>
+<dd>
+<div class="desc"><p>DatasetReader()</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@dataclass
+class DatasetReader:
+    def read_array(self, source: str, path_in_external_file: str) -&gt; Optional[List[Any]]:
+        return None
+
+    def get_array_dimension(self, source: str, path_in_external_file: str) -&gt; Optional[List[Any]]:
+        return None</code></pre>
+</details>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="src.energyml.utils.data.hdf.ETPReader" href="#src.energyml.utils.data.hdf.ETPReader">ETPReader</a></li>
+<li><a title="src.energyml.utils.data.hdf.HDF5FileReader" href="#src.energyml.utils.data.hdf.HDF5FileReader">HDF5FileReader</a></li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="src.energyml.utils.data.hdf.DatasetReader.get_array_dimension"><code class="name flex">
+<span>def <span class="ident">get_array_dimension</span></span>(<span>self, source: str, path_in_external_file: str) ‑> Optional[List[Any]]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_array_dimension(self, source: str, path_in_external_file: str) -&gt; Optional[List[Any]]:
+    return None</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.hdf.DatasetReader.read_array"><code class="name flex">
+<span>def <span class="ident">read_array</span></span>(<span>self, source: str, path_in_external_file: str) ‑> Optional[List[Any]]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_array(self, source: str, path_in_external_file: str) -&gt; Optional[List[Any]]:
+    return None</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="src.energyml.utils.data.hdf.ETPReader"><code class="flex name class">
+<span>class <span class="ident">ETPReader</span></span>
+</code></dt>
+<dd>
+<div class="desc"><p>ETPReader()</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@dataclass
+class ETPReader(DatasetReader):
+    def read_array(self, obj_uri: str, path_in_external_file: str) -&gt; Optional[List[Any]]:
+        return None
+
+    def get_array_dimension(self, source: str, path_in_external_file: str) -&gt; Optional[List[Any]]:
+        return None</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="src.energyml.utils.data.hdf.DatasetReader" href="#src.energyml.utils.data.hdf.DatasetReader">DatasetReader</a></li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="src.energyml.utils.data.hdf.ETPReader.get_array_dimension"><code class="name flex">
+<span>def <span class="ident">get_array_dimension</span></span>(<span>self, source: str, path_in_external_file: str) ‑> Optional[List[Any]]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_array_dimension(self, source: str, path_in_external_file: str) -&gt; Optional[List[Any]]:
+    return None</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.hdf.ETPReader.read_array"><code class="name flex">
+<span>def <span class="ident">read_array</span></span>(<span>self, obj_uri: str, path_in_external_file: str) ‑> Optional[List[Any]]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_array(self, obj_uri: str, path_in_external_file: str) -&gt; Optional[List[Any]]:
+    return None</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="src.energyml.utils.data.hdf.HDF5FileReader"><code class="flex name class">
+<span>class <span class="ident">HDF5FileReader</span></span>
+</code></dt>
+<dd>
+<div class="desc"><p>HDF5FileReader()</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@dataclass
+class HDF5FileReader(DatasetReader):
+    def read_array(self, source: Union[BytesIO, str], path_in_external_file: str) -&gt; Optional[List[Any]]:
+        with h5py.File(source, &#34;r&#34;) as f:
+            d_group = f[path_in_external_file]
+            return d_group[()].tolist()
+
+    def get_array_dimension(self, source: Union[BytesIO, str], path_in_external_file: str) -&gt; Optional[List[Any]]:
+        with h5py.File(source, &#34;r&#34;) as f:
+            return list(f[path_in_external_file].shape)
+
+    def extract_h5_datasets(
+            self, input_h5: Union[BytesIO, str], output_h5: Union[BytesIO, str], h5_datasets_paths: List[str]
+    ) -&gt; None:
+        &#34;&#34;&#34;
+        Copy all dataset from :param input_h5 matching with paths in :param h5_datasets_paths into the :param output
+        :param input_h5:
+        :param output_h5:
+        :param h5_datasets_paths:
+        :return:
+        &#34;&#34;&#34;
+        if len(h5_datasets_paths) &gt; 0:
+            with h5py.File(output_h5, &#34;w&#34;) as f_dest:
+                with h5py.File(input_h5, &#34;r&#34;) as f_src:
+                    for dataset in h5_datasets_paths:
+                        f_dest.create_dataset(dataset, data=f_src[dataset])</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="src.energyml.utils.data.hdf.DatasetReader" href="#src.energyml.utils.data.hdf.DatasetReader">DatasetReader</a></li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="src.energyml.utils.data.hdf.HDF5FileReader.extract_h5_datasets"><code class="name flex">
+<span>def <span class="ident">extract_h5_datasets</span></span>(<span>self, input_h5: Union[_io.BytesIO, str], output_h5: Union[_io.BytesIO, str], h5_datasets_paths: List[str]) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Copy all dataset from :param input_h5 matching with paths in :param h5_datasets_paths into the :param output
+:param input_h5:
+:param output_h5:
+:param h5_datasets_paths:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def extract_h5_datasets(
+        self, input_h5: Union[BytesIO, str], output_h5: Union[BytesIO, str], h5_datasets_paths: List[str]
+) -&gt; None:
+    &#34;&#34;&#34;
+    Copy all dataset from :param input_h5 matching with paths in :param h5_datasets_paths into the :param output
+    :param input_h5:
+    :param output_h5:
+    :param h5_datasets_paths:
+    :return:
+    &#34;&#34;&#34;
+    if len(h5_datasets_paths) &gt; 0:
+        with h5py.File(output_h5, &#34;w&#34;) as f_dest:
+            with h5py.File(input_h5, &#34;r&#34;) as f_src:
+                for dataset in h5_datasets_paths:
+                    f_dest.create_dataset(dataset, data=f_src[dataset])</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.hdf.HDF5FileReader.get_array_dimension"><code class="name flex">
+<span>def <span class="ident">get_array_dimension</span></span>(<span>self, source: Union[_io.BytesIO, str], path_in_external_file: str) ‑> Optional[List[Any]]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_array_dimension(self, source: Union[BytesIO, str], path_in_external_file: str) -&gt; Optional[List[Any]]:
+    with h5py.File(source, &#34;r&#34;) as f:
+        return list(f[path_in_external_file].shape)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.hdf.HDF5FileReader.read_array"><code class="name flex">
+<span>def <span class="ident">read_array</span></span>(<span>self, source: Union[_io.BytesIO, str], path_in_external_file: str) ‑> Optional[List[Any]]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_array(self, source: Union[BytesIO, str], path_in_external_file: str) -&gt; Optional[List[Any]]:
+    with h5py.File(source, &#34;r&#34;) as f:
+        d_group = f[path_in_external_file]
+        return d_group[()].tolist()</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="src.energyml.utils.data" href="index.html">src.energyml.utils.data</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="src.energyml.utils.data.hdf.get_crs_obj" href="#src.energyml.utils.data.hdf.get_crs_obj">get_crs_obj</a></code></li>
+<li><code><a title="src.energyml.utils.data.hdf.get_hdf5_path_from_external_path" href="#src.energyml.utils.data.hdf.get_hdf5_path_from_external_path">get_hdf5_path_from_external_path</a></code></li>
+<li><code><a title="src.energyml.utils.data.hdf.get_hdf_reference" href="#src.energyml.utils.data.hdf.get_hdf_reference">get_hdf_reference</a></code></li>
+<li><code><a title="src.energyml.utils.data.hdf.get_hdf_reference_with_path" href="#src.energyml.utils.data.hdf.get_hdf_reference_with_path">get_hdf_reference_with_path</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="src.energyml.utils.data.hdf.DatasetReader" href="#src.energyml.utils.data.hdf.DatasetReader">DatasetReader</a></code></h4>
+<ul class="">
+<li><code><a title="src.energyml.utils.data.hdf.DatasetReader.get_array_dimension" href="#src.energyml.utils.data.hdf.DatasetReader.get_array_dimension">get_array_dimension</a></code></li>
+<li><code><a title="src.energyml.utils.data.hdf.DatasetReader.read_array" href="#src.energyml.utils.data.hdf.DatasetReader.read_array">read_array</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="src.energyml.utils.data.hdf.ETPReader" href="#src.energyml.utils.data.hdf.ETPReader">ETPReader</a></code></h4>
+<ul class="">
+<li><code><a title="src.energyml.utils.data.hdf.ETPReader.get_array_dimension" href="#src.energyml.utils.data.hdf.ETPReader.get_array_dimension">get_array_dimension</a></code></li>
+<li><code><a title="src.energyml.utils.data.hdf.ETPReader.read_array" href="#src.energyml.utils.data.hdf.ETPReader.read_array">read_array</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="src.energyml.utils.data.hdf.HDF5FileReader" href="#src.energyml.utils.data.hdf.HDF5FileReader">HDF5FileReader</a></code></h4>
+<ul class="">
+<li><code><a title="src.energyml.utils.data.hdf.HDF5FileReader.extract_h5_datasets" href="#src.energyml.utils.data.hdf.HDF5FileReader.extract_h5_datasets">extract_h5_datasets</a></code></li>
+<li><code><a title="src.energyml.utils.data.hdf.HDF5FileReader.get_array_dimension" href="#src.energyml.utils.data.hdf.HDF5FileReader.get_array_dimension">get_array_dimension</a></code></li>
+<li><code><a title="src.energyml.utils.data.hdf.HDF5FileReader.read_array" href="#src.energyml.utils.data.hdf.HDF5FileReader.read_array">read_array</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

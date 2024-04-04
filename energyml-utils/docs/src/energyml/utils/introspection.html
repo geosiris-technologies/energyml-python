@@ -1,0 +1,2141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>src.energyml.utils.introspection API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>src.energyml.utils.introspection</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># Copyright (c) 2023-2024 Geosiris.
+# SPDX-License-Identifier: Apache-2.0
+import datetime
+import random
+import re
+import sys
+import typing
+import uuid as uuid_mod
+from dataclasses import Field
+from enum import Enum
+from importlib import import_module
+from typing import Any, List, Optional, Union, Dict, Tuple
+
+from .manager import get_class_pkg, get_class_pkg_version, RELATED_MODULES, \
+    get_related_energyml_modules_name, get_sub_classes, get_classes_matching_name
+from .xml import parse_content_type, ENERGYML_NAMESPACES
+
+
+primitives = (bool, str, int, float, type(None))
+
+
+def is_enum(cls: Union[type, Any]):
+    &#34;&#34;&#34;
+    Returns True if :param:`cls` is an Enum
+    :param cls:
+    :return:
+    &#34;&#34;&#34;
+    if isinstance(cls, type):
+        return Enum in cls.__bases__
+    return is_enum(type(cls))
+
+
+def is_primitive(cls: Union[type, Any]) -&gt; bool:
+    &#34;&#34;&#34;
+    Returns True if :param:`cls` is a primitiv type or extends Enum
+    :param cls:
+    :return: bool
+    &#34;&#34;&#34;
+    if isinstance(cls, type):
+        return cls in primitives or Enum in cls.__bases__
+    return is_primitive(type(cls))
+
+
+def is_abstract(cls: Union[type, Any]) -&gt; bool:
+    &#34;&#34;&#34;
+    Returns True if :param:`cls` is an abstract class
+    :param cls:
+    :return: bool
+    &#34;&#34;&#34;
+    if isinstance(cls, type):
+        return not is_primitive(cls) and (cls.__name__.startswith(&#34;Abstract&#34;) or (hasattr(cls, &#34;__dataclass_fields__&#34;) and len(cls.__dataclass_fields__)) == 0) and len(get_class_methods(cls)) == 0
+    return is_abstract(type(cls))
+
+
+def get_class_methods(cls: Union[type, Any]) -&gt; List[str]:
+    &#34;&#34;&#34;
+    Returns the list of the methods names for a specific class.
+    :param cls:
+    :return:
+    &#34;&#34;&#34;
+    return [func for func in dir(cls) if callable(getattr(cls, func)) and not func.startswith(&#34;__&#34;) and not isinstance(getattr(cls, func), type)]
+
+
+def get_class_from_name(class_name_and_module: str) -&gt; Optional[type]:
+    &#34;&#34;&#34;
+    Return a :class:`type` object matching with the name :param:`class_name_and_module`.
+    :param class_name_and_module:
+    :return:
+    &#34;&#34;&#34;
+    module_name = class_name_and_module[: class_name_and_module.rindex(&#34;.&#34;)]
+    last_ns_part = class_name_and_module[
+                   class_name_and_module.rindex(&#34;.&#34;) + 1:
+                   ]
+    try:
+        # Required to read &#34;CustomData&#34; on eml objects that may contain resqml values
+        # ==&gt; we need to import all modules related to the same version of the common
+        import_related_module(module_name)
+        return getattr(sys.modules[module_name], last_ns_part)
+    except AttributeError as e:
+        if &#34;2d&#34; in last_ns_part:
+            return get_class_from_name(
+                class_name_and_module.replace(&#34;2d&#34;, &#34;2D&#34;)
+            )
+        elif &#34;3d&#34; in last_ns_part:
+            return get_class_from_name(
+                class_name_and_module.replace(&#34;3d&#34;, &#34;3D&#34;)
+            )
+        elif last_ns_part[0].islower():
+            return get_class_from_name(
+                module_name + &#34;.&#34; + last_ns_part[0].upper() + last_ns_part[1:]
+            )
+        else:
+            print(e)
+    return None
+
+
+def get_class_from_content_type(content_type: str) -&gt; Optional[type]:
+    &#34;&#34;&#34;
+    Return a :class:`type` object matching with the content-type :param:`content_type`.
+    :param content_type:
+    :return:
+    &#34;&#34;&#34;
+    ct = parse_content_type(content_type)
+    domain = ct.group(&#34;domain&#34;)
+    if domain is None:
+        domain = &#34;opc&#34;
+    if domain == &#34;opc&#34;:
+        xml_domain = ct.group(&#34;xmlDomain&#34;)
+        if &#34;.&#34; in xml_domain:
+            xml_domain = xml_domain[xml_domain.rindex(&#34;.&#34;) + 1:]
+        if &#34;extended&#34; in xml_domain:
+            xml_domain = xml_domain.replace(&#34;extended&#34;, &#34;&#34;)
+        opc_type = pascal_case(xml_domain)
+        # print(&#34;energyml.opc.opc.&#34; + opc_type)
+        return get_class_from_name(&#34;energyml.opc.opc.&#34; + opc_type)
+    else:
+        ns = ENERGYML_NAMESPACES[domain]
+        domain = ct.group(&#34;domain&#34;)
+        obj_type = ct.group(&#34;type&#34;)
+        if obj_type.lower().startswith(&#34;obj_&#34;):  # for resqml201
+            obj_type = &#34;Obj&#34; + obj_type[4:]
+        version_num = str(ct.group(&#34;domainVersion&#34;)).replace(&#34;.&#34;, &#34;_&#34;)
+        if domain.lower() == &#34;resqml&#34; and version_num.startswith(&#34;2_0&#34;):
+            version_num = &#34;2_0_1&#34;
+        return get_class_from_name(
+            &#34;energyml.&#34;
+            + domain
+            + &#34;.v&#34;
+            + version_num
+            + &#34;.&#34;
+            + ns[ns.rindex(&#34;/&#34;) + 1:]
+            + &#34;.&#34;
+            + obj_type
+        )
+
+
+def snake_case(s: str) -&gt; str:
+    &#34;&#34;&#34; Transform a str into snake case. &#34;&#34;&#34;
+    s = re.sub(&#39;(.)([A-Z][a-z]+)&#39;, r&#39;\1_\2&#39;, s)
+    s = re.sub(&#39;__([A-Z])&#39;, r&#39;_\1&#39;, s)
+    s = re.sub(&#39;([a-z0-9])([A-Z])&#39;, r&#39;\1_\2&#39;, s)
+    return s.lower()
+
+
+def pascal_case(s: str) -&gt; str:
+    &#34;&#34;&#34; Transform a str into pascal case. &#34;&#34;&#34;
+    return snake_case(s).replace(&#34;_&#34;, &#34; &#34;).title().replace(&#34; &#34;, &#34;&#34;)
+
+
+def flatten_concatenation(matrix) -&gt; List:
+    &#34;&#34;&#34;
+    Flatten a matrix.
+
+    Example :
+        [ [a,b,c], [d,e,f], [ [x,y,z], [0] ] ]
+        will be translated in: [a, b, c, d, e, f, [x,y,z], [0]]
+    :param matrix:
+    :return:
+    &#34;&#34;&#34;
+    flat_list = []
+    for row in matrix:
+        flat_list += row
+    return flat_list
+
+
+def import_related_module(energyml_module_name: str) -&gt; None:
+    &#34;&#34;&#34;
+    Import related modules for a specific energyml module. (See. :const:`RELATED_MODULES`)
+    :param energyml_module_name:
+    :return:
+    &#34;&#34;&#34;
+    for related in RELATED_MODULES:
+        if energyml_module_name in related:
+            for m in related:
+                try:
+                    import_module(m)
+                except Exception as e:
+                    pass
+                    # print(e)
+
+
+def get_class_fields(cls: Union[type, Any]) -&gt; Dict[str, Field]:
+    &#34;&#34;&#34;
+    Return all class fields names, mapped to their :class:`Field` value.
+    :param cls:
+    :return:
+    &#34;&#34;&#34;
+    if not isinstance(cls, type):  # if cls is an instance
+        cls = type(cls)
+    try:
+        return cls.__dataclass_fields__
+    except AttributeError:
+        return {}
+
+
+def get_class_attributes(cls: Union[type, Any]) -&gt; List[str]:
+    &#34;&#34;&#34;
+    returns a list of attributes (not private ones)
+    &#34;&#34;&#34;
+    # if not isinstance(cls, type):  # if cls is an instance
+    #     cls = type(cls)
+    # return list(filter(lambda a: not a.startswith(&#34;__&#34;), dir(cls)))
+    return list(get_class_fields(cls).keys())
+
+
+def get_matching_class_attribute_name(
+        cls: Union[type, Any], attribute_name: str, re_flags=re.IGNORECASE,
+) -&gt; Optional[str]:
+    &#34;&#34;&#34;
+    From an object and an attribute name, returns the correct attribute name of the class.
+    Example : &#34;ObjectVersion&#34; --&gt; object_version.
+    This method doesn&#39;t only transform to snake case but search into the obj class attributes
+    &#34;&#34;&#34;
+    class_fields = get_class_fields(cls)
+
+    # a search with the exact value
+    for name, cf in class_fields.items():
+        if (
+                snake_case(name) == snake_case(attribute_name)
+                or (&#39;name&#39; in cf.metadata and cf.metadata[&#39;name&#39;] == attribute_name)
+        ):
+            return name
+
+    # search regex after to avoid shadowing perfect match
+    pattern = re.compile(attribute_name, flags=re_flags)
+    for name, cf in class_fields.items():
+        # print(f&#34;\t-&gt;{name} : {attribute_name} {pattern.match(name)} {(&#39;name&#39; in cf.metadata and pattern.match(cf.metadata[&#39;name&#39;]))}&#34;)
+        if pattern.match(name) or (&#39;name&#39; in cf.metadata and pattern.match(cf.metadata[&#39;name&#39;])):
+            return name
+
+    return None
+
+
+def get_object_attribute(
+        obj: Any, attr_dot_path: str, force_snake_case=True
+) -&gt; Any:
+    &#34;&#34;&#34;
+    returns the value of an attribute given by a dot representation of its path in the object
+    example &#34;Citation.Title&#34;
+    &#34;&#34;&#34;
+    while attr_dot_path.startswith(&#34;.&#34;):  # avoid &#39;.Citation.Title&#39; to take an empty attribute name before the first &#39;.&#39;
+        attr_dot_path = attr_dot_path[1:]
+
+    current_attrib_name = attr_dot_path
+
+    if &#34;.&#34; in attr_dot_path:
+        current_attrib_name = attr_dot_path.split(&#34;.&#34;)[0]
+
+    if force_snake_case:
+        current_attrib_name = snake_case(current_attrib_name)
+
+    value = None
+    if isinstance(obj, list):
+        value = obj[int(current_attrib_name)]
+    elif isinstance(obj, dict):
+        value = obj[current_attrib_name]
+    else:
+        value = getattr(obj, current_attrib_name)
+
+    if &#34;.&#34; in attr_dot_path:
+        return get_object_attribute(
+            value, attr_dot_path[len(current_attrib_name) + 1:]
+        )
+    else:
+        return value
+
+
+def get_object_attribute_advanced(obj: Any, attr_dot_path: str) -&gt; Any:
+    &#34;&#34;&#34;
+    see @get_matching_class_attribute_name and @get_object_attribute
+    &#34;&#34;&#34;
+    current_attrib_name = attr_dot_path
+
+    if &#34;.&#34; in attr_dot_path:
+        current_attrib_name = attr_dot_path.split(&#34;.&#34;)[0]
+
+    current_attrib_name = get_matching_class_attribute_name(
+        obj, current_attrib_name
+    )
+
+    value = None
+    if isinstance(obj, list):
+        value = obj[int(current_attrib_name)]
+    elif isinstance(obj, dict):
+        value = obj[current_attrib_name]
+    else:
+        value = getattr(obj, current_attrib_name)
+
+    if &#34;.&#34; in attr_dot_path:
+        return get_object_attribute_advanced(
+            value, attr_dot_path[len(current_attrib_name) + 1:]
+        )
+    else:
+        return value
+
+
+def get_object_attribute_no_verif(obj: Any, attr_name: str) -&gt; Any:
+    &#34;&#34;&#34;
+    Return the value of the attribute named after param :param:`attr_name` without verification (may raise an exception
+    if it doesn&#39;t exists).
+
+    Note: attr_name=&#34;0&#34; will work if :param:`obj` is of type :class:`List`
+    :param obj:
+    :param attr_name:
+    :return:
+    &#34;&#34;&#34;
+    if isinstance(obj, list):
+        return obj[int(attr_name)]
+    elif isinstance(obj, dict):
+        return obj[attr_name]
+    else:
+        return getattr(obj, attr_name)
+
+
+def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -&gt; Any:
+    &#34;&#34;&#34;
+    see @get_object_attribute. Search the attribute name using regex for values between dots.
+    Example : [Cc]itation.[Tt]it\\.*
+    &#34;&#34;&#34;
+    current_attrib_name = attr_dot_path_rgx
+
+    attrib_list = re.split(r&#34;(?&lt;!\\)\.+&#34;, attr_dot_path_rgx)
+
+    if len(attrib_list) &gt; 0:
+        current_attrib_name = attrib_list[0]
+
+    # unescape Dot
+    current_attrib_name = current_attrib_name.replace(&#34;\\.&#34;, &#34;.&#34;)
+
+    real_attrib_name = get_matching_class_attribute_name(
+        obj, current_attrib_name
+    )
+    if real_attrib_name is not None:
+        value = get_object_attribute_no_verif(obj, real_attrib_name)
+
+        if len(attrib_list) &gt; 1:
+            return get_object_attribute_rgx(
+                value, attr_dot_path_rgx[len(current_attrib_name) + 1:]
+            )
+        else:
+            return value
+    return None
+
+
+def get_obj_type(obj: Any) -&gt; str:
+    &#34;&#34;&#34; Return the type name of an object. If obj is already a :class:`type`, return its __name__&#34;&#34;&#34;
+    if isinstance(obj, type):
+        return str(obj.__name__)
+    return get_obj_type(type(obj))
+
+
+def class_match_rgx(
+        cls: Union[type, Any],
+        rgx: str,
+        super_class_search: bool = True,
+        re_flags=re.IGNORECASE,
+):
+    if not isinstance(cls, type):
+        cls = type(cls)
+
+    if re.match(rgx, cls.__name__, re_flags):
+        return True
+
+    if not is_primitive(cls) and super_class_search:
+        for base in cls.__bases__:
+            if class_match_rgx(base, rgx, super_class_search, re_flags):
+                return True
+    return False
+
+
+def search_attribute_matching_type_with_path(
+        obj: Any,
+        type_rgx: str,
+        re_flags=re.IGNORECASE,
+        return_self: bool = True,  # test directly on input object and not only in its attributes
+        deep_search: bool = True,  # Search inside a matching object
+        super_class_search: bool = True,  # Search inside in super classes of the object
+        current_path: str = &#34;&#34;,
+) -&gt; List[Tuple[str, Any]]:
+    &#34;&#34;&#34;
+    Returns a list of tuple (path, value) for each sub attribute with type matching param &#34;type_rgx&#34;.
+    The path is a dot-version like &#34;.Citation.Title&#34;
+    :param obj:
+    :param type_rgx:
+    :param re_flags:
+    :param return_self:
+    :param deep_search:
+    :param super_class_search:
+    :param current_path:
+    :return:
+    &#34;&#34;&#34;
+    res = []
+    if obj is not None:
+        if return_self and class_match_rgx(
+                obj, type_rgx, super_class_search, re_flags
+        ):
+            res.append((current_path, obj))
+            if not deep_search:
+                return res
+
+    if isinstance(obj, list):
+        cpt = 0
+        for s_o in obj:
+            res = res + search_attribute_matching_type_with_path(
+                obj=s_o,
+                type_rgx=type_rgx,
+                re_flags=re_flags,
+                return_self=True,
+                deep_search=deep_search,
+                current_path=f&#34;{current_path}.{cpt}&#34;,
+                super_class_search=super_class_search,
+            )
+            cpt = cpt + 1
+    elif isinstance(obj, dict):
+        for k, s_o in obj.items():
+            res = res + search_attribute_matching_type_with_path(
+                obj=s_o,
+                type_rgx=type_rgx,
+                re_flags=re_flags,
+                return_self=True,
+                deep_search=deep_search,
+                current_path=f&#34;{current_path}.{k}&#34;,
+                super_class_search=super_class_search,
+            )
+    elif not is_primitive(obj):
+        for att_name in get_class_attributes(obj):
+            res = res + search_attribute_matching_type_with_path(
+                obj=get_object_attribute_rgx(obj, att_name),
+                type_rgx=type_rgx,
+                re_flags=re_flags,
+                return_self=True,
+                deep_search=deep_search,
+                current_path=f&#34;{current_path}.{att_name}&#34;,
+                super_class_search=super_class_search,
+            )
+
+    return res
+
+
+def search_attribute_in_upper_matching_name(
+        obj: Any,
+        name_rgx: str,
+        root_obj: Optional[Any] = None,
+        re_flags=re.IGNORECASE,
+        current_path: str = &#34;&#34;,
+) -&gt; Optional[Any]:
+    &#34;&#34;&#34;
+    See :func:`search_attribute_matching_type_with_path`. It only returns the value not the path
+    :param obj:
+    :param name_rgx:
+    :param root_obj:
+    :param re_flags:
+    :param current_path:
+    :return:
+    &#34;&#34;&#34;
+    elt_list = search_attribute_matching_name(obj, name_rgx, search_in_sub_obj=False, deep_search=False)
+    if elt_list is not None and len(elt_list) &gt; 0:
+        return elt_list
+
+    if obj != root_obj:
+        upper_path = current_path[:current_path.rindex(&#34;.&#34;)]
+        if len(upper_path) &gt; 0:
+            return search_attribute_in_upper_matching_name(
+                obj=get_object_attribute(root_obj, upper_path),
+                name_rgx=name_rgx,
+                root_obj=root_obj,
+                re_flags=re_flags,
+                current_path=upper_path,
+            )
+
+    return None
+
+
+def search_attribute_matching_type(
+        obj: Any,
+        type_rgx: str,
+        re_flags=re.IGNORECASE,
+        return_self: bool = True,  # test directly on input object and not only in its attributes
+        deep_search: bool = True,  # Search inside a matching object
+        super_class_search: bool = True,  # Search inside in super classes of the object
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    See :func:`search_attribute_matching_type_with_path`. It only returns the value not the path
+    :param obj:
+    :param type_rgx:
+    :param re_flags:
+    :param return_self:
+    :param deep_search:
+    :param super_class_search:
+    :return:
+    &#34;&#34;&#34;
+    return [
+        val
+        for path, val in search_attribute_matching_type_with_path(
+            obj=obj,
+            type_rgx=type_rgx,
+            re_flags=re_flags,
+            return_self=return_self,
+            deep_search=deep_search,
+            super_class_search=super_class_search,
+        )
+    ]
+
+
+def search_attribute_matching_name_with_path(
+        obj: Any,
+        name_rgx: str,
+        re_flags=re.IGNORECASE,
+        current_path: str = &#34;&#34;,
+        deep_search: bool = True,  # Search inside a matching object
+        search_in_sub_obj: bool = True,  # Search in obj attributes
+) -&gt; List[Tuple[str, Any]]:
+    &#34;&#34;&#34;
+    Returns a list of tuple (path, value) for each sub attribute with type matching param &#34;name_rgx&#34;.
+    The path is a dot-version like &#34;.Citation.Title&#34;
+    :param obj:
+    :param name_rgx:
+    :param re_flags:
+    :param current_path:
+    :param deep_search:
+    :param search_in_sub_obj:
+    :return:
+    &#34;&#34;&#34;
+    while name_rgx.startswith(&#34;.&#34;):
+        name_rgx = name_rgx[1:]
+    current_match = name_rgx
+    next_match = current_match
+    if &#39;.&#39; in current_match:
+        attrib_list = re.split(r&#34;(?&lt;!\\)\.+&#34;, name_rgx)
+        current_match = attrib_list[0]
+        next_match = &#39;.&#39;.join(attrib_list[1:])
+
+    res = []
+
+    match_value = None
+    match_path_and_obj = []
+    not_match_path_and_obj = []
+    if isinstance(obj, list):
+        cpt = 0
+        for s_o in obj:
+            match = re.match(current_match.replace(&#34;\\.&#34;, &#34;.&#34;), str(cpt), flags=re_flags)
+            if match is not None:
+                match_value = match.group(0)
+                match_path_and_obj.append( (f&#34;{current_path}.{cpt}&#34;, s_o) )
+            else:
+                not_match_path_and_obj.append( (f&#34;{current_path}.{cpt}&#34;, s_o) )
+            cpt = cpt + 1
+    elif isinstance(obj, dict):
+        for k, s_o in obj.items():
+            match = re.match(current_match.replace(&#34;\\.&#34;, &#34;.&#34;), k, flags=re_flags)
+            if match is not None:
+                match_value = match.group(0)
+                match_path_and_obj.append( (f&#34;{current_path}.{k}&#34;, s_o) )
+            else:
+                not_match_path_and_obj.append( (f&#34;{current_path}.{k}&#34;, s_o) )
+    elif not is_primitive(obj):
+        match_value = get_matching_class_attribute_name(obj, current_match.replace(&#34;\\.&#34;, &#34;.&#34;))
+        if match_value is not None:
+            match_path_and_obj.append( (f&#34;{current_path}.{match_value}&#34;, get_object_attribute_no_verif(obj, match_value)) )
+        for att_name in get_class_attributes(obj):
+            if att_name != match_value:
+                not_match_path_and_obj.append( (f&#34;{current_path}.{att_name}&#34;, get_object_attribute_no_verif(obj, att_name)) )
+
+    for matched_path, matched in match_path_and_obj:
+        if next_match != current_match and len(next_match) &gt; 0:  # next_match is different, match is not final
+            res = res + search_attribute_matching_name_with_path(
+                obj=matched,
+                name_rgx=next_match,
+                re_flags=re_flags,
+                current_path=matched_path,
+                deep_search=False,  # no deep with partial
+                search_in_sub_obj=False,  # no partial search in sub obj with no match
+            )
+        else:  # a complete match
+            res.append( (matched_path, matched) )
+            if deep_search:
+                res = res + search_attribute_matching_name_with_path(
+                    obj=matched,
+                    name_rgx=name_rgx,
+                    re_flags=re_flags,
+                    current_path=matched_path,
+                    deep_search=deep_search,  # no deep with partial
+                    search_in_sub_obj=True,
+                )
+    if search_in_sub_obj:
+        for not_matched_path, not_matched in not_match_path_and_obj:
+            res = res + search_attribute_matching_name_with_path(
+                obj=not_matched,
+                name_rgx=name_rgx,
+                re_flags=re_flags,
+                current_path=not_matched_path,
+                deep_search=deep_search,
+                search_in_sub_obj=True,
+            )
+
+    return res
+
+
+def search_attribute_matching_name(
+        obj: Any,
+        name_rgx: str,
+        re_flags=re.IGNORECASE,
+        deep_search: bool = True,  # Search inside a matching object
+        search_in_sub_obj: bool = True,  # Search in obj attributes
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    See :func:`search_attribute_matching_name_with_path`. It only returns the value not the path
+
+    :param obj:
+    :param name_rgx:
+    :param re_flags:
+    :param deep_search:
+    :param search_in_sub_obj:
+    :return:
+    &#34;&#34;&#34;
+    return [
+        val
+        for path, val in search_attribute_matching_name_with_path(
+            obj=obj,
+            name_rgx=name_rgx,
+            re_flags=re_flags,
+            deep_search=deep_search,
+            search_in_sub_obj=search_in_sub_obj
+        )
+    ]
+
+
+# Utility functions
+
+
+def gen_uuid() -&gt; str:
+    &#34;&#34;&#34;
+    Generate a new uuid.
+    :return:
+    &#34;&#34;&#34;
+    return str(uuid_mod.uuid4())
+
+
+def get_obj_uuid(obj: Any) -&gt; str:
+    &#34;&#34;&#34;
+    Return the object uuid (attribute must match the following regex : &#34;[Uu]u?id|UUID&#34;).
+    :param obj:
+    :return:
+    &#34;&#34;&#34;
+    return get_object_attribute_rgx(obj, &#34;[Uu]u?id|UUID&#34;)
+
+
+def get_obj_version(obj: Any) -&gt; str:
+    &#34;&#34;&#34;
+    Return the object version (check for &#34;object_version&#34; or &#34;version_string&#34; attribute).
+    :param obj:
+    :return:
+    &#34;&#34;&#34;
+    try:
+        return get_object_attribute_no_verif(obj, &#34;object_version&#34;)
+    except AttributeError as e:
+        try:
+            return get_object_attribute_no_verif(obj, &#34;version_string&#34;)
+        except Exception:
+            print(f&#34;Error with {type(obj)}&#34;)
+            raise e
+
+
+def get_direct_dor_list(obj: Any) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    Search all sub attribute of type &#34;DataObjectreference&#34;.
+    :param obj:
+    :return:
+    &#34;&#34;&#34;
+    return search_attribute_matching_type(obj, &#34;DataObjectreference&#34;)
+
+
+def get_data_object_type(cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2):
+    return get_class_pkg(cls) + &#34;.&#34; + get_class_pkg_version(cls, print_dev_version, nb_max_version_digits)
+
+
+def get_qualified_type_from_class(cls: Union[type, Any], print_dev_version=True):
+    return (
+            get_data_object_type(cls, print_dev_version, 2)
+            .replace(&#34;.&#34;, &#34;&#34;) + &#34;.&#34; + get_object_type_for_file_path_from_class(cls)
+    )
+
+
+def get_content_type_from_class(cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2):
+    if not isinstance(cls, type):
+        cls = type(cls)
+
+    if &#34;.opc.&#34; in cls.__module__:
+        if cls.__name__.lower() == &#34;coreproperties&#34;:
+            return &#34;application/vnd.openxmlformats-package.core-properties+xml&#34;
+    else:
+        return (&#34;application/x-&#34; + get_class_pkg(cls)
+                + &#34;+xml;version=&#34; + get_class_pkg_version(cls, print_dev_version, nb_max_version_digits) + &#34;;type=&#34;
+                + get_object_type_for_file_path_from_class(cls))
+
+    print(f&#34;@get_content_type_from_class not supported type : {cls}&#34;)
+    return None
+
+
+def get_object_type_for_file_path_from_class(cls) -&gt; str:
+    # obj_type = get_obj_type(cls)
+    # pkg = get_class_pkg(cls)
+    # if re.match(r&#34;Obj[A-Z].*&#34;, obj_type) is not None and pkg == &#34;resqml&#34;:
+    #     return &#34;obj_&#34; + obj_type[3:]
+    # return obj_type
+
+    try:
+        return cls.Meta.name  # to work with 3d transformed in 3D and Obj[A-Z] in obj_[A-Z]
+    except AttributeError:
+        pkg = get_class_pkg(cls)
+        return get_obj_type(cls)
+
+
+def now(time_zone=datetime.timezone(datetime.timedelta(hours=1), &#34;UTC&#34;)) -&gt; int:
+    &#34;&#34;&#34; Return an epoch value &#34;&#34;&#34;
+    return int(datetime.datetime.timestamp(datetime.datetime.now(time_zone)))
+
+
+def epoch(time_zone=datetime.timezone(datetime.timedelta(hours=1), &#34;UTC&#34;)) -&gt; int:
+    return int(now(time_zone))
+
+
+def date_to_epoch(date: str) -&gt; int:
+    &#34;&#34;&#34;
+    Transform a energyml date into an epoch datetime
+    :return: int
+    &#34;&#34;&#34;
+    return int(datetime.datetime.fromisoformat(date).timestamp())
+
+
+def epoch_to_date(epoch_value: int, time_zone=datetime.timezone(datetime.timedelta(hours=1), &#34;UTC&#34;)) -&gt; str:
+    date = datetime.datetime.fromtimestamp(epoch_value / 1e3, time_zone)
+    return date.strftime(&#34;%Y-%m-%dT%H:%M:%S%z&#34;)
+
+
+#  RANDOM
+
+
+def get_class_from_simple_name(simple_name: str, energyml_module_context=None) -&gt; type:
+    &#34;&#34;&#34;
+    Search for a :class:`type` depending on the simple class name :param:`simple_name`.
+    :param simple_name:
+    :param energyml_module_context:
+    :return:
+    &#34;&#34;&#34;
+    if energyml_module_context is None:
+        energyml_module_context = []
+    try:
+        return eval(simple_name)
+    except NameError as e:
+        for mod in energyml_module_context:
+            try:
+                exec(f&#34;from {mod} import *&#34;)
+                # required to be able to access to type in
+                # typing values like &#34;List[ObjectAlias]&#34;
+            except ModuleNotFoundError:
+                pass
+        return eval(simple_name)
+
+
+def _gen_str_from_attribute_name(attribute_name: Optional[str], _parent_class: Optional[type]=None) -&gt; str:
+    &#34;&#34;&#34;
+    Generate a str from the attribute name. The result is not the same for an attribute named &#34;Uuid&#34; than for an
+    attribute named &#34;mime_type&#34; for example.
+    :param attribute_name:
+    :param _parent_class:
+    :return:
+    &#34;&#34;&#34;
+    attribute_name_lw = attribute_name.lower()
+    if attribute_name is not None:
+        if attribute_name_lw == &#34;uuid&#34; or attribute_name_lw == &#34;uid&#34;:
+            return gen_uuid()
+        elif attribute_name_lw == &#34;title&#34;:
+            return f&#34;{_parent_class.__name__} title (&#34; + str(random_value_from_class(int)) + &#34;)&#34;
+        elif attribute_name_lw == &#34;schema_version&#34; and get_class_pkg_version(_parent_class) is not None:
+            return get_class_pkg_version(_parent_class)
+        elif re.match(r&#34;\w*version$&#34;, attribute_name_lw):
+            return str(random_value_from_class(int))
+        elif re.match(r&#34;\w*date_.*&#34;, attribute_name_lw):
+            return epoch_to_date(epoch())
+        elif re.match(r&#34;path_in_.*&#34;, attribute_name_lw):
+            return f&#34;/FOLDER/{gen_uuid()}/a_patch{random.randint(0, 30)}&#34;
+        elif &#34;mime_type&#34; in attribute_name_lw and (&#34;external&#34; in _parent_class.__name__.lower() and &#34;part&#34; in _parent_class.__name__.lower()):
+            return f&#34;application/x-hdf5&#34;
+        elif &#34;type&#34; in attribute_name_lw:
+            if attribute_name_lw.startswith(&#34;qualified&#34;):
+                return get_qualified_type_from_class(get_classes_matching_name(_parent_class, &#34;Abstract&#34;)[0])
+            if attribute_name_lw.startswith(&#34;content&#34;):
+                return get_content_type_from_class(get_classes_matching_name(_parent_class, &#34;Abstract&#34;)[0])
+    return &#34;A random str &#34; + (f&#34;[{attribute_name}] &#34; if attribute_name is not None else &#34;&#34;) + &#34;(&#34; + str(
+        random_value_from_class(int)) + &#34;)&#34;
+
+
+def random_value_from_class(cls: type):
+    &#34;&#34;&#34;
+    Generate a random value for a :class:`type`. All attributes should be filled with random values.
+    :param cls:
+    :return:
+    &#34;&#34;&#34;
+    energyml_module_context = []
+    if not is_primitive(cls):
+        # import_related_module(cls.__module__)
+        energyml_module_context = get_related_energyml_modules_name(cls)
+    return _random_value_from_class(cls=cls, energyml_module_context=energyml_module_context, attribute_name=None)
+
+
+def _random_value_from_class(cls: Any, energyml_module_context: List[str], attribute_name: Optional[str] = None, _parent_class: Optional[type]=None):
+    &#34;&#34;&#34;
+    Generate a random value for a :class:`type`. All attributes should be filled with random values.
+    :param cls:
+    :param energyml_module_context:
+    :param attribute_name:
+    :param _parent_class: the :class:`type`of the parent object
+    :return:
+    &#34;&#34;&#34;
+
+    try:
+        if isinstance(cls, str) or cls == str:
+            return _gen_str_from_attribute_name(attribute_name, _parent_class)
+        elif isinstance(cls, int) or cls == int:
+            return random.randint(0, 10000)
+        elif isinstance(cls, float) or cls == float:
+            return random.randint(0, 1000000) / 100.
+        elif isinstance(cls, bool) or cls == bool:
+            return random.randint(0, 1) == 1
+        elif is_enum(cls):
+            return cls[cls._member_names_[random.randint(0, len(cls._member_names_) - 1)]]
+        elif isinstance(cls, typing.Union.__class__):
+            type_list = list(cls.__args__)
+            if type(None) in type_list:
+                type_list.remove(type(None))  # we don&#39;t want to generate none value
+            chosen_type = type_list[random.randint(0, len(type_list))]
+            return _random_value_from_class(chosen_type, energyml_module_context, attribute_name, cls)
+        elif cls.__module__ == &#39;typing&#39;:
+            nb_value_for_list = random.randint(2, 3)
+            type_list = list(cls.__args__)
+            if type(None) in type_list:
+                type_list.remove(type(None))  # we don&#39;t want to generate none value
+
+            if cls._name == &#34;List&#34;:
+                lst = []
+                for i in range(nb_value_for_list):
+                    chosen_type = type_list[random.randint(0, len(type_list) - 1)]
+                    lst.append(_random_value_from_class(chosen_type, energyml_module_context, attribute_name, list))
+                return lst
+            else:
+                chosen_type = type_list[random.randint(0, len(type_list) - 1)]
+                return _random_value_from_class(chosen_type, energyml_module_context, attribute_name, _parent_class)
+        else:
+            potential_classes = list(filter(lambda _c: not is_abstract(_c), [cls] + get_sub_classes(cls)))
+            if len(potential_classes) &gt; 0:
+                chosen_type = potential_classes[random.randint(0, len(potential_classes) - 1)]
+                args = {}
+                for k, v in get_class_fields(chosen_type).items():
+                    # print(f&#34;get_class_fields {k} : {v}&#34;)
+                    args[k] = _random_value_from_class(
+                        cls=get_class_from_simple_name(simple_name=v.type, energyml_module_context=energyml_module_context),
+                        energyml_module_context=energyml_module_context,
+                        attribute_name=k,
+                        _parent_class=chosen_type)
+
+                if not isinstance(chosen_type, type):
+                    chosen_type = type(chosen_type)
+                return chosen_type(**args)
+
+    except Exception as e:
+        print(f&#34;exception on attribute &#39;{attribute_name}&#39; for class {cls} :&#34;)
+        raise e
+
+    print(f&#34;@_random_value_from_class Not supported object type generation {cls}&#34;)
+    return None</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="src.energyml.utils.introspection.class_match_rgx"><code class="name flex">
+<span>def <span class="ident">class_match_rgx</span></span>(<span>cls: Union[type, Any], rgx: str, super_class_search: bool = True, re_flags=re.IGNORECASE)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def class_match_rgx(
+        cls: Union[type, Any],
+        rgx: str,
+        super_class_search: bool = True,
+        re_flags=re.IGNORECASE,
+):
+    if not isinstance(cls, type):
+        cls = type(cls)
+
+    if re.match(rgx, cls.__name__, re_flags):
+        return True
+
+    if not is_primitive(cls) and super_class_search:
+        for base in cls.__bases__:
+            if class_match_rgx(base, rgx, super_class_search, re_flags):
+                return True
+    return False</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.date_to_epoch"><code class="name flex">
+<span>def <span class="ident">date_to_epoch</span></span>(<span>date: str) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Transform a energyml date into an epoch datetime
+:return: int</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def date_to_epoch(date: str) -&gt; int:
+    &#34;&#34;&#34;
+    Transform a energyml date into an epoch datetime
+    :return: int
+    &#34;&#34;&#34;
+    return int(datetime.datetime.fromisoformat(date).timestamp())</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.epoch"><code class="name flex">
+<span>def <span class="ident">epoch</span></span>(<span>time_zone=datetime.timezone(datetime.timedelta(seconds=3600), 'UTC')) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def epoch(time_zone=datetime.timezone(datetime.timedelta(hours=1), &#34;UTC&#34;)) -&gt; int:
+    return int(now(time_zone))</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.epoch_to_date"><code class="name flex">
+<span>def <span class="ident">epoch_to_date</span></span>(<span>epoch_value: int, time_zone=datetime.timezone(datetime.timedelta(seconds=3600), 'UTC')) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def epoch_to_date(epoch_value: int, time_zone=datetime.timezone(datetime.timedelta(hours=1), &#34;UTC&#34;)) -&gt; str:
+    date = datetime.datetime.fromtimestamp(epoch_value / 1e3, time_zone)
+    return date.strftime(&#34;%Y-%m-%dT%H:%M:%S%z&#34;)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.flatten_concatenation"><code class="name flex">
+<span>def <span class="ident">flatten_concatenation</span></span>(<span>matrix) ‑> List</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Flatten a matrix.</p>
+<p>Example :
+[ [a,b,c], [d,e,f], [ [x,y,z], [0] ] ]
+will be translated in: [a, b, c, d, e, f, [x,y,z], [0]]
+:param matrix:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def flatten_concatenation(matrix) -&gt; List:
+    &#34;&#34;&#34;
+    Flatten a matrix.
+
+    Example :
+        [ [a,b,c], [d,e,f], [ [x,y,z], [0] ] ]
+        will be translated in: [a, b, c, d, e, f, [x,y,z], [0]]
+    :param matrix:
+    :return:
+    &#34;&#34;&#34;
+    flat_list = []
+    for row in matrix:
+        flat_list += row
+    return flat_list</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.gen_uuid"><code class="name flex">
+<span>def <span class="ident">gen_uuid</span></span>(<span>) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate a new uuid.
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def gen_uuid() -&gt; str:
+    &#34;&#34;&#34;
+    Generate a new uuid.
+    :return:
+    &#34;&#34;&#34;
+    return str(uuid_mod.uuid4())</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_class_attributes"><code class="name flex">
+<span>def <span class="ident">get_class_attributes</span></span>(<span>cls: Union[type, Any]) ‑> List[str]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>returns a list of attributes (not private ones)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_class_attributes(cls: Union[type, Any]) -&gt; List[str]:
+    &#34;&#34;&#34;
+    returns a list of attributes (not private ones)
+    &#34;&#34;&#34;
+    # if not isinstance(cls, type):  # if cls is an instance
+    #     cls = type(cls)
+    # return list(filter(lambda a: not a.startswith(&#34;__&#34;), dir(cls)))
+    return list(get_class_fields(cls).keys())</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_class_fields"><code class="name flex">
+<span>def <span class="ident">get_class_fields</span></span>(<span>cls: Union[type, Any]) ‑> Dict[str, dataclasses.Field]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return all class fields names, mapped to their :class:<code>Field</code> value.
+:param cls:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_class_fields(cls: Union[type, Any]) -&gt; Dict[str, Field]:
+    &#34;&#34;&#34;
+    Return all class fields names, mapped to their :class:`Field` value.
+    :param cls:
+    :return:
+    &#34;&#34;&#34;
+    if not isinstance(cls, type):  # if cls is an instance
+        cls = type(cls)
+    try:
+        return cls.__dataclass_fields__
+    except AttributeError:
+        return {}</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_class_from_content_type"><code class="name flex">
+<span>def <span class="ident">get_class_from_content_type</span></span>(<span>content_type: str) ‑> Optional[type]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return a :class:<code>type</code> object matching with the content-type :param:<code>content_type</code>.
+:param content_type:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_class_from_content_type(content_type: str) -&gt; Optional[type]:
+    &#34;&#34;&#34;
+    Return a :class:`type` object matching with the content-type :param:`content_type`.
+    :param content_type:
+    :return:
+    &#34;&#34;&#34;
+    ct = parse_content_type(content_type)
+    domain = ct.group(&#34;domain&#34;)
+    if domain is None:
+        domain = &#34;opc&#34;
+    if domain == &#34;opc&#34;:
+        xml_domain = ct.group(&#34;xmlDomain&#34;)
+        if &#34;.&#34; in xml_domain:
+            xml_domain = xml_domain[xml_domain.rindex(&#34;.&#34;) + 1:]
+        if &#34;extended&#34; in xml_domain:
+            xml_domain = xml_domain.replace(&#34;extended&#34;, &#34;&#34;)
+        opc_type = pascal_case(xml_domain)
+        # print(&#34;energyml.opc.opc.&#34; + opc_type)
+        return get_class_from_name(&#34;energyml.opc.opc.&#34; + opc_type)
+    else:
+        ns = ENERGYML_NAMESPACES[domain]
+        domain = ct.group(&#34;domain&#34;)
+        obj_type = ct.group(&#34;type&#34;)
+        if obj_type.lower().startswith(&#34;obj_&#34;):  # for resqml201
+            obj_type = &#34;Obj&#34; + obj_type[4:]
+        version_num = str(ct.group(&#34;domainVersion&#34;)).replace(&#34;.&#34;, &#34;_&#34;)
+        if domain.lower() == &#34;resqml&#34; and version_num.startswith(&#34;2_0&#34;):
+            version_num = &#34;2_0_1&#34;
+        return get_class_from_name(
+            &#34;energyml.&#34;
+            + domain
+            + &#34;.v&#34;
+            + version_num
+            + &#34;.&#34;
+            + ns[ns.rindex(&#34;/&#34;) + 1:]
+            + &#34;.&#34;
+            + obj_type
+        )</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_class_from_name"><code class="name flex">
+<span>def <span class="ident">get_class_from_name</span></span>(<span>class_name_and_module: str) ‑> Optional[type]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return a :class:<code>type</code> object matching with the name :param:<code>class_name_and_module</code>.
+:param class_name_and_module:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_class_from_name(class_name_and_module: str) -&gt; Optional[type]:
+    &#34;&#34;&#34;
+    Return a :class:`type` object matching with the name :param:`class_name_and_module`.
+    :param class_name_and_module:
+    :return:
+    &#34;&#34;&#34;
+    module_name = class_name_and_module[: class_name_and_module.rindex(&#34;.&#34;)]
+    last_ns_part = class_name_and_module[
+                   class_name_and_module.rindex(&#34;.&#34;) + 1:
+                   ]
+    try:
+        # Required to read &#34;CustomData&#34; on eml objects that may contain resqml values
+        # ==&gt; we need to import all modules related to the same version of the common
+        import_related_module(module_name)
+        return getattr(sys.modules[module_name], last_ns_part)
+    except AttributeError as e:
+        if &#34;2d&#34; in last_ns_part:
+            return get_class_from_name(
+                class_name_and_module.replace(&#34;2d&#34;, &#34;2D&#34;)
+            )
+        elif &#34;3d&#34; in last_ns_part:
+            return get_class_from_name(
+                class_name_and_module.replace(&#34;3d&#34;, &#34;3D&#34;)
+            )
+        elif last_ns_part[0].islower():
+            return get_class_from_name(
+                module_name + &#34;.&#34; + last_ns_part[0].upper() + last_ns_part[1:]
+            )
+        else:
+            print(e)
+    return None</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_class_from_simple_name"><code class="name flex">
+<span>def <span class="ident">get_class_from_simple_name</span></span>(<span>simple_name: str, energyml_module_context=None) ‑> type</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Search for a :class:<code>type</code> depending on the simple class name :param:<code>simple_name</code>.
+:param simple_name:
+:param energyml_module_context:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_class_from_simple_name(simple_name: str, energyml_module_context=None) -&gt; type:
+    &#34;&#34;&#34;
+    Search for a :class:`type` depending on the simple class name :param:`simple_name`.
+    :param simple_name:
+    :param energyml_module_context:
+    :return:
+    &#34;&#34;&#34;
+    if energyml_module_context is None:
+        energyml_module_context = []
+    try:
+        return eval(simple_name)
+    except NameError as e:
+        for mod in energyml_module_context:
+            try:
+                exec(f&#34;from {mod} import *&#34;)
+                # required to be able to access to type in
+                # typing values like &#34;List[ObjectAlias]&#34;
+            except ModuleNotFoundError:
+                pass
+        return eval(simple_name)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_class_methods"><code class="name flex">
+<span>def <span class="ident">get_class_methods</span></span>(<span>cls: Union[type, Any]) ‑> List[str]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the list of the methods names for a specific class.
+:param cls:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_class_methods(cls: Union[type, Any]) -&gt; List[str]:
+    &#34;&#34;&#34;
+    Returns the list of the methods names for a specific class.
+    :param cls:
+    :return:
+    &#34;&#34;&#34;
+    return [func for func in dir(cls) if callable(getattr(cls, func)) and not func.startswith(&#34;__&#34;) and not isinstance(getattr(cls, func), type)]</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_content_type_from_class"><code class="name flex">
+<span>def <span class="ident">get_content_type_from_class</span></span>(<span>cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_content_type_from_class(cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2):
+    if not isinstance(cls, type):
+        cls = type(cls)
+
+    if &#34;.opc.&#34; in cls.__module__:
+        if cls.__name__.lower() == &#34;coreproperties&#34;:
+            return &#34;application/vnd.openxmlformats-package.core-properties+xml&#34;
+    else:
+        return (&#34;application/x-&#34; + get_class_pkg(cls)
+                + &#34;+xml;version=&#34; + get_class_pkg_version(cls, print_dev_version, nb_max_version_digits) + &#34;;type=&#34;
+                + get_object_type_for_file_path_from_class(cls))
+
+    print(f&#34;@get_content_type_from_class not supported type : {cls}&#34;)
+    return None</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_data_object_type"><code class="name flex">
+<span>def <span class="ident">get_data_object_type</span></span>(<span>cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_data_object_type(cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2):
+    return get_class_pkg(cls) + &#34;.&#34; + get_class_pkg_version(cls, print_dev_version, nb_max_version_digits)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_direct_dor_list"><code class="name flex">
+<span>def <span class="ident">get_direct_dor_list</span></span>(<span>obj: Any) ‑> List[Any]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Search all sub attribute of type "DataObjectreference".
+:param obj:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_direct_dor_list(obj: Any) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    Search all sub attribute of type &#34;DataObjectreference&#34;.
+    :param obj:
+    :return:
+    &#34;&#34;&#34;
+    return search_attribute_matching_type(obj, &#34;DataObjectreference&#34;)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_matching_class_attribute_name"><code class="name flex">
+<span>def <span class="ident">get_matching_class_attribute_name</span></span>(<span>cls: Union[type, Any], attribute_name: str, re_flags=re.IGNORECASE) ‑> Optional[str]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>From an object and an attribute name, returns the correct attribute name of the class.
+Example : "ObjectVersion" &ndash;&gt; object_version.
+This method doesn't only transform to snake case but search into the obj class attributes</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_matching_class_attribute_name(
+        cls: Union[type, Any], attribute_name: str, re_flags=re.IGNORECASE,
+) -&gt; Optional[str]:
+    &#34;&#34;&#34;
+    From an object and an attribute name, returns the correct attribute name of the class.
+    Example : &#34;ObjectVersion&#34; --&gt; object_version.
+    This method doesn&#39;t only transform to snake case but search into the obj class attributes
+    &#34;&#34;&#34;
+    class_fields = get_class_fields(cls)
+
+    # a search with the exact value
+    for name, cf in class_fields.items():
+        if (
+                snake_case(name) == snake_case(attribute_name)
+                or (&#39;name&#39; in cf.metadata and cf.metadata[&#39;name&#39;] == attribute_name)
+        ):
+            return name
+
+    # search regex after to avoid shadowing perfect match
+    pattern = re.compile(attribute_name, flags=re_flags)
+    for name, cf in class_fields.items():
+        # print(f&#34;\t-&gt;{name} : {attribute_name} {pattern.match(name)} {(&#39;name&#39; in cf.metadata and pattern.match(cf.metadata[&#39;name&#39;]))}&#34;)
+        if pattern.match(name) or (&#39;name&#39; in cf.metadata and pattern.match(cf.metadata[&#39;name&#39;])):
+            return name
+
+    return None</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_obj_type"><code class="name flex">
+<span>def <span class="ident">get_obj_type</span></span>(<span>obj: Any) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return the type name of an object. If obj is already a :class:<code>type</code>, return its <strong>name</strong></p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_obj_type(obj: Any) -&gt; str:
+    &#34;&#34;&#34; Return the type name of an object. If obj is already a :class:`type`, return its __name__&#34;&#34;&#34;
+    if isinstance(obj, type):
+        return str(obj.__name__)
+    return get_obj_type(type(obj))</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_obj_uuid"><code class="name flex">
+<span>def <span class="ident">get_obj_uuid</span></span>(<span>obj: Any) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return the object uuid (attribute must match the following regex : "[Uu]u?id|UUID").
+:param obj:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_obj_uuid(obj: Any) -&gt; str:
+    &#34;&#34;&#34;
+    Return the object uuid (attribute must match the following regex : &#34;[Uu]u?id|UUID&#34;).
+    :param obj:
+    :return:
+    &#34;&#34;&#34;
+    return get_object_attribute_rgx(obj, &#34;[Uu]u?id|UUID&#34;)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_obj_version"><code class="name flex">
+<span>def <span class="ident">get_obj_version</span></span>(<span>obj: Any) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return the object version (check for "object_version" or "version_string" attribute).
+:param obj:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_obj_version(obj: Any) -&gt; str:
+    &#34;&#34;&#34;
+    Return the object version (check for &#34;object_version&#34; or &#34;version_string&#34; attribute).
+    :param obj:
+    :return:
+    &#34;&#34;&#34;
+    try:
+        return get_object_attribute_no_verif(obj, &#34;object_version&#34;)
+    except AttributeError as e:
+        try:
+            return get_object_attribute_no_verif(obj, &#34;version_string&#34;)
+        except Exception:
+            print(f&#34;Error with {type(obj)}&#34;)
+            raise e</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_object_attribute"><code class="name flex">
+<span>def <span class="ident">get_object_attribute</span></span>(<span>obj: Any, attr_dot_path: str, force_snake_case=True) ‑> Any</span>
+</code></dt>
+<dd>
+<div class="desc"><p>returns the value of an attribute given by a dot representation of its path in the object
+example "Citation.Title"</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_object_attribute(
+        obj: Any, attr_dot_path: str, force_snake_case=True
+) -&gt; Any:
+    &#34;&#34;&#34;
+    returns the value of an attribute given by a dot representation of its path in the object
+    example &#34;Citation.Title&#34;
+    &#34;&#34;&#34;
+    while attr_dot_path.startswith(&#34;.&#34;):  # avoid &#39;.Citation.Title&#39; to take an empty attribute name before the first &#39;.&#39;
+        attr_dot_path = attr_dot_path[1:]
+
+    current_attrib_name = attr_dot_path
+
+    if &#34;.&#34; in attr_dot_path:
+        current_attrib_name = attr_dot_path.split(&#34;.&#34;)[0]
+
+    if force_snake_case:
+        current_attrib_name = snake_case(current_attrib_name)
+
+    value = None
+    if isinstance(obj, list):
+        value = obj[int(current_attrib_name)]
+    elif isinstance(obj, dict):
+        value = obj[current_attrib_name]
+    else:
+        value = getattr(obj, current_attrib_name)
+
+    if &#34;.&#34; in attr_dot_path:
+        return get_object_attribute(
+            value, attr_dot_path[len(current_attrib_name) + 1:]
+        )
+    else:
+        return value</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_object_attribute_advanced"><code class="name flex">
+<span>def <span class="ident">get_object_attribute_advanced</span></span>(<span>obj: Any, attr_dot_path: str) ‑> Any</span>
+</code></dt>
+<dd>
+<div class="desc"><p>see @get_matching_class_attribute_name and @get_object_attribute</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_object_attribute_advanced(obj: Any, attr_dot_path: str) -&gt; Any:
+    &#34;&#34;&#34;
+    see @get_matching_class_attribute_name and @get_object_attribute
+    &#34;&#34;&#34;
+    current_attrib_name = attr_dot_path
+
+    if &#34;.&#34; in attr_dot_path:
+        current_attrib_name = attr_dot_path.split(&#34;.&#34;)[0]
+
+    current_attrib_name = get_matching_class_attribute_name(
+        obj, current_attrib_name
+    )
+
+    value = None
+    if isinstance(obj, list):
+        value = obj[int(current_attrib_name)]
+    elif isinstance(obj, dict):
+        value = obj[current_attrib_name]
+    else:
+        value = getattr(obj, current_attrib_name)
+
+    if &#34;.&#34; in attr_dot_path:
+        return get_object_attribute_advanced(
+            value, attr_dot_path[len(current_attrib_name) + 1:]
+        )
+    else:
+        return value</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_object_attribute_no_verif"><code class="name flex">
+<span>def <span class="ident">get_object_attribute_no_verif</span></span>(<span>obj: Any, attr_name: str) ‑> Any</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return the value of the attribute named after param :param:<code>attr_name</code> without verification (may raise an exception
+if it doesn't exists).</p>
+<p>Note: attr_name="0" will work if :param:<code>obj</code> is of type :class:<code>List</code>
+:param obj:
+:param attr_name:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_object_attribute_no_verif(obj: Any, attr_name: str) -&gt; Any:
+    &#34;&#34;&#34;
+    Return the value of the attribute named after param :param:`attr_name` without verification (may raise an exception
+    if it doesn&#39;t exists).
+
+    Note: attr_name=&#34;0&#34; will work if :param:`obj` is of type :class:`List`
+    :param obj:
+    :param attr_name:
+    :return:
+    &#34;&#34;&#34;
+    if isinstance(obj, list):
+        return obj[int(attr_name)]
+    elif isinstance(obj, dict):
+        return obj[attr_name]
+    else:
+        return getattr(obj, attr_name)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_object_attribute_rgx"><code class="name flex">
+<span>def <span class="ident">get_object_attribute_rgx</span></span>(<span>obj: Any, attr_dot_path_rgx: str) ‑> Any</span>
+</code></dt>
+<dd>
+<div class="desc"><p>see @get_object_attribute. Search the attribute name using regex for values between dots.
+Example : [Cc]itation.[Tt]it.*</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -&gt; Any:
+    &#34;&#34;&#34;
+    see @get_object_attribute. Search the attribute name using regex for values between dots.
+    Example : [Cc]itation.[Tt]it\\.*
+    &#34;&#34;&#34;
+    current_attrib_name = attr_dot_path_rgx
+
+    attrib_list = re.split(r&#34;(?&lt;!\\)\.+&#34;, attr_dot_path_rgx)
+
+    if len(attrib_list) &gt; 0:
+        current_attrib_name = attrib_list[0]
+
+    # unescape Dot
+    current_attrib_name = current_attrib_name.replace(&#34;\\.&#34;, &#34;.&#34;)
+
+    real_attrib_name = get_matching_class_attribute_name(
+        obj, current_attrib_name
+    )
+    if real_attrib_name is not None:
+        value = get_object_attribute_no_verif(obj, real_attrib_name)
+
+        if len(attrib_list) &gt; 1:
+            return get_object_attribute_rgx(
+                value, attr_dot_path_rgx[len(current_attrib_name) + 1:]
+            )
+        else:
+            return value
+    return None</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_object_type_for_file_path_from_class"><code class="name flex">
+<span>def <span class="ident">get_object_type_for_file_path_from_class</span></span>(<span>cls) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_object_type_for_file_path_from_class(cls) -&gt; str:
+    # obj_type = get_obj_type(cls)
+    # pkg = get_class_pkg(cls)
+    # if re.match(r&#34;Obj[A-Z].*&#34;, obj_type) is not None and pkg == &#34;resqml&#34;:
+    #     return &#34;obj_&#34; + obj_type[3:]
+    # return obj_type
+
+    try:
+        return cls.Meta.name  # to work with 3d transformed in 3D and Obj[A-Z] in obj_[A-Z]
+    except AttributeError:
+        pkg = get_class_pkg(cls)
+        return get_obj_type(cls)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.get_qualified_type_from_class"><code class="name flex">
+<span>def <span class="ident">get_qualified_type_from_class</span></span>(<span>cls: Union[type, Any], print_dev_version=True)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_qualified_type_from_class(cls: Union[type, Any], print_dev_version=True):
+    return (
+            get_data_object_type(cls, print_dev_version, 2)
+            .replace(&#34;.&#34;, &#34;&#34;) + &#34;.&#34; + get_object_type_for_file_path_from_class(cls)
+    )</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.import_related_module"><code class="name flex">
+<span>def <span class="ident">import_related_module</span></span>(<span>energyml_module_name: str) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Import related modules for a specific energyml module. (See. :const:<code>RELATED_MODULES</code>)
+:param energyml_module_name:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def import_related_module(energyml_module_name: str) -&gt; None:
+    &#34;&#34;&#34;
+    Import related modules for a specific energyml module. (See. :const:`RELATED_MODULES`)
+    :param energyml_module_name:
+    :return:
+    &#34;&#34;&#34;
+    for related in RELATED_MODULES:
+        if energyml_module_name in related:
+            for m in related:
+                try:
+                    import_module(m)
+                except Exception as e:
+                    pass
+                    # print(e)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.is_abstract"><code class="name flex">
+<span>def <span class="ident">is_abstract</span></span>(<span>cls: Union[type, Any]) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns True if :param:<code>cls</code> is an abstract class
+:param cls:
+:return: bool</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_abstract(cls: Union[type, Any]) -&gt; bool:
+    &#34;&#34;&#34;
+    Returns True if :param:`cls` is an abstract class
+    :param cls:
+    :return: bool
+    &#34;&#34;&#34;
+    if isinstance(cls, type):
+        return not is_primitive(cls) and (cls.__name__.startswith(&#34;Abstract&#34;) or (hasattr(cls, &#34;__dataclass_fields__&#34;) and len(cls.__dataclass_fields__)) == 0) and len(get_class_methods(cls)) == 0
+    return is_abstract(type(cls))</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.is_enum"><code class="name flex">
+<span>def <span class="ident">is_enum</span></span>(<span>cls: Union[type, Any])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns True if :param:<code>cls</code> is an Enum
+:param cls:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_enum(cls: Union[type, Any]):
+    &#34;&#34;&#34;
+    Returns True if :param:`cls` is an Enum
+    :param cls:
+    :return:
+    &#34;&#34;&#34;
+    if isinstance(cls, type):
+        return Enum in cls.__bases__
+    return is_enum(type(cls))</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.is_primitive"><code class="name flex">
+<span>def <span class="ident">is_primitive</span></span>(<span>cls: Union[type, Any]) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns True if :param:<code>cls</code> is a primitiv type or extends Enum
+:param cls:
+:return: bool</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_primitive(cls: Union[type, Any]) -&gt; bool:
+    &#34;&#34;&#34;
+    Returns True if :param:`cls` is a primitiv type or extends Enum
+    :param cls:
+    :return: bool
+    &#34;&#34;&#34;
+    if isinstance(cls, type):
+        return cls in primitives or Enum in cls.__bases__
+    return is_primitive(type(cls))</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.now"><code class="name flex">
+<span>def <span class="ident">now</span></span>(<span>time_zone=datetime.timezone(datetime.timedelta(seconds=3600), 'UTC')) ‑> int</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return an epoch value</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def now(time_zone=datetime.timezone(datetime.timedelta(hours=1), &#34;UTC&#34;)) -&gt; int:
+    &#34;&#34;&#34; Return an epoch value &#34;&#34;&#34;
+    return int(datetime.datetime.timestamp(datetime.datetime.now(time_zone)))</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.pascal_case"><code class="name flex">
+<span>def <span class="ident">pascal_case</span></span>(<span>s: str) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Transform a str into pascal case.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def pascal_case(s: str) -&gt; str:
+    &#34;&#34;&#34; Transform a str into pascal case. &#34;&#34;&#34;
+    return snake_case(s).replace(&#34;_&#34;, &#34; &#34;).title().replace(&#34; &#34;, &#34;&#34;)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.random_value_from_class"><code class="name flex">
+<span>def <span class="ident">random_value_from_class</span></span>(<span>cls: type)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate a random value for a :class:<code>type</code>. All attributes should be filled with random values.
+:param cls:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def random_value_from_class(cls: type):
+    &#34;&#34;&#34;
+    Generate a random value for a :class:`type`. All attributes should be filled with random values.
+    :param cls:
+    :return:
+    &#34;&#34;&#34;
+    energyml_module_context = []
+    if not is_primitive(cls):
+        # import_related_module(cls.__module__)
+        energyml_module_context = get_related_energyml_modules_name(cls)
+    return _random_value_from_class(cls=cls, energyml_module_context=energyml_module_context, attribute_name=None)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.search_attribute_in_upper_matching_name"><code class="name flex">
+<span>def <span class="ident">search_attribute_in_upper_matching_name</span></span>(<span>obj: Any, name_rgx: str, root_obj: Optional[Any] = None, re_flags=re.IGNORECASE, current_path: str = '') ‑> Optional[Any]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>See :func:<code><a title="src.energyml.utils.introspection.search_attribute_matching_type_with_path" href="#src.energyml.utils.introspection.search_attribute_matching_type_with_path">search_attribute_matching_type_with_path()</a></code>. It only returns the value not the path
+:param obj:
+:param name_rgx:
+:param root_obj:
+:param re_flags:
+:param current_path:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def search_attribute_in_upper_matching_name(
+        obj: Any,
+        name_rgx: str,
+        root_obj: Optional[Any] = None,
+        re_flags=re.IGNORECASE,
+        current_path: str = &#34;&#34;,
+) -&gt; Optional[Any]:
+    &#34;&#34;&#34;
+    See :func:`search_attribute_matching_type_with_path`. It only returns the value not the path
+    :param obj:
+    :param name_rgx:
+    :param root_obj:
+    :param re_flags:
+    :param current_path:
+    :return:
+    &#34;&#34;&#34;
+    elt_list = search_attribute_matching_name(obj, name_rgx, search_in_sub_obj=False, deep_search=False)
+    if elt_list is not None and len(elt_list) &gt; 0:
+        return elt_list
+
+    if obj != root_obj:
+        upper_path = current_path[:current_path.rindex(&#34;.&#34;)]
+        if len(upper_path) &gt; 0:
+            return search_attribute_in_upper_matching_name(
+                obj=get_object_attribute(root_obj, upper_path),
+                name_rgx=name_rgx,
+                root_obj=root_obj,
+                re_flags=re_flags,
+                current_path=upper_path,
+            )
+
+    return None</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.search_attribute_matching_name"><code class="name flex">
+<span>def <span class="ident">search_attribute_matching_name</span></span>(<span>obj: Any, name_rgx: str, re_flags=re.IGNORECASE, deep_search: bool = True, search_in_sub_obj: bool = True) ‑> List[Any]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>See :func:<code><a title="src.energyml.utils.introspection.search_attribute_matching_name_with_path" href="#src.energyml.utils.introspection.search_attribute_matching_name_with_path">search_attribute_matching_name_with_path()</a></code>. It only returns the value not the path</p>
+<p>:param obj:
+:param name_rgx:
+:param re_flags:
+:param deep_search:
+:param search_in_sub_obj:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def search_attribute_matching_name(
+        obj: Any,
+        name_rgx: str,
+        re_flags=re.IGNORECASE,
+        deep_search: bool = True,  # Search inside a matching object
+        search_in_sub_obj: bool = True,  # Search in obj attributes
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    See :func:`search_attribute_matching_name_with_path`. It only returns the value not the path
+
+    :param obj:
+    :param name_rgx:
+    :param re_flags:
+    :param deep_search:
+    :param search_in_sub_obj:
+    :return:
+    &#34;&#34;&#34;
+    return [
+        val
+        for path, val in search_attribute_matching_name_with_path(
+            obj=obj,
+            name_rgx=name_rgx,
+            re_flags=re_flags,
+            deep_search=deep_search,
+            search_in_sub_obj=search_in_sub_obj
+        )
+    ]</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.search_attribute_matching_name_with_path"><code class="name flex">
+<span>def <span class="ident">search_attribute_matching_name_with_path</span></span>(<span>obj: Any, name_rgx: str, re_flags=re.IGNORECASE, current_path: str = '', deep_search: bool = True, search_in_sub_obj: bool = True) ‑> List[Tuple[str, Any]]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns a list of tuple (path, value) for each sub attribute with type matching param "name_rgx".
+The path is a dot-version like ".Citation.Title"
+:param obj:
+:param name_rgx:
+:param re_flags:
+:param current_path:
+:param deep_search:
+:param search_in_sub_obj:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def search_attribute_matching_name_with_path(
+        obj: Any,
+        name_rgx: str,
+        re_flags=re.IGNORECASE,
+        current_path: str = &#34;&#34;,
+        deep_search: bool = True,  # Search inside a matching object
+        search_in_sub_obj: bool = True,  # Search in obj attributes
+) -&gt; List[Tuple[str, Any]]:
+    &#34;&#34;&#34;
+    Returns a list of tuple (path, value) for each sub attribute with type matching param &#34;name_rgx&#34;.
+    The path is a dot-version like &#34;.Citation.Title&#34;
+    :param obj:
+    :param name_rgx:
+    :param re_flags:
+    :param current_path:
+    :param deep_search:
+    :param search_in_sub_obj:
+    :return:
+    &#34;&#34;&#34;
+    while name_rgx.startswith(&#34;.&#34;):
+        name_rgx = name_rgx[1:]
+    current_match = name_rgx
+    next_match = current_match
+    if &#39;.&#39; in current_match:
+        attrib_list = re.split(r&#34;(?&lt;!\\)\.+&#34;, name_rgx)
+        current_match = attrib_list[0]
+        next_match = &#39;.&#39;.join(attrib_list[1:])
+
+    res = []
+
+    match_value = None
+    match_path_and_obj = []
+    not_match_path_and_obj = []
+    if isinstance(obj, list):
+        cpt = 0
+        for s_o in obj:
+            match = re.match(current_match.replace(&#34;\\.&#34;, &#34;.&#34;), str(cpt), flags=re_flags)
+            if match is not None:
+                match_value = match.group(0)
+                match_path_and_obj.append( (f&#34;{current_path}.{cpt}&#34;, s_o) )
+            else:
+                not_match_path_and_obj.append( (f&#34;{current_path}.{cpt}&#34;, s_o) )
+            cpt = cpt + 1
+    elif isinstance(obj, dict):
+        for k, s_o in obj.items():
+            match = re.match(current_match.replace(&#34;\\.&#34;, &#34;.&#34;), k, flags=re_flags)
+            if match is not None:
+                match_value = match.group(0)
+                match_path_and_obj.append( (f&#34;{current_path}.{k}&#34;, s_o) )
+            else:
+                not_match_path_and_obj.append( (f&#34;{current_path}.{k}&#34;, s_o) )
+    elif not is_primitive(obj):
+        match_value = get_matching_class_attribute_name(obj, current_match.replace(&#34;\\.&#34;, &#34;.&#34;))
+        if match_value is not None:
+            match_path_and_obj.append( (f&#34;{current_path}.{match_value}&#34;, get_object_attribute_no_verif(obj, match_value)) )
+        for att_name in get_class_attributes(obj):
+            if att_name != match_value:
+                not_match_path_and_obj.append( (f&#34;{current_path}.{att_name}&#34;, get_object_attribute_no_verif(obj, att_name)) )
+
+    for matched_path, matched in match_path_and_obj:
+        if next_match != current_match and len(next_match) &gt; 0:  # next_match is different, match is not final
+            res = res + search_attribute_matching_name_with_path(
+                obj=matched,
+                name_rgx=next_match,
+                re_flags=re_flags,
+                current_path=matched_path,
+                deep_search=False,  # no deep with partial
+                search_in_sub_obj=False,  # no partial search in sub obj with no match
+            )
+        else:  # a complete match
+            res.append( (matched_path, matched) )
+            if deep_search:
+                res = res + search_attribute_matching_name_with_path(
+                    obj=matched,
+                    name_rgx=name_rgx,
+                    re_flags=re_flags,
+                    current_path=matched_path,
+                    deep_search=deep_search,  # no deep with partial
+                    search_in_sub_obj=True,
+                )
+    if search_in_sub_obj:
+        for not_matched_path, not_matched in not_match_path_and_obj:
+            res = res + search_attribute_matching_name_with_path(
+                obj=not_matched,
+                name_rgx=name_rgx,
+                re_flags=re_flags,
+                current_path=not_matched_path,
+                deep_search=deep_search,
+                search_in_sub_obj=True,
+            )
+
+    return res</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.search_attribute_matching_type"><code class="name flex">
+<span>def <span class="ident">search_attribute_matching_type</span></span>(<span>obj: Any, type_rgx: str, re_flags=re.IGNORECASE, return_self: bool = True, deep_search: bool = True, super_class_search: bool = True) ‑> List[Any]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>See :func:<code><a title="src.energyml.utils.introspection.search_attribute_matching_type_with_path" href="#src.energyml.utils.introspection.search_attribute_matching_type_with_path">search_attribute_matching_type_with_path()</a></code>. It only returns the value not the path
+:param obj:
+:param type_rgx:
+:param re_flags:
+:param return_self:
+:param deep_search:
+:param super_class_search:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def search_attribute_matching_type(
+        obj: Any,
+        type_rgx: str,
+        re_flags=re.IGNORECASE,
+        return_self: bool = True,  # test directly on input object and not only in its attributes
+        deep_search: bool = True,  # Search inside a matching object
+        super_class_search: bool = True,  # Search inside in super classes of the object
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    See :func:`search_attribute_matching_type_with_path`. It only returns the value not the path
+    :param obj:
+    :param type_rgx:
+    :param re_flags:
+    :param return_self:
+    :param deep_search:
+    :param super_class_search:
+    :return:
+    &#34;&#34;&#34;
+    return [
+        val
+        for path, val in search_attribute_matching_type_with_path(
+            obj=obj,
+            type_rgx=type_rgx,
+            re_flags=re_flags,
+            return_self=return_self,
+            deep_search=deep_search,
+            super_class_search=super_class_search,
+        )
+    ]</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.search_attribute_matching_type_with_path"><code class="name flex">
+<span>def <span class="ident">search_attribute_matching_type_with_path</span></span>(<span>obj: Any, type_rgx: str, re_flags=re.IGNORECASE, return_self: bool = True, deep_search: bool = True, super_class_search: bool = True, current_path: str = '') ‑> List[Tuple[str, Any]]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns a list of tuple (path, value) for each sub attribute with type matching param "type_rgx".
+The path is a dot-version like ".Citation.Title"
+:param obj:
+:param type_rgx:
+:param re_flags:
+:param return_self:
+:param deep_search:
+:param super_class_search:
+:param current_path:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def search_attribute_matching_type_with_path(
+        obj: Any,
+        type_rgx: str,
+        re_flags=re.IGNORECASE,
+        return_self: bool = True,  # test directly on input object and not only in its attributes
+        deep_search: bool = True,  # Search inside a matching object
+        super_class_search: bool = True,  # Search inside in super classes of the object
+        current_path: str = &#34;&#34;,
+) -&gt; List[Tuple[str, Any]]:
+    &#34;&#34;&#34;
+    Returns a list of tuple (path, value) for each sub attribute with type matching param &#34;type_rgx&#34;.
+    The path is a dot-version like &#34;.Citation.Title&#34;
+    :param obj:
+    :param type_rgx:
+    :param re_flags:
+    :param return_self:
+    :param deep_search:
+    :param super_class_search:
+    :param current_path:
+    :return:
+    &#34;&#34;&#34;
+    res = []
+    if obj is not None:
+        if return_self and class_match_rgx(
+                obj, type_rgx, super_class_search, re_flags
+        ):
+            res.append((current_path, obj))
+            if not deep_search:
+                return res
+
+    if isinstance(obj, list):
+        cpt = 0
+        for s_o in obj:
+            res = res + search_attribute_matching_type_with_path(
+                obj=s_o,
+                type_rgx=type_rgx,
+                re_flags=re_flags,
+                return_self=True,
+                deep_search=deep_search,
+                current_path=f&#34;{current_path}.{cpt}&#34;,
+                super_class_search=super_class_search,
+            )
+            cpt = cpt + 1
+    elif isinstance(obj, dict):
+        for k, s_o in obj.items():
+            res = res + search_attribute_matching_type_with_path(
+                obj=s_o,
+                type_rgx=type_rgx,
+                re_flags=re_flags,
+                return_self=True,
+                deep_search=deep_search,
+                current_path=f&#34;{current_path}.{k}&#34;,
+                super_class_search=super_class_search,
+            )
+    elif not is_primitive(obj):
+        for att_name in get_class_attributes(obj):
+            res = res + search_attribute_matching_type_with_path(
+                obj=get_object_attribute_rgx(obj, att_name),
+                type_rgx=type_rgx,
+                re_flags=re_flags,
+                return_self=True,
+                deep_search=deep_search,
+                current_path=f&#34;{current_path}.{att_name}&#34;,
+                super_class_search=super_class_search,
+            )
+
+    return res</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.introspection.snake_case"><code class="name flex">
+<span>def <span class="ident">snake_case</span></span>(<span>s: str) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Transform a str into snake case.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def snake_case(s: str) -&gt; str:
+    &#34;&#34;&#34; Transform a str into snake case. &#34;&#34;&#34;
+    s = re.sub(&#39;(.)([A-Z][a-z]+)&#39;, r&#39;\1_\2&#39;, s)
+    s = re.sub(&#39;__([A-Z])&#39;, r&#39;_\1&#39;, s)
+    s = re.sub(&#39;([a-z0-9])([A-Z])&#39;, r&#39;\1_\2&#39;, s)
+    return s.lower()</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="src.energyml.utils" href="index.html">src.energyml.utils</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="src.energyml.utils.introspection.class_match_rgx" href="#src.energyml.utils.introspection.class_match_rgx">class_match_rgx</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.date_to_epoch" href="#src.energyml.utils.introspection.date_to_epoch">date_to_epoch</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.epoch" href="#src.energyml.utils.introspection.epoch">epoch</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.epoch_to_date" href="#src.energyml.utils.introspection.epoch_to_date">epoch_to_date</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.flatten_concatenation" href="#src.energyml.utils.introspection.flatten_concatenation">flatten_concatenation</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.gen_uuid" href="#src.energyml.utils.introspection.gen_uuid">gen_uuid</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_class_attributes" href="#src.energyml.utils.introspection.get_class_attributes">get_class_attributes</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_class_fields" href="#src.energyml.utils.introspection.get_class_fields">get_class_fields</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_class_from_content_type" href="#src.energyml.utils.introspection.get_class_from_content_type">get_class_from_content_type</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_class_from_name" href="#src.energyml.utils.introspection.get_class_from_name">get_class_from_name</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_class_from_simple_name" href="#src.energyml.utils.introspection.get_class_from_simple_name">get_class_from_simple_name</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_class_methods" href="#src.energyml.utils.introspection.get_class_methods">get_class_methods</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_content_type_from_class" href="#src.energyml.utils.introspection.get_content_type_from_class">get_content_type_from_class</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_data_object_type" href="#src.energyml.utils.introspection.get_data_object_type">get_data_object_type</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_direct_dor_list" href="#src.energyml.utils.introspection.get_direct_dor_list">get_direct_dor_list</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_matching_class_attribute_name" href="#src.energyml.utils.introspection.get_matching_class_attribute_name">get_matching_class_attribute_name</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_obj_type" href="#src.energyml.utils.introspection.get_obj_type">get_obj_type</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_obj_uuid" href="#src.energyml.utils.introspection.get_obj_uuid">get_obj_uuid</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_obj_version" href="#src.energyml.utils.introspection.get_obj_version">get_obj_version</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_object_attribute" href="#src.energyml.utils.introspection.get_object_attribute">get_object_attribute</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_object_attribute_advanced" href="#src.energyml.utils.introspection.get_object_attribute_advanced">get_object_attribute_advanced</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_object_attribute_no_verif" href="#src.energyml.utils.introspection.get_object_attribute_no_verif">get_object_attribute_no_verif</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_object_attribute_rgx" href="#src.energyml.utils.introspection.get_object_attribute_rgx">get_object_attribute_rgx</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_object_type_for_file_path_from_class" href="#src.energyml.utils.introspection.get_object_type_for_file_path_from_class">get_object_type_for_file_path_from_class</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.get_qualified_type_from_class" href="#src.energyml.utils.introspection.get_qualified_type_from_class">get_qualified_type_from_class</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.import_related_module" href="#src.energyml.utils.introspection.import_related_module">import_related_module</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.is_abstract" href="#src.energyml.utils.introspection.is_abstract">is_abstract</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.is_enum" href="#src.energyml.utils.introspection.is_enum">is_enum</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.is_primitive" href="#src.energyml.utils.introspection.is_primitive">is_primitive</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.now" href="#src.energyml.utils.introspection.now">now</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.pascal_case" href="#src.energyml.utils.introspection.pascal_case">pascal_case</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.random_value_from_class" href="#src.energyml.utils.introspection.random_value_from_class">random_value_from_class</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.search_attribute_in_upper_matching_name" href="#src.energyml.utils.introspection.search_attribute_in_upper_matching_name">search_attribute_in_upper_matching_name</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.search_attribute_matching_name" href="#src.energyml.utils.introspection.search_attribute_matching_name">search_attribute_matching_name</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.search_attribute_matching_name_with_path" href="#src.energyml.utils.introspection.search_attribute_matching_name_with_path">search_attribute_matching_name_with_path</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.search_attribute_matching_type" href="#src.energyml.utils.introspection.search_attribute_matching_type">search_attribute_matching_type</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.search_attribute_matching_type_with_path" href="#src.energyml.utils.introspection.search_attribute_matching_type_with_path">search_attribute_matching_type_with_path</a></code></li>
+<li><code><a title="src.energyml.utils.introspection.snake_case" href="#src.energyml.utils.introspection.snake_case">snake_case</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

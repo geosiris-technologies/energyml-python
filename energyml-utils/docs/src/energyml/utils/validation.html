@@ -1,0 +1,984 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>src.energyml.utils.validation API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>src.energyml.utils.validation</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># Copyright (c) 2023-2024 Geosiris.
+# SPDX-License-Identifier: Apache-2.0
+import re
+from dataclasses import dataclass, field, Field
+from enum import Enum
+from typing import Any, List
+
+from .epc import (
+    get_obj_identifier, Epc,
+)
+from .introspection import (
+    get_class_fields,
+    get_object_attribute,
+    search_attribute_matching_type_with_path,
+    get_object_attribute_no_verif,
+    get_object_attribute_rgx,
+    get_matching_class_attribute_name, get_obj_uuid, get_obj_version, get_content_type_from_class,
+    get_qualified_type_from_class,
+)
+
+
+class ErrorType(Enum):
+    CRITICAL = &#34;critical&#34;
+    DEBUG = &#34;debug&#34;
+    INFO = &#34;info&#34;
+    WARNING = &#34;warning&#34;
+
+
+@dataclass
+class ValidationError:
+
+    msg: str = field(default=&#34;Validation error&#34;)
+
+    error_type: ErrorType = field(default=ErrorType.INFO)
+
+    def __str__(self):
+        return f&#34;[{str(self.error_type).upper()}] : {self.msg}&#34;
+
+
+@dataclass
+class ValidationObjectError(ValidationError):
+
+    target_obj: Any = field(default=None)
+
+    attribute_dot_path: str = field(default=None)
+
+    def __str__(self):
+        return f&#34;{ValidationError.__str__(self)}\n\t{get_obj_identifier(self.target_obj)} : &#39;{self.attribute_dot_path}&#39;&#34;
+
+
+@dataclass
+class MandatoryError(ValidationObjectError):
+    def __str__(self):
+        return f&#34;{ValidationError.__str__(self)}\n\tMandatory value is None for {get_obj_identifier(self.target_obj)} : &#39;{self.attribute_dot_path}&#39;&#34;
+
+
+def validate_epc(epc: Epc) -&gt; List[ValidationError]:
+    &#34;&#34;&#34;
+    Verify if all :param:`epc`&#39;s objects are valid.
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    errs = []
+    for obj in epc.energyml_objects:
+        errs = errs + patterns_verification(obj)
+
+    errs = errs + dor_verification(epc.energyml_objects)
+
+    return errs
+
+
+def dor_verification(energyml_objects: List[Any]) -&gt; List[ValidationError]:
+    &#34;&#34;&#34;
+    Verification for DOR. An error is raised if DORs contains wrong information, or if a referenced object is unknown
+    in the :param:`epc`.
+    :param energyml_objects:
+    :return:
+    &#34;&#34;&#34;
+    errs = []
+
+    dict_obj_identifier = {
+        get_obj_identifier(obj): obj for obj in energyml_objects
+    }
+    dict_obj_uuid = {}
+    for obj in energyml_objects:
+        uuid = get_obj_uuid(obj)
+        if uuid not in dict_obj_uuid:
+            dict_obj_uuid[uuid] = []
+        dict_obj_uuid[uuid].append(obj)
+
+    # TODO: chercher dans les objets les AbstractObject (en Witsml des sous objet peuvent etre aussi references)
+
+    for obj in energyml_objects:
+        dor_list = search_attribute_matching_type_with_path(
+            obj, &#34;DataObjectReference&#34;
+        )
+        for dor_path, dor in dor_list:
+            dor_target_id = get_obj_identifier(dor)
+            if dor_target_id not in dict_obj_identifier:
+                dor_uuid = get_obj_uuid(dor)
+                dor_version = get_obj_version(dor)
+                if dor_uuid not in dict_obj_uuid:
+                    errs.append(
+                        ValidationObjectError(
+                            error_type=ErrorType.CRITICAL,
+                            target_obj=obj,
+                            attribute_dot_path=dor_path,
+                            msg=f&#34;[DOR ERR] has wrong information. Unkown object with uuid &#39;{dor_uuid}&#39;&#34;,
+                        )
+                    )
+                else:
+                    accessible_version = [
+                        get_obj_version(ref_obj)
+                        for ref_obj in dict_obj_uuid[dor_uuid]
+                    ]
+                    errs.append(
+                        ValidationObjectError(
+                            error_type=ErrorType.CRITICAL,
+                            target_obj=obj,
+                            attribute_dot_path=dor_path,
+                            msg=f&#34;[DOR ERR] has wrong information. Unkown object version &#39;{dor_version}&#39;. &#34;
+                            f&#34;Version must be one of {accessible_version}&#34;,
+                        )
+                    )
+            else:
+                target = dict_obj_identifier[dor_target_id]
+                target_title = get_object_attribute_rgx(
+                    target, &#34;citation.title&#34;
+                )
+                target_content_type = get_content_type_from_class(target)
+                target_qualified_type = get_qualified_type_from_class(target)
+
+                dor_title = get_object_attribute_rgx(dor, &#34;title&#34;)
+
+                if dor_title != target_title:
+                    errs.append(
+                        ValidationObjectError(
+                            error_type=ErrorType.CRITICAL,
+                            target_obj=obj,
+                            attribute_dot_path=dor_path,
+                            msg=f&#34;[DOR ERR] has wrong information. Title should be &#39;{target_title}&#39; and not &#39;{dor_title}&#39;&#34;,
+                        )
+                    )
+
+                if (
+                    get_matching_class_attribute_name(dor, &#34;content_type&#34;)
+                    is not None
+                ):
+                    dor_content_type = get_object_attribute_no_verif(
+                        dor, &#34;content_type&#34;
+                    )
+                    if dor_content_type != target_content_type:
+                        errs.append(
+                            ValidationObjectError(
+                                error_type=ErrorType.CRITICAL,
+                                target_obj=obj,
+                                attribute_dot_path=dor_path,
+                                msg=f&#34;[DOR ERR] has wrong information. ContentType should be &#39;{target_content_type}&#39; and not &#39;{dor_content_type}&#39;&#34;,
+                            )
+                        )
+
+                if (
+                    get_matching_class_attribute_name(dor, &#34;qualified_type&#34;)
+                    is not None
+                ):
+                    dor_qualified_type = get_object_attribute_no_verif(
+                        dor, &#34;qualified_type&#34;
+                    )
+                    if dor_qualified_type != target_qualified_type:
+                        errs.append(
+                            ValidationObjectError(
+                                error_type=ErrorType.CRITICAL,
+                                target_obj=obj,
+                                attribute_dot_path=dor_path,
+                                msg=f&#34;[DOR ERR] has wrong information. QualifiedType should be &#39;{target_qualified_type}&#39; and not &#39;{dor_qualified_type}&#39;&#34;,
+                            )
+                        )
+
+    return errs
+
+
+def patterns_verification(obj: Any) -&gt; List[ValidationError]:
+    &#34;&#34;&#34;
+    Verification on object values, using the patterns defined in the original energyml xsd files.
+    :param obj:
+    :return:
+    &#34;&#34;&#34;
+    return _patterns_verification(obj, obj, &#34;&#34;)
+
+
+def _patterns_verification(
+    obj: Any, root_obj: Any, current_attribute_dot_path: str = &#34;&#34;
+) -&gt; List[ValidationError]:
+    &#34;&#34;&#34;
+    Verification on object values, using the patterns defined in the original energyml xsd files.
+    :param obj:
+    :param root_obj:
+    :param current_attribute_dot_path:
+    :return:
+    &#34;&#34;&#34;
+    error_list = []
+
+    if isinstance(obj, list):
+        cpt = 0
+        for val in obj:
+            error_list = error_list + _patterns_verification(
+                val, root_obj, f&#34;{current_attribute_dot_path}.{cpt}&#34;
+            )
+            cpt = cpt + 1
+    elif isinstance(obj, dict):
+        for k, val in obj.items():
+            error_list = error_list + _patterns_verification(
+                val, root_obj, f&#34;{current_attribute_dot_path}.{k}&#34;
+            )
+    else:
+        # print(get_class_fields(obj))
+        for att_name, att_field in get_class_fields(obj).items():
+            # print(f&#34;att_name : {att_field.metadata}&#34;)
+            error_list = error_list + validate_attribute(
+                get_object_attribute(obj, att_name, False),
+                root_obj,
+                att_field,
+                f&#34;{current_attribute_dot_path}.{att_name}&#34;,
+            )
+
+    return error_list
+
+
+def validate_attribute(
+    value: Any, root_obj: Any, att_field: Field, path: str
+) -&gt; List[ValidationError]:
+    errs = []
+
+    if value is None:
+        if att_field.metadata.get(&#34;required&#34;, False):
+            errs.append(
+                MandatoryError(
+                    error_type=ErrorType.CRITICAL,
+                    target_obj=root_obj,
+                    attribute_dot_path=path,
+                )
+            )
+    else:
+        min_length = att_field.metadata.get(&#34;min_length&#34;, None)
+        max_length = att_field.metadata.get(&#34;max_length&#34;, None)
+        pattern = att_field.metadata.get(&#34;pattern&#34;, None)
+        min_occurs = att_field.metadata.get(&#34;pattern&#34;, None)
+        min_inclusive = att_field.metadata.get(&#34;pattern&#34;, None)
+        # white_space
+
+        if max_length is not None:
+            length = len(value)
+            if length &gt; max_length:
+                errs.append(
+                    ValidationObjectError(
+                        error_type=ErrorType.CRITICAL,
+                        target_obj=root_obj,
+                        attribute_dot_path=path,
+                        msg=f&#34;Max length was {max_length} but found {length}&#34;,
+                    )
+                )
+
+        if min_length is not None:
+            length = len(value)
+            if length &lt; min_length:
+                errs.append(
+                    ValidationObjectError(
+                        error_type=ErrorType.CRITICAL,
+                        target_obj=root_obj,
+                        attribute_dot_path=path,
+                        msg=f&#34;Max length was {min_length} but found {length}&#34;,
+                    )
+                )
+
+        if min_occurs is not None:
+            if isinstance(value, list) and min_occurs &gt; len(value):
+                errs.append(
+                    ValidationObjectError(
+                        error_type=ErrorType.CRITICAL,
+                        target_obj=root_obj,
+                        attribute_dot_path=path,
+                        msg=f&#34;Min occurs was {min_occurs} but found {len(value)}&#34;,
+                    )
+                )
+
+        if min_inclusive is not None:
+            potential_err = ValidationObjectError(
+                error_type=ErrorType.CRITICAL,
+                target_obj=root_obj,
+                attribute_dot_path=path,
+                msg=f&#34;Min occurs was {min_inclusive} but found {len(value)}&#34;,
+            )
+            if isinstance(value, list):
+                for val in value:
+                    if (
+                            (isinstance(val, str) and len(val) &gt; min_inclusive)
+                            or ((isinstance(val, int) or isinstance(val, float)) and val &gt; min_inclusive)
+                    ):
+                        errs.append(potential_err)
+
+        if pattern is not None:
+            if re.match(pattern, value) is None:
+                errs.append(
+                    ValidationObjectError(
+                        error_type=ErrorType.CRITICAL,
+                        target_obj=root_obj,
+                        attribute_dot_path=path,
+                        msg=f&#34;Pattern error. Value &#39;{value}&#39; was supposed to respect pattern &#39;{pattern}&#39;&#34;,
+                    )
+                )
+
+    return errs + _patterns_verification(
+        obj=value,
+        root_obj=root_obj,
+        current_attribute_dot_path=path,
+    )
+
+
+def correct_dor(energyml_objects: List[Any]) -&gt; None:
+    &#34;&#34;&#34;
+    Fix DOR errors (missing object_version, wrong title, wrong content-type/qualified-type ...)
+    :param energyml_objects:
+    :return:
+    &#34;&#34;&#34;
+    dict_obj_identifier = {
+        get_obj_identifier(obj): obj for obj in energyml_objects
+    }
+    dict_obj_uuid = {}
+    for obj in energyml_objects:
+        uuid = get_obj_uuid(obj)
+        if uuid not in dict_obj_uuid:
+            dict_obj_uuid[uuid] = []
+        dict_obj_uuid[uuid].append(obj)
+
+    # TODO: chercher dans les objets les AbstractObject (en Witsml des sous objet peuvent etre aussi references)
+
+    for obj in energyml_objects:
+        dor_list = search_attribute_matching_type_with_path(
+            obj, &#34;DataObjectReference&#34;
+        )
+        for dor_path, dor in dor_list:
+            dor_target_id = get_obj_identifier(dor)
+            if dor_target_id in dict_obj_identifier:
+                target = dict_obj_identifier[dor_target_id]
+                target_title = get_object_attribute_rgx(
+                    target, &#34;citation.title&#34;
+                )
+                target_content_type = get_content_type_from_class(target)
+                target_qualified_type = get_qualified_type_from_class(target)
+
+                dor_title = get_object_attribute_rgx(dor, &#34;title&#34;)
+
+                if dor_title != target_title:
+                    dor.title = target_title
+
+                if (
+                    get_matching_class_attribute_name(dor, &#34;content_type&#34;)
+                    is not None
+                ):
+                    dor_content_type = get_object_attribute_no_verif(
+                        dor, &#34;content_type&#34;
+                    )
+                    if dor_content_type != target_content_type:
+                        dor.content_type = target_content_type
+
+                if (
+                    get_matching_class_attribute_name(dor, &#34;qualified_type&#34;)
+                    is not None
+                ):
+                    dor_qualified_type = get_object_attribute_no_verif(
+                        dor, &#34;qualified_type&#34;
+                    )
+                    if dor_qualified_type != target_qualified_type:
+                        dor.qualified_type = target_qualified_type</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="src.energyml.utils.validation.correct_dor"><code class="name flex">
+<span>def <span class="ident">correct_dor</span></span>(<span>energyml_objects: List[Any]) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Fix DOR errors (missing object_version, wrong title, wrong content-type/qualified-type &hellip;)
+:param energyml_objects:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def correct_dor(energyml_objects: List[Any]) -&gt; None:
+    &#34;&#34;&#34;
+    Fix DOR errors (missing object_version, wrong title, wrong content-type/qualified-type ...)
+    :param energyml_objects:
+    :return:
+    &#34;&#34;&#34;
+    dict_obj_identifier = {
+        get_obj_identifier(obj): obj for obj in energyml_objects
+    }
+    dict_obj_uuid = {}
+    for obj in energyml_objects:
+        uuid = get_obj_uuid(obj)
+        if uuid not in dict_obj_uuid:
+            dict_obj_uuid[uuid] = []
+        dict_obj_uuid[uuid].append(obj)
+
+    # TODO: chercher dans les objets les AbstractObject (en Witsml des sous objet peuvent etre aussi references)
+
+    for obj in energyml_objects:
+        dor_list = search_attribute_matching_type_with_path(
+            obj, &#34;DataObjectReference&#34;
+        )
+        for dor_path, dor in dor_list:
+            dor_target_id = get_obj_identifier(dor)
+            if dor_target_id in dict_obj_identifier:
+                target = dict_obj_identifier[dor_target_id]
+                target_title = get_object_attribute_rgx(
+                    target, &#34;citation.title&#34;
+                )
+                target_content_type = get_content_type_from_class(target)
+                target_qualified_type = get_qualified_type_from_class(target)
+
+                dor_title = get_object_attribute_rgx(dor, &#34;title&#34;)
+
+                if dor_title != target_title:
+                    dor.title = target_title
+
+                if (
+                    get_matching_class_attribute_name(dor, &#34;content_type&#34;)
+                    is not None
+                ):
+                    dor_content_type = get_object_attribute_no_verif(
+                        dor, &#34;content_type&#34;
+                    )
+                    if dor_content_type != target_content_type:
+                        dor.content_type = target_content_type
+
+                if (
+                    get_matching_class_attribute_name(dor, &#34;qualified_type&#34;)
+                    is not None
+                ):
+                    dor_qualified_type = get_object_attribute_no_verif(
+                        dor, &#34;qualified_type&#34;
+                    )
+                    if dor_qualified_type != target_qualified_type:
+                        dor.qualified_type = target_qualified_type</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.validation.dor_verification"><code class="name flex">
+<span>def <span class="ident">dor_verification</span></span>(<span>energyml_objects: List[Any]) ‑> List[<a title="src.energyml.utils.validation.ValidationError" href="#src.energyml.utils.validation.ValidationError">ValidationError</a>]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Verification for DOR. An error is raised if DORs contains wrong information, or if a referenced object is unknown
+in the :param:<code>epc</code>.
+:param energyml_objects:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def dor_verification(energyml_objects: List[Any]) -&gt; List[ValidationError]:
+    &#34;&#34;&#34;
+    Verification for DOR. An error is raised if DORs contains wrong information, or if a referenced object is unknown
+    in the :param:`epc`.
+    :param energyml_objects:
+    :return:
+    &#34;&#34;&#34;
+    errs = []
+
+    dict_obj_identifier = {
+        get_obj_identifier(obj): obj for obj in energyml_objects
+    }
+    dict_obj_uuid = {}
+    for obj in energyml_objects:
+        uuid = get_obj_uuid(obj)
+        if uuid not in dict_obj_uuid:
+            dict_obj_uuid[uuid] = []
+        dict_obj_uuid[uuid].append(obj)
+
+    # TODO: chercher dans les objets les AbstractObject (en Witsml des sous objet peuvent etre aussi references)
+
+    for obj in energyml_objects:
+        dor_list = search_attribute_matching_type_with_path(
+            obj, &#34;DataObjectReference&#34;
+        )
+        for dor_path, dor in dor_list:
+            dor_target_id = get_obj_identifier(dor)
+            if dor_target_id not in dict_obj_identifier:
+                dor_uuid = get_obj_uuid(dor)
+                dor_version = get_obj_version(dor)
+                if dor_uuid not in dict_obj_uuid:
+                    errs.append(
+                        ValidationObjectError(
+                            error_type=ErrorType.CRITICAL,
+                            target_obj=obj,
+                            attribute_dot_path=dor_path,
+                            msg=f&#34;[DOR ERR] has wrong information. Unkown object with uuid &#39;{dor_uuid}&#39;&#34;,
+                        )
+                    )
+                else:
+                    accessible_version = [
+                        get_obj_version(ref_obj)
+                        for ref_obj in dict_obj_uuid[dor_uuid]
+                    ]
+                    errs.append(
+                        ValidationObjectError(
+                            error_type=ErrorType.CRITICAL,
+                            target_obj=obj,
+                            attribute_dot_path=dor_path,
+                            msg=f&#34;[DOR ERR] has wrong information. Unkown object version &#39;{dor_version}&#39;. &#34;
+                            f&#34;Version must be one of {accessible_version}&#34;,
+                        )
+                    )
+            else:
+                target = dict_obj_identifier[dor_target_id]
+                target_title = get_object_attribute_rgx(
+                    target, &#34;citation.title&#34;
+                )
+                target_content_type = get_content_type_from_class(target)
+                target_qualified_type = get_qualified_type_from_class(target)
+
+                dor_title = get_object_attribute_rgx(dor, &#34;title&#34;)
+
+                if dor_title != target_title:
+                    errs.append(
+                        ValidationObjectError(
+                            error_type=ErrorType.CRITICAL,
+                            target_obj=obj,
+                            attribute_dot_path=dor_path,
+                            msg=f&#34;[DOR ERR] has wrong information. Title should be &#39;{target_title}&#39; and not &#39;{dor_title}&#39;&#34;,
+                        )
+                    )
+
+                if (
+                    get_matching_class_attribute_name(dor, &#34;content_type&#34;)
+                    is not None
+                ):
+                    dor_content_type = get_object_attribute_no_verif(
+                        dor, &#34;content_type&#34;
+                    )
+                    if dor_content_type != target_content_type:
+                        errs.append(
+                            ValidationObjectError(
+                                error_type=ErrorType.CRITICAL,
+                                target_obj=obj,
+                                attribute_dot_path=dor_path,
+                                msg=f&#34;[DOR ERR] has wrong information. ContentType should be &#39;{target_content_type}&#39; and not &#39;{dor_content_type}&#39;&#34;,
+                            )
+                        )
+
+                if (
+                    get_matching_class_attribute_name(dor, &#34;qualified_type&#34;)
+                    is not None
+                ):
+                    dor_qualified_type = get_object_attribute_no_verif(
+                        dor, &#34;qualified_type&#34;
+                    )
+                    if dor_qualified_type != target_qualified_type:
+                        errs.append(
+                            ValidationObjectError(
+                                error_type=ErrorType.CRITICAL,
+                                target_obj=obj,
+                                attribute_dot_path=dor_path,
+                                msg=f&#34;[DOR ERR] has wrong information. QualifiedType should be &#39;{target_qualified_type}&#39; and not &#39;{dor_qualified_type}&#39;&#34;,
+                            )
+                        )
+
+    return errs</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.validation.patterns_verification"><code class="name flex">
+<span>def <span class="ident">patterns_verification</span></span>(<span>obj: Any) ‑> List[<a title="src.energyml.utils.validation.ValidationError" href="#src.energyml.utils.validation.ValidationError">ValidationError</a>]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Verification on object values, using the patterns defined in the original energyml xsd files.
+:param obj:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def patterns_verification(obj: Any) -&gt; List[ValidationError]:
+    &#34;&#34;&#34;
+    Verification on object values, using the patterns defined in the original energyml xsd files.
+    :param obj:
+    :return:
+    &#34;&#34;&#34;
+    return _patterns_verification(obj, obj, &#34;&#34;)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.validation.validate_attribute"><code class="name flex">
+<span>def <span class="ident">validate_attribute</span></span>(<span>value: Any, root_obj: Any, att_field: dataclasses.Field, path: str) ‑> List[<a title="src.energyml.utils.validation.ValidationError" href="#src.energyml.utils.validation.ValidationError">ValidationError</a>]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def validate_attribute(
+    value: Any, root_obj: Any, att_field: Field, path: str
+) -&gt; List[ValidationError]:
+    errs = []
+
+    if value is None:
+        if att_field.metadata.get(&#34;required&#34;, False):
+            errs.append(
+                MandatoryError(
+                    error_type=ErrorType.CRITICAL,
+                    target_obj=root_obj,
+                    attribute_dot_path=path,
+                )
+            )
+    else:
+        min_length = att_field.metadata.get(&#34;min_length&#34;, None)
+        max_length = att_field.metadata.get(&#34;max_length&#34;, None)
+        pattern = att_field.metadata.get(&#34;pattern&#34;, None)
+        min_occurs = att_field.metadata.get(&#34;pattern&#34;, None)
+        min_inclusive = att_field.metadata.get(&#34;pattern&#34;, None)
+        # white_space
+
+        if max_length is not None:
+            length = len(value)
+            if length &gt; max_length:
+                errs.append(
+                    ValidationObjectError(
+                        error_type=ErrorType.CRITICAL,
+                        target_obj=root_obj,
+                        attribute_dot_path=path,
+                        msg=f&#34;Max length was {max_length} but found {length}&#34;,
+                    )
+                )
+
+        if min_length is not None:
+            length = len(value)
+            if length &lt; min_length:
+                errs.append(
+                    ValidationObjectError(
+                        error_type=ErrorType.CRITICAL,
+                        target_obj=root_obj,
+                        attribute_dot_path=path,
+                        msg=f&#34;Max length was {min_length} but found {length}&#34;,
+                    )
+                )
+
+        if min_occurs is not None:
+            if isinstance(value, list) and min_occurs &gt; len(value):
+                errs.append(
+                    ValidationObjectError(
+                        error_type=ErrorType.CRITICAL,
+                        target_obj=root_obj,
+                        attribute_dot_path=path,
+                        msg=f&#34;Min occurs was {min_occurs} but found {len(value)}&#34;,
+                    )
+                )
+
+        if min_inclusive is not None:
+            potential_err = ValidationObjectError(
+                error_type=ErrorType.CRITICAL,
+                target_obj=root_obj,
+                attribute_dot_path=path,
+                msg=f&#34;Min occurs was {min_inclusive} but found {len(value)}&#34;,
+            )
+            if isinstance(value, list):
+                for val in value:
+                    if (
+                            (isinstance(val, str) and len(val) &gt; min_inclusive)
+                            or ((isinstance(val, int) or isinstance(val, float)) and val &gt; min_inclusive)
+                    ):
+                        errs.append(potential_err)
+
+        if pattern is not None:
+            if re.match(pattern, value) is None:
+                errs.append(
+                    ValidationObjectError(
+                        error_type=ErrorType.CRITICAL,
+                        target_obj=root_obj,
+                        attribute_dot_path=path,
+                        msg=f&#34;Pattern error. Value &#39;{value}&#39; was supposed to respect pattern &#39;{pattern}&#39;&#34;,
+                    )
+                )
+
+    return errs + _patterns_verification(
+        obj=value,
+        root_obj=root_obj,
+        current_attribute_dot_path=path,
+    )</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.validation.validate_epc"><code class="name flex">
+<span>def <span class="ident">validate_epc</span></span>(<span>epc: <a title="src.energyml.utils.epc.Epc" href="epc.html#src.energyml.utils.epc.Epc">Epc</a>) ‑> List[<a title="src.energyml.utils.validation.ValidationError" href="#src.energyml.utils.validation.ValidationError">ValidationError</a>]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Verify if all :param:<code>epc</code>'s objects are valid.
+:param epc:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def validate_epc(epc: Epc) -&gt; List[ValidationError]:
+    &#34;&#34;&#34;
+    Verify if all :param:`epc`&#39;s objects are valid.
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    errs = []
+    for obj in epc.energyml_objects:
+        errs = errs + patterns_verification(obj)
+
+    errs = errs + dor_verification(epc.energyml_objects)
+
+    return errs</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="src.energyml.utils.validation.ErrorType"><code class="flex name class">
+<span>class <span class="ident">ErrorType</span></span>
+<span>(</span><span>*args, **kwds)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Create a collection of name/value pairs.</p>
+<p>Example enumeration:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; class Color(Enum):
+...     RED = 1
+...     BLUE = 2
+...     GREEN = 3
+</code></pre>
+<p>Access them by:</p>
+<ul>
+<li>attribute access::</li>
+</ul>
+<pre><code class="language-python-repl">&gt;&gt;&gt; Color.RED
+&lt;Color.RED: 1&gt;
+</code></pre>
+<ul>
+<li>value lookup:</li>
+</ul>
+<pre><code class="language-python-repl">&gt;&gt;&gt; Color(1)
+&lt;Color.RED: 1&gt;
+</code></pre>
+<ul>
+<li>name lookup:</li>
+</ul>
+<pre><code class="language-python-repl">&gt;&gt;&gt; Color['RED']
+&lt;Color.RED: 1&gt;
+</code></pre>
+<p>Enumerations can be iterated over, and know how many members they have:</p>
+<pre><code class="language-python-repl">&gt;&gt;&gt; len(Color)
+3
+</code></pre>
+<pre><code class="language-python-repl">&gt;&gt;&gt; list(Color)
+[&lt;Color.RED: 1&gt;, &lt;Color.BLUE: 2&gt;, &lt;Color.GREEN: 3&gt;]
+</code></pre>
+<p>Methods can be added to enumerations, and members can have their own
+attributes &ndash; see the documentation for details.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class ErrorType(Enum):
+    CRITICAL = &#34;critical&#34;
+    DEBUG = &#34;debug&#34;
+    INFO = &#34;info&#34;
+    WARNING = &#34;warning&#34;</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>enum.Enum</li>
+</ul>
+<h3>Class variables</h3>
+<dl>
+<dt id="src.energyml.utils.validation.ErrorType.CRITICAL"><code class="name">var <span class="ident">CRITICAL</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="src.energyml.utils.validation.ErrorType.DEBUG"><code class="name">var <span class="ident">DEBUG</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="src.energyml.utils.validation.ErrorType.INFO"><code class="name">var <span class="ident">INFO</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="src.energyml.utils.validation.ErrorType.WARNING"><code class="name">var <span class="ident">WARNING</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+<dt id="src.energyml.utils.validation.MandatoryError"><code class="flex name class">
+<span>class <span class="ident">MandatoryError</span></span>
+<span>(</span><span>msg: str = 'Validation error', error_type: <a title="src.energyml.utils.validation.ErrorType" href="#src.energyml.utils.validation.ErrorType">ErrorType</a> = ErrorType.INFO, target_obj: Any = None, attribute_dot_path: str = None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>MandatoryError(msg: str = 'Validation error', error_type: src.energyml.utils.validation.ErrorType = <ErrorType.INFO: 'info'>, target_obj: Any = None, attribute_dot_path: str = None)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@dataclass
+class MandatoryError(ValidationObjectError):
+    def __str__(self):
+        return f&#34;{ValidationError.__str__(self)}\n\tMandatory value is None for {get_obj_identifier(self.target_obj)} : &#39;{self.attribute_dot_path}&#39;&#34;</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="src.energyml.utils.validation.ValidationObjectError" href="#src.energyml.utils.validation.ValidationObjectError">ValidationObjectError</a></li>
+<li><a title="src.energyml.utils.validation.ValidationError" href="#src.energyml.utils.validation.ValidationError">ValidationError</a></li>
+</ul>
+</dd>
+<dt id="src.energyml.utils.validation.ValidationError"><code class="flex name class">
+<span>class <span class="ident">ValidationError</span></span>
+<span>(</span><span>msg: str = 'Validation error', error_type: <a title="src.energyml.utils.validation.ErrorType" href="#src.energyml.utils.validation.ErrorType">ErrorType</a> = ErrorType.INFO)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>ValidationError(msg: str = 'Validation error', error_type: src.energyml.utils.validation.ErrorType = <ErrorType.INFO: 'info'>)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@dataclass
+class ValidationError:
+
+    msg: str = field(default=&#34;Validation error&#34;)
+
+    error_type: ErrorType = field(default=ErrorType.INFO)
+
+    def __str__(self):
+        return f&#34;[{str(self.error_type).upper()}] : {self.msg}&#34;</code></pre>
+</details>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="src.energyml.utils.validation.ValidationObjectError" href="#src.energyml.utils.validation.ValidationObjectError">ValidationObjectError</a></li>
+</ul>
+<h3>Class variables</h3>
+<dl>
+<dt id="src.energyml.utils.validation.ValidationError.error_type"><code class="name">var <span class="ident">error_type</span> : <a title="src.energyml.utils.validation.ErrorType" href="#src.energyml.utils.validation.ErrorType">ErrorType</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="src.energyml.utils.validation.ValidationError.msg"><code class="name">var <span class="ident">msg</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+<dt id="src.energyml.utils.validation.ValidationObjectError"><code class="flex name class">
+<span>class <span class="ident">ValidationObjectError</span></span>
+<span>(</span><span>msg: str = 'Validation error', error_type: <a title="src.energyml.utils.validation.ErrorType" href="#src.energyml.utils.validation.ErrorType">ErrorType</a> = ErrorType.INFO, target_obj: Any = None, attribute_dot_path: str = None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>ValidationObjectError(msg: str = 'Validation error', error_type: src.energyml.utils.validation.ErrorType = <ErrorType.INFO: 'info'>, target_obj: Any = None, attribute_dot_path: str = None)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@dataclass
+class ValidationObjectError(ValidationError):
+
+    target_obj: Any = field(default=None)
+
+    attribute_dot_path: str = field(default=None)
+
+    def __str__(self):
+        return f&#34;{ValidationError.__str__(self)}\n\t{get_obj_identifier(self.target_obj)} : &#39;{self.attribute_dot_path}&#39;&#34;</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="src.energyml.utils.validation.ValidationError" href="#src.energyml.utils.validation.ValidationError">ValidationError</a></li>
+</ul>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="src.energyml.utils.validation.MandatoryError" href="#src.energyml.utils.validation.MandatoryError">MandatoryError</a></li>
+</ul>
+<h3>Class variables</h3>
+<dl>
+<dt id="src.energyml.utils.validation.ValidationObjectError.attribute_dot_path"><code class="name">var <span class="ident">attribute_dot_path</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="src.energyml.utils.validation.ValidationObjectError.target_obj"><code class="name">var <span class="ident">target_obj</span> : Any</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="src.energyml.utils" href="index.html">src.energyml.utils</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="src.energyml.utils.validation.correct_dor" href="#src.energyml.utils.validation.correct_dor">correct_dor</a></code></li>
+<li><code><a title="src.energyml.utils.validation.dor_verification" href="#src.energyml.utils.validation.dor_verification">dor_verification</a></code></li>
+<li><code><a title="src.energyml.utils.validation.patterns_verification" href="#src.energyml.utils.validation.patterns_verification">patterns_verification</a></code></li>
+<li><code><a title="src.energyml.utils.validation.validate_attribute" href="#src.energyml.utils.validation.validate_attribute">validate_attribute</a></code></li>
+<li><code><a title="src.energyml.utils.validation.validate_epc" href="#src.energyml.utils.validation.validate_epc">validate_epc</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="src.energyml.utils.validation.ErrorType" href="#src.energyml.utils.validation.ErrorType">ErrorType</a></code></h4>
+<ul class="">
+<li><code><a title="src.energyml.utils.validation.ErrorType.CRITICAL" href="#src.energyml.utils.validation.ErrorType.CRITICAL">CRITICAL</a></code></li>
+<li><code><a title="src.energyml.utils.validation.ErrorType.DEBUG" href="#src.energyml.utils.validation.ErrorType.DEBUG">DEBUG</a></code></li>
+<li><code><a title="src.energyml.utils.validation.ErrorType.INFO" href="#src.energyml.utils.validation.ErrorType.INFO">INFO</a></code></li>
+<li><code><a title="src.energyml.utils.validation.ErrorType.WARNING" href="#src.energyml.utils.validation.ErrorType.WARNING">WARNING</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="src.energyml.utils.validation.MandatoryError" href="#src.energyml.utils.validation.MandatoryError">MandatoryError</a></code></h4>
+</li>
+<li>
+<h4><code><a title="src.energyml.utils.validation.ValidationError" href="#src.energyml.utils.validation.ValidationError">ValidationError</a></code></h4>
+<ul class="">
+<li><code><a title="src.energyml.utils.validation.ValidationError.error_type" href="#src.energyml.utils.validation.ValidationError.error_type">error_type</a></code></li>
+<li><code><a title="src.energyml.utils.validation.ValidationError.msg" href="#src.energyml.utils.validation.ValidationError.msg">msg</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="src.energyml.utils.validation.ValidationObjectError" href="#src.energyml.utils.validation.ValidationObjectError">ValidationObjectError</a></code></h4>
+<ul class="">
+<li><code><a title="src.energyml.utils.validation.ValidationObjectError.attribute_dot_path" href="#src.energyml.utils.validation.ValidationObjectError.attribute_dot_path">attribute_dot_path</a></code></li>
+<li><code><a title="src.energyml.utils.validation.ValidationObjectError.target_obj" href="#src.energyml.utils.validation.ValidationObjectError.target_obj">target_obj</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

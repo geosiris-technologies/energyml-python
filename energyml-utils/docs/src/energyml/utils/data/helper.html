@@ -1,0 +1,1286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>src.energyml.utils.data.helper API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>src.energyml.utils.data.helper</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># Copyright (c) 2023-2024 Geosiris.
+# SPDX-License-Identifier: Apache-2.0
+import inspect
+import sys
+from typing import Any, Optional, Callable, Literal, List, Union, Tuple
+
+from .hdf import get_hdf5_path_from_external_path, HDF5FileReader, get_hdf_reference, get_crs_obj
+from ..epc import Epc, get_obj_identifier
+from ..introspection import snake_case, get_object_attribute_no_verif, \
+    search_attribute_matching_name_with_path, search_attribute_matching_name, flatten_concatenation, \
+    search_attribute_in_upper_matching_name
+
+_ARRAY_NAMES_ = [
+    &#34;BooleanArrayFromDiscretePropertyArray&#34;,
+    &#34;BooleanArrayFromIndexArray&#34;,
+    &#34;BooleanConstantArray&#34;,
+    &#34;BooleanExternalArray&#34;,
+    &#34;BooleanHdf5Array&#34;,
+    &#34;BooleanXmlArray&#34;,
+    &#34;CompoundExternalArray&#34;,
+    &#34;DasTimeArray&#34;,
+    &#34;DoubleConstantArray&#34;,
+    &#34;DoubleHdf5Array&#34;,
+    &#34;DoubleLatticeArray&#34;,
+    &#34;ExternalDataArray&#34;,
+    &#34;FloatingPointConstantArray&#34;,
+    &#34;FloatingPointExternalArray&#34;,
+    &#34;FloatingPointLatticeArray&#34;,
+    &#34;FloatingPointXmlArray&#34;,
+    &#34;IntegerArrayFromBooleanMaskArray&#34;,
+    &#34;IntegerConstantArray&#34;,
+    &#34;IntegerExternalArray&#34;,
+    &#34;IntegerHdf5Array&#34;,
+    &#34;IntegerLatticeArray&#34;,
+    &#34;IntegerRangeArray&#34;,
+    &#34;IntegerXmlArray&#34;,
+    &#34;JaggedArray&#34;,
+    &#34;ParametricLineArray&#34;,
+    &#34;ParametricLineFromRepresentationLatticeArray&#34;,
+    &#34;Point2DHdf5Array&#34;,
+    &#34;Point3DFromRepresentationLatticeArray&#34;,
+    &#34;Point3DHdf5Array&#34;,
+    &#34;Point3DLatticeArray&#34;,
+    &#34;Point3DParametricArray&#34;,
+    &#34;Point3DZvalueArray&#34;,
+    &#34;ResqmlJaggedArray&#34;,
+    &#34;StringConstantArray&#34;,
+    &#34;StringExternalArray&#34;,
+    &#34;StringHdf5Array&#34;,
+    &#34;StringXmlArray&#34;
+]
+
+
+def get_array_reader_function(array_type_name: str) -&gt; Optional[Callable]:
+    &#34;&#34;&#34;
+    Returns the name of the potential appropriate function to read an object with type is named :param array_type_name
+    :param array_type_name: the initial type name
+    :return:
+    &#34;&#34;&#34;
+    for name, obj in inspect.getmembers(sys.modules[__name__]):
+        if name == f&#34;read_{snake_case(array_type_name)}&#34;:
+            return obj
+    return None
+
+
+def _array_name_mapping(array_type_name: str) -&gt; str:
+    &#34;&#34;&#34;
+    Transform the type name to match existing reader function
+    :param array_type_name:
+    :return:
+    &#34;&#34;&#34;
+    array_type_name = array_type_name.replace(&#34;3D&#34;, &#34;3d&#34;).replace(&#34;2D&#34;, &#34;2d&#34;)
+    if array_type_name.endswith(&#34;ConstantArray&#34;):
+        return &#34;ConstantArray&#34;
+    elif &#34;External&#34; in array_type_name or &#34;Hdf5&#34; in array_type_name:
+        return &#34;ExternalArray&#34;
+    elif array_type_name.endswith(&#34;XmlArray&#34;):
+        return &#34;XmlArray&#34;
+    elif &#34;Jagged&#34; in array_type_name:
+        return &#34;JaggedArray&#34;
+    elif &#34;Lattice&#34; in array_type_name:
+        if &#34;Integer&#34; in array_type_name or &#34;Double&#34; in array_type_name:
+            return &#34;int_double_lattice_array&#34;
+    return array_type_name
+
+
+def read_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    Read an array and return a list. The array is read depending on its type. see. :py:func:`energyml.utils.data.helper.get_supported_array`
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    if isinstance(energyml_array, list):
+        return energyml_array
+    array_type_name = _array_name_mapping(type(energyml_array).__name__)
+
+    reader_func = get_array_reader_function(array_type_name)
+    if reader_func is not None:
+        return reader_func(
+            energyml_array=energyml_array,
+            root_obj=root_obj,
+            path_in_root=path_in_root,
+            epc=epc,
+        )
+    else:
+        print(f&#34;Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found&#34;)
+        raise Exception(f&#34;Type {array_type_name} is not supported\n\t{energyml_array}: \n\tfunction read_{snake_case(array_type_name)} not found&#34;)
+
+
+def get_supported_array() -&gt; List[str]:
+    &#34;&#34;&#34;
+    Return a list of the supported arrays for the use of :py:func:`energyml.utils.data.helper.read_array` function.
+    :return:
+    &#34;&#34;&#34;
+    return [x for x in _ARRAY_NAMES_ if get_array_reader_function(_array_name_mapping(x)) is not None]
+
+
+def get_not_supported_array():
+    &#34;&#34;&#34;
+    Return a list of the NOT supported arrays for the use of :py:func:`energyml.utils.data.helper.read_array` function.
+    :return:
+    &#34;&#34;&#34;
+    return [x for x in _ARRAY_NAMES_ if get_array_reader_function(_array_name_mapping(x)) is None]
+
+
+def read_constant_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    Read a constant array ( BooleanConstantArray, DoubleConstantArray, FloatingPointConstantArray, IntegerConstantArray ...)
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    # print(f&#34;Reading constant array\n\t{energyml_array}&#34;)
+
+    value = get_object_attribute_no_verif(energyml_array, &#34;value&#34;)
+    count = get_object_attribute_no_verif(energyml_array, &#34;count&#34;)
+
+    # print(f&#34;\tValue : {[value for i in range(0, count)]}&#34;)
+
+    return [value for i in range(0, count)]
+
+
+def read_xml_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    Read a xml array ( BooleanXmlArray, FloatingPointXmlArray, IntegerXmlArray, StringXmlArray ...)
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    values = get_object_attribute_no_verif(energyml_array, &#34;values&#34;)
+    # count = get_object_attribute_no_verif(energyml_array, &#34;count_per_value&#34;)
+    return values
+
+
+def read_jagged_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    Read a jagged array
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    elements = read_array(
+        energyml_array=get_object_attribute_no_verif(energyml_array, &#34;elements&#34;),
+        root_obj=root_obj,
+        path_in_root=path_in_root + &#34;.elements&#34;,
+        epc=epc,
+    )
+    cumulative_length = read_array(
+        energyml_array=read_array(get_object_attribute_no_verif(energyml_array, &#34;cumulative_length&#34;)),
+        root_obj=root_obj,
+        path_in_root=path_in_root + &#34;.cumulative_length&#34;,
+        epc=epc,
+    )
+
+    res = []
+    previous = 0
+    for cl in cumulative_length:
+        res.append(elements[previous: cl])
+        previous = cl
+    return res
+
+
+def read_external_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    Read an external array (BooleanExternalArray, BooleanHdf5Array, DoubleHdf5Array, IntegerHdf5Array, StringExternalArray ...)
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    hdf5_path = get_hdf5_path_from_external_path(
+                external_path_obj=energyml_array,
+                path_in_root=path_in_root,
+                root_obj=root_obj,
+                epc=epc,
+    )
+    h5_reader = HDF5FileReader()
+    path_in_external = get_hdf_reference(energyml_array)[0]
+
+    result_array = h5_reader.read_array(hdf5_path, path_in_external)
+
+    if path_in_root.lower().endswith(&#34;points&#34;) and len(result_array) &gt; 0 and len(result_array[0]) == 3:
+        crs = get_crs_obj(
+            context_obj=energyml_array,
+            path_in_root=path_in_root,
+            root_obj=root_obj,
+            epc=epc,
+        )
+        zincreasing_downward = is_z_reversed(crs)
+
+        if zincreasing_downward:
+            result_array = list(map(lambda p: [p[0], p[1], -p[2]], result_array))
+
+    return result_array
+
+
+def read_int_double_lattice_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+):
+    &#34;&#34;&#34;
+    Read DoubleLatticeArray or IntegerLatticeArray.
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    start_value = get_object_attribute_no_verif(energyml_array, &#34;start_value&#34;)
+    offset = get_object_attribute_no_verif(energyml_array, &#34;offset&#34;)
+
+    result = []
+
+    # if len(offset) == 1:
+    #     pass
+    # elif len(offset) == 2:
+    #     pass
+    # else:
+    raise Exception(f&#34;{type(energyml_array)} read with an offset of length {len(offset)} is not supported&#34;)
+
+    # return result
+
+
+def _point_as_array(point: Any) -&gt; List:
+    &#34;&#34;&#34;
+    Transform a point that has &#34;coordinate1&#34;, &#34;coordinate2&#34;, &#34;coordinate3&#34; as attributes into a list.
+    :param point:
+    :return:
+    &#34;&#34;&#34;
+    return [
+        get_object_attribute_no_verif(point, &#34;coordinate1&#34;),
+        get_object_attribute_no_verif(point, &#34;coordinate2&#34;),
+        get_object_attribute_no_verif(point, &#34;coordinate3&#34;),
+    ]
+
+
+def prod_n_tab(val: Union[float, int, str], tab: List[Union[float, int, str]]):
+    &#34;&#34;&#34;
+    Multiply every value of the list &#39;tab&#39; by the constant &#39;val&#39;
+    :param val:
+    :param tab:
+    :return:
+    &#34;&#34;&#34;
+    return list(map(lambda x: x*val, tab))
+
+
+def sum_lists(l1: List, l2: List):
+    &#34;&#34;&#34;
+    Sums 2 lists values.
+
+    Example:
+        [1,1,1] and [2,2,3,6] gives : [3,3,4,6]
+
+    :param l1:
+    :param l2:
+    :return:
+    &#34;&#34;&#34;
+    return [l1[i] + l2[i] for i in range(min(len(l1), len(l2)))]+max(l1, l2, key=len)[min(len(l1), len(l2)):]
+
+
+def read_point3d_zvalue_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+):
+    &#34;&#34;&#34;
+    Read a Point3D2ValueArray
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    supporting_geometry = get_object_attribute_no_verif(energyml_array, &#34;supporting_geometry&#34;)
+    sup_geom_array = read_array(
+        energyml_array=supporting_geometry,
+        root_obj=root_obj,
+        path_in_root=path_in_root + &#34;.SupportingGeometry&#34;,
+        epc=epc,
+    )
+
+    zvalues = get_object_attribute_no_verif(energyml_array, &#34;zvalues&#34;)
+    zvalues_array = flatten_concatenation(read_array(
+        energyml_array=zvalues,
+        root_obj=root_obj,
+        path_in_root=path_in_root + &#34;.ZValues&#34;,
+        epc=epc,
+    ))
+
+    count = 0
+
+    for i in range(len(sup_geom_array)):
+        try:
+            sup_geom_array[i][2] = zvalues_array[i]
+        except Exception as e:
+            if count == 0:
+                print(e, f&#34;: {i} is out of bound of {len(zvalues_array)}&#34;)
+                count = count + 1
+
+    return sup_geom_array
+
+
+def read_point3d_from_representation_lattice_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+):
+    &#34;&#34;&#34;
+    Read a Point3DFromRepresentationLatticeArray.
+
+    Note: Only works for Grid2DRepresentation.
+
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    supporting_rep_identifier = get_obj_identifier(get_object_attribute_no_verif(energyml_array, &#34;supporting_representation&#34;))
+    print(f&#34;energyml_array : {energyml_array}\n\t{supporting_rep_identifier}&#34;)
+    supporting_rep = epc.get_object_by_identifier(supporting_rep_identifier)
+
+    # TODO chercher un pattern \.*patch\.*.[d]+ pour trouver le numero du patch dans le path_in_root puis lire le patch
+    # print(f&#34;path_in_root {path_in_root}&#34;)
+
+    result = []
+    if &#34;grid2d&#34; in str(type(supporting_rep)).lower():
+        patch_path, patch = search_attribute_matching_name_with_path(supporting_rep, &#34;Grid2dPatch&#34;)[0]
+        points = read_grid2d_patch(
+            patch=patch,
+            grid2d=supporting_rep,
+            path_in_root=patch_path,
+            epc=epc,
+        )
+        # TODO: take the points by there indices from the NodeIndicesOnSupportingRepresentation
+        result = points
+
+    else:
+        raise Exception(f&#34;Not supported type {type(energyml_array)} for object {type(root_obj)}&#34;)
+    # pour trouver les infos qu&#39;il faut
+    return result
+
+
+def read_grid2d_patch(
+        patch: Any,
+        grid2d: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List:
+    points_path, points_obj = search_attribute_matching_name_with_path(patch, &#34;Geometry.Points&#34;)[0]
+
+    return read_array(
+        energyml_array=points_obj,
+        root_obj=grid2d,
+        path_in_root=path_in_root + points_path,
+        epc=epc,
+    )
+
+
+def read_point3d_lattice_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List:
+    &#34;&#34;&#34;
+    Read a Point3DLatticeArray.
+
+    Note: If a CRS is found and its &#39;ZIncreasingDownward&#39; is set to true or its
+
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    result = []
+    origin = _point_as_array(get_object_attribute_no_verif(energyml_array, &#34;origin&#34;))
+    offset = get_object_attribute_no_verif(energyml_array, &#34;offset&#34;)
+
+    if len(offset) == 2:
+        slowest = offset[0]
+        fastest = offset[1]
+
+        crs_sa_count = search_attribute_in_upper_matching_name(
+            obj=energyml_array,
+            name_rgx=&#34;SlowestAxisCount&#34;,
+            root_obj=root_obj,
+            current_path=path_in_root,
+        )
+
+        crs_fa_count = search_attribute_in_upper_matching_name(
+            obj=energyml_array,
+            name_rgx=&#34;FastestAxisCount&#34;,
+            root_obj=root_obj,
+            current_path=path_in_root,
+        )
+
+        crs = get_crs_obj(
+            context_obj=energyml_array,
+            path_in_root=path_in_root,
+            root_obj=root_obj,
+            epc=epc,
+        )
+        zincreasing_downward = is_z_reversed(crs)
+
+        slowest_vec = _point_as_array(get_object_attribute_no_verif(slowest, &#34;offset&#34;))
+        slowest_spacing = read_array(get_object_attribute_no_verif(slowest, &#34;spacing&#34;))
+        slowest_table = list(map(lambda x: prod_n_tab(x, slowest_vec), slowest_spacing))
+
+        fastest_vec = _point_as_array(get_object_attribute_no_verif(fastest, &#34;offset&#34;))
+        fastest_spacing = read_array(get_object_attribute_no_verif(fastest, &#34;spacing&#34;))
+        fastest_table = list(map(lambda x: prod_n_tab(x, fastest_vec), fastest_spacing))
+
+        slowest_size = len(slowest_table)
+        fastest_size = len(fastest_table)
+
+        if len(crs_sa_count) &gt; 0 and len(crs_fa_count) and crs_sa_count[0] == fastest_size:
+            print(&#34;reversing order&#34;)
+            # if offset were given in the wrong order
+            tmp_table = slowest_table
+            slowest_table = fastest_table
+            fastest_table = tmp_table
+
+            tmp_size = slowest_size
+            slowest_size = fastest_size
+            fastest_size = tmp_size
+
+        for i in range(slowest_size):
+            for j in range(fastest_size):
+                previous_value = origin
+                # to avoid a sum of the parts of the array at each iteration, I take the previous value in the same line
+                # number i and add the fastest_table[j] value
+
+                if j &gt; 0:
+                    if i &gt; 0:
+                        line_idx = i * fastest_size  # numero de ligne
+                        previous_value = result[line_idx + j - 1]
+                    else:
+                        previous_value = result[j - 1]
+                    if zincreasing_downward:
+                        result.append(sum_lists(previous_value, slowest_table[i - 1]))
+                    else:
+                        result.append(sum_lists(previous_value, fastest_table[j - 1]))
+                else:
+                    if i &gt; 0:
+                        prev_line_idx = (i - 1) * fastest_size  # numero de ligne precedent
+                        previous_value = result[prev_line_idx]
+                        if zincreasing_downward:
+                            result.append(sum_lists(previous_value, fastest_table[j - 1]))
+                        else:
+                            result.append(sum_lists(previous_value, slowest_table[i - 1]))
+                    else:
+                        result.append(previous_value)
+    else:
+        raise Exception(f&#34;{type(energyml_array)} read with an offset of length {len(offset)} is not supported&#34;)
+
+    return result
+
+
+def is_z_reversed(crs: Optional[Any]) -&gt; bool:
+    &#34;&#34;&#34;
+    Returns True if the Z axe is reverse (ZIncreasingDownward==&#39;True&#39; or VerticalAxis.Direction==&#39;down&#39;)
+    :param crs:
+    :return: By default, False is returned (if &#39;crs&#39; is None)
+    &#34;&#34;&#34;
+    reverse_z_values = False
+    if crs is not None:
+        # resqml 201
+        zincreasing_downward = search_attribute_matching_name(crs, &#34;ZIncreasingDownward&#34;)
+        if len(zincreasing_downward) &gt; 0:
+            reverse_z_values = zincreasing_downward[0]
+
+        # resqml &gt;= 22
+        vert_axis = search_attribute_matching_name(crs, &#34;VerticalAxis.Direction&#34;)
+        if len(vert_axis) &gt; 0:
+            reverse_z_values = vert_axis[0].lower() == &#34;down&#34;
+
+    return reverse_z_values
+
+
+# def read_boolean_constant_array(
+#         energyml_array: Any,
+#         root_obj: Optional[Any] = None,
+#         path_in_root: Optional[str] = None,
+#         epc: Optional[Epc] = None
+# ):
+#     print(energyml_array)</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="src.energyml.utils.data.helper.get_array_reader_function"><code class="name flex">
+<span>def <span class="ident">get_array_reader_function</span></span>(<span>array_type_name: str) ‑> Optional[Callable]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns the name of the potential appropriate function to read an object with type is named :param array_type_name
+:param array_type_name: the initial type name
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_array_reader_function(array_type_name: str) -&gt; Optional[Callable]:
+    &#34;&#34;&#34;
+    Returns the name of the potential appropriate function to read an object with type is named :param array_type_name
+    :param array_type_name: the initial type name
+    :return:
+    &#34;&#34;&#34;
+    for name, obj in inspect.getmembers(sys.modules[__name__]):
+        if name == f&#34;read_{snake_case(array_type_name)}&#34;:
+            return obj
+    return None</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.get_not_supported_array"><code class="name flex">
+<span>def <span class="ident">get_not_supported_array</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return a list of the NOT supported arrays for the use of :py:func:<code>energyml.utils.data.helper.read_array</code> function.
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_not_supported_array():
+    &#34;&#34;&#34;
+    Return a list of the NOT supported arrays for the use of :py:func:`energyml.utils.data.helper.read_array` function.
+    :return:
+    &#34;&#34;&#34;
+    return [x for x in _ARRAY_NAMES_ if get_array_reader_function(_array_name_mapping(x)) is None]</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.get_supported_array"><code class="name flex">
+<span>def <span class="ident">get_supported_array</span></span>(<span>) ‑> List[str]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Return a list of the supported arrays for the use of :py:func:<code>energyml.utils.data.helper.read_array</code> function.
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_supported_array() -&gt; List[str]:
+    &#34;&#34;&#34;
+    Return a list of the supported arrays for the use of :py:func:`energyml.utils.data.helper.read_array` function.
+    :return:
+    &#34;&#34;&#34;
+    return [x for x in _ARRAY_NAMES_ if get_array_reader_function(_array_name_mapping(x)) is not None]</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.is_z_reversed"><code class="name flex">
+<span>def <span class="ident">is_z_reversed</span></span>(<span>crs: Optional[Any]) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns True if the Z axe is reverse (ZIncreasingDownward=='True' or VerticalAxis.Direction=='down')
+:param crs:
+:return: By default, False is returned (if 'crs' is None)</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_z_reversed(crs: Optional[Any]) -&gt; bool:
+    &#34;&#34;&#34;
+    Returns True if the Z axe is reverse (ZIncreasingDownward==&#39;True&#39; or VerticalAxis.Direction==&#39;down&#39;)
+    :param crs:
+    :return: By default, False is returned (if &#39;crs&#39; is None)
+    &#34;&#34;&#34;
+    reverse_z_values = False
+    if crs is not None:
+        # resqml 201
+        zincreasing_downward = search_attribute_matching_name(crs, &#34;ZIncreasingDownward&#34;)
+        if len(zincreasing_downward) &gt; 0:
+            reverse_z_values = zincreasing_downward[0]
+
+        # resqml &gt;= 22
+        vert_axis = search_attribute_matching_name(crs, &#34;VerticalAxis.Direction&#34;)
+        if len(vert_axis) &gt; 0:
+            reverse_z_values = vert_axis[0].lower() == &#34;down&#34;
+
+    return reverse_z_values</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.prod_n_tab"><code class="name flex">
+<span>def <span class="ident">prod_n_tab</span></span>(<span>val: Union[float, int, str], tab: List[Union[float, int, str]])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Multiply every value of the list 'tab' by the constant 'val'
+:param val:
+:param tab:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def prod_n_tab(val: Union[float, int, str], tab: List[Union[float, int, str]]):
+    &#34;&#34;&#34;
+    Multiply every value of the list &#39;tab&#39; by the constant &#39;val&#39;
+    :param val:
+    :param tab:
+    :return:
+    &#34;&#34;&#34;
+    return list(map(lambda x: x*val, tab))</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.read_array"><code class="name flex">
+<span>def <span class="ident">read_array</span></span>(<span>energyml_array: Any, root_obj: Optional[Any] = None, path_in_root: Optional[str] = None, epc: Optional[<a title="src.energyml.utils.epc.Epc" href="../epc.html#src.energyml.utils.epc.Epc">Epc</a>] = None) ‑> List[Any]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read an array and return a list. The array is read depending on its type. see. :py:func:<code>energyml.utils.data.helper.get_supported_array</code>
+:param energyml_array:
+:param root_obj:
+:param path_in_root:
+:param epc:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    Read an array and return a list. The array is read depending on its type. see. :py:func:`energyml.utils.data.helper.get_supported_array`
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    if isinstance(energyml_array, list):
+        return energyml_array
+    array_type_name = _array_name_mapping(type(energyml_array).__name__)
+
+    reader_func = get_array_reader_function(array_type_name)
+    if reader_func is not None:
+        return reader_func(
+            energyml_array=energyml_array,
+            root_obj=root_obj,
+            path_in_root=path_in_root,
+            epc=epc,
+        )
+    else:
+        print(f&#34;Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found&#34;)
+        raise Exception(f&#34;Type {array_type_name} is not supported\n\t{energyml_array}: \n\tfunction read_{snake_case(array_type_name)} not found&#34;)</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.read_constant_array"><code class="name flex">
+<span>def <span class="ident">read_constant_array</span></span>(<span>energyml_array: Any, root_obj: Optional[Any] = None, path_in_root: Optional[str] = None, epc: Optional[<a title="src.energyml.utils.epc.Epc" href="../epc.html#src.energyml.utils.epc.Epc">Epc</a>] = None) ‑> List[Any]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read a constant array ( BooleanConstantArray, DoubleConstantArray, FloatingPointConstantArray, IntegerConstantArray &hellip;)
+:param energyml_array:
+:param root_obj:
+:param path_in_root:
+:param epc:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_constant_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    Read a constant array ( BooleanConstantArray, DoubleConstantArray, FloatingPointConstantArray, IntegerConstantArray ...)
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    # print(f&#34;Reading constant array\n\t{energyml_array}&#34;)
+
+    value = get_object_attribute_no_verif(energyml_array, &#34;value&#34;)
+    count = get_object_attribute_no_verif(energyml_array, &#34;count&#34;)
+
+    # print(f&#34;\tValue : {[value for i in range(0, count)]}&#34;)
+
+    return [value for i in range(0, count)]</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.read_external_array"><code class="name flex">
+<span>def <span class="ident">read_external_array</span></span>(<span>energyml_array: Any, root_obj: Optional[Any] = None, path_in_root: Optional[str] = None, epc: Optional[<a title="src.energyml.utils.epc.Epc" href="../epc.html#src.energyml.utils.epc.Epc">Epc</a>] = None) ‑> List[Any]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read an external array (BooleanExternalArray, BooleanHdf5Array, DoubleHdf5Array, IntegerHdf5Array, StringExternalArray &hellip;)
+:param energyml_array:
+:param root_obj:
+:param path_in_root:
+:param epc:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_external_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    Read an external array (BooleanExternalArray, BooleanHdf5Array, DoubleHdf5Array, IntegerHdf5Array, StringExternalArray ...)
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    hdf5_path = get_hdf5_path_from_external_path(
+                external_path_obj=energyml_array,
+                path_in_root=path_in_root,
+                root_obj=root_obj,
+                epc=epc,
+    )
+    h5_reader = HDF5FileReader()
+    path_in_external = get_hdf_reference(energyml_array)[0]
+
+    result_array = h5_reader.read_array(hdf5_path, path_in_external)
+
+    if path_in_root.lower().endswith(&#34;points&#34;) and len(result_array) &gt; 0 and len(result_array[0]) == 3:
+        crs = get_crs_obj(
+            context_obj=energyml_array,
+            path_in_root=path_in_root,
+            root_obj=root_obj,
+            epc=epc,
+        )
+        zincreasing_downward = is_z_reversed(crs)
+
+        if zincreasing_downward:
+            result_array = list(map(lambda p: [p[0], p[1], -p[2]], result_array))
+
+    return result_array</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.read_grid2d_patch"><code class="name flex">
+<span>def <span class="ident">read_grid2d_patch</span></span>(<span>patch: Any, grid2d: Optional[Any] = None, path_in_root: Optional[str] = None, epc: Optional[<a title="src.energyml.utils.epc.Epc" href="../epc.html#src.energyml.utils.epc.Epc">Epc</a>] = None) ‑> List</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_grid2d_patch(
+        patch: Any,
+        grid2d: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List:
+    points_path, points_obj = search_attribute_matching_name_with_path(patch, &#34;Geometry.Points&#34;)[0]
+
+    return read_array(
+        energyml_array=points_obj,
+        root_obj=grid2d,
+        path_in_root=path_in_root + points_path,
+        epc=epc,
+    )</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.read_int_double_lattice_array"><code class="name flex">
+<span>def <span class="ident">read_int_double_lattice_array</span></span>(<span>energyml_array: Any, root_obj: Optional[Any] = None, path_in_root: Optional[str] = None, epc: Optional[<a title="src.energyml.utils.epc.Epc" href="../epc.html#src.energyml.utils.epc.Epc">Epc</a>] = None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read DoubleLatticeArray or IntegerLatticeArray.
+:param energyml_array:
+:param root_obj:
+:param path_in_root:
+:param epc:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_int_double_lattice_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+):
+    &#34;&#34;&#34;
+    Read DoubleLatticeArray or IntegerLatticeArray.
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    start_value = get_object_attribute_no_verif(energyml_array, &#34;start_value&#34;)
+    offset = get_object_attribute_no_verif(energyml_array, &#34;offset&#34;)
+
+    result = []
+
+    # if len(offset) == 1:
+    #     pass
+    # elif len(offset) == 2:
+    #     pass
+    # else:
+    raise Exception(f&#34;{type(energyml_array)} read with an offset of length {len(offset)} is not supported&#34;)
+
+    # return result</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.read_jagged_array"><code class="name flex">
+<span>def <span class="ident">read_jagged_array</span></span>(<span>energyml_array: Any, root_obj: Optional[Any] = None, path_in_root: Optional[str] = None, epc: Optional[<a title="src.energyml.utils.epc.Epc" href="../epc.html#src.energyml.utils.epc.Epc">Epc</a>] = None) ‑> List[Any]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read a jagged array
+:param energyml_array:
+:param root_obj:
+:param path_in_root:
+:param epc:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_jagged_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    Read a jagged array
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    elements = read_array(
+        energyml_array=get_object_attribute_no_verif(energyml_array, &#34;elements&#34;),
+        root_obj=root_obj,
+        path_in_root=path_in_root + &#34;.elements&#34;,
+        epc=epc,
+    )
+    cumulative_length = read_array(
+        energyml_array=read_array(get_object_attribute_no_verif(energyml_array, &#34;cumulative_length&#34;)),
+        root_obj=root_obj,
+        path_in_root=path_in_root + &#34;.cumulative_length&#34;,
+        epc=epc,
+    )
+
+    res = []
+    previous = 0
+    for cl in cumulative_length:
+        res.append(elements[previous: cl])
+        previous = cl
+    return res</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.read_point3d_from_representation_lattice_array"><code class="name flex">
+<span>def <span class="ident">read_point3d_from_representation_lattice_array</span></span>(<span>energyml_array: Any, root_obj: Optional[Any] = None, path_in_root: Optional[str] = None, epc: Optional[<a title="src.energyml.utils.epc.Epc" href="../epc.html#src.energyml.utils.epc.Epc">Epc</a>] = None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read a Point3DFromRepresentationLatticeArray.</p>
+<p>Note: Only works for Grid2DRepresentation.</p>
+<p>:param energyml_array:
+:param root_obj:
+:param path_in_root:
+:param epc:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_point3d_from_representation_lattice_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+):
+    &#34;&#34;&#34;
+    Read a Point3DFromRepresentationLatticeArray.
+
+    Note: Only works for Grid2DRepresentation.
+
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    supporting_rep_identifier = get_obj_identifier(get_object_attribute_no_verif(energyml_array, &#34;supporting_representation&#34;))
+    print(f&#34;energyml_array : {energyml_array}\n\t{supporting_rep_identifier}&#34;)
+    supporting_rep = epc.get_object_by_identifier(supporting_rep_identifier)
+
+    # TODO chercher un pattern \.*patch\.*.[d]+ pour trouver le numero du patch dans le path_in_root puis lire le patch
+    # print(f&#34;path_in_root {path_in_root}&#34;)
+
+    result = []
+    if &#34;grid2d&#34; in str(type(supporting_rep)).lower():
+        patch_path, patch = search_attribute_matching_name_with_path(supporting_rep, &#34;Grid2dPatch&#34;)[0]
+        points = read_grid2d_patch(
+            patch=patch,
+            grid2d=supporting_rep,
+            path_in_root=patch_path,
+            epc=epc,
+        )
+        # TODO: take the points by there indices from the NodeIndicesOnSupportingRepresentation
+        result = points
+
+    else:
+        raise Exception(f&#34;Not supported type {type(energyml_array)} for object {type(root_obj)}&#34;)
+    # pour trouver les infos qu&#39;il faut
+    return result</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.read_point3d_lattice_array"><code class="name flex">
+<span>def <span class="ident">read_point3d_lattice_array</span></span>(<span>energyml_array: Any, root_obj: Optional[Any] = None, path_in_root: Optional[str] = None, epc: Optional[<a title="src.energyml.utils.epc.Epc" href="../epc.html#src.energyml.utils.epc.Epc">Epc</a>] = None) ‑> List</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read a Point3DLatticeArray.</p>
+<p>Note: If a CRS is found and its 'ZIncreasingDownward' is set to true or its</p>
+<p>:param energyml_array:
+:param root_obj:
+:param path_in_root:
+:param epc:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_point3d_lattice_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List:
+    &#34;&#34;&#34;
+    Read a Point3DLatticeArray.
+
+    Note: If a CRS is found and its &#39;ZIncreasingDownward&#39; is set to true or its
+
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    result = []
+    origin = _point_as_array(get_object_attribute_no_verif(energyml_array, &#34;origin&#34;))
+    offset = get_object_attribute_no_verif(energyml_array, &#34;offset&#34;)
+
+    if len(offset) == 2:
+        slowest = offset[0]
+        fastest = offset[1]
+
+        crs_sa_count = search_attribute_in_upper_matching_name(
+            obj=energyml_array,
+            name_rgx=&#34;SlowestAxisCount&#34;,
+            root_obj=root_obj,
+            current_path=path_in_root,
+        )
+
+        crs_fa_count = search_attribute_in_upper_matching_name(
+            obj=energyml_array,
+            name_rgx=&#34;FastestAxisCount&#34;,
+            root_obj=root_obj,
+            current_path=path_in_root,
+        )
+
+        crs = get_crs_obj(
+            context_obj=energyml_array,
+            path_in_root=path_in_root,
+            root_obj=root_obj,
+            epc=epc,
+        )
+        zincreasing_downward = is_z_reversed(crs)
+
+        slowest_vec = _point_as_array(get_object_attribute_no_verif(slowest, &#34;offset&#34;))
+        slowest_spacing = read_array(get_object_attribute_no_verif(slowest, &#34;spacing&#34;))
+        slowest_table = list(map(lambda x: prod_n_tab(x, slowest_vec), slowest_spacing))
+
+        fastest_vec = _point_as_array(get_object_attribute_no_verif(fastest, &#34;offset&#34;))
+        fastest_spacing = read_array(get_object_attribute_no_verif(fastest, &#34;spacing&#34;))
+        fastest_table = list(map(lambda x: prod_n_tab(x, fastest_vec), fastest_spacing))
+
+        slowest_size = len(slowest_table)
+        fastest_size = len(fastest_table)
+
+        if len(crs_sa_count) &gt; 0 and len(crs_fa_count) and crs_sa_count[0] == fastest_size:
+            print(&#34;reversing order&#34;)
+            # if offset were given in the wrong order
+            tmp_table = slowest_table
+            slowest_table = fastest_table
+            fastest_table = tmp_table
+
+            tmp_size = slowest_size
+            slowest_size = fastest_size
+            fastest_size = tmp_size
+
+        for i in range(slowest_size):
+            for j in range(fastest_size):
+                previous_value = origin
+                # to avoid a sum of the parts of the array at each iteration, I take the previous value in the same line
+                # number i and add the fastest_table[j] value
+
+                if j &gt; 0:
+                    if i &gt; 0:
+                        line_idx = i * fastest_size  # numero de ligne
+                        previous_value = result[line_idx + j - 1]
+                    else:
+                        previous_value = result[j - 1]
+                    if zincreasing_downward:
+                        result.append(sum_lists(previous_value, slowest_table[i - 1]))
+                    else:
+                        result.append(sum_lists(previous_value, fastest_table[j - 1]))
+                else:
+                    if i &gt; 0:
+                        prev_line_idx = (i - 1) * fastest_size  # numero de ligne precedent
+                        previous_value = result[prev_line_idx]
+                        if zincreasing_downward:
+                            result.append(sum_lists(previous_value, fastest_table[j - 1]))
+                        else:
+                            result.append(sum_lists(previous_value, slowest_table[i - 1]))
+                    else:
+                        result.append(previous_value)
+    else:
+        raise Exception(f&#34;{type(energyml_array)} read with an offset of length {len(offset)} is not supported&#34;)
+
+    return result</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.read_point3d_zvalue_array"><code class="name flex">
+<span>def <span class="ident">read_point3d_zvalue_array</span></span>(<span>energyml_array: Any, root_obj: Optional[Any] = None, path_in_root: Optional[str] = None, epc: Optional[<a title="src.energyml.utils.epc.Epc" href="../epc.html#src.energyml.utils.epc.Epc">Epc</a>] = None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read a Point3D2ValueArray
+:param energyml_array:
+:param root_obj:
+:param path_in_root:
+:param epc:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_point3d_zvalue_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+):
+    &#34;&#34;&#34;
+    Read a Point3D2ValueArray
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    supporting_geometry = get_object_attribute_no_verif(energyml_array, &#34;supporting_geometry&#34;)
+    sup_geom_array = read_array(
+        energyml_array=supporting_geometry,
+        root_obj=root_obj,
+        path_in_root=path_in_root + &#34;.SupportingGeometry&#34;,
+        epc=epc,
+    )
+
+    zvalues = get_object_attribute_no_verif(energyml_array, &#34;zvalues&#34;)
+    zvalues_array = flatten_concatenation(read_array(
+        energyml_array=zvalues,
+        root_obj=root_obj,
+        path_in_root=path_in_root + &#34;.ZValues&#34;,
+        epc=epc,
+    ))
+
+    count = 0
+
+    for i in range(len(sup_geom_array)):
+        try:
+            sup_geom_array[i][2] = zvalues_array[i]
+        except Exception as e:
+            if count == 0:
+                print(e, f&#34;: {i} is out of bound of {len(zvalues_array)}&#34;)
+                count = count + 1
+
+    return sup_geom_array</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.read_xml_array"><code class="name flex">
+<span>def <span class="ident">read_xml_array</span></span>(<span>energyml_array: Any, root_obj: Optional[Any] = None, path_in_root: Optional[str] = None, epc: Optional[<a title="src.energyml.utils.epc.Epc" href="../epc.html#src.energyml.utils.epc.Epc">Epc</a>] = None) ‑> List[Any]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Read a xml array ( BooleanXmlArray, FloatingPointXmlArray, IntegerXmlArray, StringXmlArray &hellip;)
+:param energyml_array:
+:param root_obj:
+:param path_in_root:
+:param epc:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def read_xml_array(
+        energyml_array: Any,
+        root_obj: Optional[Any] = None,
+        path_in_root: Optional[str] = None,
+        epc: Optional[Epc] = None
+) -&gt; List[Any]:
+    &#34;&#34;&#34;
+    Read a xml array ( BooleanXmlArray, FloatingPointXmlArray, IntegerXmlArray, StringXmlArray ...)
+    :param energyml_array:
+    :param root_obj:
+    :param path_in_root:
+    :param epc:
+    :return:
+    &#34;&#34;&#34;
+    values = get_object_attribute_no_verif(energyml_array, &#34;values&#34;)
+    # count = get_object_attribute_no_verif(energyml_array, &#34;count_per_value&#34;)
+    return values</code></pre>
+</details>
+</dd>
+<dt id="src.energyml.utils.data.helper.sum_lists"><code class="name flex">
+<span>def <span class="ident">sum_lists</span></span>(<span>l1: List, l2: List)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Sums 2 lists values.</p>
+<h2 id="example">Example</h2>
+<p>[1,1,1] and [2,2,3,6] gives : [3,3,4,6]</p>
+<p>:param l1:
+:param l2:
+:return:</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def sum_lists(l1: List, l2: List):
+    &#34;&#34;&#34;
+    Sums 2 lists values.
+
+    Example:
+        [1,1,1] and [2,2,3,6] gives : [3,3,4,6]
+
+    :param l1:
+    :param l2:
+    :return:
+    &#34;&#34;&#34;
+    return [l1[i] + l2[i] for i in range(min(len(l1), len(l2)))]+max(l1, l2, key=len)[min(len(l1), len(l2)):]</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="src.energyml.utils.data" href="index.html">src.energyml.utils.data</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="src.energyml.utils.data.helper.get_array_reader_function" href="#src.energyml.utils.data.helper.get_array_reader_function">get_array_reader_function</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.get_not_supported_array" href="#src.energyml.utils.data.helper.get_not_supported_array">get_not_supported_array</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.get_supported_array" href="#src.energyml.utils.data.helper.get_supported_array">get_supported_array</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.is_z_reversed" href="#src.energyml.utils.data.helper.is_z_reversed">is_z_reversed</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.prod_n_tab" href="#src.energyml.utils.data.helper.prod_n_tab">prod_n_tab</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.read_array" href="#src.energyml.utils.data.helper.read_array">read_array</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.read_constant_array" href="#src.energyml.utils.data.helper.read_constant_array">read_constant_array</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.read_external_array" href="#src.energyml.utils.data.helper.read_external_array">read_external_array</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.read_grid2d_patch" href="#src.energyml.utils.data.helper.read_grid2d_patch">read_grid2d_patch</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.read_int_double_lattice_array" href="#src.energyml.utils.data.helper.read_int_double_lattice_array">read_int_double_lattice_array</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.read_jagged_array" href="#src.energyml.utils.data.helper.read_jagged_array">read_jagged_array</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.read_point3d_from_representation_lattice_array" href="#src.energyml.utils.data.helper.read_point3d_from_representation_lattice_array">read_point3d_from_representation_lattice_array</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.read_point3d_lattice_array" href="#src.energyml.utils.data.helper.read_point3d_lattice_array">read_point3d_lattice_array</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.read_point3d_zvalue_array" href="#src.energyml.utils.data.helper.read_point3d_zvalue_array">read_point3d_zvalue_array</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.read_xml_array" href="#src.energyml.utils.data.helper.read_xml_array">read_xml_array</a></code></li>
+<li><code><a title="src.energyml.utils.data.helper.sum_lists" href="#src.energyml.utils.data.helper.sum_lists">sum_lists</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>
