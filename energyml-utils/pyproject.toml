@@ -1,12 +1,12 @@
 [build-system]
-#requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning"]
-#build-backend = "poetry_dynamic_versioning.backend"
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning"]
+build-backend = "poetry_dynamic_versioning.backend"
+# requires = ["setuptools"]
+# build-backend = "setuptools.build_meta"
 
 [tool.poetry]
 name = "energyml-utils"
-version = "0.0.1.dev2" # Set at build time
+version = "0.0.0" # Set at build time
 description = "Energyml helper"
 authors = [
     "Valentin Gauthier <valentin.gauthier@geosiris.com>"
@@ -100,7 +100,7 @@ exclude = '''
 max-line-length = "88"
 
 [tool.poetry-dynamic-versioning]
-enable = false
+enable = true
 vcs = "git"
 style = "pep440"
 format-jinja = """
