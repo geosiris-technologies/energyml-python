@@ -43,14 +43,14 @@ jobs:
           echo "::debug::listing folder"
           ls -R
           echo `ls -R`
-          echo "GITHUB_WORKSPACE ${{ env:GITHUB_WORKSPACE }}"
+          echo "GITHUB_WORKSPACE ${{ env.GITHUB_WORKSPACE }}"
 
       - name: Save build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Build-Artifact
           if-no-files-found: error
-          path: ${{ env:GITHUB_WORKSPACE }}/energyml-utils/dist
+          path: ${{ env.GITHUB_WORKSPACE }}/energyml-utils/dist
 
   publish:
     name: Publish to PyPI
