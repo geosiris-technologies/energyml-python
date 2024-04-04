@@ -11,9 +11,9 @@ from enum import Enum
 from importlib import import_module
 from typing import Any, List, Optional, Union, Dict, Tuple
 
-from src.energyml.utils.manager import get_class_pkg, get_class_pkg_version, RELATED_MODULES, \
+from .manager import get_class_pkg, get_class_pkg_version, RELATED_MODULES, \
     get_related_energyml_modules_name, get_sub_classes, get_classes_matching_name
-from src.energyml.utils.xml import parse_content_type, ENERGYML_NAMESPACES
+from .xml import parse_content_type, ENERGYML_NAMESPACES
 
 
 primitives = (bool, str, int, float, type(None))

@@ -4,9 +4,9 @@ import inspect
 import sys
 from typing import Any, Optional, Callable, Literal, List, Union, Tuple
 
-from src.energyml.utils.data.hdf import get_hdf5_path_from_external_path, HDF5FileReader, get_hdf_reference, get_crs_obj
-from src.energyml.utils.epc import Epc, get_obj_identifier
-from src.energyml.utils.introspection import snake_case, get_object_attribute_no_verif, \
+from .hdf import get_hdf5_path_from_external_path, HDF5FileReader, get_hdf_reference, get_crs_obj
+from ..epc import Epc, get_obj_identifier
+from ..introspection import snake_case, get_object_attribute_no_verif, \
     search_attribute_matching_name_with_path, search_attribute_matching_name, flatten_concatenation, \
     search_attribute_in_upper_matching_name
 

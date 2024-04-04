@@ -5,10 +5,10 @@ from dataclasses import dataclass, field, Field
 from enum import Enum
 from typing import Any, List
 
-from src.energyml.utils.epc import (
+from .epc import (
     get_obj_identifier, Epc,
 )
-from src.energyml.utils.introspection import (
+from .introspection import (
     get_class_fields,
     get_object_attribute,
     search_attribute_matching_type_with_path,

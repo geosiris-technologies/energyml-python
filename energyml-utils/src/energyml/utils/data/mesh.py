@@ -7,11 +7,11 @@ from dataclasses import dataclass, field
 from io import BytesIO
 from typing import List, Optional, Any, Callable
 
-from src.energyml.utils.data.hdf import get_hdf_reference_with_path, \
+from .hdf import get_hdf_reference_with_path, \
     get_hdf5_path_from_external_path, HDF5FileReader, get_crs_obj
-from src.energyml.utils.data.helper import read_array, read_grid2d_patch, is_z_reversed
-from src.energyml.utils.epc import Epc, get_obj_identifier
-from src.energyml.utils.introspection import search_attribute_matching_name, \
+from .helper import read_array, read_grid2d_patch, is_z_reversed
+from ..epc import Epc, get_obj_identifier
+from ..introspection import search_attribute_matching_name, \
     search_attribute_matching_type_with_path, \
     search_attribute_matching_name_with_path, snake_case
 

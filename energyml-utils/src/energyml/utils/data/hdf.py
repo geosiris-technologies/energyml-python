@@ -6,9 +6,9 @@ from typing import Optional, List, Tuple, Any, Union
 
 import h5py
 
-from src.energyml.utils.epc import Epc, get_obj_identifier, ObjectNotFoundNotException, \
+from ..epc import Epc, get_obj_identifier, ObjectNotFoundNotException, \
     EPCRelsRelationshipType
-from src.energyml.utils.introspection import search_attribute_matching_name_with_path, search_attribute_matching_name, \
+from ..introspection import search_attribute_matching_name_with_path, search_attribute_matching_name, \
     get_obj_uuid, get_object_attribute
 
 
