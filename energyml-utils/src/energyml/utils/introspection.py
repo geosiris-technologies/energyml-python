@@ -105,15 +105,20 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
     ct = parse_content_type(content_type)
     domain = ct.group("domain")
     if domain is None:
+        # print(f"\tdomain {domain} xmlDomain {ct.group('xmlDomain')} ")
         domain = "opc"
     if domain == "opc":
         xml_domain = ct.group("xmlDomain")
         if "." in xml_domain:
             xml_domain = xml_domain[xml_domain.rindex(".") + 1:]
-        if "extended" in xml_domain:
-            xml_domain = xml_domain.replace("extended", "")
-        opc_type = pascal_case(xml_domain)
-        # print("energyml.opc.opc." + opc_type)
+        # Don't know what to do with http://schemas.f2i-consulting.com/package/2014/metadata/extended-core-properties
+        # if "extended" in xml_domain:
+        #     xml_domain = xml_domain.replace("extended", "")
+        #     if xml_domain.startswith("-"):
+        #         xml_domain = xml_domain[1:]
+        #
+        opc_type = pascal_case(xml_domain).replace("-", "")
+        # print("\tenergyml.opc.opc." + opc_type)
         return get_class_from_name("energyml.opc.opc." + opc_type)
     else:
         ns = ENERGYML_NAMESPACES[domain]
@@ -712,9 +717,9 @@ def get_object_type_for_file_path_from_class(cls) -> str:
         return get_obj_type(cls)
 
 
-def now(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> int:
+def now(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> float:
     """ Return an epoch value """
-    return int(datetime.datetime.timestamp(datetime.datetime.now(time_zone)))
+    return datetime.datetime.timestamp(datetime.datetime.now(time_zone))
 
 
 def epoch(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> int:

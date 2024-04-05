@@ -378,7 +378,7 @@ def read_point3d_from_representation_lattice_array(
     :return:
     """
     supporting_rep_identifier = get_obj_identifier(get_object_attribute_no_verif(energyml_array, "supporting_representation"))
-    print(f"energyml_array : {energyml_array}\n\t{supporting_rep_identifier}")
+    # print(f"energyml_array : {energyml_array}\n\t{supporting_rep_identifier}")
     supporting_rep = epc.get_object_by_identifier(supporting_rep_identifier)
 
     # TODO chercher un pattern \.*patch\.*.[d]+ pour trouver le numero du patch dans le path_in_root puis lire le patch

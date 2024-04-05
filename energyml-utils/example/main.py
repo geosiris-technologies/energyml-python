@@ -181,6 +181,10 @@ def tests_epc():
     epc.export_file(
         "D:/Geosiris/Github/energyml/energyml-python/test_EXPANDED.epc"
     )
+    epc.core_props = None
+    epc.export_file(
+        "D:/Geosiris/Github/energyml/energyml-python/test_no_core.epc"
+    )
 
     epc201 = Epc.read_file(
         "D:/Geosiris/OSDU/manifestTranslation/#Data/VOLVE_STRUCT.epc"
@@ -375,13 +379,12 @@ def tests_hdf():
         exit(0)
 
 
-def
 
 if __name__ == "__main__":
     # tests_0()
     # tests_content_type()
 
-    # tests_epc()
+    tests_epc()
     # tests_dor()
     # test_verif()
     # test_ast()

@@ -347,7 +347,7 @@ def read_grid2d_representation(energyml_object: Any, epc: Epc, keep_holes=False)
             sa_count = sa_count + 1
             fa_count = fa_count + 1
 
-        print(f"sa_count {sa_count} fa_count {fa_count} : {sa_count*fa_count} - {len(points)} ")
+        # print(f"sa_count {sa_count} fa_count {fa_count} : {sa_count*fa_count} - {len(points)} ")
 
         for sa in range(sa_count - 1):
             for fa in range(fa_count - 1):
