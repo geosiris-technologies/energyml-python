@@ -234,6 +234,7 @@ def read_external_array(
 
     result_array = h5_reader.read_array(hdf5_path, path_in_external)
 
+    # print(f"\tpath_in_root : {path_in_root}")
     if path_in_root.lower().endswith("points") and len(result_array) > 0 and len(result_array[0]) == 3:
         crs = get_crs_obj(
             context_obj=energyml_array,
@@ -242,6 +243,7 @@ def read_external_array(
             epc=epc,
         )
         zincreasing_downward = is_z_reversed(crs)
+#         print(f"\tzincreasing_downward : {zincreasing_downward}")
 
         if zincreasing_downward:
             result_array = list(map(lambda p: [p[0], p[1], -p[2]], result_array))
@@ -474,16 +476,23 @@ def read_point3d_lattice_array(
         slowest_size = len(slowest_table)
         fastest_size = len(fastest_table)
 
-        if len(crs_sa_count) > 0 and len(crs_fa_count) and crs_sa_count[0] == fastest_size:
-            print("reversing order")
-            # if offset were given in the wrong order
-            tmp_table = slowest_table
-            slowest_table = fastest_table
-            fastest_table = tmp_table
+        if len(crs_sa_count) > 0 and len(crs_fa_count) > 0:
+            if (
+                    ( crs_sa_count[0] == fastest_size and crs_fa_count[0] == slowest_size)
+                    or ( crs_sa_count[0] == fastest_size - 1 and crs_fa_count[0] == slowest_size - 1)
+            ):
+                print("reversing order")
+                # if offset were given in the wrong order
+                tmp_table = slowest_table
+                slowest_table = fastest_table
+                fastest_table = tmp_table
 
-            tmp_size = slowest_size
-            slowest_size = fastest_size
-            fastest_size = tmp_size
+                tmp_size = slowest_size
+                slowest_size = fastest_size
+                fastest_size = tmp_size
+            else:
+                slowest_size = crs_sa_count[0]
+                fastest_size = crs_fa_count[0]
 
         for i in range(slowest_size):
             for j in range(fastest_size):

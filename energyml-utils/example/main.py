@@ -375,6 +375,8 @@ def tests_hdf():
         exit(0)
 
 
+def
+
 if __name__ == "__main__":
     # tests_0()
     # tests_content_type()
@@ -383,7 +385,7 @@ if __name__ == "__main__":
     # tests_dor()
     # test_verif()
     # test_ast()
-    test_introspection()
+    # test_introspection()
 
-    tests_hdf()
-    print(get_object_attribute(""))
+    # tests_hdf()
+    # print(get_object_attribute(""))

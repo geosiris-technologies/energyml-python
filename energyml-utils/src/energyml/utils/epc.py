@@ -374,9 +374,10 @@ class Epc:
                                     ov_obj = ov_obj.value
                                 path_to_obj[ov_path] = ov_obj
                                 obj_list.append(ov_obj)
-                            except ParserError as e:
+                            except Exception as e:
                                 print(f"Epc.@read_stream failed to parse file {ov_path} for content-type: {ov_ct} => {get_class_from_content_type(ov_ct)}")
-                                raise e
+                                print(e)
+                                # raise e
                         elif get_class_from_content_type(ov_ct) == CoreProperties:
                             _read_files.append(ov_path)
                             core_props = read_energyml_xml_bytes_as_class(epc_file.read(ov_path), CoreProperties)
@@ -422,7 +423,9 @@ class Epc:
                                         print(f"Error with obj path {obj_path} {path_to_obj[obj_path]}")
                                         raise e
                                 else:
-                                    print(f"xml file {obj_path} not found in EPC (rels is not associate to any object)")
+                                    print(f"xml file {obj_path} not found in EPC (or its type is not supported because"
+                                          f" of a lack of a dependency module) "
+                                          f"(rels is not associate to any object)")
 
             return Epc(energyml_objects=obj_list,
                        raw_files=raw_file_list,

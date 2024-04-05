@@ -91,6 +91,8 @@ def get_class_from_name(class_name_and_module: str) -> Optional[type]:
             )
         else:
             print(e)
+    except KeyError:
+        print(f"[ERR] module not found : '{module_name}'")
     return None
 
 
@@ -529,7 +531,6 @@ def search_attribute_matching_name_with_path(
         attrib_list = re.split(r"(?<!\\)\.+", name_rgx)
         current_match = attrib_list[0]
         next_match = '.'.join(attrib_list[1:])
-
     res = []
 
     match_value = None

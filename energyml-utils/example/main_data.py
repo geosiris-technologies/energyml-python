@@ -258,6 +258,91 @@ def read_arrays():
     print(f"{type(jagged_array)} \n\t{val}")
 
 
+def test_export_multiple():
+    uuid_list = [
+        "a3f31b20-c93a-4682-8f6c-71be087202a4",  # grid2d
+        "e6d5e3b4-ca6b-4182-89fa-96f7efee42ca",  # grid2d
+        "a3f31b20-c93a-4682-8f6c-71be087202a4",  # TrSet
+        "8659a66c-8727-420a-badf-578819698239",  # TrSet
+        "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
+        "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
+
+    ]
+    export_multiple_data(
+        epc_path="D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/EQN_ORIGIN_PLUS_TRIANG_SET/"
+        "Volve_Horizons_and_Faults_Depth_originEQN_Plus.epc",
+        uuid_list=uuid_list,
+        output_folder_path="D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/EQN_ORIGIN_PLUS_TRIANG_SET/export-energyml-utils",
+        file_format=MeshFileFormat.OBJ,
+    )
+
+    export_multiple_data(
+        epc_path="D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/EQN_ORIGIN_PLUS_TRIANG_SET/"
+        "Volve_Horizons_and_Faults_Depth_originEQN_Plus.epc",
+        uuid_list=uuid_list,
+        output_folder_path="D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/EQN_ORIGIN_PLUS_TRIANG_SET/export-energyml-utils",
+        file_format=MeshFileFormat.OFF,
+    )
+
+
+def test_export_multiple_testing_package():
+    uuid_list = [
+        "030a82f6-10a7-4ecf-af03-54749e098624",  # grid2d
+        "aa5b90f1-2eab-4fa6-8720-69dd4fd51a4d",  # grid2d
+        # "38f64a1c-356f-4d30-a9ce-4cd3b8d6ec40",  # TrSet
+        # "d8a03d57-8bf3-4f75-8645-ef2fbfa5d1e3",  # TrSet
+        # "154e8f89-0148-4118-b656-14d9bc4a70ad",  # polyline
+        # "e7b8ad80-d92d-492c-b325-328dee619762",  # polyline
+        # "65c59595-bf48-451e-94aa-120ebdf28d8b",  # polyline
+        # "8442a6b7-a97b-431e-abda-f72cf7ef346f",  # pointSet
+        # "fbc5466c-94cd-46ab-8b48-2ae2162b372f",  # pointSet
+        # "e3219d2a-e482-4714-86d5-c3a5a2fa3727",  # pointSet
+    ]
+    epc_path = "D:/Geosiris/OSDU/manifestTranslation/commons/data/testingPackageCpp.epc"
+    output_folder_path = "D:/Geosiris/OSDU/manifestTranslation/commons/data/export-energyml-utils/testingPackageCpp"
+
+    export_multiple_data(
+        epc_path=epc_path,
+        uuid_list=uuid_list,
+        output_folder_path=output_folder_path,
+        file_format=MeshFileFormat.OBJ,
+    )
+
+    export_multiple_data(
+        epc_path=epc_path,
+        uuid_list=uuid_list,
+        output_folder_path=output_folder_path,
+        file_format=MeshFileFormat.OFF,
+    )
+
+
+def test_export_closed_poly():
+    export_multiple_data(
+        epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/"
+        "Volve_Fault_Depth_originEQN_v201_poly_closed.epc",
+        uuid_list=[
+            "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
+            "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
+
+        ],
+        output_folder_path="D:/Geosiris/OSDU/manifestTranslation/#Data/export-energyml-utils",
+        output_file_path_suffix="_poly_closed",
+        file_format=MeshFileFormat.OBJ,
+    )
+    export_multiple_data(
+        epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/"
+        "Volve_Fault_Depth_originEQN_v201.epc",
+        uuid_list=[
+            "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
+            "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
+
+        ],
+        output_folder_path="D:/Geosiris/OSDU/manifestTranslation/#Data/export-energyml-utils",
+        output_file_path_suffix="closed",
+        file_format=MeshFileFormat.OBJ,
+    )
+
+
 if __name__ == "__main__":
     # test_array()
     # test_h5_path()
@@ -268,8 +353,12 @@ if __name__ == "__main__":
     # print("Supported : ", get_supported_array())
     # print("Not supported : ", get_not_supported_array())
 
-    read_h5_grid2d()
+    # read_h5_grid2d()
     # read_h5_grid2d_bis()
     # print(REGEX_CONTENT_TYPE)
 
-    read_meshes()
+    # read_meshes()
+
+    # test_export_multiple()
+    # test_export_closed_poly()
+    test_export_multiple_testing_package()
