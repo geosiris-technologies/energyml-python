@@ -1,6 +1,7 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import inspect
+import os
 import sys
 from typing import Any, Optional, Callable, Literal, List, Union, Tuple
 
@@ -223,7 +224,7 @@ def read_external_array(
     :param epc:
     :return:
     """
-    hdf5_path = get_hdf5_path_from_external_path(
+    hdf5_paths = get_hdf5_path_from_external_path(
                 external_path_obj=energyml_array,
                 path_in_root=path_in_root,
                 root_obj=root_obj,
@@ -232,7 +233,16 @@ def read_external_array(
     h5_reader = HDF5FileReader()
     path_in_external = get_hdf_reference(energyml_array)[0]
 
-    result_array = h5_reader.read_array(hdf5_path, path_in_external)
+    result_array = None
+    for hdf5_path in hdf5_paths:
+        try:
+            result_array = h5_reader.read_array(hdf5_path, path_in_external)
+            break  # if succed, not try with other paths
+        except OSError as e:
+            pass
+
+    if result_array is None:
+        raise Exception(f"Failed to read h5 file. Paths tried : {hdf5_paths}")
 
     # print(f"\tpath_in_root : {path_in_root}")
     if path_in_root.lower().endswith("points") and len(result_array) > 0 and len(result_array[0]) == 3:

@@ -1,18 +1,17 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
-import os
 
 from energyml.eml.v2_3.commonv2 import JaggedArray, AbstractValueArray, AbstractIntegerArray, StringXmlArray, \
     IntegerXmlArray
 
-from src.energyml.utils.data.hdf import *
-from src.energyml.utils.data.helper import read_array, get_array_reader_function, get_supported_array, \
+from src.energyml.utils.data.helper import get_array_reader_function, get_supported_array, \
     get_not_supported_array
 from src.energyml.utils.data.mesh import *
 from src.energyml.utils.epc import gen_energyml_object_path
-from src.energyml.utils.introspection import is_abstract
+from src.energyml.utils.introspection import is_abstract, get_obj_uuid
 from src.energyml.utils.manager import get_sub_classes
-from src.energyml.utils.serialization import read_energyml_xml_file, read_energyml_xml_str
+from src.energyml.utils.serialization import read_energyml_xml_file, read_energyml_xml_str, read_energyml_xml_bytes
+from src.energyml.utils.validation import validate_epc
 from src.energyml.utils.xml import REGEX_CONTENT_TYPE
 
 
@@ -87,18 +86,18 @@ def read_h5_datasets():
 
     print(epc201.epc_file_path)
 
-    pt_set_list = read_point_set_representation(
-        point_set=psr,
+    pt_set_list = read_point_representation(
+        energyml_object=psr,
         epc=epc201
     )
 
-    with open("file_point_set.off", "wb") as f:
+    with open("result/result/file_point_set.off", "wb") as f:
         export_off(
             mesh_list=pt_set_list,
             out=f,
         )
 
-    with open("file_point_set.obj", "wb") as f:
+    with open("result/result/file_point_set.obj", "wb") as f:
         export_obj(
             mesh_list=pt_set_list,
             out=f,
@@ -111,11 +110,11 @@ def read_h5_polyline():
     )
 
     poly = epc201.get_object_by_uuid("77bfb696-1bc0-4858-a304-f8faeb37d809")[0]
-    poly_set_list = read_polyline_set_representation(
-        polyline_set=poly,
+    poly_set_list = read_polyline_representation(
+        energyml_object=poly,
         epc=epc201,
     )
-    with open("polyline_set.obj", "wb") as f:
+    with open("result/result/polyline_set.obj", "wb") as f:
         export_obj(
             mesh_list=poly_set_list,
             out=f,
@@ -123,8 +122,7 @@ def read_h5_polyline():
 
 
 def read_h5_grid2d_bis():
-    import energyml.resqml.v2_0_1.resqmlv2
-    path = "D:/Geosiris/Github/energyml/energyml-python/energyml-utils/rc/obj_Grid2dRepresentation_7c43bad9-4cad-4ab0-bb50-9afb24a4b883.xml"
+    path = "../rc/obj_Grid2dRepresentation_7c43bad9-4cad-4ab0-bb50-9afb24a4b883.xml"
 
     xml_content = ""
     with open(path, "r") as f:
@@ -133,16 +131,17 @@ def read_h5_grid2d_bis():
     grid = read_energyml_xml_str(xml_content)
 
     grid_list = read_grid2d_representation(
-        grid2d=grid,
+        energyml_object=grid,
         epc=None,
     )
+    uuid = get_obj_uuid(grid)
     print("Exporting")
-    # with open(f"grid2d_{uuid}.obj", "wb") as f:
-    #     export_obj(
-    #         mesh_list=grid_list,
-    #         out=f,
-    #     )
-    with open(f"grid2d_7c43bad9-4cad-4ab0-bb50-9afb24a4b883_bis.off", "wb") as f:
+    with open(f"result/grid2d_{uuid}.obj", "wb") as f:
+        export_obj(
+            mesh_list=grid_list,
+            out=f,
+        )
+    with open(f"result/grid2d_{uuid}_bis.off", "wb") as f:
         export_off(
             mesh_list=grid_list,
             out=f,
@@ -179,16 +178,16 @@ def read_h5_grid2d():
         # keep_holes=False
     )
     print("Exporting")
-    with open(f"grid2d_{uuid}.obj", "wb") as f:
+    with open(f"result/grid2d_{uuid}.obj", "wb") as f:
         export_obj(
             mesh_list=grid_list,
             out=f,
         )
-    # with open(f"grid2d_{uuid}.off", "wb") as f:
-    #     export_off(
-    #         mesh_list=grid_list,
-    #         out=f,
-    #     )
+    with open(f"result/grid2d_{uuid}.off", "wb") as f:
+        export_off(
+            mesh_list=grid_list,
+            out=f,
+        )
 
 
 def read_meshes():
@@ -203,16 +202,16 @@ def read_meshes():
         epc=epc22,
     )
     print("Exporting")
-    with open(f"{gen_energyml_object_path(energyml_obj)}.obj", "wb") as f:
+    with open(f"result/{gen_energyml_object_path(energyml_obj)}.obj", "wb") as f:
         export_obj(
             mesh_list=mesh_list,
             out=f,
         )
-    # with open(f"{gen_energyml_object_path(energyml_obj)}.off", "wb") as f:
-    #     export_off(
-    #         mesh_list=mesh_list,
-    #         out=f,
-    #     )
+    with open(f"result/{gen_energyml_object_path(energyml_obj)}.off", "wb") as f:
+        export_off(
+            mesh_list=mesh_list,
+            out=f,
+        )
 
 
 def read_arrays():
@@ -343,6 +342,39 @@ def test_export_closed_poly():
     )
 
 
+def test_read_resqml22dev3():
+    path = "../rc/BoundaryFeature_resqml22_dev3.xml"
+
+    with open(path, "rb") as f:
+        xml_content = f.read()
+        print(xml_content)
+
+        print(read_energyml_xml_bytes(xml_content))
+
+    path = "../rc/BoundaryFeature_resqml22_dev3_wrong_schema_version.xml"
+
+    with open(path, "rb") as f:
+        xml_content = f.read()
+        print(xml_content)
+
+        print(read_energyml_xml_bytes(xml_content))
+
+    epc_path = "D:/Geosiris/Clients/Egis/Documents/Data/4 MNT Trojena/MNT_Trojena_2024-03-18.epc"
+    epc = Epc.read_file(epc_path)
+    print(len(epc.energyml_objects), "files found")
+
+    print("\n".join(list(map(lambda err: str(err), validate_epc(epc)))))
+
+    uuid_list = ["eadd871e-b752-4985-9268-1e3ced8bf11a"]
+
+    export_multiple_data(
+        epc_path=epc_path,
+        uuid_list=uuid_list,
+        output_folder_path="D:/Geosiris/Clients/Egis/Documents/Data/4 MNT Trojena/",
+        file_format=MeshFileFormat.OBJ,
+    )
+
+
 if __name__ == "__main__":
     # test_array()
     # test_h5_path()
@@ -352,7 +384,7 @@ if __name__ == "__main__":
     #
     # print("Supported : ", get_supported_array())
     # print("Not supported : ", get_not_supported_array())
-
+    #
     # read_h5_grid2d()
     # read_h5_grid2d_bis()
     # print(REGEX_CONTENT_TYPE)
@@ -361,4 +393,5 @@ if __name__ == "__main__":
 
     # test_export_multiple()
     # test_export_closed_poly()
-    test_export_multiple_testing_package()
+    # test_export_multiple_testing_package()
+    test_read_resqml22dev3()

@@ -98,8 +98,10 @@ def get_class_name_from_xml(tree: ETREE.Element) -> str:
             return "energyml.opc.opc." + get_root_type(tree)
         else:
             schema_version = find_schema_version_in_element(tree).replace(".", "_").replace("-", "_")
+            # print(schema_version)
             if pkg == "resqml" and schema_version == "2_0":
                 schema_version = "2_0_1"
+
             return ("energyml." + pkg
                     + ".v" + schema_version
                     + "."
@@ -119,7 +121,8 @@ def get_xml_encoding(xml_content: str) -> Optional[str]:
 def get_tree(xml_content: Union[bytes, str]) -> ETREE.Element:
     xml_bytes = xml_content
     if isinstance(xml_bytes, str):
-        xml_bytes = xml_content.encode(encoding=get_xml_encoding(xml_content).strip().lower())
+        encoding = get_xml_encoding(xml_content)
+        xml_bytes = xml_content.encode(encoding=encoding.strip().lower() if encoding is not None else "utf-8")
 
     return ETREE.parse(BytesIO(xml_bytes)).getroot()
 
@@ -172,9 +175,9 @@ def find_schema_version_in_element(tree: ETREE.ElementTree) -> str:
         _schema_version = tree.xpath("@SchemaVersion")
 
     if _schema_version is not None:
-        match_version = re.search(r"\d+(\.\d+)*", _schema_version[0])
+        match_version = re.search(r"\d+(\.\d+)*(dev\d+)?", _schema_version[0])
         if match_version is not None:
-            return match_version.group(0)
+            return match_version.group(0).replace("dev", "-dev")
     return ""
 
 

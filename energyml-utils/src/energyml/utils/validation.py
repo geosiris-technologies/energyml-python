@@ -15,7 +15,7 @@ from .introspection import (
     get_object_attribute_no_verif,
     get_object_attribute_rgx,
     get_matching_class_attribute_name, get_obj_uuid, get_obj_version, get_content_type_from_class,
-    get_qualified_type_from_class,
+    get_qualified_type_from_class, is_enum,
 )
 
 
@@ -240,7 +240,7 @@ def validate_attribute(
                     attribute_dot_path=path,
                 )
             )
-    else:
+    elif not is_enum(value):  # sometimes enums values fails the validation
         min_length = att_field.metadata.get("min_length", None)
         max_length = att_field.metadata.get("max_length", None)
         pattern = att_field.metadata.get("pattern", None)

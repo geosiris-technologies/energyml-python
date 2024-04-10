@@ -24,7 +24,7 @@ from .introspection import (
 )
 from .manager import get_class_pkg, get_class_pkg_version
 from .serialization import (
-    serialize_xml, read_energyml_xml_str, read_energyml_xml_bytes, read_energyml_xml_bytes_as_class
+    serialize_xml, read_energyml_xml_str, read_energyml_xml_bytes
 )
 from .xml import is_energyml_content_type
 
@@ -378,7 +378,7 @@ class Epc:
                         if is_energyml_content_type(ov_ct):
                             _read_files.append(ov_path)
                             try:
-                                ov_obj = read_energyml_xml_bytes_as_class(
+                                ov_obj = read_energyml_xml_bytes(
                                     epc_file.read(ov_path),
                                     get_class_from_content_type(ov_ct)
                                 )
@@ -393,7 +393,7 @@ class Epc:
                                 # raise e
                         elif get_class_from_content_type(ov_ct) == CoreProperties:
                             _read_files.append(ov_path)
-                            core_props = read_energyml_xml_bytes_as_class(epc_file.read(ov_path), CoreProperties)
+                            core_props = read_energyml_xml_bytes(epc_file.read(ov_path), CoreProperties)
                             path_to_obj[ov_path] = core_props
 
                     for f_info in epc_file.infolist():
@@ -418,7 +418,7 @@ class Epc:
                                     rels_folder = rels_folder[:-1]
                                 obj_folder = rels_folder[:rels_folder.rindex("/") + 1] if "/" in rels_folder else ""
                                 obj_file_name = rels_file_name[:-5]  # removing the ".rels"
-                                rels_file: Relationships = read_energyml_xml_bytes_as_class(
+                                rels_file: Relationships = read_energyml_xml_bytes(
                                     epc_file.read(f_info.filename),
                                     Relationships
                                 )

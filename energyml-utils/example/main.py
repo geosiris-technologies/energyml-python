@@ -347,7 +347,7 @@ def test_introspection():
 
     # =====================================================================
 
-    poly = read_energyml_xml_file("../../rc/polyline_set_for_array_tests.xml")
+    poly = read_energyml_xml_file("../rc/polyline_set_for_array_tests.xml")
 
     # print(serialize_xml(poly))
 

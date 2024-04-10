@@ -8,8 +8,7 @@ from enum import Enum
 from io import BytesIO
 from typing import List, Optional, Any, Callable
 
-from .hdf import get_hdf_reference_with_path, \
-    get_hdf5_path_from_external_path, HDF5FileReader, get_crs_obj
+from .hdf import HDF5FileReader, get_crs_obj
 from .helper import read_array, read_grid2d_patch, is_z_reversed
 from ..epc import Epc, get_obj_identifier, gen_energyml_object_path
 from ..introspection import search_attribute_matching_name, \

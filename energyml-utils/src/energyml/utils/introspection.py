@@ -12,9 +12,8 @@ from importlib import import_module
 from typing import Any, List, Optional, Union, Dict, Tuple
 
 from .manager import get_class_pkg, get_class_pkg_version, RELATED_MODULES, \
-    get_related_energyml_modules_name, get_sub_classes, get_classes_matching_name
+    get_related_energyml_modules_name, get_sub_classes, get_classes_matching_name, dict_energyml_modules
 from .xml import parse_content_type, ENERGYML_NAMESPACES
-
 
 primitives = (bool, str, int, float, type(None))
 
@@ -96,6 +95,41 @@ def get_class_from_name(class_name_and_module: str) -> Optional[type]:
     return None
 
 
+def get_energyml_module_dev_version(pkg: str, current_version: str):
+    accessible_modules = dict_energyml_modules()
+    if not current_version.startswith("v"):
+        current_version = "v" + current_version
+
+    current_version = current_version.replace("-", "_").replace(".", "_")
+    res = []
+    if pkg in accessible_modules:
+        # print("\t", pkg, current_version)
+        for am_pkg_version in accessible_modules[pkg]:
+            if am_pkg_version != current_version and am_pkg_version.startswith(current_version):
+                # print("\t\t", am_pkg_version)
+                res.append(get_module_name(pkg, am_pkg_version))
+
+    return res
+
+
+def get_energyml_class_in_related_dev_pkg(cls: type):
+    class_name = cls.__name__
+    class_pkg = get_class_pkg(cls)
+    class_pkg_version = get_class_pkg_version(cls)
+
+    res = []
+
+    for dev_module_name in get_energyml_module_dev_version(class_pkg, class_pkg_version):
+        try:
+            res.append(get_class_from_name(f"{dev_module_name}.{class_name}"))
+        except Exception as e:
+            print(f"FAILED {dev_module_name}.{class_name}")
+            print(e)
+            pass
+
+    return res
+
+
 def get_class_from_content_type(content_type: str) -> Optional[type]:
     """
     Return a :class:`type` object matching with the content-type :param:`content_type`.
@@ -121,7 +155,6 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
         # print("\tenergyml.opc.opc." + opc_type)
         return get_class_from_name("energyml.opc.opc." + opc_type)
     else:
-        ns = ENERGYML_NAMESPACES[domain]
         domain = ct.group("domain")
         obj_type = ct.group("type")
         if obj_type.lower().startswith("obj_"):  # for resqml201
@@ -130,15 +163,17 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
         if domain.lower() == "resqml" and version_num.startswith("2_0"):
             version_num = "2_0_1"
         return get_class_from_name(
-            "energyml."
-            + domain
-            + ".v"
-            + version_num
-            + "."
-            + ns[ns.rindex("/") + 1:]
+            get_module_name(domain, version_num)
             + "."
             + obj_type
         )
+
+
+def get_module_name(domain: str, domain_version: str):
+    ns = ENERGYML_NAMESPACES[domain]
+    if not domain_version.startswith("v"):
+        domain_version = "v" + domain_version
+    return f"energyml.{domain}.{domain_version}.{ns[ns.rindex('/') + 1:]}"
 
 
 def snake_case(s: str) -> str:
