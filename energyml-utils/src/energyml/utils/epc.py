@@ -20,7 +20,7 @@ from .introspection import (
     get_class_from_content_type,
     get_obj_type, search_attribute_matching_type, get_obj_version, get_obj_uuid,
     get_object_type_for_file_path_from_class, get_content_type_from_class, get_direct_dor_list, epoch_to_date, epoch,
-    gen_uuid, now
+    gen_uuid
 )
 from .manager import get_class_pkg, get_class_pkg_version
 from .serialization import (
@@ -30,17 +30,6 @@ from .xml import is_energyml_content_type
 
 RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
 RELS_FOLDER_NAME = "_rels"
-
-
-class NoCrsException(Exception):
-    pass
-
-
-@dataclass
-class ObjectNotFoundNotException(Exception):
-    obj_id: str = field(
-        default=None
-    )
 
 
 class EpcExportVersion(Enum):

@@ -6,20 +6,19 @@ from energyml.eml.v2_3.commonv2 import *
 from energyml.resqml.v2_2.resqmlv2 import (
     TriangulatedSetRepresentation,
     FaultInterpretation,
-    ContactElement, PointSetRepresentation, AbstractPoint3DArray, AbstractSurfaceFrameworkContact, AbstractColorMap,
+    ContactElement, AbstractPoint3DArray, AbstractColorMap,
 )
 
-from src.energyml.utils.validation import (
-    patterns_verification,
-    dor_verification, validate_epc, correct_dor,
-)
+from src.energyml.utils.data.hdf import *
 from src.energyml.utils.epc import *
 from src.energyml.utils.introspection import *
 from src.energyml.utils.manager import *
 from src.energyml.utils.serialization import *
+from src.energyml.utils.validation import (
+    patterns_verification,
+    dor_verification, validate_epc, correct_dor,
+)
 from src.energyml.utils.xml import *
-from src.energyml.utils.data.hdf import *
-
 
 fi_cit = Citation(
     title="An interpretation",
@@ -37,7 +36,7 @@ fi = FaultInterpretation(
 )
 
 tr_cit = Citation(
-    title="",
+    title="--",
     # title="test title",
     originator="Valentin",
     creation=epoch_to_date(epoch()),
@@ -263,7 +262,7 @@ def test_ast():
         ll.remove(type(None))
     print(ll)
     print(list(eval("List[ObjectAlias]").__args__))
-    print(random_value_from_class(tr))
+    print(random_value_from_class(tr.__class__))
 
 
 def test_introspection():
@@ -379,16 +378,15 @@ def tests_hdf():
         exit(0)
 
 
-
 if __name__ == "__main__":
-    # tests_0()
-    # tests_content_type()
+    tests_0()
+    tests_content_type()
 
     tests_epc()
-    # tests_dor()
-    # test_verif()
-    # test_ast()
-    # test_introspection()
+    tests_dor()
+    test_verif()
+    test_ast()
+    test_introspection()
 
-    # tests_hdf()
-    # print(get_object_attribute(""))
+    tests_hdf()
+    print(get_object_attribute(""))

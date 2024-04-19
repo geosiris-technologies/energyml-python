@@ -7,10 +7,9 @@ from typing import Optional, List, Tuple, Any, Union
 
 import h5py
 
-from ..epc import Epc, get_obj_identifier, ObjectNotFoundNotException, \
-    EPCRelsRelationshipType
+from ..epc import Epc, get_obj_identifier, EPCRelsRelationshipType
 from ..introspection import search_attribute_matching_name_with_path, search_attribute_matching_name, \
-    get_obj_uuid, get_object_attribute, get_object_attribute_no_verif
+    get_object_attribute, get_object_attribute_no_verif
 
 
 @dataclass
@@ -85,47 +84,6 @@ def get_hdf_reference_with_path(obj: any) -> List[Tuple[str, Any]]:
     )
 
 
-def get_crs_obj(
-        context_obj: Any,
-        path_in_root: Optional[str] = None,
-        root_obj: Optional[Any] = None,
-        epc: Optional[Epc] = None
-) -> Optional[Any]:
-    """
-    Search for the CRS object related to :param:`context_obj` into the :param:`epc`
-    :param context_obj:
-    :param path_in_root:
-    :param root_obj:
-    :param epc:
-    :return:
-    """
-    if epc is None:
-        print("@get_crs_obj no Epc file given")
-    else:
-        crs_list = search_attribute_matching_name(context_obj, r"\.*Crs", search_in_sub_obj=True, deep_search=False)
-        if crs_list is not None and len(crs_list) > 0:
-            print(crs_list[0])
-            crs = epc.get_object_by_identifier(get_obj_identifier(crs_list[0]))
-            if crs is None:
-                crs = epc.get_object_by_uuid(get_obj_uuid(crs_list[0]))
-            if crs is None:
-                raise ObjectNotFoundNotException(get_obj_identifier(crs_list[0]))
-            if crs is not None:
-                return crs
-
-        if context_obj != root_obj:
-            upper_path = path_in_root[:path_in_root.rindex(".")]
-            if len(upper_path) > 0:
-                return get_crs_obj(
-                    context_obj=get_object_attribute(root_obj, upper_path),
-                    path_in_root=upper_path,
-                    root_obj=root_obj,
-                    epc=epc,
-                )
-
-    return None
-
-
 def get_h5_path_possibilities(value_in_xml: str, epc: Epc) -> List[str]:
     """
     Maybe the path in the epc file objet was given as an absolute one : 'C:/my_file.h5'
@@ -185,6 +143,8 @@ def get_hdf5_path_from_external_path(
         if hdf_proxy_lst is not None and len(hdf_proxy_lst) > 0:
             hdf_proxy = hdf_proxy_lst
             # print("h5Proxy", hdf_proxy)
+            while isinstance(hdf_proxy, list):
+                hdf_proxy = hdf_proxy[0]
             hdf_proxy_obj = epc.get_object_by_identifier(get_obj_identifier(hdf_proxy))
             if hdf_proxy_obj is not None:
                 for rel in epc.additional_rels.get(get_obj_identifier(hdf_proxy_obj), []):

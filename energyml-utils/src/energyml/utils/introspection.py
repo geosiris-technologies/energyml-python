@@ -699,7 +699,7 @@ def get_obj_version(obj: Any) -> str:
             return get_object_attribute_no_verif(obj, "version_string")
         except Exception:
             print(f"Error with {type(obj)}")
-            raise e
+            # raise e
 
 
 def get_direct_dor_list(obj: Any) -> List[Any]:
