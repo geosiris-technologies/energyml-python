@@ -100,7 +100,7 @@ exclude = '''
 max-line-length = "88"
 
 [tool.poetry-dynamic-versioning]
-enable = false
+enable = true
 vcs = "git"
 style = "pep440"
 format-jinja = """
