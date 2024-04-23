@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resqmlv2:BoundaryFeature xmlns:commonv2="http://www.energistics.org/energyml/data/commonv2" xmlns:resqmlv2="http://www.energistics.org/energyml/data/resqmlv2" existenceKind="actual" schemaVersion="Resqml V2.2" uuid="ec5a91be-897a-4aa4-8cf1-de6d27216d61">
+  <commonv2:Citation>
+    <commonv2:Title>[Projet] Trojena_5m.REF</commonv2:Title>
+    <commonv2:Originator>jm.leonard</commonv2:Originator>
+    <commonv2:Creation>2024-03-18T18:40:05.700+01:00</commonv2:Creation>
+    <commonv2:Format>GDM Multilayer 2018 + RESQML Builder</commonv2:Format>
+    <commonv2:Editor>jm.leonard</commonv2:Editor>
+    <commonv2:VersionString></commonv2:VersionString>
+    <commonv2:Description>Trojena_5m.REF</commonv2:Description>
+    <commonv2:DescriptiveKeywords>[Projet]</commonv2:DescriptiveKeywords>
+  </commonv2:Citation>
+</resqmlv2:BoundaryFeature>

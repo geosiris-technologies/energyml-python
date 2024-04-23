@@ -12,9 +12,8 @@ from importlib import import_module
 from typing import Any, List, Optional, Union, Dict, Tuple
 
 from .manager import get_class_pkg, get_class_pkg_version, RELATED_MODULES, \
-    get_related_energyml_modules_name, get_sub_classes, get_classes_matching_name
+    get_related_energyml_modules_name, get_sub_classes, get_classes_matching_name, dict_energyml_modules
 from .xml import parse_content_type, ENERGYML_NAMESPACES
-
 
 primitives = (bool, str, int, float, type(None))
 
@@ -91,7 +90,44 @@ def get_class_from_name(class_name_and_module: str) -> Optional[type]:
             )
         else:
             print(e)
+    except KeyError:
+        print(f"[ERR] module not found : '{module_name}'")
     return None
+
+
+def get_energyml_module_dev_version(pkg: str, current_version: str):
+    accessible_modules = dict_energyml_modules()
+    if not current_version.startswith("v"):
+        current_version = "v" + current_version
+
+    current_version = current_version.replace("-", "_").replace(".", "_")
+    res = []
+    if pkg in accessible_modules:
+        # print("\t", pkg, current_version)
+        for am_pkg_version in accessible_modules[pkg]:
+            if am_pkg_version != current_version and am_pkg_version.startswith(current_version):
+                # print("\t\t", am_pkg_version)
+                res.append(get_module_name(pkg, am_pkg_version))
+
+    return res
+
+
+def get_energyml_class_in_related_dev_pkg(cls: type):
+    class_name = cls.__name__
+    class_pkg = get_class_pkg(cls)
+    class_pkg_version = get_class_pkg_version(cls)
+
+    res = []
+
+    for dev_module_name in get_energyml_module_dev_version(class_pkg, class_pkg_version):
+        try:
+            res.append(get_class_from_name(f"{dev_module_name}.{class_name}"))
+        except Exception as e:
+            print(f"FAILED {dev_module_name}.{class_name}")
+            print(e)
+            pass
+
+    return res
 
 
 def get_class_from_content_type(content_type: str) -> Optional[type]:
@@ -103,18 +139,22 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
     ct = parse_content_type(content_type)
     domain = ct.group("domain")
     if domain is None:
+        # print(f"\tdomain {domain} xmlDomain {ct.group('xmlDomain')} ")
         domain = "opc"
     if domain == "opc":
         xml_domain = ct.group("xmlDomain")
         if "." in xml_domain:
             xml_domain = xml_domain[xml_domain.rindex(".") + 1:]
-        if "extended" in xml_domain:
-            xml_domain = xml_domain.replace("extended", "")
-        opc_type = pascal_case(xml_domain)
-        # print("energyml.opc.opc." + opc_type)
+        # Don't know what to do with http://schemas.f2i-consulting.com/package/2014/metadata/extended-core-properties
+        # if "extended" in xml_domain:
+        #     xml_domain = xml_domain.replace("extended", "")
+        #     if xml_domain.startswith("-"):
+        #         xml_domain = xml_domain[1:]
+        #
+        opc_type = pascal_case(xml_domain).replace("-", "")
+        # print("\tenergyml.opc.opc." + opc_type)
         return get_class_from_name("energyml.opc.opc." + opc_type)
     else:
-        ns = ENERGYML_NAMESPACES[domain]
         domain = ct.group("domain")
         obj_type = ct.group("type")
         if obj_type.lower().startswith("obj_"):  # for resqml201
@@ -123,15 +163,17 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
         if domain.lower() == "resqml" and version_num.startswith("2_0"):
             version_num = "2_0_1"
         return get_class_from_name(
-            "energyml."
-            + domain
-            + ".v"
-            + version_num
-            + "."
-            + ns[ns.rindex("/") + 1:]
+            get_module_name(domain, version_num)
             + "."
             + obj_type
         )
+
+
+def get_module_name(domain: str, domain_version: str):
+    ns = ENERGYML_NAMESPACES[domain]
+    if not domain_version.startswith("v"):
+        domain_version = "v" + domain_version
+    return f"energyml.{domain}.{domain_version}.{ns[ns.rindex('/') + 1:]}"
 
 
 def snake_case(s: str) -> str:
@@ -529,7 +571,6 @@ def search_attribute_matching_name_with_path(
         attrib_list = re.split(r"(?<!\\)\.+", name_rgx)
         current_match = attrib_list[0]
         next_match = '.'.join(attrib_list[1:])
-
     res = []
 
     match_value = None
@@ -658,7 +699,7 @@ def get_obj_version(obj: Any) -> str:
             return get_object_attribute_no_verif(obj, "version_string")
         except Exception:
             print(f"Error with {type(obj)}")
-            raise e
+            # raise e
 
 
 def get_direct_dor_list(obj: Any) -> List[Any]:
@@ -711,9 +752,9 @@ def get_object_type_for_file_path_from_class(cls) -> str:
         return get_obj_type(cls)
 
 
-def now(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> int:
+def now(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> float:
     """ Return an epoch value """
-    return int(datetime.datetime.timestamp(datetime.datetime.now(time_zone)))
+    return datetime.datetime.timestamp(datetime.datetime.now(time_zone))
 
 
 def epoch(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> int:

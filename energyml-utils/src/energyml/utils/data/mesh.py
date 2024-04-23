@@ -1,23 +1,28 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import inspect
+import os
 import re
 import sys
 from dataclasses import dataclass, field
+from enum import Enum
 from io import BytesIO
 from typing import List, Optional, Any, Callable
 
-from .hdf import get_hdf_reference_with_path, \
-    get_hdf5_path_from_external_path, HDF5FileReader, get_crs_obj
-from .helper import read_array, read_grid2d_patch, is_z_reversed
-from ..epc import Epc, get_obj_identifier
+from .hdf import HDF5FileReader
+from .helper import read_array, read_grid2d_patch, is_z_reversed, EnergymlWorkspace, get_crs_obj, EPCWorkspace
+from ..epc import Epc, get_obj_identifier, gen_energyml_object_path
 from ..introspection import search_attribute_matching_name, \
-    search_attribute_matching_type_with_path, \
-    search_attribute_matching_name_with_path, snake_case
+    search_attribute_matching_name_with_path, snake_case, get_object_attribute
 
 _FILE_HEADER: bytes = b"# file exported by energyml-utils python module (Geosiris)\n"
 
 Point = list[float]
+
+
+class MeshFileFormat(Enum):
+    OFF = "off"
+    OBJ = "obj"
 
 
 @dataclass
@@ -108,17 +113,18 @@ def _mesh_name_mapping(array_type_name: str) -> str:
     """
     array_type_name = array_type_name.replace("3D", "3d").replace("2D", "2d")
     array_type_name = re.sub("^[Oo]bj([A-Z])", r"\1", array_type_name)
+    array_type_name = re.sub("(Polyline|Point)Set", r"\1", array_type_name)
     return array_type_name
 
 
 def read_mesh_object(
         energyml_object: Any,
-        epc: Optional[Epc] = None
+        workspace: Optional[EnergymlWorkspace] = None
 ) -> List[AbstractMesh]:
     """
     Read and "meshable" object. If :param:`energyml_object` is not supported, an exception will be raised.
     :param energyml_object:
-    :param epc:
+    :param workspace:
     :return:
     """
     if isinstance(energyml_object, list):
@@ -129,135 +135,155 @@ def read_mesh_object(
     if reader_func is not None:
         return reader_func(
             energyml_object=energyml_object,
-            epc=epc,
+            workspace=workspace,
         )
     else:
         print(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
-        raise Exception(f"Type {array_type_name} is not supported\n\t{energyml_object}: \n\tfunction read_{snake_case(array_type_name)} not found")
+        raise Exception(
+            f"Type {array_type_name} is not supported\n\t{energyml_object}: \n\tfunction read_{snake_case(array_type_name)} not found")
 
 
-def read_point_set_representation(energyml_object: Any, epc: Epc) -> List[PointSetMesh]:
-    # pt_geoms = search_attribute_matching_type(point_set, "AbstractGeometry")
-    h5_reader = HDF5FileReader()
-
-    meshes = []
-    for refer_path, refer_value in get_hdf_reference_with_path(energyml_object):
-        try:
-            hdf5_path = get_hdf5_path_from_external_path(
-                external_path_obj=refer_value,
-                path_in_root=refer_path,
-                root_obj=energyml_object,
-                epc=epc,
-            )
-            crs = get_crs_obj(
-                context_obj=refer_value,
-                path_in_root=refer_path,
-                root_obj=energyml_object,
-                epc=epc,
-            )
-            if hdf5_path is not None:
-                print(f"Reading h5 file : {hdf5_path}")
-                meshes.append(PointSetMesh(
-                    identifier=refer_value,
-                    energyml_object=energyml_object,
-                    crs_object=crs,
-                    point_list=h5_reader.read_array(hdf5_path, refer_value)
-                ))
-        except Exception as e:
-            print(f"Error with path {refer_path} -- {energyml_object}")
-            raise e
-    return meshes
-
-
-def read_polyline_set_representation(energyml_object: Any, epc: Epc) -> List[PointSetMesh]:
+def read_point_representation(energyml_object: Any, workspace: EnergymlWorkspace) -> List[PointSetMesh]:
     # pt_geoms = search_attribute_matching_type(point_set, "AbstractGeometry")
     h5_reader = HDF5FileReader()
 
     meshes = []
 
     patch_idx = 0
-    for path_path_in_obj, patch in search_attribute_matching_name_with_path(energyml_object, "LinePatch"):
-        print(f"patch {patch}")
-        geometry_path_in_obj, geometry = search_attribute_matching_name_with_path(patch, "geometry")[0]
-        node_count_per_poly_path_in_obj, node_count_per_poly = \
-        search_attribute_matching_name_with_path(patch, "NodeCountPerPolyline")[0]
-        points_ext_array = search_attribute_matching_type_with_path(geometry, "ExternalDataArrayPart|Hdf5Dataset")
-        node_count_ext_array = search_attribute_matching_type_with_path(node_count_per_poly,
-                                                                        "ExternalDataArrayPart|Hdf5Dataset")
+    # resqml 2.0.1
+    for points_path_in_obj, points_obj in search_attribute_matching_name_with_path(energyml_object,
+                                                                                   "NodePatch.[\d]+.Geometry.Points"):
+        points = read_array(
+            energyml_array=points_obj,
+            root_obj=energyml_object,
+            path_in_root=points_path_in_obj,
+            workspace=workspace,
+        )
 
-        if len(points_ext_array) > 0:
-            point_per_elt = []
-            point_indices = []
-            crs = None
+        crs = get_crs_obj(
+            context_obj=points_obj,
+            path_in_root=points_path_in_obj,
+            root_obj=energyml_object,
+            workspace=workspace,
+        )
+        if points is not None:
+            meshes.append(PointSetMesh(
+                identifier=f"NodePatch num {patch_idx}",
+                energyml_object=energyml_object,
+                crs_object=crs,
+                point_list=points
+            ))
 
-            # Reading points
-            for patch_part_path, patchPart_value in points_ext_array:
-                patch_part_full_path_in_obj = path_path_in_obj + geometry_path_in_obj + patch_part_path
-                for refer_path, refer_value in get_hdf_reference_with_path(patchPart_value):
-                    print(f"refer_path {patch_part_full_path_in_obj}{refer_path} refer_value{refer_value} ")
-                    hdf5_path = get_hdf5_path_from_external_path(
-                        external_path_obj=refer_value,
-                        path_in_root=patch_part_full_path_in_obj + refer_path,
-                        root_obj=energyml_object,
-                        epc=epc,
-                    )
-                    crs = get_crs_obj(
-                        context_obj=refer_value,
-                        path_in_root=patch_part_full_path_in_obj + refer_path,
-                        root_obj=energyml_object,
-                        epc=epc,
-                    )
-                    if hdf5_path is not None:
-                        print(f"Reading h5 file : {hdf5_path}")
-                        point_per_elt = point_per_elt + h5_reader.read_array(hdf5_path, refer_value)
+        patch_idx = patch_idx + 1
 
-            # Reading polyline indices
-            # for patch_part_path, patchPart_value in node_count_ext_array:
-            #     patch_part_full_path_in_obj = path_path_in_obj + node_count_per_poly_path_in_obj + patch_part_path
-            #     for refer_path, refer_value in get_hdf_reference_with_path(patchPart_value):
-            #         print(f"refer_path: {patch_part_full_path_in_obj}{refer_path} refer_value: {refer_value} ")
-            #         hdf5_path = get_hdf5_path_from_external_path(
-            #                     external_path_obj=refer_value,
-            #                     path_in_root=patch_part_full_path_in_obj + refer_path,
-            #                     root_obj=energyml_object,
-            #                     epc=epc,
-            #         )
-            #         if hdf5_path is not None:
-            #             node_counts_list = h5_reader.read_array(hdf5_path, refer_value)
-            #             idx = 0
-            #             for nb_node in node_counts_list:
-            #                 point_indices.append([x for x in range(idx, idx + nb_node)])
-            #                 idx = idx + nb_node
+    # resqml 2.2
+    for points_path_in_obj, points_obj in search_attribute_matching_name_with_path(energyml_object,
+                                                                                   "NodePatchGeometry.[\d]+.Points"):
+        points = read_array(
+            energyml_array=points_obj,
+            root_obj=energyml_object,
+            path_in_root=points_path_in_obj,
+            workspace=workspace,
+        )
 
-            node_counts_list = read_array(
-                energyml_array=node_count_per_poly,
-                root_obj=energyml_object,
-                path_in_root=path_path_in_obj + node_count_per_poly_path_in_obj,
-                epc=epc,
-            )
-            idx = 0
-            for nb_node in node_counts_list:
-                point_indices.append([x for x in range(idx, idx + nb_node)])
-                idx = idx + nb_node
+        crs = get_crs_obj(
+            context_obj=points_obj,
+            path_in_root=points_path_in_obj,
+            root_obj=energyml_object,
+            workspace=workspace,
+        )
+        if points is not None:
+            meshes.append(PointSetMesh(
+                identifier=f"NodePatchGeometry num {patch_idx}",
+                energyml_object=energyml_object,
+                crs_object=crs,
+                point_list=points
+            ))
 
-            if len(point_per_elt) > 0:
-                # poly_idx = 0
-                # for single_poly_indices in point_indices:
-                meshes.append(PolylineSetMesh(
-                    # identifier=f"{get_obj_identifier(energyml_object)}_patch{patch_idx}_poly{poly_idx}",
-                    identifier=f"{get_obj_identifier(energyml_object)}_patch{patch_idx}",
-                    energyml_object=energyml_object,
-                    crs_object=crs,
-                    point_list=point_per_elt,
-                    line_indices=point_indices
-                ))
-                # poly_idx = poly_idx + 1
         patch_idx = patch_idx + 1
 
     return meshes
 
 
-def read_grid2d_representation(energyml_object: Any, epc: Epc, keep_holes=False) -> List[SurfaceMesh]:
+def read_polyline_representation(energyml_object: Any, workspace: EnergymlWorkspace) -> List[PolylineSetMesh]:
+    # pt_geoms = search_attribute_matching_type(point_set, "AbstractGeometry")
+    h5_reader = HDF5FileReader()
+
+    meshes = []
+
+    patch_idx = 0
+    for patch_path_in_obj, patch in (
+            search_attribute_matching_name_with_path(energyml_object, "NodePatch")
+            + search_attribute_matching_name_with_path(energyml_object, "LinePatch.[\\d]+")
+    ):
+        points_path, points_obj = search_attribute_matching_name_with_path(patch, "Geometry.Points")[0]
+        points = read_array(
+            energyml_array=points_obj,
+            root_obj=energyml_object,
+            path_in_root=patch_path_in_obj + points_path,
+            workspace=workspace,
+        )
+
+        crs = get_crs_obj(
+            context_obj=points_obj,
+            path_in_root=patch_path_in_obj + points_path,
+            root_obj=energyml_object,
+            workspace=workspace,
+        )
+
+        close_poly = None
+        try:
+            close_poly_path, close_poly_obj = search_attribute_matching_name_with_path(patch, "ClosedPolylines")[0]
+            close_poly = read_array(
+                energyml_array=close_poly_obj,
+                root_obj=energyml_object,
+                path_in_root=patch_path_in_obj + close_poly_path,
+                workspace=workspace,
+            )
+        except IndexError:
+            pass
+
+        point_indices = []
+        try:
+            node_count_per_poly_path_in_obj, node_count_per_poly = \
+                search_attribute_matching_name_with_path(patch, "NodeCountPerPolyline")[0]
+            node_counts_list = read_array(
+                energyml_array=node_count_per_poly,
+                root_obj=energyml_object,
+                path_in_root=patch_path_in_obj + node_count_per_poly_path_in_obj,
+                workspace=workspace,
+            )
+            idx = 0
+            poly_idx = 0
+            for nb_node in node_counts_list:
+                point_indices.append([x for x in range(idx, idx + nb_node)])
+                if close_poly is not None and len(close_poly) > poly_idx and close_poly[poly_idx]:
+                    point_indices[len(point_indices) - 1].append(idx)
+                idx = idx + nb_node
+                poly_idx = poly_idx + 1
+        except IndexError:
+            # No NodeCountPerPolyline for Polyline but only in PolylineSet
+            pass
+
+        if point_indices is None or len(point_indices) == 0:
+            # No indices ==> all point in the polyline
+            point_indices = [list(range(len(points)))]
+
+        if len(points) > 0:
+            meshes.append(PolylineSetMesh(
+                identifier=f"{get_obj_identifier(energyml_object)}_patch{patch_idx}",
+                energyml_object=energyml_object,
+                crs_object=crs,
+                point_list=points,
+                line_indices=point_indices
+            ))
+
+        patch_idx = patch_idx + 1
+
+    return meshes
+
+
+def read_grid2d_representation(energyml_object: Any, workspace: Optional[EnergymlWorkspace] = None, keep_holes=False) -> List[SurfaceMesh]:
     # h5_reader = HDF5FileReader()
     meshes = []
 
@@ -267,7 +293,7 @@ def read_grid2d_representation(energyml_object: Any, epc: Epc, keep_holes=False)
             context_obj=patch,
             path_in_root=patch_path,
             root_obj=energyml_object,
-            epc=epc,
+            workspace=workspace,
         )
 
         reverse_z_values = is_z_reversed(crs)
@@ -276,7 +302,7 @@ def read_grid2d_representation(energyml_object: Any, epc: Epc, keep_holes=False)
             patch=patch,
             grid2d=energyml_object,
             path_in_root=patch_path,
-            epc=epc,
+            workspace=workspace,
         )
 
         fa_count = search_attribute_matching_name(patch, "FastestAxisCount")
@@ -290,7 +316,7 @@ def read_grid2d_representation(energyml_object: Any, epc: Epc, keep_holes=False)
         fa_count = fa_count[0]
         sa_count = sa_count[0]
 
-        print(f"sa_count {sa_count} fa_count {fa_count}")
+        # print(f"sa_count {sa_count} fa_count {fa_count}")
 
         points_no_nan = []
 
@@ -313,26 +339,26 @@ def read_grid2d_representation(energyml_object: Any, epc: Epc, keep_holes=False)
 
         indices = []
 
-        while sa_count*fa_count > len(points):
+        while sa_count * fa_count > len(points):
             sa_count = sa_count - 1
             fa_count = fa_count - 1
 
-        while sa_count*fa_count < len(points):
+        while sa_count * fa_count < len(points):
             sa_count = sa_count + 1
             fa_count = fa_count + 1
 
-        print(f"sa_count {sa_count} fa_count {fa_count} : {sa_count*fa_count} - {len(points)} ")
+        # print(f"sa_count {sa_count} fa_count {fa_count} : {sa_count*fa_count} - {len(points)} ")
 
-        for sa in range(sa_count-1):
-            for fa in range(fa_count-1):
+        for sa in range(sa_count - 1):
+            for fa in range(fa_count - 1):
                 line = sa * fa_count
-                if sa+1 == int(sa_count / 2) and fa == int(fa_count / 2):
-                    print(
-                        "\n\t", (line + fa), " : ", (line + fa) in indice_to_final_indice,
-                        "\n\t", (line + fa + 1), " : ", (line + fa + 1) in indice_to_final_indice,
-                        "\n\t", (line + fa_count + fa + 1), " : ", (line + fa_count + fa + 1) in indice_to_final_indice,
-                        "\n\t", (line + fa_count + fa), " : ", (line + fa_count + fa) in indice_to_final_indice,
-                    )
+                # if sa+1 == int(sa_count / 2) and fa == int(fa_count / 2):
+                #     print(
+                #         "\n\t", (line + fa), " : ", (line + fa) in indice_to_final_indice,
+                #         "\n\t", (line + fa + 1), " : ", (line + fa + 1) in indice_to_final_indice,
+                #         "\n\t", (line + fa_count + fa + 1), " : ", (line + fa_count + fa + 1) in indice_to_final_indice,
+                #         "\n\t", (line + fa_count + fa), " : ", (line + fa_count + fa) in indice_to_final_indice,
+                #     )
                 if keep_holes:
                     indices.append(
                         [
@@ -343,10 +369,10 @@ def read_grid2d_representation(energyml_object: Any, epc: Epc, keep_holes=False)
                         ]
                     )
                 elif (
-                    (line + fa) in indice_to_final_indice
-                    and (line + fa + 1) in indice_to_final_indice
-                    and (line + fa_count + fa + 1) in indice_to_final_indice
-                    and (line + fa_count + fa) in indice_to_final_indice
+                        (line + fa) in indice_to_final_indice
+                        and (line + fa + 1) in indice_to_final_indice
+                        and (line + fa_count + fa + 1) in indice_to_final_indice
+                        and (line + fa_count + fa) in indice_to_final_indice
                 ):
                     indices.append(
                         [
@@ -369,7 +395,7 @@ def read_grid2d_representation(energyml_object: Any, epc: Epc, keep_holes=False)
     return meshes
 
 
-def read_triangulated_set_representation(energyml_object: Any, epc: Epc) -> List[SurfaceMesh]:
+def read_triangulated_set_representation(energyml_object: Any, workspace: EnergymlWorkspace) -> List[SurfaceMesh]:
     meshes = []
 
     point_offset = 0
@@ -379,7 +405,7 @@ def read_triangulated_set_representation(energyml_object: Any, epc: Epc) -> List
             context_obj=patch,
             path_in_root=patch_path,
             root_obj=energyml_object,
-            epc=epc,
+            workspace=workspace,
         )
 
         point_list: List[Point] = []
@@ -388,7 +414,7 @@ def read_triangulated_set_representation(energyml_object: Any, epc: Epc) -> List
                 energyml_array=point_obj,
                 root_obj=energyml_object,
                 path_in_root=patch_path + point_path,
-                epc=epc,
+                workspace=workspace,
             )
 
         triangles_list: List[List[int]] = []
@@ -397,7 +423,7 @@ def read_triangulated_set_representation(energyml_object: Any, epc: Epc) -> List
                 energyml_array=triangles_obj,
                 root_obj=energyml_object,
                 path_in_root=patch_path + triangles_path,
-                epc=epc,
+                workspace=workspace,
             )
         triangles_list = list(map(lambda tr: [ti - point_offset for ti in tr], triangles_list))
         meshes.append(SurfaceMesh(
@@ -536,9 +562,6 @@ def _export_obj_elt(
     # cpt = 0
     for face in indices:
         if len(face) > 1:
-            # off_face_part.write(f"{elt_letter} ".encode('utf-8'))
-            # for pi in face:
-            #     off_face_part.write(f"{pi + point_offset} ".encode('utf-8'))
             off_point_part.write(
                 f"{elt_letter} {' '.join(list(map(lambda x: str(x + point_offset + offset_obj), face)))}\n".encode(
                     'utf-8'))
@@ -548,3 +571,45 @@ def _export_obj_elt(
             #         off_face_part.write(f"{col} ".encode('utf-8'))
 
             # off_face_part.write(b"\n")
+
+
+def export_multiple_data(
+        epc_path: str,
+        uuid_list: List[str],
+        output_folder_path: str,
+        output_file_path_suffix: str = "",
+        file_format: MeshFileFormat = MeshFileFormat.OBJ
+):
+    epc = Epc.read_file(epc_path)
+
+    try:
+        os.makedirs(output_folder_path, exist_ok=True)
+    except OSError:
+        pass
+
+    for uuid in uuid_list:
+        energyml_obj = epc.get_object_by_uuid(uuid)[0]
+        file_name = (f"{gen_energyml_object_path(energyml_obj)}_"
+                     f"[{get_object_attribute(energyml_obj, 'citation.title')}]"
+                     f"{output_file_path_suffix}"
+                     f".{file_format.value}")
+        file_path = f"{output_folder_path}/{file_name}"
+        print(f"Exporting : {file_path}")
+        mesh_list = read_mesh_object(
+            energyml_object=energyml_obj,
+            workspace=EPCWorkspace(epc=epc),
+        )
+        if file_format == MeshFileFormat.OBJ:
+            with open(file_path, "wb") as f:
+                export_obj(
+                    mesh_list=mesh_list,
+                    out=f,
+                )
+        elif file_format == MeshFileFormat.OFF:
+            with open(file_path, "wb") as f:
+                export_off(
+                    mesh_list=mesh_list,
+                    out=f,
+                )
+        else:
+            print(f"Code is not written for format {file_format}")

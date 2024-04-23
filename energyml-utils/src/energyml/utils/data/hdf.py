@@ -1,15 +1,15 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
+import os
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Optional, List, Tuple, Any, Union
 
 import h5py
 
-from ..epc import Epc, get_obj_identifier, ObjectNotFoundNotException, \
-    EPCRelsRelationshipType
+from ..epc import Epc, get_obj_identifier, EPCRelsRelationshipType
 from ..introspection import search_attribute_matching_name_with_path, search_attribute_matching_name, \
-    get_obj_uuid, get_object_attribute
+    get_object_attribute, get_object_attribute_no_verif
 
 
 @dataclass
@@ -84,41 +84,25 @@ def get_hdf_reference_with_path(obj: any) -> List[Tuple[str, Any]]:
     )
 
 
-def get_crs_obj(
-        context_obj: Any,
-        path_in_root: Optional[str] = None,
-        root_obj: Optional[Any] = None,
-        epc: Optional[Epc] = None
-) -> Optional[Any]:
+def get_h5_path_possibilities(value_in_xml: str, epc: Epc) -> List[str]:
     """
-    Search for the CRS object related to :param:`context_obj` into the :param:`epc`
-    :param context_obj:
-    :param path_in_root:
-    :param root_obj:
-    :param epc:
-    :return:
+    Maybe the path in the epc file objet was given as an absolute one : 'C:/my_file.h5'
+    but if the epc has been moved (e.g. in 'D:/a_folder/') it will not work. Thus, the function
+    energyml.utils.data.hdf.get_hdf5_path_from_external_path return the value from epc objet concatenate to the
+    real epc folder path.
+    With our example we will have : 'D:/a_folder/C:/my_file.h5'
+    this function returns (following our example):
+        [ 'C:/my_file.h5', 'D:/a_folder/my_file.h5', 'my_file.h5']
+    :param value_in_xml: 
+    :param epc: 
+    :return: 
     """
-    crs_list = search_attribute_matching_name(context_obj, r"\.*Crs", search_in_sub_obj=True, deep_search=False)
-    if crs_list is not None and len(crs_list) > 0:
-        crs = epc.get_object_by_identifier(get_obj_identifier(crs_list[0]))
-        if crs is None:
-            crs = epc.get_object_by_uuid(get_obj_uuid(crs_list[0]))
-        if crs is None:
-            raise ObjectNotFoundNotException(get_obj_identifier(crs_list[0]))
-        if crs is not None:
-            return crs
+    epc_folder = epc.get_epc_file_folder()
+    hdf5_path_respect = value_in_xml
+    hdf5_path_rematch = f"{epc_folder+'/' if epc_folder is not None and len(epc_folder) else ''}{os.path.basename(value_in_xml)}"
+    hdf5_path_no_folder = f"{os.path.basename(value_in_xml)}"
 
-    if context_obj != root_obj:
-        upper_path = path_in_root[:path_in_root.rindex(".")]
-        if len(upper_path) > 0:
-            return get_crs_obj(
-                context_obj=get_object_attribute(root_obj, upper_path),
-                path_in_root=upper_path,
-                root_obj=root_obj,
-                epc=epc,
-            )
-
-    return None
+    return [hdf5_path_respect, hdf5_path_rematch, hdf5_path_no_folder]
 
 
 def get_hdf5_path_from_external_path(
@@ -126,7 +110,7 @@ def get_hdf5_path_from_external_path(
         path_in_root: Optional[str] = None,
         root_obj: Optional[Any] = None,
         epc: Optional[Epc] = None
-) -> Optional[str]:
+) -> Optional[List[str]]:
     """
     Return the hdf5 file path (Searches for "uri" attribute or in :param:`epc` rels files).
     :param external_path_obj: can be an attribute of an ExternalDataArrayPart
@@ -148,15 +132,37 @@ def get_hdf5_path_from_external_path(
         epc_folder = epc.get_epc_file_folder()
         h5_uri = search_attribute_matching_name(external_path_obj, "uri")
         if h5_uri is not None and len(h5_uri) > 0:
-            return f"{epc_folder}/{h5_uri[0]}"
+            return get_h5_path_possibilities(value_in_xml=h5_uri[0], epc=epc)
+            # return f"{epc_folder}/{h5_uri[0]}"
     else:
         epc_folder = epc.get_epc_file_folder()
-        hdf_proxy = search_attribute_matching_name(external_path_obj, "HdfProxy")[0]
-        if hdf_proxy is not None:
+        hdf_proxy_lst = search_attribute_matching_name(external_path_obj, "HdfProxy")
+        ext_file_proxy_lst = search_attribute_matching_name(external_path_obj, "ExternalFileProxy")
+
+        # resqml 2.0.1
+        if hdf_proxy_lst is not None and len(hdf_proxy_lst) > 0:
+            hdf_proxy = hdf_proxy_lst
+            # print("h5Proxy", hdf_proxy)
+            while isinstance(hdf_proxy, list):
+                hdf_proxy = hdf_proxy[0]
             hdf_proxy_obj = epc.get_object_by_identifier(get_obj_identifier(hdf_proxy))
             if hdf_proxy_obj is not None:
                 for rel in epc.additional_rels.get(get_obj_identifier(hdf_proxy_obj), []):
-                    # print(f"\trel : {rel}")
                     if rel.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
-                        return f"{epc_folder}/{rel.target}"
+                        return get_h5_path_possibilities(value_in_xml=rel.target, epc=epc)
+                        # return f"{epc_folder}/{rel.target}"
+
+        # resqml 2.2dev3
+        if ext_file_proxy_lst is not None and len(ext_file_proxy_lst) > 0:
+            ext_file_proxy = ext_file_proxy_lst
+            while isinstance(ext_file_proxy, list):
+                ext_file_proxy = ext_file_proxy[0]
+            ext_part_ref_obj = epc.get_object_by_identifier(
+                get_obj_identifier(
+                    get_object_attribute_no_verif(ext_file_proxy, "epc_external_part_reference")
+                )
+            )
+            return get_h5_path_possibilities(value_in_xml=ext_part_ref_obj.filename, epc=epc)
+            # return f"{epc_folder}/{ext_part_ref_obj.filename}"
+
     return None

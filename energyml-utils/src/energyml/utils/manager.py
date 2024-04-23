@@ -206,11 +206,17 @@ def get_class_pkg_version(
     cls, print_dev_version: bool = True, nb_max_version_digits: int = 2
 ):
     p = re.compile(REGEX_ENERGYML_MODULE_NAME)
-    m = p.search(
-        cls.__module__ if isinstance(cls, type) else type(cls).__module__
-    )
+    class_module = None
+    if isinstance(cls, type):
+        class_module = cls.__module__
+    elif isinstance(cls, str):
+        class_module = cls
+    else:
+        class_module = type(cls).__module__
+
+    m = p.search(class_module)
     return reshape_version(m.group("versionNumber"), nb_max_version_digits) + (
-        m.group("versionDev")
+        "dev" + m.group("versionDev")
         if m.group("versionDev") is not None and print_dev_version
         else ""
     )
