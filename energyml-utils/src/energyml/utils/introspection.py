@@ -770,7 +770,7 @@ def date_to_epoch(date: str) -> int:
 
 
 def epoch_to_date(epoch_value: int, time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> str:
-    date = datetime.datetime.fromtimestamp(epoch_value / 1e3, time_zone)
+    date = datetime.datetime.fromtimestamp(epoch_value, time_zone)
     return date.strftime("%Y-%m-%dT%H:%M:%S%z")
 
 

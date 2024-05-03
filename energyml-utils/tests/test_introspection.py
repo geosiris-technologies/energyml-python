@@ -8,7 +8,7 @@ from energyml.opc.opc import (
 
 from src.energyml.utils.introspection import (
     is_primitive, is_enum, get_class_from_name,
-    snake_case, pascal_case
+    snake_case, pascal_case, epoch, date_to_epoch, epoch_to_date
 )
 
 
@@ -43,3 +43,8 @@ def test_pascal_case():
     assert pascal_case("This_IsASnakecase") == "ThisIsASnakecase"
     assert pascal_case("This_isASnakecase") == "ThisIsASnakecase"
     assert pascal_case("this_is_a_snakecase") == "ThisIsASnakecase"
+
+
+def test_epoch():
+    now = epoch()
+    assert date_to_epoch(epoch_to_date(now)) == now
