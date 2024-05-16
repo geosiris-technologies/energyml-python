@@ -12,6 +12,7 @@ from typing import List, Optional, Any, Callable
 from .hdf import HDF5FileReader
 from .helper import read_array, read_grid2d_patch, is_z_reversed, EnergymlWorkspace, get_crs_obj, EPCWorkspace
 from ..epc import Epc, get_obj_identifier, gen_energyml_object_path
+from ..exception import ObjectNotFoundNotError
 from ..introspection import search_attribute_matching_name, \
     search_attribute_matching_name_with_path, snake_case, get_object_attribute
 
@@ -160,12 +161,16 @@ def read_point_representation(energyml_object: Any, workspace: EnergymlWorkspace
             workspace=workspace,
         )
 
-        crs = get_crs_obj(
-            context_obj=points_obj,
-            path_in_root=points_path_in_obj,
-            root_obj=energyml_object,
-            workspace=workspace,
-        )
+        crs = None
+        try:
+            crs = get_crs_obj(
+                context_obj=points_obj,
+                path_in_root=points_path_in_obj,
+                root_obj=energyml_object,
+                workspace=workspace,
+            )
+        except ObjectNotFoundNotError as e:
+            pass
         if points is not None:
             meshes.append(PointSetMesh(
                 identifier=f"NodePatch num {patch_idx}",
@@ -186,12 +191,16 @@ def read_point_representation(energyml_object: Any, workspace: EnergymlWorkspace
             workspace=workspace,
         )
 
-        crs = get_crs_obj(
-            context_obj=points_obj,
-            path_in_root=points_path_in_obj,
-            root_obj=energyml_object,
-            workspace=workspace,
-        )
+        crs = None
+        try:
+            crs = get_crs_obj(
+                context_obj=points_obj,
+                path_in_root=points_path_in_obj,
+                root_obj=energyml_object,
+                workspace=workspace,
+            )
+        except ObjectNotFoundNotError as e:
+            pass
         if points is not None:
             meshes.append(PointSetMesh(
                 identifier=f"NodePatchGeometry num {patch_idx}",
@@ -224,12 +233,16 @@ def read_polyline_representation(energyml_object: Any, workspace: EnergymlWorksp
             workspace=workspace,
         )
 
-        crs = get_crs_obj(
-            context_obj=points_obj,
-            path_in_root=patch_path_in_obj + points_path,
-            root_obj=energyml_object,
-            workspace=workspace,
-        )
+        crs = None
+        try:
+            crs = get_crs_obj(
+                context_obj=points_obj,
+                path_in_root=patch_path_in_obj + points_path,
+                root_obj=energyml_object,
+                workspace=workspace,
+            )
+        except ObjectNotFoundNotError as e:
+            pass
 
         close_poly = None
         try:
@@ -289,14 +302,17 @@ def read_grid2d_representation(energyml_object: Any, workspace: Optional[Energym
 
     patch_idx = 0
     for patch_path, patch in search_attribute_matching_name_with_path(energyml_object, "Grid2dPatch"):
-        crs = get_crs_obj(
-            context_obj=patch,
-            path_in_root=patch_path,
-            root_obj=energyml_object,
-            workspace=workspace,
-        )
-
-        reverse_z_values = is_z_reversed(crs)
+        reverse_z_values = False
+        try:
+            crs = get_crs_obj(
+                context_obj=patch,
+                path_in_root=patch_path,
+                root_obj=energyml_object,
+                workspace=workspace,
+            )
+            reverse_z_values = is_z_reversed(crs)
+        except ObjectNotFoundNotError as e:
+            pass
 
         points = read_grid2d_patch(
             patch=patch,
@@ -401,12 +417,16 @@ def read_triangulated_set_representation(energyml_object: Any, workspace: Energy
     point_offset = 0
     patch_idx = 0
     for patch_path, patch in search_attribute_matching_name_with_path(energyml_object, "\\.*Patch"):
-        crs = get_crs_obj(
-            context_obj=patch,
-            path_in_root=patch_path,
-            root_obj=energyml_object,
-            workspace=workspace,
-        )
+        crs = None
+        try:
+            crs = get_crs_obj(
+                context_obj=patch,
+                path_in_root=patch_path,
+                root_obj=energyml_object,
+                workspace=workspace,
+            )
+        except ObjectNotFoundNotError as e:
+            pass
 
         point_list: List[Point] = []
         for point_path, point_obj in search_attribute_matching_name_with_path(patch, "Geometry.Points"):

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resqml2:LocalDepth3dCrs xmlns:resqml2="http://www.energistics.org/energyml/data/resqmlv2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" schemaVersion="2.0" uuid="716f6472-18a3-4f19-a57c-d4f5642ccc53" xsi:type="LocalDepth3dCrs">
+   <eml:Citation xmlns:eml="http://www.energistics.org/energyml/data/commonv2">
+      <eml:Title>Default</eml:Title>
+      <eml:Originator>aplougoulen</eml:Originator>
+      <eml:Creation>2019-03-22T10:29:55Z</eml:Creation>
+      <eml:Format>Paradigm SKUA-GOCAD 19 Alpha 2 Build://skua-gocad/Production/trunk - 20190322-cl867561 for Win_x64_6.1_v15</eml:Format>
+   </eml:Citation>
+   <resqml2:ExtraMetadata>
+      <resqml2:Name>pdgm/dx/resqml/project</resqml2:Name>
+      <resqml2:Value>79ae8a84-c896-46f8-81cf-c9a689c5352d</resqml2:Value>
+   </resqml2:ExtraMetadata>
+   <resqml2:YOffset>6470000.0</resqml2:YOffset>
+   <resqml2:ZOffset>-0.0</resqml2:ZOffset>
+   <resqml2:ArealRotation uom="rad">0.0</resqml2:ArealRotation>
+   <resqml2:ProjectedAxisOrder>easting northing</resqml2:ProjectedAxisOrder>
+   <resqml2:ProjectedUom>m</resqml2:ProjectedUom>
+   <resqml2:VerticalUom>m</resqml2:VerticalUom>
+   <resqml2:XOffset>420000.0</resqml2:XOffset>
+   <resqml2:ZIncreasingDownward>true</resqml2:ZIncreasingDownward>
+   <resqml2:VerticalCrs xsi:type="VerticalCrsEpsgCode">
+      <eml:EpsgCode xmlns:eml="http://www.energistics.org/energyml/data/commonv2">6230</eml:EpsgCode>
+   </resqml2:VerticalCrs>
+   <resqml2:ProjectedCrs xsi:type="ProjectedCrsEpsgCode">
+      <eml:EpsgCode xmlns:eml="http://www.energistics.org/energyml/data/commonv2">23031</eml:EpsgCode>
+   </resqml2:ProjectedCrs>
+</resqml2:LocalDepth3dCrs>

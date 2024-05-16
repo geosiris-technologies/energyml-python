@@ -1,6 +1,7 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import inspect
+import logging
 import sys
 from typing import Any, Optional, Callable, List, Union
 
@@ -172,14 +173,18 @@ class EPCWorkspace(EnergymlWorkspace):
 
         # print(f"\tpath_in_root : {path_in_root}")
         if path_in_root.lower().endswith("points") and len(result_array) > 0 and len(result_array[0]) == 3:
-            crs = get_crs_obj(
-                context_obj=energyml_array,
-                path_in_root=path_in_root,
-                root_obj=root_obj,
-                workspace=self,
-            )
-            zincreasing_downward = is_z_reversed(crs)
+            crs = None
+            try:
+                crs = get_crs_obj(
+                    context_obj=energyml_array,
+                    path_in_root=path_in_root,
+                    root_obj=root_obj,
+                    workspace=self,
+                )
+            except ObjectNotFoundNotError as e:
+                logging.error("No CRS found, not able to check zIncreasingDownward")
             # print(f"\tzincreasing_downward : {zincreasing_downward}")
+            zincreasing_downward = is_z_reversed(crs)
 
             if zincreasing_downward:
                 result_array = list(map(lambda p: [p[0], p[1], -p[2]], result_array))
@@ -211,6 +216,7 @@ def get_crs_obj(
             if crs is None:
                 crs = workspace.get_object_by_uuid(get_obj_uuid(crs_list[0]))
             if crs is None:
+                logging.error(f"CRS {crs_list[0]} not found (or not read correctly)")
                 raise ObjectNotFoundNotError(get_obj_identifier(crs_list[0]))
             if crs is not None:
                 return crs
@@ -581,12 +587,17 @@ def read_point3d_lattice_array(
             current_path=path_in_root,
         )
 
-        crs = get_crs_obj(
-            context_obj=energyml_array,
-            path_in_root=path_in_root,
-            root_obj=root_obj,
-            workspace=workspace,
-        )
+        crs = None
+        try:
+            crs = get_crs_obj(
+                context_obj=energyml_array,
+                path_in_root=path_in_root,
+                root_obj=root_obj,
+                workspace=workspace,
+            )
+        except ObjectNotFoundNotError as e:
+            logging.error("No CRS found, not able to check zIncreasingDownward")
+
         zincreasing_downward = is_z_reversed(crs)
 
         slowest_vec = _point_as_array(get_object_attribute_no_verif(slowest, "offset"))

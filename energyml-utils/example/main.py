@@ -1,5 +1,6 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
+import json
 from dataclasses import fields
 
 from energyml.eml.v2_3.commonv2 import *
@@ -378,15 +379,26 @@ def tests_hdf():
         exit(0)
 
 
+def test_local_depth_crs():
+    # Fails because the xsi:type="VerticalCrsEpsgCode" doesn't
+    # contain the namespace : xsi:type="eml:VerticalCrsEpsgCode"
+    try:
+        depth3d = read_energyml_xml_file("../rc/obj_LocalDepth3dCrs_716f6472-18a3-4f19-a57c-d4f5642ccc53.xml")
+        print(serialize_json(depth3d))
+        print(serialize_xml(depth3d))
+    except Exception as e:
+        print(e)
+
+
 if __name__ == "__main__":
-    tests_0()
-    tests_content_type()
-
-    tests_epc()
-    tests_dor()
-    test_verif()
-    test_ast()
-    test_introspection()
-
-    tests_hdf()
-    print(get_object_attribute(""))
+    # tests_0()
+    # tests_content_type()
+    #
+    # tests_epc()
+    # tests_dor()
+    # test_verif()
+    # test_ast()
+    # test_introspection()
+    #
+    # tests_hdf()
+    test_local_depth_crs()
