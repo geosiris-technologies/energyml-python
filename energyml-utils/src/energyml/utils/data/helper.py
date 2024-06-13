@@ -3,6 +3,7 @@
 import inspect
 import logging
 import sys
+import traceback
 from typing import Any, Optional, Callable, List, Union
 
 from .hdf import get_hdf5_path_from_external_path, HDF5FileReader, get_hdf_reference
@@ -150,46 +151,61 @@ class EPCWorkspace(EnergymlWorkspace):
             energyml_array: Any,
             root_obj: Optional[Any] = None,
             path_in_root: Optional[str] = None,
+            use_epc_io_h5: bool = True
     ) -> List[Any]:
-        hdf5_paths = get_hdf5_path_from_external_path(
-            external_path_obj=energyml_array,
-            path_in_root=path_in_root,
-            root_obj=root_obj,
-            epc=self.epc,
-        )
         h5_reader = HDF5FileReader()
         path_in_external = get_hdf_reference(energyml_array)[0]
+        if self.epc is not None and use_epc_io_h5 and self.epc.h5_io_files is not None and len(self.epc.h5_io_files):
+            for h5_io in self.epc.h5_io_files:
+                try:
+                    return h5_reader.read_array(h5_io, path_in_external)
+                except Exception as e:
+                    print(traceback.format_exc())
+                    pass
+            return self.read_external_array(
+                energyml_array=energyml_array,
+                root_obj=root_obj,
+                path_in_root=path_in_root,
+                use_epc_io_h5=False,
+            )
+        else:
+            hdf5_paths = get_hdf5_path_from_external_path(
+                external_path_obj=energyml_array,
+                path_in_root=path_in_root,
+                root_obj=root_obj,
+                epc=self.epc,
+            )
 
-        result_array = None
-        for hdf5_path in hdf5_paths:
-            try:
-                result_array = h5_reader.read_array(hdf5_path, path_in_external)
-                break  # if succeed, not try with other paths
-            except OSError as e:
-                pass
+            result_array = None
+            for hdf5_path in hdf5_paths:
+                try:
+                    result_array = h5_reader.read_array(hdf5_path, path_in_external)
+                    break  # if succeed, not try with other paths
+                except OSError as e:
+                    pass
 
-        if result_array is None:
-            raise Exception(f"Failed to read h5 file. Paths tried : {hdf5_paths}")
+            if result_array is None:
+                raise Exception(f"Failed to read h5 file. Paths tried : {hdf5_paths}")
 
-        # print(f"\tpath_in_root : {path_in_root}")
-        if path_in_root.lower().endswith("points") and len(result_array) > 0 and len(result_array[0]) == 3:
-            crs = None
-            try:
-                crs = get_crs_obj(
-                    context_obj=energyml_array,
-                    path_in_root=path_in_root,
-                    root_obj=root_obj,
-                    workspace=self,
-                )
-            except ObjectNotFoundNotError as e:
-                logging.error("No CRS found, not able to check zIncreasingDownward")
-            # print(f"\tzincreasing_downward : {zincreasing_downward}")
-            zincreasing_downward = is_z_reversed(crs)
+            # print(f"\tpath_in_root : {path_in_root}")
+            # if path_in_root.lower().endswith("points") and len(result_array) > 0 and len(result_array[0]) == 3:
+            #     crs = None
+            #     try:
+            #         crs = get_crs_obj(
+            #             context_obj=energyml_array,
+            #             path_in_root=path_in_root,
+            #             root_obj=root_obj,
+            #             workspace=self,
+            #         )
+            #     except ObjectNotFoundNotError as e:
+            #         logging.error("No CRS found, not able to check zIncreasingDownward")
+                # print(f"\tzincreasing_downward : {zincreasing_downward}")
+                # zincreasing_downward = is_z_reversed(crs)
 
-            if zincreasing_downward:
-                result_array = list(map(lambda p: [p[0], p[1], -p[2]], result_array))
+                # if zincreasing_downward:
+                #     result_array = list(map(lambda p: [p[0], p[1], -p[2]], result_array))
 
-        return result_array
+            return result_array
 
 
 def get_crs_obj(
@@ -492,6 +508,7 @@ def read_point3d_zvalue_array(
 
     return sup_geom_array
 
+
 def read_point3d_from_representation_lattice_array(
         energyml_array: Any,
         root_obj: Optional[Any] = None,
@@ -533,6 +550,7 @@ def read_point3d_from_representation_lattice_array(
     # pour trouver les infos qu'il faut
     return result
 
+
 def read_grid2d_patch(
         patch: Any,
         grid2d: Optional[Any] = None,
@@ -547,6 +565,7 @@ def read_grid2d_patch(
         path_in_root=path_in_root + points_path,
         workspace=workspace,
     )
+
 
 def read_point3d_lattice_array(
         energyml_array: Any,

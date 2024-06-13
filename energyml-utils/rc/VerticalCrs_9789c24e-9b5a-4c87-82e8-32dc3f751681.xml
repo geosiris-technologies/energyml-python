@@ -1,0 +1,14 @@
+
+<VerticalCrs xmlns="http://www.energistics.org/energyml/data/commonv2" xmlns:ns2="http://www.energistics.org/energyml/data/witsmlv2" uom="m" uuid="9789c24e-9b5a-4c87-82e8-32dc3f751681" schemaVersion="2.3">
+    <Citation>
+        <Title>VerticalCrs of 9a71ab6c-a21a-4d11-aa41-873417b01f3d</Title>
+        <Originator>ResqmlConverter (Geosiris)</Originator>
+        <Creation>2023-05-23T09:30:21.918+02:00</Creation>
+        <Format>ResqmlConverter v1.3.11</Format>
+        <LastUpdate>2023-05-23T09:30:21.918+02:00</LastUpdate>
+    </Citation>
+    <Direction>down</Direction>
+    <AbstractVerticalCrs xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="VerticalUnknownCrs">
+        <Unknown>Unknown</Unknown>
+    </AbstractVerticalCrs>
+</VerticalCrs>

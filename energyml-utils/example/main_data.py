@@ -3,6 +3,7 @@
 
 from energyml.eml.v2_3.commonv2 import JaggedArray, AbstractValueArray, AbstractIntegerArray, StringXmlArray, \
     IntegerXmlArray
+from energyml.resqml.v2_0_1.resqmlv2 import WellboreMarkerFrameRepresentation
 
 from src.energyml.utils.data.hdf import get_hdf_reference_with_path, get_hdf5_path_from_external_path
 from src.energyml.utils.data.helper import get_array_reader_function, get_supported_array, get_not_supported_array
@@ -381,23 +382,60 @@ def test_read_resqml22dev3():
     )
 
 
+def test_read_external_part_with_xsi():
+    path = "../rc/obj_EpcExternalPartReference_61fa2fdf-46ab-4c02-ab72-7895cce58e37.xml"
+
+    with open(path, "rb") as f:
+        xml_content = f.read()
+        # print(xml_content)
+
+        print(read_energyml_xml_bytes(xml_content))
+
+    path = "../rc/obj_WellboreMarkerFrameRepresentation_2f8778ca-6a09-446b-b25d-b725ec759a70.xml"
+
+    with open(path, "rb") as f:
+        xml_content = f.read()
+#         print(xml_content)
+
+        print(read_energyml_xml_bytes(xml_content))
+
+
+def read_unreferenced_h5_file():
+    epc_path = "D:/Geosiris/#Data/RDDMS/F2F_Demo.epc"
+    # epc_path = "D:/Geosiris/Cloud/Resqml_Tools/OSDU/OSDU_RESERVOIR_DDMS/F2F_Demo.epc"
+    # epc = Epc.read_file(epc_path)
+
+    uuid_list = ["3f8ee378-f3d2-40ab-9980-abb0853f69c3"]
+
+    export_multiple_data(
+        epc_path=epc_path,
+        uuid_list=uuid_list,
+        output_folder_path="../example/result/notReferencedH5/",
+        # output_folder_path="D:/Geosiris/Clients/Egis/Documents/Data/4 MNT Trojena/",
+        file_format=MeshFileFormat.OBJ,
+    )
+
+
 if __name__ == "__main__":
-    test_array()
-    test_h5_path()
-    read_h5_datasets()
-    read_h5_polyline()
-    read_arrays()
-
-    print("Supported : ", get_supported_array())
-    print("Not supported : ", get_not_supported_array())
-
-    read_h5_grid2d()
-    read_h5_grid2d_bis()
-    print(REGEX_CONTENT_TYPE)
-
-    read_meshes()
-
-    test_export_multiple()
-    test_export_closed_poly()
-    test_export_multiple_testing_package()
-    test_read_resqml22dev3()
+    # test_array()
+    # test_h5_path()
+    # read_h5_datasets()
+    # read_h5_polyline()
+    # read_arrays()
+    #
+    # print("Supported : ", get_supported_array())
+    # print("Not supported : ", get_not_supported_array())
+    #
+    # read_h5_grid2d()
+    # read_h5_grid2d_bis()
+    # print(REGEX_CONTENT_TYPE)
+    #
+    # read_meshes()
+    #
+    # test_export_multiple()
+    # test_export_closed_poly()
+    # test_export_multiple_testing_package()
+    # test_read_resqml22dev3()
+    # WellboreMarkerFrameRepresentation
+    # test_read_external_part_with_xsi()
+    read_unreferenced_h5_file()

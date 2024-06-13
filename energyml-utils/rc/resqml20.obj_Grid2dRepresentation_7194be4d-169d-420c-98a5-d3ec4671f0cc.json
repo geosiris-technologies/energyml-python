@@ -1,0 +1,478 @@
+{
+    "$type": "resqml20.obj_Grid2dRepresentation",
+    "SchemaVersion": "2.0",
+    "Uuid": "7194be4d-169d-420c-98a5-d3ec4671f0cc",
+    "Citation": {
+        "$type": "eml20.Citation",
+        "Title": "Sleipner",
+        "Originator": "dalsaab",
+        "Creation": "2024-03-21T13:22:19.000Z",
+        "Format": "PDGM-DX ETP Client 2.0.1",
+        "Editor": "dalsaab",
+        "LastUpdate": "2024-03-21T13:31:16.000Z"
+    },
+    "ExtraMetadata": [
+        {
+            "$type": "resqml20.NameValuePair",
+            "Name": "pdgm/dx/resqml/creatorGroup",
+            "Value": "dalsaab"
+        },
+        {
+            "$type": "resqml20.NameValuePair",
+            "Name": "pdgm/dx/resqml/project",
+            "Value": "da497110-8fba-455f-adac-f2b495bc707e"
+        },
+        {
+            "$type": "resqml20.NameValuePair",
+            "Name": "pdgm/dx/Epos/MultiValued",
+            "Value": "false"
+        },
+        {
+            "$type": "resqml20.NameValuePair",
+            "Name": "pdgm/dx/gocad/ScenarioName",
+            "Value": "|UNNAMED|"
+        },
+        {
+            "$type": "resqml20.NameValuePair",
+            "Name": "pdgm/dx/gocad/ScenarioUid",
+            "Value": "3b808d54-c9b1-47cb-a631-5ae34b8c8bc6"
+        },
+        {
+            "$type": "resqml20.NameValuePair",
+            "Name": "pdgm/gocad/default_dimension",
+            "Value": "Nodes"
+        }
+    ],
+    "RepresentedInterpretation": {
+        "$type": "eml20.DataObjectReference",
+        "ContentType": "application/x-resqml+xml;version=2.0;type=obj_HorizonInterpretation",
+        "Title": "|UNNAMED|",
+        "UUID": "7266fda0-f5a4-416c-93e3-aa7417581057",
+        "UuidAuthority": "pdgm",
+        "_data": {
+            "$type": "resqml20.obj_HorizonInterpretation",
+            "SchemaVersion": "2.0",
+            "Uuid": "7266fda0-f5a4-416c-93e3-aa7417581057",
+            "Citation": {
+                "$type": "eml20.Citation",
+                "Title": "|UNNAMED|",
+                "Originator": "dalsaab",
+                "Creation": "2024-03-20T17:51:49.000Z",
+                "Format": "PDGM-DX ETP Client 2.0.1",
+                "Editor": "dalsaab",
+                "LastUpdate": "2024-03-26T19:30:34.000Z"
+            },
+            "ExtraMetadata": [
+                {
+                    "$type": "resqml20.NameValuePair",
+                    "Name": "pdgm/dx/resqml/creatorGroup",
+                    "Value": "dalsaab"
+                },
+                {
+                    "$type": "resqml20.NameValuePair",
+                    "Name": "pdgm/dx/resqml/project",
+                    "Value": "da497110-8fba-455f-adac-f2b495bc707e"
+                },
+                {
+                    "$type": "resqml20.NameValuePair",
+                    "Name": "pdgm/dx/gocad/ScenarioName",
+                    "Value": "|UNNAMED|"
+                },
+                {
+                    "$type": "resqml20.NameValuePair",
+                    "Name": "pdgm/dx/gocad/ScenarioUid",
+                    "Value": "3b808d54-c9b1-47cb-a631-5ae34b8c8bc6"
+                },
+                {
+                    "$type": "resqml20.NameValuePair",
+                    "Name": "pdgm/dx/pdgm/InterpretationColor",
+                    "Value": "1 0 1"
+                }
+            ],
+            "Domain": "depth",
+            "InterpretedFeature": {
+                "$type": "eml20.DataObjectReference",
+                "ContentType": "application/x-resqml+xml;version=2.0;type=obj_GeneticBoundaryFeature",
+                "Title": "Sleipner",
+                "UUID": "814d6805-9fef-441e-8c1f-29ca64692410",
+                "UuidAuthority": "pdgm",
+                "_data": {
+                    "$type": "resqml20.obj_GeneticBoundaryFeature",
+                    "SchemaVersion": "2.0",
+                    "Uuid": "814d6805-9fef-441e-8c1f-29ca64692410",
+                    "Citation": {
+                        "$type": "eml20.Citation",
+                        "Title": "Sleipner",
+                        "Originator": "dalsaab2",
+                        "Creation": "2024-03-20T15:44:40.000Z",
+                        "Format": "PDGM-DX ETP Client 2.0.1",
+                        "Editor": "dalsaab",
+                        "LastUpdate": "2024-03-20T15:44:40.000Z"
+                    },
+                    "ExtraMetadata": [
+                        {
+                            "$type": "resqml20.NameValuePair",
+                            "Name": "pdgm/dx/resqml/project",
+                            "Value": "da497110-8fba-455f-adac-f2b495bc707e"
+                        },
+                        {
+                            "$type": "resqml20.NameValuePair",
+                            "Name": "pdgm/dx/gocad/ScenarioName",
+                            "Value": "|UNNAMED|"
+                        },
+                        {
+                            "$type": "resqml20.NameValuePair",
+                            "Name": "pdgm/dx/gocad/ScenarioUid",
+                            "Value": "3b808d54-c9b1-47cb-a631-5ae34b8c8bc6"
+                        },
+                        {
+                            "$type": "resqml20.NameValuePair",
+                            "Name": "pdgm/gocad/classification",
+                            "Value": "Horizon"
+                        },
+                        {
+                            "$type": "resqml20.NameValuePair",
+                            "Name": "pdgm/dx/resqml/geologicProvince",
+                            "Value": null
+                        },
+                        {
+                            "$type": "resqml20.NameValuePair",
+                            "Name": "pdgm/dx/resqml/color",
+                            "Value": "1 0 1 1"
+                        }
+                    ],
+                    "GeneticBoundaryKind": "horizon"
+                }
+            },
+            "BoundaryRelation": [
+                "conformable"
+            ]
+        }
+    },
+    "SurfaceRole": "pick",
+    "Grid2dPatch": {
+        "$type": "resqml20.Grid2dPatch",
+        "PatchIndex": 0,
+        "FastestAxisCount": 433,
+        "SlowestAxisCount": 761,
+        "Geometry": {
+            "$type": "resqml20.PointGeometry",
+            "LocalCrs": {
+                "$type": "eml20.DataObjectReference",
+                "ContentType": "application/x-resqml+xml;version=2.0;type=obj_LocalDepth3dCrs",
+                "Title": "SKUA Local",
+                "UUID": "946ae9b2-4adb-48ef-bb39-b9984907bd1c",
+                "UuidAuthority": "pdgm",
+                "_data": {
+                    "$type": "resqml20.obj_LocalDepth3dCrs",
+                    "SchemaVersion": "2.0",
+                    "Uuid": "946ae9b2-4adb-48ef-bb39-b9984907bd1c",
+                    "Citation": {
+                        "$type": "eml20.Citation",
+                        "Title": "SKUA Local",
+                        "Originator": "dalsaab",
+                        "Creation": "2023-11-28T19:33:55.000Z",
+                        "Format": "PDGM-DX ETP Client 2.0.1",
+                        "Editor": "dalsaab",
+                        "LastUpdate": "2023-12-15T08:12:17.000Z"
+                    },
+                    "ExtraMetadata": [
+                        {
+                            "$type": "resqml20.NameValuePair",
+                            "Name": "pdgm/dx/resqml/project",
+                            "Value": "da497110-8fba-455f-adac-f2b495bc707e"
+                        }
+                    ],
+                    "YOffset": 6470000,
+                    "ZOffset": 0,
+                    "ArealRotation": {
+                        "$type": "eml20.PlaneAngleMeasure",
+                        "Uom": "rad",
+                        "_": 0
+                    },
+                    "ProjectedAxisOrder": "easting northing",
+                    "ProjectedUom": "m",
+                    "VerticalUom": "m",
+                    "XOffset": 420000,
+                    "ZIncreasingDownward": true,
+                    "VerticalCrs": {
+                        "$type": "eml20.VerticalUnknownCrs",
+                        "Unknown": "Unknown"
+                    },
+                    "ProjectedCrs": {
+                        "$type": "eml20.ProjectedCrsEpsgCode",
+                        "EpsgCode": 23031
+                    }
+                }
+            },
+            "Points": {
+                "$type": "resqml20.Point3dZValueArray",
+                "SupportingGeometry": {
+                    "$type": "resqml20.Point3dFromRepresentationLatticeArray",
+                    "NodeIndicesOnSupportingRepresentation": {
+                        "$type": "resqml20.IntegerLatticeArray",
+                        "StartValue": 0,
+                        "Offset": [
+                            {
+                                "$type": "resqml20.IntegerConstantArray",
+                                "Value": 1,
+                                "Count": 760
+                            },
+                            {
+                                "$type": "resqml20.IntegerConstantArray",
+                                "Value": 1,
+                                "Count": 432
+                            }
+                        ]
+                    },
+                    "SupportingRepresentation": {
+                        "$type": "eml20.DataObjectReference",
+                        "ContentType": "application/x-resqml+xml;version=2.0;type=obj_Grid2dRepresentation",
+                        "Title": "volve3D",
+                        "UUID": "975c6d8d-6eed-4025-a3a7-7078380f4695",
+                        "UuidAuthority": "pdgm",
+                        "_data": {
+                            "$type": "resqml20.obj_Grid2dRepresentation",
+                            "SchemaVersion": "2.0",
+                            "Uuid": "975c6d8d-6eed-4025-a3a7-7078380f4695",
+                            "Citation": {
+                                "$type": "eml20.Citation",
+                                "Title": "volve3D",
+                                "Originator": "mrobertson",
+                                "Creation": "2018-08-21T02:16:12.000Z",
+                                "Format": "PDGM-DX ETP Client 2.0.1",
+                                "Editor": "dalsaab",
+                                "LastUpdate": "2018-08-21T02:16:12.000Z"
+                            },
+                            "ExtraMetadata": [
+                                {
+                                    "$type": "resqml20.NameValuePair",
+                                    "Name": "pdgm/dx/resqml/project",
+                                    "Value": "da497110-8fba-455f-adac-f2b495bc707e"
+                                },
+                                {
+                                    "$type": "resqml20.NameValuePair",
+                                    "Name": "pdgm/dx/gocad/ScenarioName",
+                                    "Value": "|UNNAMED|"
+                                },
+                                {
+                                    "$type": "resqml20.NameValuePair",
+                                    "Name": "pdgm/dx/gocad/ScenarioUid",
+                                    "Value": "3b808d54-c9b1-47cb-a631-5ae34b8c8bc6"
+                                }
+                            ],
+                            "RepresentedInterpretation": {
+                                "$type": "eml20.DataObjectReference",
+                                "ContentType": "application/x-resqml+xml;version=2.0;type=obj_GenericFeatureInterpretation",
+                                "Title": "Interpretation volve3D",
+                                "UUID": "4103b4ae-7c78-44cb-bcf5-218b9385c281",
+                                "UuidAuthority": "pdgm",
+                                "_data": {
+                                    "$type": "resqml20.obj_GenericFeatureInterpretation",
+                                    "SchemaVersion": "2.0",
+                                    "Uuid": "4103b4ae-7c78-44cb-bcf5-218b9385c281",
+                                    "Citation": {
+                                        "$type": "eml20.Citation",
+                                        "Title": "Interpretation volve3D",
+                                        "Originator": "dalsaab",
+                                        "Creation": "2024-04-19T06:24:01.000Z",
+                                        "Format": "PDGM-DX ETP Client 2.0.1",
+                                        "LastUpdate": "2024-04-19T06:24:01.000Z"
+                                    },
+                                    "ExtraMetadata": [
+                                        {
+                                            "$type": "resqml20.NameValuePair",
+                                            "Name": "pdgm/dx/resqml/creatorGroup",
+                                            "Value": "dalsaab"
+                                        },
+                                        {
+                                            "$type": "resqml20.NameValuePair",
+                                            "Name": "pdgm/dx/resqml/project",
+                                            "Value": "da497110-8fba-455f-adac-f2b495bc707e"
+                                        },
+                                        {
+                                            "$type": "resqml20.NameValuePair",
+                                            "Name": "pdgm/dx/gocad/ScenarioName",
+                                            "Value": "|UNNAMED|"
+                                        },
+                                        {
+                                            "$type": "resqml20.NameValuePair",
+                                            "Name": "pdgm/dx/gocad/ScenarioUid",
+                                            "Value": "3b808d54-c9b1-47cb-a631-5ae34b8c8bc6"
+                                        }
+                                    ],
+                                    "Domain": "depth",
+                                    "InterpretedFeature": {
+                                        "$type": "eml20.DataObjectReference",
+                                        "ContentType": "application/x-resqml+xml;version=2.0;type=obj_SeismicLatticeFeature",
+                                        "Title": "Feature volve3D",
+                                        "UUID": "93c42801-eb01-451e-9bfd-605d5643d61c",
+                                        "UuidAuthority": "pdgm",
+                                        "_data": {
+                                            "$type": "resqml20.obj_SeismicLatticeFeature",
+                                            "SchemaVersion": "2.0",
+                                            "Uuid": "93c42801-eb01-451e-9bfd-605d5643d61c",
+                                            "Citation": {
+                                                "$type": "eml20.Citation",
+                                                "Title": "Feature volve3D",
+                                                "Originator": "dalsaab",
+                                                "Creation": "2024-04-19T06:24:01.000Z",
+                                                "Format": "PDGM-DX ETP Client 2.0.1",
+                                                "LastUpdate": "2024-04-19T06:24:01.000Z"
+                                            },
+                                            "ExtraMetadata": [
+                                                {
+                                                    "$type": "resqml20.NameValuePair",
+                                                    "Name": "pdgm/dx/resqml/creatorGroup",
+                                                    "Value": "dalsaab"
+                                                },
+                                                {
+                                                    "$type": "resqml20.NameValuePair",
+                                                    "Name": "pdgm/dx/resqml/project",
+                                                    "Value": "da497110-8fba-455f-adac-f2b495bc707e"
+                                                },
+                                                {
+                                                    "$type": "resqml20.NameValuePair",
+                                                    "Name": "pdgm/dx/gocad/ScenarioName",
+                                                    "Value": "|UNNAMED|"
+                                                },
+                                                {
+                                                    "$type": "resqml20.NameValuePair",
+                                                    "Name": "pdgm/dx/gocad/ScenarioUid",
+                                                    "Value": "3b808d54-c9b1-47cb-a631-5ae34b8c8bc6"
+                                                },
+                                                {
+                                                    "$type": "resqml20.NameValuePair",
+                                                    "Name": "pdgm/dx/resqml/geologicProvince",
+                                                    "Value": null
+                                                }
+                                            ],
+                                            "CrosslineCount": 761,
+                                            "CrosslineIndexIncrement": 1,
+                                            "FirstCrosslineIndex": 1920,
+                                            "FirstInlineIndex": 9963,
+                                            "InlineCount": 433,
+                                            "InlineIndexIncrement": 1
+                                        }
+                                    }
+                                }
+                            },
+                            "SurfaceRole": "map",
+                            "Grid2dPatch": {
+                                "$type": "resqml20.Grid2dPatch",
+                                "PatchIndex": 0,
+                                "FastestAxisCount": 433,
+                                "SlowestAxisCount": 761,
+                                "Geometry": {
+                                    "$type": "resqml20.PointGeometry",
+                                    "LocalCrs": {
+                                        "$type": "eml20.DataObjectReference",
+                                        "ContentType": "application/x-resqml+xml;version=2.0;type=obj_LocalDepth3dCrs",
+                                        "Title": "SKUA Local",
+                                        "UUID": "946ae9b2-4adb-48ef-bb39-b9984907bd1c",
+                                        "UuidAuthority": "pdgm",
+                                        "_data": {
+                                            "$type": "resqml20.obj_LocalDepth3dCrs",
+                                            "SchemaVersion": "2.0",
+                                            "Uuid": "946ae9b2-4adb-48ef-bb39-b9984907bd1c",
+                                            "Citation": {
+                                                "$type": "eml20.Citation",
+                                                "Title": "SKUA Local",
+                                                "Originator": "dalsaab",
+                                                "Creation": "2023-11-28T19:33:55.000Z",
+                                                "Format": "PDGM-DX ETP Client 2.0.1",
+                                                "Editor": "dalsaab",
+                                                "LastUpdate": "2023-12-15T08:12:17.000Z"
+                                            },
+                                            "ExtraMetadata": [
+                                                {
+                                                    "$type": "resqml20.NameValuePair",
+                                                    "Name": "pdgm/dx/resqml/project",
+                                                    "Value": "da497110-8fba-455f-adac-f2b495bc707e"
+                                                }
+                                            ],
+                                            "YOffset": 6470000,
+                                            "ZOffset": 0,
+                                            "ArealRotation": {
+                                                "$type": "eml20.PlaneAngleMeasure",
+                                                "Uom": "rad",
+                                                "_": 0
+                                            },
+                                            "ProjectedAxisOrder": "easting northing",
+                                            "ProjectedUom": "m",
+                                            "VerticalUom": "m",
+                                            "XOffset": 420000,
+                                            "ZIncreasingDownward": true,
+                                            "VerticalCrs": {
+                                                "$type": "eml20.VerticalUnknownCrs",
+                                                "Unknown": "Unknown"
+                                            },
+                                            "ProjectedCrs": {
+                                                "$type": "eml20.ProjectedCrsEpsgCode",
+                                                "EpsgCode": 23031
+                                            }
+                                        }
+                                    },
+                                    "Points": {
+                                        "$type": "resqml20.Point3dLatticeArray",
+                                        "Origin": {
+                                            "$type": "resqml20.Point3d",
+                                            "Coordinate1": 18806.001953125,
+                                            "Coordinate2": 5211.10009765625,
+                                            "Coordinate3": 0
+                                        },
+                                        "Offset": [
+                                            {
+                                                "$type": "resqml20.Point3dOffset",
+                                                "Offset": {
+                                                    "$type": "resqml20.Point3d",
+                                                    "Coordinate1": -0.9702886507378544,
+                                                    "Coordinate2": 0.24195027226542634,
+                                                    "Coordinate3": 0
+                                                },
+                                                "Spacing": {
+                                                    "$type": "resqml20.DoubleConstantArray",
+                                                    "Value": 12.499999602066202,
+                                                    "Count": 760
+                                                }
+                                            },
+                                            {
+                                                "$type": "resqml20.Point3dOffset",
+                                                "Offset": {
+                                                    "$type": "resqml20.Point3d",
+                                                    "Coordinate1": 0.24194989863410435,
+                                                    "Coordinate2": 0.9702887439061357,
+                                                    "Coordinate3": 0
+                                                },
+                                                "Spacing": {
+                                                    "$type": "resqml20.DoubleConstantArray",
+                                                    "Value": 12.499999431383065,
+                                                    "Count": 432
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "ZValues": {
+                    "$type": "resqml20.DoubleHdf5Array",
+                    "Values": {
+                        "$type": "eml20.Hdf5Dataset",
+                        "PathInHdfFile": "/RESQML/7194be4d-169d-420c-98a5-d3ec4671f0cc/points_patch0",
+                        "HdfProxy": {
+                            "$type": "eml20.DataObjectReference",
+                            "ContentType": "application/x-eml+xml;version=2.0;type=obj_EpcExternalPartReference",
+                            "Title": "Hdf5File",
+                            "UUID": "68659942-81c1-4df3-80b6-e2853a0f4e07",
+                            "UuidAuthority": "pdgm",
+                            "VersionString": "2024-05-02T10:24:30Z"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

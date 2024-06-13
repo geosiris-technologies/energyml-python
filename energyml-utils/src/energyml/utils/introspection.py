@@ -13,7 +13,7 @@ from typing import Any, List, Optional, Union, Dict, Tuple
 
 from .manager import get_class_pkg, get_class_pkg_version, RELATED_MODULES, \
     get_related_energyml_modules_name, get_sub_classes, get_classes_matching_name, dict_energyml_modules
-from .xml import parse_content_type, ENERGYML_NAMESPACES
+from .xml import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
 
 primitives = (bool, str, int, float, type(None))
 
@@ -136,7 +136,17 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
     :param content_type:
     :return:
     """
-    ct = parse_content_type(content_type)
+    ct = None
+    try:
+        ct = parse_content_type(content_type)
+    except AttributeError:
+        pass
+    if ct is None:
+        try:
+            ct = parse_qualified_type(content_type)
+        except AttributeError:
+            pass
+
     domain = ct.group("domain")
     if domain is None:
         # print(f"\tdomain {domain} xmlDomain {ct.group('xmlDomain')} ")
@@ -158,10 +168,17 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
         domain = ct.group("domain")
         obj_type = ct.group("type")
         if obj_type.lower().startswith("obj_"):  # for resqml201
-            obj_type = "Obj" + obj_type[4:]
+            # obj_type = "Obj" + obj_type[4:]
+            obj_type = obj_type[4:]
         version_num = str(ct.group("domainVersion")).replace(".", "_")
+        if "_" not in version_num:
+            version_num = re.sub(r"(\d)(\d)", r"\1_\2", version_num)
         if domain.lower() == "resqml" and version_num.startswith("2_0"):
             version_num = "2_0_1"
+
+        # print(get_module_name(domain, version_num)
+        #     + "."
+        #     + obj_type)
         return get_class_from_name(
             get_module_name(domain, version_num)
             + "."
@@ -487,7 +504,7 @@ def search_attribute_in_upper_matching_name(
         current_path: str = "",
 ) -> Optional[Any]:
     """
-    See :func:`search_attribute_matching_type_with_path`. It only returns the value not the path
+    See :func:`search_attribute_matching_name_with_path`. It only returns the value not the path
     :param obj:
     :param name_rgx:
     :param root_obj:

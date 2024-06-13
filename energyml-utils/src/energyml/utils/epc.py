@@ -6,6 +6,7 @@ This module contains utilities to read/write EPC files.
 
 import datetime
 import re
+import traceback
 import zipfile
 from dataclasses import dataclass, field
 from enum import Enum
@@ -115,8 +116,13 @@ class Epc:
         default_factory=list,
     )
 
-    """ A list of external files. It ca be used to link hdf5 files """
+    """ A list of external files. It can be used to link hdf5 files """
     external_files_path: List[str] = field(
+        default_factory=list,
+    )
+
+    """ A list of h5 files stored in memory. (Usefull for Cloud services that doesn't work with local files """
+    h5_io_files: List[BytesIO] = field(
         default_factory=list,
     )
 
@@ -222,6 +228,11 @@ class Epc:
                 zip_info = zipfile.ZipInfo(filename=rels_path, date_time=datetime.datetime.now().timetuple()[:6])
                 data = serialize_xml(rels)
                 zip_file.writestr(zip_info, data)
+
+            # Other files:
+            for raw in self.raw_files:
+                zip_info = zipfile.ZipInfo(filename=raw.path, date_time=datetime.datetime.now().timetuple()[:6])
+                zip_file.writestr(zip_info, raw.content.read())
 
             # ContentType
             zip_info_ct = zipfile.ZipInfo(filename=get_epc_content_type_path(),
@@ -376,8 +387,14 @@ class Epc:
                                 path_to_obj[ov_path] = ov_obj
                                 obj_list.append(ov_obj)
                             except Exception as e:
+                                print(traceback.format_exc())
                                 print(
-                                    f"Epc.@read_stream failed to parse file {ov_path} for content-type: {ov_ct} => {get_class_from_content_type(ov_ct)}")
+                                    f"Epc.@read_stream failed to parse file {ov_path} for content-type: {ov_ct} => {get_class_from_content_type(ov_ct)}\n\n",
+                                    get_class_from_content_type(ov_ct))
+                                try:
+                                    print(epc_file.read(ov_path))
+                                except:
+                                    pass
                                 print(e)
                                 # raise e
                         elif get_class_from_content_type(ov_ct) == CoreProperties:
@@ -397,7 +414,7 @@ class Epc:
                                         )
                                     )
                                 except IOError as e:
-                                    print(e)
+                                    print(traceback.format_exc())
                             elif f_info.filename != '_rels/.rels':  # CoreProperties rels file
                                 # RELS FILES READING START
 
@@ -425,6 +442,7 @@ class Epc:
                                                     additional_rels[additional_rels_key] = []
                                                 additional_rels[additional_rels_key].append(rel)
                                     except AttributeError as e:
+                                        print(traceback.format_exc())
                                         pass  # 'CoreProperties' object has no attribute 'object_version'
                                     except Exception as e:
                                         print(f"Error with obj path {obj_path} {path_to_obj[obj_path]}")

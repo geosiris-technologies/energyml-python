@@ -102,7 +102,7 @@ def get_h5_path_possibilities(value_in_xml: str, epc: Epc) -> List[str]:
     hdf5_path_rematch = f"{epc_folder+'/' if epc_folder is not None and len(epc_folder) else ''}{os.path.basename(value_in_xml)}"
     hdf5_path_no_folder = f"{os.path.basename(value_in_xml)}"
 
-    return [hdf5_path_respect, hdf5_path_rematch, hdf5_path_no_folder]
+    return [hdf5_path_respect, hdf5_path_rematch, hdf5_path_no_folder, epc.epc_file_path[:-4] + ".h5"]
 
 
 def get_hdf5_path_from_external_path(
@@ -119,50 +119,58 @@ def get_hdf5_path_from_external_path(
     :param epc:
     :return:
     """
+    result = []
     if isinstance(external_path_obj, str):
         # external_path_obj is maybe an attribute of an ExternalDataArrayPart, now search upper in the object
         upper_path = path_in_root[:path_in_root.rindex(".")]
-        return get_hdf5_path_from_external_path(
+        result = get_hdf5_path_from_external_path(
             external_path_obj=get_object_attribute(root_obj, upper_path),
             path_in_root=upper_path,
             root_obj=root_obj,
             epc=epc,
         )
     elif type(external_path_obj).__name__ == "ExternalDataArrayPart":
-        epc_folder = epc.get_epc_file_folder()
+        # epc_folder = epc.get_epc_file_folder()
         h5_uri = search_attribute_matching_name(external_path_obj, "uri")
         if h5_uri is not None and len(h5_uri) > 0:
-            return get_h5_path_possibilities(value_in_xml=h5_uri[0], epc=epc)
-            # return f"{epc_folder}/{h5_uri[0]}"
-    else:
-        epc_folder = epc.get_epc_file_folder()
-        hdf_proxy_lst = search_attribute_matching_name(external_path_obj, "HdfProxy")
-        ext_file_proxy_lst = search_attribute_matching_name(external_path_obj, "ExternalFileProxy")
+            result = get_h5_path_possibilities(value_in_xml=h5_uri[0], epc=epc)
+            # result = f"{epc_folder}/{h5_uri[0]}"
 
-        # resqml 2.0.1
-        if hdf_proxy_lst is not None and len(hdf_proxy_lst) > 0:
-            hdf_proxy = hdf_proxy_lst
-            # print("h5Proxy", hdf_proxy)
-            while isinstance(hdf_proxy, list):
-                hdf_proxy = hdf_proxy[0]
-            hdf_proxy_obj = epc.get_object_by_identifier(get_obj_identifier(hdf_proxy))
-            if hdf_proxy_obj is not None:
-                for rel in epc.additional_rels.get(get_obj_identifier(hdf_proxy_obj), []):
-                    if rel.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
-                        return get_h5_path_possibilities(value_in_xml=rel.target, epc=epc)
-                        # return f"{epc_folder}/{rel.target}"
+    # epc_folder = epc.get_epc_file_folder()
+    hdf_proxy_lst = search_attribute_matching_name(external_path_obj, "HdfProxy")
+    ext_file_proxy_lst = search_attribute_matching_name(external_path_obj, "ExternalFileProxy")
 
-        # resqml 2.2dev3
-        if ext_file_proxy_lst is not None and len(ext_file_proxy_lst) > 0:
-            ext_file_proxy = ext_file_proxy_lst
-            while isinstance(ext_file_proxy, list):
-                ext_file_proxy = ext_file_proxy[0]
-            ext_part_ref_obj = epc.get_object_by_identifier(
-                get_obj_identifier(
-                    get_object_attribute_no_verif(ext_file_proxy, "epc_external_part_reference")
-                )
+    # resqml 2.0.1
+    if hdf_proxy_lst is not None and len(hdf_proxy_lst) > 0:
+        hdf_proxy = hdf_proxy_lst
+        # print("h5Proxy", hdf_proxy)
+        while isinstance(hdf_proxy, list):
+            hdf_proxy = hdf_proxy[0]
+        hdf_proxy_obj = epc.get_object_by_identifier(get_obj_identifier(hdf_proxy))
+        print("hdf_proxy_obj : ", hdf_proxy_obj, " hdf_proxy : ", hdf_proxy)
+        if hdf_proxy_obj is not None:
+            for rel in epc.additional_rels.get(get_obj_identifier(hdf_proxy_obj), []):
+                if rel.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
+                    result = get_h5_path_possibilities(value_in_xml=rel.target, epc=epc)
+                    # result = f"{epc_folder}/{rel.target}"
+
+    # resqml 2.2dev3
+    if ext_file_proxy_lst is not None and len(ext_file_proxy_lst) > 0:
+        ext_file_proxy = ext_file_proxy_lst
+        while isinstance(ext_file_proxy, list):
+            ext_file_proxy = ext_file_proxy[0]
+        ext_part_ref_obj = epc.get_object_by_identifier(
+            get_obj_identifier(
+                get_object_attribute_no_verif(ext_file_proxy, "epc_external_part_reference")
             )
-            return get_h5_path_possibilities(value_in_xml=ext_part_ref_obj.filename, epc=epc)
-            # return f"{epc_folder}/{ext_part_ref_obj.filename}"
+        )
+        result = get_h5_path_possibilities(value_in_xml=ext_part_ref_obj.filename, epc=epc)
+        # return f"{epc_folder}/{ext_part_ref_obj.filename}"
 
-    return None
+    result += list(filter(lambda p: p.lower().endswith(".h5") or p.lower().endswith(".hdf5"), epc.external_files_path or []))
+
+    if len(result) == 0:
+        result = [epc.epc_file_path[:-4] + ".h5"]
+
+    print(external_path_obj, result, "\n\t", hdf_proxy_lst, "\n\t", ext_file_proxy_lst)
+    return result

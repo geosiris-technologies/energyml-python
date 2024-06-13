@@ -16,8 +16,8 @@ from src.energyml.utils.introspection import *
 from src.energyml.utils.manager import *
 from src.energyml.utils.serialization import *
 from src.energyml.utils.validation import (
-    patterns_verification,
-    dor_verification, validate_epc, correct_dor,
+    patterns_validation,
+    dor_validation, validate_epc, correct_dor,
 )
 from src.energyml.utils.xml import *
 
@@ -226,15 +226,15 @@ def tests_dor():
 def test_verif():
 
     print(get_class_fields(tr))
-    for err in patterns_verification(tr):
+    for err in patterns_validation(tr):
         print(err)
 
     print("DOR verif no fi")
-    for err in dor_verification([tr]):
+    for err in dor_validation([tr]):
         print(err)
 
     print("DOR verif with fi")
-    for err in dor_verification([tr, fi]):
+    for err in dor_validation([tr, fi]):
         print(err)
 
 

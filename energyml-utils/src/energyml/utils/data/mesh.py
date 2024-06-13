@@ -521,6 +521,7 @@ def export_off_part(
                     off_face_part.write(f"{col} ".encode('utf-8'))
 
             off_face_part.write(b"\n")
+        cpt += 1
 
 
 def export_obj(mesh_list: List[AbstractMesh], out: BytesIO, obj_name: Optional[str] = None):
@@ -582,7 +583,7 @@ def _export_obj_elt(
     # cpt = 0
     for face in indices:
         if len(face) > 1:
-            off_point_part.write(
+            off_face_part.write(
                 f"{elt_letter} {' '.join(list(map(lambda x: str(x + point_offset + offset_obj), face)))}\n".encode(
                     'utf-8'))
 
@@ -601,6 +602,10 @@ def export_multiple_data(
         file_format: MeshFileFormat = MeshFileFormat.OBJ
 ):
     epc = Epc.read_file(epc_path)
+
+    # with open(epc_path.replace(".epc", ".h5"), "rb") as fh:
+    #     buf = BytesIO(fh.read())
+    #     epc.h5_io_files.append(buf)
 
     try:
         os.makedirs(output_folder_path, exist_ok=True)

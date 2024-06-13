@@ -1,8 +1,9 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
+import json
 import logging
 from io import BytesIO
-from typing import Optional, Any
+from typing import Optional, Any, Union
 
 import xsdata
 from xsdata.exceptions import ParserError
@@ -13,7 +14,7 @@ from xsdata.formats.dataclass.serializers import JsonSerializer
 from xsdata.formats.dataclass.serializers import XmlSerializer
 from xsdata.formats.dataclass.serializers.config import SerializerConfig
 
-from .introspection import get_class_from_name, get_energyml_class_in_related_dev_pkg
+from .introspection import get_class_from_name, get_energyml_class_in_related_dev_pkg, get_class_from_content_type
 from .xml import get_class_name_from_xml, get_tree, get_xml_encoding, ENERGYML_NAMESPACES
 
 
@@ -114,7 +115,7 @@ def read_energyml_json_bytes(file: bytes, obj_type: Optional[type] = None) -> An
     :return:
     """
     if obj_type is None:
-        obj_type = get_class_from_name(get_class_name_from_xml(get_tree(file)))
+        obj_type = get_class_from_content_type(get_class_from_json_dict(file))
     try:
         return _read_energyml_json_bytes_as_class(file, obj_type)
     except xsdata.exceptions.ParserError as e:
@@ -168,3 +169,13 @@ def serialize_json(obj) -> str:
     serializer_config = SerializerConfig(indent="  ")
     serializer = JsonSerializer(context=context, config=serializer_config)
     return serializer.render(obj)
+
+
+def get_class_from_json_dict(o: Union[dict, bytes]) -> str:
+    if isinstance(o, str) or isinstance(o, bytes):
+        o = json.loads(o)
+    print(type(o))
+    for att in ["$type", "dataObjectType"]:
+        if att in o:
+            return o[att]
+    return None
