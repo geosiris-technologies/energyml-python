@@ -15,7 +15,7 @@ from .manager import get_class_pkg, get_class_pkg_version, RELATED_MODULES, \
     get_related_energyml_modules_name, get_sub_classes, get_classes_matching_name, dict_energyml_modules
 from .xml import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
 
-primitives = (bool, str, int, float, type(None))
+from .constants import primitives
 
 
 def is_enum(cls: Union[type, Any]):

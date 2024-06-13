@@ -29,8 +29,7 @@ from .serialization import (
 )
 from .xml import is_energyml_content_type
 
-RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
-RELS_FOLDER_NAME = "_rels"
+from .constants import RELS_CONTENT_TYPE, RELS_FOLDER_NAME
 
 
 class EpcExportVersion(Enum):

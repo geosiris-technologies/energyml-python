@@ -6,70 +6,7 @@ from typing import Optional, Any, Union
 
 from lxml import etree as ETREE  # type: Any
 
-ENERGYML_NAMESPACES = {
-    "eml": "http://www.energistics.org/energyml/data/commonv2",
-    "prodml": "http://www.energistics.org/energyml/data/prodmlv2",
-    "witsml": "http://www.energistics.org/energyml/data/witsmlv2",
-    "resqml": "http://www.energistics.org/energyml/data/resqmlv2",
-}
-"""
-dict of all energyml namespaces
-"""  # pylint: disable=W0105
-
-ENERGYML_NAMESPACES_PACKAGE = {
-    "eml": ["http://www.energistics.org/energyml/data/commonv2"],
-    "prodml": ["http://www.energistics.org/energyml/data/prodmlv2"],
-    "witsml": ["http://www.energistics.org/energyml/data/witsmlv2"],
-    "resqml": ["http://www.energistics.org/energyml/data/resqmlv2"],
-    "opc": [
-        "http://schemas.openxmlformats.org/package/2006/content-types",
-        "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
-    ],
-}
-"""
-dict of all energyml namespace packages
-"""  # pylint: disable=W0105
-
-REGEX_UUID_NO_GRP = (
-    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-)
-REGEX_UUID = r"(?P<uuid>" + REGEX_UUID_NO_GRP + ")"
-REGEX_DOMAIN_VERSION = r"(?P<domainVersion>(?P<versionNum>([\d]+[\._])*\d)\s*(?P<dev>dev\s*(?P<devNum>[\d]+))?)"
-REGEX_DOMAIN_VERSION_FLAT = r"(?P<domainVersion>(?P<versionNumFlat>([\d]+)*\d)\s*(?P<dev>dev\s*(?P<devNum>[\d]+))?)"
-
-
-# ContentType
-REGEX_MIME_TYPE_MEDIA = r"(?P<media>application|audio|font|example|image|message|model|multipart|text|video)"
-REGEX_CT_ENERGYML_DOMAIN = r"(?P<energymlDomain>x-(?P<domain>[\w]+)\+xml)"
-REGEX_CT_XML_DOMAIN = r"(?P<xmlRawDomain>(x\-)?(?P<xmlDomain>.+)\+xml)"
-REGEX_CT_TOKEN_VERSION = r"version=" + REGEX_DOMAIN_VERSION
-REGEX_CT_TOKEN_TYPE = r"type=(?P<type>[\w\_]+)"
-
-REGEX_CONTENT_TYPE = (
-        REGEX_MIME_TYPE_MEDIA + "/"
-        + "(?P<rawDomain>(" + REGEX_CT_ENERGYML_DOMAIN + ")|(" + REGEX_CT_XML_DOMAIN + r")|([\w-]+\.?)+)"
-        + "(;((" + REGEX_CT_TOKEN_VERSION + ")|(" + REGEX_CT_TOKEN_TYPE + ")))*"
-)
-REGEX_QUALIFIED_TYPE = (
-        r"(?P<domain>[a-zA-Z]+)" + REGEX_DOMAIN_VERSION_FLAT + r"\.(?P<type>[\w_]+)"
-)
-# =========
-
-REGEX_SCHEMA_VERSION = (
-        r"(?P<name>[eE]ml|[cC]ommon|[rR]esqml|[wW]itsml|[pP]rodml|[oO]pc)?\s*v?"
-        + REGEX_DOMAIN_VERSION
-        + r"\s*$"
-)
-
-REGEX_ENERGYML_FILE_NAME_OLD = r"(?P<type>[\w]+)_" + REGEX_UUID_NO_GRP + r"\.xml$"
-REGEX_ENERGYML_FILE_NAME_NEW = (
-        REGEX_UUID_NO_GRP + r"\.(?P<objectVersion>\d+(\.\d+)*)\.xml$"
-)
-REGEX_ENERGYML_FILE_NAME = (
-    rf"^(.*/)?({REGEX_ENERGYML_FILE_NAME_OLD})|({REGEX_ENERGYML_FILE_NAME_NEW})"
-)
-
-REGEX_XML_HEADER = r"^\s*<\?xml(\s+(encoding\s*=\s*\"(?P<encoding>[^\"]+)\"|version\s*=\s*\"(?P<version>[^\"]+)\"|standalone\s*=\s*\"(?P<standalone>[^\"]+)\"))+"
+from .constants import *
 
 
 def get_pkg_from_namespace(namespace: str) -> Optional[str]:
@@ -113,7 +50,7 @@ def get_class_name_from_xml(tree: ETREE.Element) -> str:
 
 def get_xml_encoding(xml_content: str) -> Optional[str]:
     try:
-        m = re.search(REGEX_XML_HEADER, xml_content)
+        m = re.search(RGX_XML_HEADER, xml_content)
         return m.group("encoding")
     except AttributeError:
         return "utf-8"
@@ -188,8 +125,8 @@ def find_schema_version_in_element(tree: ETREE.ElementTree) -> str:
 
 
 def parse_content_type(ct: str):
-    return re.search(REGEX_CONTENT_TYPE, ct)
+    return re.search(RGX_CONTENT_TYPE, ct)
 
 
 def parse_qualified_type(ct: str):
-    return re.search(REGEX_QUALIFIED_TYPE, ct)
+    return re.search(RGX_QUALIFIED_TYPE, ct)

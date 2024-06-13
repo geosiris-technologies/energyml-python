@@ -6,26 +6,7 @@ import pkgutil
 import re
 from typing import List, Union, Any
 
-REGEX_ENERGYML_MODULE_NAME = r"energyml\.(?P<pkg>.*)\.v(?P<version>(?P<versionNumber>\d+(_\d+)*)(_dev(?P<versionDev>.*))?)\..*"
-REGEX_PROJECT_VERSION = r"(?P<n0>[\d]+)(.(?P<n1>[\d]+)(.(?P<n2>[\d]+))?)?"
-
-ENERGYML_MODULES_NAMES = ["eml", "prodml", "witsml", "resqml"]
-
-RELATED_MODULES = [
-    ["energyml.eml.v2_0.commonv2", "energyml.resqml.v2_0_1.resqmlv2"],
-    [
-        "energyml.eml.v2_1.commonv2",
-        "energyml.prodml.v2_0.prodmlv2",
-        "energyml.witsml.v2_0.witsmlv2",
-    ],
-    ["energyml.eml.v2_2.commonv2", "energyml.resqml.v2_2_dev3.resqmlv2"],
-    [
-        "energyml.eml.v2_3.commonv2",
-        "energyml.resqml.v2_2.resqmlv2",
-        "energyml.prodml.v2_2.prodmlv2",
-        "energyml.witsml.v2_1.witsmlv2",
-    ],
-]
+from .constants import *
 
 
 def get_related_energyml_modules_name(cls: Union[type, Any]) -> List[str]:
@@ -168,7 +149,7 @@ def get_all_classes(module_name: str, version: str) -> dict:
 
 def get_class_pkg(cls):
     try:
-        p = re.compile(REGEX_ENERGYML_MODULE_NAME)
+        p = re.compile(RGX_ENERGYML_MODULE_NAME)
         m = p.search(cls.__module__)
         return m.group("pkg")
     except AttributeError as e:
@@ -182,7 +163,7 @@ def reshape_version(version: str, nb_digit: int) -> str:
     else, the original version is returned.
     Example : reshapeVersion("v2.0.1", 2) ==> "2.0" and reshapeVersion("version2.0.1.3.2.5", 4) ==> "version2.0.1.3.2.5"
     """
-    p = re.compile(REGEX_PROJECT_VERSION)
+    p = re.compile(RGX_PROJECT_VERSION)
     m = p.search(version)
     if m is not None:
         n0 = m.group("n0")
@@ -205,7 +186,7 @@ def reshape_version(version: str, nb_digit: int) -> str:
 def get_class_pkg_version(
     cls, print_dev_version: bool = True, nb_max_version_digits: int = 2
 ):
-    p = re.compile(REGEX_ENERGYML_MODULE_NAME)
+    p = re.compile(RGX_ENERGYML_MODULE_NAME)
     class_module = None
     if isinstance(cls, type):
         class_module = cls.__module__

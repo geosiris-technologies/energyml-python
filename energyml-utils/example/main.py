@@ -127,7 +127,7 @@ def file_test():
 
 
 def tests_content_type():
-    print(REGEX_CONTENT_TYPE)
+    print(RGX_CONTENT_TYPE)
 
     print(
         parse_content_type(

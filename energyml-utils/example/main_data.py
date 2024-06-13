@@ -13,7 +13,7 @@ from src.energyml.utils.introspection import is_abstract, get_obj_uuid
 from src.energyml.utils.manager import get_sub_classes
 from src.energyml.utils.serialization import read_energyml_xml_file, read_energyml_xml_str, read_energyml_xml_bytes
 from src.energyml.utils.validation import validate_epc
-from src.energyml.utils.xml import REGEX_CONTENT_TYPE
+from src.energyml.utils.xml import RGX_CONTENT_TYPE
 
 
 def test_array():
@@ -428,7 +428,7 @@ if __name__ == "__main__":
     #
     # read_h5_grid2d()
     # read_h5_grid2d_bis()
-    # print(REGEX_CONTENT_TYPE)
+    # print(RGX_CONTENT_TYPE)
     #
     # read_meshes()
     #
