@@ -7,6 +7,9 @@ from .constants import *
 
 @dataclass
 class Uri:
+    """
+    A class to represent an ETP URI
+    """
     dataspace: Optional[str] = field(default=None)
     domain: Optional[str] = field(default=None)
     domain_version: Optional[str] = field(default=None)
@@ -75,26 +78,3 @@ class Uri:
 
 def parse_uri(uri: str) -> Uri:
     return Uri.parse(uri)
-
-
-if __name__ == "__main__":
-    uris = [
-        "eml:///witsml20.Well/witsml20.Wellbore", "eml:///", "eml:///dataspace('')", "eml:///dataspace('rdms-db')",
-        "eml:///dataspace('/folder-name/project-name')",
-        "eml:///resqml20.obj_HorizonInterpretation(421a7a05-033a-450d-bcef-051352023578)",
-        "eml:///dataspace('rdms-db')?$filter=Name eq 'mydb'",
-        "eml:///dataspace('/folder-name/project-name')/resqml20.obj_HorizonInterpretation?query",
-        "eml:///witsml20.Well(uuid=ec8c3f16-1454-4f36-ae10-27d2a2680cf2)",
-        "eml:///dataspace('/folder-name/project-name')/resqml20.obj_HorizonInterpretation(uuid=421a7a05-033a-450d-bcef-051352023578,version='2.0')?query",
-        "eml:///dataspace('test')/witsml20.Well(ec8c3f16-1454-4f36-ae10-27d2a2680cf2)/witsml20.Wellbore?query",
-        "eml:///witsml20.Well(uuid=ec8c3f16-1454-4f36-ae10-27d2a2680cf2,version='1.0')/witsml20.Wellbore?query"
-    ]
-
-    for uria in uris:
-        print(f"Parsing {uria}")
-        parsed = Uri.parse(uria)
-        if uria != str(parsed):
-            print("\t[FALSE] : " + str(parsed))
-        else:
-            print("\t[YES] " + str(parsed))
-

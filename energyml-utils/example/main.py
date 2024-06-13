@@ -53,6 +53,13 @@ dor = DataObjectReference(
     qualified_type="a wrong qualified type",
 )
 
+dor_correct = DataObjectReference(
+    uuid=fi.uuid,
+    title="a DOR title",
+    object_version="0",
+    qualified_type="resqml23.TriangulatedSetRepresentation",
+)
+
 tr = TriangulatedSetRepresentation(
     citation=tr_cit,
     uuid=gen_uuid(),
@@ -390,15 +397,25 @@ def test_local_depth_crs():
         print(e)
 
 
+def test_obj_attribs():
+    print(get_obj_pkg_pkgv_type_uuid_version(dor_correct))
+    print(get_obj_pkg_pkgv_type_uuid_version(tr))
+
+    print(get_obj_uri(dor_correct, "coucou"))
+    print(get_obj_uri(tr, "coucou"))
+
+
 if __name__ == "__main__":
     # tests_0()
     # tests_content_type()
-    #
+
     # tests_epc()
     # tests_dor()
     # test_verif()
     # test_ast()
     # test_introspection()
-    #
+
     # tests_hdf()
-    test_local_depth_crs()
+    # test_local_depth_crs()
+
+    test_obj_attribs()
