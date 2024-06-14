@@ -6,9 +6,10 @@ from energyml.opc.opc import (
     Contributor
 )
 
+from src.energyml.utils.constants import date_to_epoch, pascal_case, epoch, epoch_to_date, snake_case
 from src.energyml.utils.introspection import (
     is_primitive, is_enum, get_class_from_name,
-    snake_case, pascal_case, epoch, date_to_epoch, epoch_to_date, get_class_from_content_type
+    get_class_from_content_type
 )
 
 

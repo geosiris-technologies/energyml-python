@@ -4,6 +4,7 @@ import json
 from dataclasses import fields
 
 from energyml.eml.v2_3.commonv2 import *
+from energyml.resqml.v2_0_1.resqmlv2 import DoubleHdf5Array
 from energyml.resqml.v2_2.resqmlv2 import (
     TriangulatedSetRepresentation,
     FaultInterpretation,
@@ -172,6 +173,8 @@ def tests_content_type():
 
     print(get_content_type_from_class(tr))
     print(get_qualified_type_from_class(tr))
+    print(get_qualified_type_from_class(DoubleHdf5Array()), get_class_from_qualified_type(get_qualified_type_from_class(DoubleHdf5Array())))
+    print(get_qualified_type_from_class(dor_correct), get_class_from_qualified_type(get_qualified_type_from_class(dor_correct)))
 
     print(gen_energyml_object_path(tr, EpcExportVersion.EXPANDED))
     print(gen_energyml_object_path(tr))
@@ -407,7 +410,7 @@ def test_obj_attribs():
 
 if __name__ == "__main__":
     # tests_0()
-    # tests_content_type()
+    tests_content_type()
 
     # tests_epc()
     # tests_dor()
@@ -418,4 +421,4 @@ if __name__ == "__main__":
     # tests_hdf()
     # test_local_depth_crs()
 
-    test_obj_attribs()
+    # test_obj_attribs()

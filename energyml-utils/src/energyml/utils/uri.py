@@ -23,9 +23,9 @@ class Uri:
 
     @classmethod
     def parse(cls, uri: str):
-        res = Uri()
         m = re.match(URI_RGX, uri, re.IGNORECASE)
         if m is not None:
+            res = Uri()
             res.dataspace = m.group(URI_RGX_GRP_DATASPACE)
             res.domain = m.group(URI_RGX_GRP_DOMAIN)
             if res.domain is not None and len(res.domain) <= 0:
@@ -38,11 +38,9 @@ class Uri:
             res.collection_domain_version = m.group(URI_RGX_GRP_COLLECTION_DOMAIN_VERSION)
             res.collection_domain_type = m.group(URI_RGX_GRP_COLLECTION_TYPE)
             res.query = m.group(URI_RGX_GRP_QUERY)
-            # print(f"\t{m.groupdict()}\n\t{res.__dict__}")
+            return res
         else:
             return None
-
-        return res
 
     def is_dataspace_uri(self):
         return self.domain is None and self.object_type is None and self.query is None and self.collection_domain_type is None

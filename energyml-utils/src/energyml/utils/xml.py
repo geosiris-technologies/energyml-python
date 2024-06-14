@@ -122,11 +122,3 @@ def find_schema_version_in_element(tree: ETREE.ElementTree) -> str:
         if match_version is not None:
             return match_version.group(0).replace("dev", "-dev")
     return ""
-
-
-def parse_content_type(ct: str):
-    return re.search(RGX_CONTENT_TYPE, ct)
-
-
-def parse_qualified_type(ct: str):
-    return re.search(RGX_QUALIFIED_TYPE, ct)

@@ -17,20 +17,18 @@ from energyml.opc.opc import CoreProperties, Relationships, Types, Default, Rela
     Identifier, Keywords1
 from xsdata.formats.dataclass.models.generics import DerivedElement
 
+from .constants import RELS_CONTENT_TYPE, RELS_FOLDER_NAME
 from .introspection import (
     get_class_from_content_type,
     get_obj_type, search_attribute_matching_type, get_obj_version, get_obj_uuid,
     get_object_type_for_file_path_from_class, get_content_type_from_class, get_direct_dor_list, epoch_to_date, epoch,
-    gen_uuid, get_object_attribute_no_verif
+    gen_uuid, get_obj_identifier
 )
 from .manager import get_class_pkg, get_class_pkg_version
 from .serialization import (
     serialize_xml, read_energyml_xml_str, read_energyml_xml_bytes
 )
-from .uri import Uri
-from .xml import is_energyml_content_type, parse_content_type, parse_qualified_type
-
-from .constants import RELS_CONTENT_TYPE, RELS_FOLDER_NAME
+from .xml import is_energyml_content_type
 
 
 class EpcExportVersion(Enum):
@@ -469,94 +467,6 @@ class Epc:
 #  / /___/ / / /  __/ /  / /_/ / /_/ / / / / / / /  / __/ /_/ / / / / /__/ /_/ / /_/ / / / (__  )
 # /_____/_/ /_/\___/_/   \__, /\__, /_/ /_/ /_/_/  /_/  \__,_/_/ /_/\___/\__/_/\____/_/ /_/____/
 #                       /____//____/
-
-
-def get_obj_pkg_pkgv_type_uuid_version(obj: Any) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:
-    """
-    return from an energyml object or a DOR a tuple :
-        - package : e.g. resqml|eml|witsml|prodml
-        - package version : e.g. 20
-        - type : e.g. obj_TriangulatedSetRepresentation
-        - uuid
-        - object version
-    :param obj:
-    :return:
-    """
-    pkg: Optional[str] = get_class_pkg(obj)
-    pkg_v: Optional[str] = get_class_pkg_version(obj)
-    obj_type: Optional[str] = get_obj_type(obj)
-    obj_uuid = get_obj_uuid(obj)
-    obj_version = get_obj_version(obj)
-
-    ct = None
-    try:
-        ct = get_object_attribute_no_verif(
-            obj, "content_type"
-        )
-    except:
-        pass
-
-    if ct is not None:
-        ct_match = parse_content_type(ct)
-        print("ct : ", ct_match)
-        if ct_match is not None:
-            pkg = ct_match.group("domain")
-            pkg_v = ct_match.group("domainVersion")
-            obj_type = ct_match.group("type")
-    else:
-        try:
-            qt = get_object_attribute_no_verif(
-                obj, "qualified_type"
-            )
-            qt_match = parse_qualified_type(qt)
-            print("qt : ", qt, obj.__dict__, qt_match)
-            if qt_match is not None:
-                pkg = qt_match.group("domain")
-                pkg_v = qt_match.group("domainVersion")
-                obj_type = qt_match.group("type")
-        except:
-            pass
-
-
-    # flattening version
-    if pkg_v is not None:
-        pkg_v = pkg_v.replace(".", "")
-
-    return pkg, pkg_v, obj_type, obj_uuid, obj_version
-
-
-def get_obj_identifier(obj: Any) -> str:
-    """
-    Generates an objet identifier as : 'OBJ_UUID.OBJ_VERSION'
-    If the object version is None, the result is 'OBJ_UUID.'
-    :param obj:
-    :return: str
-    """
-    obj_obj_version = get_obj_version(obj)
-    if obj_obj_version is None:
-        obj_obj_version = ""
-    obj_uuid = get_obj_uuid(obj)
-    return f"{obj_uuid}.{obj_obj_version}"
-
-
-def get_obj_uri(obj: Any, dataspace: Optional[str] = None) -> Uri:
-    """
-    Generates an objet etp Uri from an objet or a DOR
-    :param obj:
-    :param dataspace: the etp dataspace
-    :return: str
-    """
-    domain, domain_version, object_type, obj_uuid, obj_version = get_obj_pkg_pkgv_type_uuid_version(obj)
-
-    return Uri(
-        dataspace=dataspace,
-        domain=domain,
-        domain_version=domain_version,
-        object_type=object_type,
-        uuid=obj_uuid,
-        version=obj_version,
-    )
-
 
 
 def get_reverse_dor_list(obj_list: List[Any], key_func: Callable = get_obj_identifier) -> Dict[str, List[Any]]:

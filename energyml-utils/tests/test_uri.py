@@ -19,6 +19,11 @@ def test_uri_constructor():
     )) == "eml:///dataspace('/folder-name/project-name')/resqml20.obj_HorizonInterpretation(uuid=421a7a05-033a-450d-bcef-051352023578,version='2.0')?query"
 
 
+def test_uri_error():
+    assert parse_uri("eml//") is None
+    assert parse_uri("a random text") is None
+
+
 def test_uri_default_dataspace():
     uri = "eml:///"
     assert uri == str(parse_uri(uri))

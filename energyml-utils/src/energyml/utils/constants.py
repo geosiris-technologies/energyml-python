@@ -1,3 +1,7 @@
+import datetime
+import re
+import uuid as uuid_mod
+from typing import List
 
 ENERGYML_NAMESPACES = {
     "eml": "http://www.energistics.org/energyml/data/commonv2",
@@ -119,3 +123,77 @@ RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
 RELS_FOLDER_NAME = "_rels"
 
 primitives = (bool, str, int, float, type(None))
+
+
+#     ______                 __  _
+#    / ____/_  ______  _____/ /_(_)___  ____  _____
+#   / /_  / / / / __ \/ ___/ __/ / __ \/ __ \/ ___/
+#  / __/ / /_/ / / / / /__/ /_/ / /_/ / / / (__  )
+# /_/    \__,_/_/ /_/\___/\__/_/\____/_/ /_/____/
+
+
+def snake_case(s: str) -> str:
+    """ Transform a str into snake case. """
+    s = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', s)
+    s = re.sub('__([A-Z])', r'_\1', s)
+    s = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s)
+    return s.lower()
+
+
+def pascal_case(s: str) -> str:
+    """ Transform a str into pascal case. """
+    return snake_case(s).replace("_", " ").title().replace(" ", "")
+
+
+def flatten_concatenation(matrix) -> List:
+    """
+    Flatten a matrix.
+
+    Example :
+        [ [a,b,c], [d,e,f], [ [x,y,z], [0] ] ]
+        will be translated in: [a, b, c, d, e, f, [x,y,z], [0]]
+    :param matrix:
+    :return:
+    """
+    flat_list = []
+    for row in matrix:
+        flat_list += row
+    return flat_list
+
+
+def parse_content_type(ct: str):
+    return re.search(RGX_CONTENT_TYPE, ct)
+
+
+def parse_qualified_type(ct: str):
+    return re.search(RGX_QUALIFIED_TYPE, ct)
+
+
+def now(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> float:
+    """ Return an epoch value """
+    return datetime.datetime.timestamp(datetime.datetime.now(time_zone))
+
+
+def epoch(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> int:
+    return int(now(time_zone))
+
+
+def date_to_epoch(date: str) -> int:
+    """
+    Transform a energyml date into an epoch datetime
+    :return: int
+    """
+    return int(datetime.datetime.fromisoformat(date).timestamp())
+
+
+def epoch_to_date(epoch_value: int, time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> str:
+    date = datetime.datetime.fromtimestamp(epoch_value, time_zone)
+    return date.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+
+def gen_uuid() -> str:
+    """
+    Generate a new uuid.
+    :return:
+    """
+    return str(uuid_mod.uuid4())

@@ -1,21 +1,21 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
-import datetime
+import inspect
 import random
 import re
 import sys
 import typing
-import uuid as uuid_mod
 from dataclasses import Field
 from enum import Enum
 from importlib import import_module
+from types import ModuleType
 from typing import Any, List, Optional, Union, Dict, Tuple
 
+from .constants import primitives, epoch_to_date, epoch, gen_uuid, snake_case, pascal_case
 from .manager import get_class_pkg, get_class_pkg_version, RELATED_MODULES, \
     get_related_energyml_modules_name, get_sub_classes, get_classes_matching_name, dict_energyml_modules
+from .uri import Uri
 from .xml import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
-
-from .constants import primitives
 
 
 def is_enum(cls: Union[type, Any]):
@@ -51,6 +51,28 @@ def is_abstract(cls: Union[type, Any]) -> bool:
     return is_abstract(type(cls))
 
 
+def get_module_classes_from_name(mod_name: str) -> List:
+    return get_module_classes(sys.modules[mod_name])
+
+
+def get_module_classes(mod: ModuleType) -> List:
+    return inspect.getmembers(mod, inspect.isclass)
+
+
+def find_class_in_module(module_name, class_name):
+    try:
+        return getattr(sys.modules[module_name], class_name)
+    except:
+        for cls_name, cls in get_module_classes_from_name(module_name):
+            try:
+                if cls_name == class_name or cls.Meta.name == class_name:
+                    return cls
+            except Exception as e:
+                pass
+    print(f"Not Found : {module_name}; {class_name}")
+    return None
+
+
 def get_class_methods(cls: Union[type, Any]) -> List[str]:
     """
     Returns the list of the methods names for a specific class.
@@ -74,22 +96,40 @@ def get_class_from_name(class_name_and_module: str) -> Optional[type]:
         # Required to read "CustomData" on eml objects that may contain resqml values
         # ==> we need to import all modules related to the same version of the common
         import_related_module(module_name)
-        return getattr(sys.modules[module_name], last_ns_part)
+        # return getattr(sys.modules[module_name], last_ns_part)
+        return find_class_in_module(module_name, last_ns_part)
     except AttributeError as e:
-        if "2d" in last_ns_part:
-            return get_class_from_name(
-                class_name_and_module.replace("2d", "2D")
-            )
-        elif "3d" in last_ns_part:
-            return get_class_from_name(
-                class_name_and_module.replace("3d", "3D")
-            )
-        elif last_ns_part[0].islower():
-            return get_class_from_name(
-                module_name + "." + last_ns_part[0].upper() + last_ns_part[1:]
-            )
-        else:
-            print(e)
+        # if "2d" in last_ns_part:
+        #     print("replace 2D")
+        #     return get_class_from_name(
+        #         class_name_and_module.replace("2d", "2D")
+        #     )
+        # elif "3d" in last_ns_part:
+        #     return get_class_from_name(
+        #         class_name_and_module.replace("3d", "3D")
+        #     )
+        # elif last_ns_part[0].islower():
+        #     return get_class_from_name(
+        #         module_name + "." + last_ns_part[0].upper() + last_ns_part[1:]
+        #     )
+        # elif "2D" in last_ns_part or "3D" in last_ns_part:
+        #     idx = -1
+        #     print(class_name_and_module)
+        #     try:
+        #         idx = class_name_and_module.rindex("2D") + 2
+        #     except:
+        #         idx = class_name_and_module.rindex("3D") + 2
+        #     if class_name_and_module[idx].isupper():
+        #         reformated = (
+        #                 class_name_and_module[:idx]
+        #                 + class_name_and_module[idx].lower()
+        #                 + class_name_and_module[idx + 1:]
+        #         )
+        #         print(f"reformated {reformated}")
+        #         return get_class_from_name(reformated)
+        # else:
+        #     print(e)
+        print(e)
     except KeyError:
         print(f"[ERR] module not found : '{module_name}'")
     return None
@@ -128,6 +168,10 @@ def get_energyml_class_in_related_dev_pkg(cls: type):
             pass
 
     return res
+
+
+def get_class_from_qualified_type(qualified_type: str) -> Optional[type]:
+    return get_class_from_content_type(qualified_type)
 
 
 def get_class_from_content_type(content_type: str) -> Optional[type]:
@@ -191,35 +235,6 @@ def get_module_name(domain: str, domain_version: str):
     if not domain_version.startswith("v"):
         domain_version = "v" + domain_version
     return f"energyml.{domain}.{domain_version}.{ns[ns.rindex('/') + 1:]}"
-
-
-def snake_case(s: str) -> str:
-    """ Transform a str into snake case. """
-    s = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', s)
-    s = re.sub('__([A-Z])', r'_\1', s)
-    s = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s)
-    return s.lower()
-
-
-def pascal_case(s: str) -> str:
-    """ Transform a str into pascal case. """
-    return snake_case(s).replace("_", " ").title().replace(" ", "")
-
-
-def flatten_concatenation(matrix) -> List:
-    """
-    Flatten a matrix.
-
-    Example :
-        [ [a,b,c], [d,e,f], [ [x,y,z], [0] ] ]
-        will be translated in: [a, b, c, d, e, f, [x,y,z], [0]]
-    :param matrix:
-    :return:
-    """
-    flat_list = []
-    for row in matrix:
-        flat_list += row
-    return flat_list
 
 
 def import_related_module(energyml_module_name: str) -> None:
@@ -686,14 +701,6 @@ def search_attribute_matching_name(
 # Utility functions
 
 
-def gen_uuid() -> str:
-    """
-    Generate a new uuid.
-    :return:
-    """
-    return str(uuid_mod.uuid4())
-
-
 def get_obj_uuid(obj: Any) -> str:
     """
     Return the object uuid (attribute must match the following regex : "[Uu]u?id|UUID").
@@ -717,6 +724,92 @@ def get_obj_version(obj: Any) -> str:
         except Exception:
             print(f"Error with {type(obj)}")
             # raise e
+
+
+def get_obj_pkg_pkgv_type_uuid_version(obj: Any) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """
+    return from an energyml object or a DOR a tuple :
+        - package : e.g. resqml|eml|witsml|prodml
+        - package version : e.g. 20
+        - type : e.g. obj_TriangulatedSetRepresentation
+        - uuid
+        - object version
+    :param obj:
+    :return:
+    """
+    pkg: Optional[str] = get_class_pkg(obj)
+    pkg_v: Optional[str] = get_class_pkg_version(obj)
+    obj_type: Optional[str] = get_object_type_for_file_path_from_class(obj)
+    obj_uuid = get_obj_uuid(obj)
+    obj_version = get_obj_version(obj)
+
+    ct = None
+    try:
+        ct = get_object_attribute_no_verif(
+            obj, "content_type"
+        )
+    except:
+        pass
+
+    if ct is not None:
+        ct_match = parse_content_type(ct)
+        print("ct : ", ct_match)
+        if ct_match is not None:
+            pkg = ct_match.group("domain")
+            pkg_v = ct_match.group("domainVersion")
+            obj_type = ct_match.group("type")
+    else:
+        try:
+            qt = get_object_attribute_no_verif(
+                obj, "qualified_type"
+            )
+            qt_match = parse_qualified_type(qt)
+            print("qt : ", qt, obj.__dict__, qt_match)
+            if qt_match is not None:
+                pkg = qt_match.group("domain")
+                pkg_v = qt_match.group("domainVersion")
+                obj_type = qt_match.group("type")
+        except:
+            pass
+
+    # flattening version
+    if pkg_v is not None:
+        pkg_v = pkg_v.replace(".", "")
+
+    return pkg, pkg_v, obj_type, obj_uuid, obj_version
+
+
+def get_obj_identifier(obj: Any) -> str:
+    """
+    Generates an objet identifier as : 'OBJ_UUID.OBJ_VERSION'
+    If the object version is None, the result is 'OBJ_UUID.'
+    :param obj:
+    :return: str
+    """
+    obj_obj_version = get_obj_version(obj)
+    if obj_obj_version is None:
+        obj_obj_version = ""
+    obj_uuid = get_obj_uuid(obj)
+    return f"{obj_uuid}.{obj_obj_version}"
+
+
+def get_obj_uri(obj: Any, dataspace: Optional[str] = None) -> Uri:
+    """
+    Generates an objet etp Uri from an objet or a DOR
+    :param obj:
+    :param dataspace: the etp dataspace
+    :return: str
+    """
+    domain, domain_version, object_type, obj_uuid, obj_version = get_obj_pkg_pkgv_type_uuid_version(obj)
+
+    return Uri(
+        dataspace=dataspace,
+        domain=domain,
+        domain_version=domain_version,
+        object_type=object_type,
+        uuid=obj_uuid,
+        version=obj_version,
+    )
 
 
 def get_direct_dor_list(obj: Any) -> List[Any]:
@@ -756,39 +849,20 @@ def get_content_type_from_class(cls: Union[type, Any], print_dev_version=True, n
 
 
 def get_object_type_for_file_path_from_class(cls) -> str:
-    # obj_type = get_obj_type(cls)
-    # pkg = get_class_pkg(cls)
-    # if re.match(r"Obj[A-Z].*", obj_type) is not None and pkg == "resqml":
-    #     return "obj_" + obj_type[3:]
-    # return obj_type
+    classic_type = get_obj_type(cls)
 
+    for parent_cls in cls.__class__.__bases__:
+        try:
+            if classic_type.lower() in parent_cls.Meta.name.lower():  # to work with 3d transformed in 3D and Obj[A-Z] in obj_[A-Z]
+                return parent_cls.Meta.name
+        except AttributeError:
+            pass
     try:
         return cls.Meta.name  # to work with 3d transformed in 3D and Obj[A-Z] in obj_[A-Z]
     except AttributeError:
-        pkg = get_class_pkg(cls)
-        return get_obj_type(cls)
+        pass
 
-
-def now(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> float:
-    """ Return an epoch value """
-    return datetime.datetime.timestamp(datetime.datetime.now(time_zone))
-
-
-def epoch(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> int:
-    return int(now(time_zone))
-
-
-def date_to_epoch(date: str) -> int:
-    """
-    Transform a energyml date into an epoch datetime
-    :return: int
-    """
-    return int(datetime.datetime.fromisoformat(date).timestamp())
-
-
-def epoch_to_date(epoch_value: int, time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> str:
-    date = datetime.datetime.fromtimestamp(epoch_value, time_zone)
-    return date.strftime("%Y-%m-%dT%H:%M:%S%z")
+    return classic_type
 
 
 #  RANDOM
