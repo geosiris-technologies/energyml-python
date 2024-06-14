@@ -1,75 +1,12 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
-import re
+import logging
 from io import BytesIO
 from typing import Optional, Any, Union
 
 from lxml import etree as ETREE  # type: Any
 
-ENERGYML_NAMESPACES = {
-    "eml": "http://www.energistics.org/energyml/data/commonv2",
-    "prodml": "http://www.energistics.org/energyml/data/prodmlv2",
-    "witsml": "http://www.energistics.org/energyml/data/witsmlv2",
-    "resqml": "http://www.energistics.org/energyml/data/resqmlv2",
-}
-"""
-dict of all energyml namespaces
-"""  # pylint: disable=W0105
-
-ENERGYML_NAMESPACES_PACKAGE = {
-    "eml": ["http://www.energistics.org/energyml/data/commonv2"],
-    "prodml": ["http://www.energistics.org/energyml/data/prodmlv2"],
-    "witsml": ["http://www.energistics.org/energyml/data/witsmlv2"],
-    "resqml": ["http://www.energistics.org/energyml/data/resqmlv2"],
-    "opc": [
-        "http://schemas.openxmlformats.org/package/2006/content-types",
-        "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
-    ],
-}
-"""
-dict of all energyml namespace packages
-"""  # pylint: disable=W0105
-
-REGEX_UUID_NO_GRP = (
-    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-)
-REGEX_UUID = r"(?P<uuid>" + REGEX_UUID_NO_GRP + ")"
-REGEX_DOMAIN_VERSION = r"(?P<domainVersion>(?P<versionNum>([\d]+[\._])*\d)\s*(?P<dev>dev\s*(?P<devNum>[\d]+))?)"
-REGEX_DOMAIN_VERSION_FLAT = r"(?P<domainVersion>(?P<versionNumFlat>([\d]+)*\d)\s*(?P<dev>dev\s*(?P<devNum>[\d]+))?)"
-
-
-# ContentType
-REGEX_MIME_TYPE_MEDIA = r"(?P<media>application|audio|font|example|image|message|model|multipart|text|video)"
-REGEX_CT_ENERGYML_DOMAIN = r"(?P<energymlDomain>x-(?P<domain>[\w]+)\+xml)"
-REGEX_CT_XML_DOMAIN = r"(?P<xmlRawDomain>(x\-)?(?P<xmlDomain>.+)\+xml)"
-REGEX_CT_TOKEN_VERSION = r"version=" + REGEX_DOMAIN_VERSION
-REGEX_CT_TOKEN_TYPE = r"type=(?P<type>[\w\_]+)"
-
-REGEX_CONTENT_TYPE = (
-        REGEX_MIME_TYPE_MEDIA + "/"
-        + "(?P<rawDomain>(" + REGEX_CT_ENERGYML_DOMAIN + ")|(" + REGEX_CT_XML_DOMAIN + r")|([\w-]+\.?)+)"
-        + "(;((" + REGEX_CT_TOKEN_VERSION + ")|(" + REGEX_CT_TOKEN_TYPE + ")))*"
-)
-REGEX_QUALIFIED_TYPE = (
-        r"(?P<domain>[a-zA-Z]+)" + REGEX_DOMAIN_VERSION_FLAT + r"\.(?P<type>[\w_]+)"
-)
-# =========
-
-REGEX_SCHEMA_VERSION = (
-        r"(?P<name>[eE]ml|[cC]ommon|[rR]esqml|[wW]itsml|[pP]rodml)?\s*v?"
-        + REGEX_DOMAIN_VERSION
-        + r"\s*$"
-)
-
-REGEX_ENERGYML_FILE_NAME_OLD = r"(?P<type>[\w]+)_" + REGEX_UUID_NO_GRP + r"\.xml$"
-REGEX_ENERGYML_FILE_NAME_NEW = (
-        REGEX_UUID_NO_GRP + r"\.(?P<objectVersion>\d+(\.\d+)*)\.xml$"
-)
-REGEX_ENERGYML_FILE_NAME = (
-    rf"^(.*/)?({REGEX_ENERGYML_FILE_NAME_OLD})|({REGEX_ENERGYML_FILE_NAME_NEW})"
-)
-
-REGEX_XML_HEADER = r"^\s*\<\?xml\s+((encoding\s*=\s*\"(?P<encoding>[^\"]+)\"|version\s*=\s*\"(?P<version>[^\"]+)\"|standalone\s*=\s*\"(?P<standalone>[^\"]+)\")\s+)+"
+from .constants import *
 
 
 def get_pkg_from_namespace(namespace: str) -> Optional[str]:
@@ -81,7 +18,8 @@ def get_pkg_from_namespace(namespace: str) -> Optional[str]:
 
 def is_energyml_content_type(content_type: str) -> bool:
     ct = parse_content_type(content_type)
-    return ct.group("domain") is not None
+    domain = ct.group("domain")
+    return domain is not None and domain in ENERGYML_NAMESPACES_PACKAGE.keys()
 
 
 def get_root_namespace(tree: ETREE.Element) -> str:
@@ -92,27 +30,35 @@ def get_class_name_from_xml(tree: ETREE.Element) -> str:
     root_namespace = get_root_namespace(tree)
     pkg = get_pkg_from_namespace(root_namespace)
     if pkg is None:
-        print(f"No pkg found for elt {tree}")
+        logging.error(f"No pkg found for elt {tree}")
     else:
         if pkg == "opc":
             return "energyml.opc.opc." + get_root_type(tree)
         else:
-            schema_version = find_schema_version_in_element(tree).replace(".", "_").replace("-", "_")
-            # print(schema_version)
+            schema_version = (
+                find_schema_version_in_element(tree)
+                .replace(".", "_")
+                .replace("-", "_")
+            )
+            # logging.debug(schema_version)
             if pkg == "resqml" and schema_version == "2_0":
                 schema_version = "2_0_1"
 
-            return ("energyml." + pkg
-                    + ".v" + schema_version
-                    + "."
-                    + root_namespace[root_namespace.rindex("/") + 1:]
-                    + "." + get_root_type(tree)
-                    )
+            return (
+                "energyml."
+                + pkg
+                + ".v"
+                + schema_version
+                + "."
+                + root_namespace[root_namespace.rindex("/") + 1:]
+                + "."
+                + get_root_type(tree)
+            )
 
 
 def get_xml_encoding(xml_content: str) -> Optional[str]:
     try:
-        m = re.search(REGEX_XML_HEADER, xml_content)
+        m = re.search(RGX_XML_HEADER, xml_content)
         return m.group("encoding")
     except AttributeError:
         return "utf-8"
@@ -121,8 +67,13 @@ def get_xml_encoding(xml_content: str) -> Optional[str]:
 def get_tree(xml_content: Union[bytes, str]) -> ETREE.Element:
     xml_bytes = xml_content
     if isinstance(xml_bytes, str):
+        # return ETREE.fromstring(xml_content)
         encoding = get_xml_encoding(xml_content)
-        xml_bytes = xml_content.encode(encoding=encoding.strip().lower() if encoding is not None else "utf-8")
+        xml_bytes = xml_content.encode(
+            encoding=encoding.strip().lower()
+            if encoding is not None
+            else "utf-8"
+        )
 
     return ETREE.parse(BytesIO(xml_bytes)).getroot()
 
@@ -135,7 +86,9 @@ def energyml_xpath(tree: ETREE.Element, xpath: str) -> Optional[list]:
         return None
 
 
-def search_element_has_child_xpath(tree: ETREE.Element, child_name: str) -> list:
+def search_element_has_child_xpath(
+    tree: ETREE.Element, child_name: str
+) -> list:
     """
     Search elements that has a child named (xml tag) as 'child_name'.
     Warning : child_name must contain the namespace (see. ENERGYML_NAMESPACES)
@@ -148,14 +101,18 @@ def get_uuid(tree: ETREE.Element) -> str:
     if len(_uuids) <= 0:
         _uuids = tree.xpath("@UUID")
     if len(_uuids) <= 0:
+        _uuids = tree.xpath("@Uuid")
+    if len(_uuids) <= 0:
         _uuids = tree.xpath("@uid")
+    if len(_uuids) <= 0:
+        _uuids = tree.xpath("@Uid")
     if len(_uuids) <= 0:
         _uuids = tree.xpath("@UID")
     return _uuids[0]
 
 
 def get_root_type(tree: ETREE.Element) -> str:
-    """ Returns the type (xml tag) of the element without the namespace """
+    """Returns the type (xml tag) of the element without the namespace"""
     return tree.xpath("local-name()")
 
 
@@ -179,7 +136,3 @@ def find_schema_version_in_element(tree: ETREE.ElementTree) -> str:
         if match_version is not None:
             return match_version.group(0).replace("dev", "-dev")
     return ""
-
-
-def parse_content_type(ct: str):
-    return re.search(REGEX_CONTENT_TYPE, ct)

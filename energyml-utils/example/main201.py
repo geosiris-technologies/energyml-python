@@ -17,6 +17,7 @@ def import_modules():
 
 if __name__ == "__main__":
     import ast
+
     mod = importlib.import_module("energyml.eml.v2_3.commonv2")
     oa = getattr(mod, "ObjectAlias")
     print(exec("from energyml.eml.v2_3.commonv2 import *"))

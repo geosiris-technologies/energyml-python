@@ -6,7 +6,8 @@ from enum import Enum
 from typing import Any, List
 
 from .epc import (
-    get_obj_identifier, Epc,
+    get_obj_identifier,
+    Epc,
 )
 from .introspection import (
     get_class_fields,
@@ -14,8 +15,12 @@ from .introspection import (
     search_attribute_matching_type_with_path,
     get_object_attribute_no_verif,
     get_object_attribute_rgx,
-    get_matching_class_attribute_name, get_obj_uuid, get_obj_version, get_content_type_from_class,
-    get_qualified_type_from_class, is_enum,
+    get_matching_class_attribute_name,
+    get_obj_uuid,
+    get_obj_version,
+    get_content_type_from_class,
+    get_qualified_type_from_class,
+    is_enum,
 )
 
 
@@ -62,14 +67,14 @@ def validate_epc(epc: Epc) -> List[ValidationError]:
     """
     errs = []
     for obj in epc.energyml_objects:
-        errs = errs + patterns_verification(obj)
+        errs = errs + patterns_validation(obj)
 
-    errs = errs + dor_verification(epc.energyml_objects)
+    errs = errs + dor_validation(epc.energyml_objects)
 
     return errs
 
 
-def dor_verification(energyml_objects: List[Any]) -> List[ValidationError]:
+def dor_validation(energyml_objects: List[Any]) -> List[ValidationError]:
     """
     Verification for DOR. An error is raised if DORs contains wrong information, or if a referenced object is unknown
     in the :param:`epc`.
@@ -179,16 +184,16 @@ def dor_verification(energyml_objects: List[Any]) -> List[ValidationError]:
     return errs
 
 
-def patterns_verification(obj: Any) -> List[ValidationError]:
+def patterns_validation(obj: Any) -> List[ValidationError]:
     """
     Verification on object values, using the patterns defined in the original energyml xsd files.
     :param obj:
     :return:
     """
-    return _patterns_verification(obj, obj, "")
+    return _patterns_validation(obj, obj, "")
 
 
-def _patterns_verification(
+def _patterns_validation(
     obj: Any, root_obj: Any, current_attribute_dot_path: str = ""
 ) -> List[ValidationError]:
     """
@@ -203,19 +208,19 @@ def _patterns_verification(
     if isinstance(obj, list):
         cpt = 0
         for val in obj:
-            error_list = error_list + _patterns_verification(
+            error_list = error_list + _patterns_validation(
                 val, root_obj, f"{current_attribute_dot_path}.{cpt}"
             )
             cpt = cpt + 1
     elif isinstance(obj, dict):
         for k, val in obj.items():
-            error_list = error_list + _patterns_verification(
+            error_list = error_list + _patterns_validation(
                 val, root_obj, f"{current_attribute_dot_path}.{k}"
             )
     else:
-        # print(get_class_fields(obj))
+        # logging.debug(get_class_fields(obj))
         for att_name, att_field in get_class_fields(obj).items():
-            # print(f"att_name : {att_field.metadata}")
+            # logging.debug(f"att_name : {att_field.metadata}")
             error_list = error_list + validate_attribute(
                 get_object_attribute(obj, att_name, False),
                 root_obj,
@@ -292,9 +297,9 @@ def validate_attribute(
             )
             if isinstance(value, list):
                 for val in value:
-                    if (
-                            (isinstance(val, str) and len(val) > min_inclusive)
-                            or ((isinstance(val, int) or isinstance(val, float)) and val > min_inclusive)
+                    if (isinstance(val, str) and len(val) > min_inclusive) or (
+                        (isinstance(val, int) or isinstance(val, float))
+                        and val > min_inclusive
                     ):
                         errs.append(potential_err)
 
@@ -309,7 +314,7 @@ def validate_attribute(
                     )
                 )
 
-    return errs + _patterns_verification(
+    return errs + _patterns_validation(
         obj=value,
         root_obj=root_obj,
         current_attribute_dot_path=path,

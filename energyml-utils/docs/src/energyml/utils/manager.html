@@ -34,8 +34,8 @@ import pkgutil
 import re
 from typing import List, Union, Any
 
-REGEX_ENERGYML_MODULE_NAME = r&#34;energyml\.(?P&lt;pkg&gt;.*)\.v(?P&lt;version&gt;(?P&lt;versionNumber&gt;\d+(_\d+)*)(_dev(?P&lt;versionDev&gt;.*))?)\..*&#34;
-REGEX_PROJECT_VERSION = r&#34;(?P&lt;n0&gt;[\d]+)(.(?P&lt;n1&gt;[\d]+)(.(?P&lt;n2&gt;[\d]+))?)?&#34;
+RGX_ENERGYML_MODULE_NAME = r&#34;energyml\.(?P&lt;pkg&gt;.*)\.v(?P&lt;version&gt;(?P&lt;versionNumber&gt;\d+(_\d+)*)(_dev(?P&lt;versionDev&gt;.*))?)\..*&#34;
+RGX_PROJECT_VERSION = r&#34;(?P&lt;n0&gt;[\d]+)(.(?P&lt;n1&gt;[\d]+)(.(?P&lt;n2&gt;[\d]+))?)?&#34;
 
 ENERGYML_MODULES_NAMES = [&#34;eml&#34;, &#34;prodml&#34;, &#34;witsml&#34;, &#34;resqml&#34;]
 
@@ -196,7 +196,7 @@ def get_all_classes(module_name: str, version: str) -&gt; dict:
 
 def get_class_pkg(cls):
     try:
-        p = re.compile(REGEX_ENERGYML_MODULE_NAME)
+        p = re.compile(RGX_ENERGYML_MODULE_NAME)
         m = p.search(cls.__module__)
         return m.group(&#34;pkg&#34;)
     except AttributeError as e:
@@ -210,7 +210,7 @@ def reshape_version(version: str, nb_digit: int) -&gt; str:
     else, the original version is returned.
     Example : reshapeVersion(&#34;v2.0.1&#34;, 2) ==&gt; &#34;2.0&#34; and reshapeVersion(&#34;version2.0.1.3.2.5&#34;, 4) ==&gt; &#34;version2.0.1.3.2.5&#34;
     &#34;&#34;&#34;
-    p = re.compile(REGEX_PROJECT_VERSION)
+    p = re.compile(RGX_PROJECT_VERSION)
     m = p.search(version)
     if m is not None:
         n0 = m.group(&#34;n0&#34;)
@@ -233,7 +233,7 @@ def reshape_version(version: str, nb_digit: int) -&gt; str:
 def get_class_pkg_version(
     cls, print_dev_version: bool = True, nb_max_version_digits: int = 2
 ):
-    p = re.compile(REGEX_ENERGYML_MODULE_NAME)
+    p = re.compile(RGX_ENERGYML_MODULE_NAME)
     m = p.search(
         cls.__module__ if isinstance(cls, type) else type(cls).__module__
     )
@@ -364,7 +364,7 @@ def get_class_pkg_version(
 </summary>
 <pre><code class="python">def get_class_pkg(cls):
     try:
-        p = re.compile(REGEX_ENERGYML_MODULE_NAME)
+        p = re.compile(RGX_ENERGYML_MODULE_NAME)
         m = p.search(cls.__module__)
         return m.group(&#34;pkg&#34;)
     except AttributeError as e:
@@ -384,7 +384,7 @@ def get_class_pkg_version(
 <pre><code class="python">def get_class_pkg_version(
     cls, print_dev_version: bool = True, nb_max_version_digits: int = 2
 ):
-    p = re.compile(REGEX_ENERGYML_MODULE_NAME)
+    p = re.compile(RGX_ENERGYML_MODULE_NAME)
     m = p.search(
         cls.__module__ if isinstance(cls, type) else type(cls).__module__
     )
@@ -554,7 +554,7 @@ Example : reshapeVersion("v2.0.1", 2) ==&gt; "2.0" and reshapeVersion("version2.
     else, the original version is returned.
     Example : reshapeVersion(&#34;v2.0.1&#34;, 2) ==&gt; &#34;2.0&#34; and reshapeVersion(&#34;version2.0.1.3.2.5&#34;, 4) ==&gt; &#34;version2.0.1.3.2.5&#34;
     &#34;&#34;&#34;
-    p = re.compile(REGEX_PROJECT_VERSION)
+    p = re.compile(RGX_PROJECT_VERSION)
     m = p.search(version)
     if m is not None:
         n0 = m.group(&#34;n0&#34;)

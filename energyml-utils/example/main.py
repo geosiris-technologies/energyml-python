@@ -1,12 +1,16 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
+import json
 from dataclasses import fields
 
 from energyml.eml.v2_3.commonv2 import *
+from energyml.resqml.v2_0_1.resqmlv2 import DoubleHdf5Array
 from energyml.resqml.v2_2.resqmlv2 import (
     TriangulatedSetRepresentation,
     FaultInterpretation,
-    ContactElement, AbstractPoint3DArray, AbstractColorMap,
+    ContactElement,
+    AbstractPoint3DArray,
+    AbstractColorMap,
 )
 
 from src.energyml.utils.data.hdf import *
@@ -15,8 +19,10 @@ from src.energyml.utils.introspection import *
 from src.energyml.utils.manager import *
 from src.energyml.utils.serialization import *
 from src.energyml.utils.validation import (
-    patterns_verification,
-    dor_verification, validate_epc, correct_dor,
+    patterns_validation,
+    dor_validation,
+    validate_epc,
+    correct_dor,
 )
 from src.energyml.utils.xml import *
 
@@ -52,6 +58,13 @@ dor = DataObjectReference(
     qualified_type="a wrong qualified type",
 )
 
+dor_correct = DataObjectReference(
+    uuid=fi.uuid,
+    title="a DOR title",
+    object_version="0",
+    qualified_type="resqml23.TriangulatedSetRepresentation",
+)
+
 tr = TriangulatedSetRepresentation(
     citation=tr_cit,
     uuid=gen_uuid(),
@@ -72,7 +85,7 @@ def tests_0():
 
     print(serialize_xml(tr_cit))
 
-    print(serialize_json(tr))
+    print(serialize_json(tr, JSON_VERSION.XSDATA))
     print(tr.citation)
     print(get_obj_uuid(tr))
     print("path: ", gen_energyml_object_path(tr))
@@ -126,7 +139,7 @@ def file_test():
 
 
 def tests_content_type():
-    print(REGEX_CONTENT_TYPE)
+    print(RGX_CONTENT_TYPE)
 
     print(
         parse_content_type(
@@ -164,6 +177,18 @@ def tests_content_type():
 
     print(get_content_type_from_class(tr))
     print(get_qualified_type_from_class(tr))
+    print(
+        get_qualified_type_from_class(DoubleHdf5Array()),
+        get_class_from_qualified_type(
+            get_qualified_type_from_class(DoubleHdf5Array())
+        ),
+    )
+    print(
+        get_qualified_type_from_class(dor_correct),
+        get_class_from_qualified_type(
+            get_qualified_type_from_class(dor_correct)
+        ),
+    )
 
     print(gen_energyml_object_path(tr, EpcExportVersion.EXPANDED))
     print(gen_energyml_object_path(tr))
@@ -173,7 +198,7 @@ def tests_epc():
     epc = Epc.read_file(
         "D:/Geosiris/Github/energyml/#data/Volve_Horizons_and_Faults_Depth_originEQN_v2.2_colorised.epc"
     )
-    print(serialize_json(epc.gen_opc_content_type()))
+    print(serialize_json(epc.gen_opc_content_type(), JSON_VERSION.XSDATA))
     print(epc)
     epc.export_file("D:/Geosiris/Github/energyml/energyml-python/test.epc")
     epc.export_version = EpcExportVersion.EXPANDED
@@ -225,15 +250,15 @@ def tests_dor():
 def test_verif():
 
     print(get_class_fields(tr))
-    for err in patterns_verification(tr):
+    for err in patterns_validation(tr):
         print(err)
 
     print("DOR verif no fi")
-    for err in dor_verification([tr]):
+    for err in dor_validation([tr]):
         print(err)
 
     print("DOR verif with fi")
-    for err in dor_verification([tr, fi]):
+    for err in dor_validation([tr, fi]):
         print(err)
 
 
@@ -298,13 +323,15 @@ def test_introspection():
     print(get_class_fields(tr)["citation"])
 
     print(EPCRelsRelationshipType._member_names_)
-    print(EPCRelsRelationshipType['DESTINATION_OBJECT'].value)
+    print(EPCRelsRelationshipType["DESTINATION_OBJECT"].value)
     print(random_value_from_class(EPCRelsRelationshipType))
     print(random_value_from_class(EPCRelsRelationshipType))
     print(TriangulatedSetRepresentation.__dataclass_params__)
 
     # print(random_value_from_class(int))
-    print(serialize_xml(random_value_from_class(TriangulatedSetRepresentation)))
+    print(
+        serialize_xml(random_value_from_class(TriangulatedSetRepresentation))
+    )
     # print(serialize_json(random_value_from_class(TriangulatedSetRepresentation)))
 
     print(search_attribute_matching_name_with_path(tr, "[tT]it.*"))
@@ -313,7 +340,13 @@ def test_introspection():
     print(AbstractPoint3DArray.__dict__)
     print(TriangulatedSetRepresentation.__dict__)
     print(get_sub_classes(AbstractObject))
-    print(list(filter(lambda _c: not is_abstract(_c), get_sub_classes(AbstractObject))))
+    print(
+        list(
+            filter(
+                lambda _c: not is_abstract(_c), get_sub_classes(AbstractObject)
+            )
+        )
+    )
     print(AbstractColorMap.__name__.startswith("Abstract"))
     print(is_abstract(AbstractColorMap))
 
@@ -331,13 +364,17 @@ def test_introspection():
 
     print(f"object: {is_abstract(object)}")
     print(f"HDF5FileReader: {is_abstract(HDF5FileReader)}")
-    print(f"TriangulatedSetRepresentation: {is_abstract(TriangulatedSetRepresentation)}")
+    print(
+        f"TriangulatedSetRepresentation: {is_abstract(TriangulatedSetRepresentation)}"
+    )
 
     # print("HDF5FileReader")
     # for func in dir(HDF5FileReader):
     #     if callable(getattr(HDF5FileReader, func)) and not func.startswith("__"):
     #         print(f"\t{func} {type(getattr(HDF5FileReader, func))}")
-    print(get_classes_matching_name(TriangulatedSetRepresentation, "Abstract.*"))
+    print(
+        get_classes_matching_name(TriangulatedSetRepresentation, "Abstract.*")
+    )
     # print(get_matching_class_attribute_name(ExternalDataArrayPart, "(PathInHdfFile|PathInExternalFile)"))
     # print(object.__module__)
     # print(serialize_xml(random_value_from_class(PointSetRepresentation)))
@@ -351,15 +388,21 @@ def test_introspection():
     # print(serialize_xml(poly))
 
     print("=====] ", r"ClosedPolylines.\d+")
-    for array_path, array_value in search_attribute_matching_name_with_path(poly, r"ClosedPolylines.\d+"):
+    for array_path, array_value in search_attribute_matching_name_with_path(
+            poly, r"ClosedPolylines.\d+"
+    ):
         print(f"{array_path}\n\t{array_value}")
 
     print("=====] ", r"ClosedPolylines.values.\d+")
-    for array_path, array_value in search_attribute_matching_name_with_path(poly, r"ClosedPolylines.values.\d+"):
+    for array_path, array_value in search_attribute_matching_name_with_path(
+            poly, r"ClosedPolylines.values.\d+"
+    ):
         print(f"{array_path}\n\t{array_value}")
 
     print("=====] ", r"LinePatch.\d+")
-    for array_path, array_value in search_attribute_matching_name_with_path(poly, r"LinePatch.\d+"):
+    for array_path, array_value in search_attribute_matching_name_with_path(
+            poly, r"LinePatch.\d+"
+    ):
         print(f"{array_path}\n\t{array_value}")
 
 
@@ -368,7 +411,12 @@ def tests_hdf():
         "D:/Geosiris/Github/energyml/#data/Volve_Horizons_and_Faults_Depth_originEQN_v2.2_colorised.epc"
     )
 
-    tr_list = list(filter(lambda e: e.__class__.__name__ == "TriangulatedSetRepresentation",  epc.energyml_objects))
+    tr_list = list(
+        filter(
+            lambda e: e.__class__.__name__ == "TriangulatedSetRepresentation",
+            epc.energyml_objects,
+        )
+    )
     print(len(epc.energyml_objects))
     # print(tr_list)
 
@@ -376,6 +424,44 @@ def tests_hdf():
         print(o.__class__)
         print(get_hdf_reference_with_path(o))
         exit(0)
+
+
+def test_local_depth_crs():
+    # Fails because the xsi:type="VerticalCrsEpsgCode" doesn't
+    # contain the namespace : xsi:type="eml:VerticalCrsEpsgCode"
+    try:
+        depth3d = read_energyml_xml_file(
+            "../rc/obj_LocalDepth3dCrs_716f6472-18a3-4f19-a57c-d4f5642ccc53.xml"
+        )
+        print(serialize_json(depth3d, JSON_VERSION.XSDATA))
+        print(serialize_xml(depth3d))
+    except Exception as e:
+        print(e)
+
+
+def test_wellbore_marker_frame_representation():
+    # Fails because the xsi:type="VerticalCrsEpsgCode" doesn't
+    # contain the namespace : xsi:type="eml:VerticalCrsEpsgCode"
+    try:
+        depth3d = read_energyml_xml_file(
+            "../rc/obj_WellboreMarkerFrameRepresentation_2f8778ca-6a09-446b-b25d-b725ec759a70.xml"
+        )
+        print("read_success")
+        # print(serialize_json(depth3d, JSON_VERSION.XSDATA))
+        print(serialize_json(depth3d, JSON_VERSION.OSDU_OFFICIAL))
+        # print(serialize_xml(depth3d))
+    except Exception as e:
+        print(e)
+        raise e
+        # print(traceback.print_stack())
+
+
+def test_obj_attribs():
+    print(get_obj_pkg_pkgv_type_uuid_version(dor_correct))
+    print(get_obj_pkg_pkgv_type_uuid_version(tr))
+
+    print(get_obj_uri(dor_correct, "coucou"))
+    print(get_obj_uri(tr, "coucou"))
 
 
 if __name__ == "__main__":
@@ -389,4 +475,7 @@ if __name__ == "__main__":
     test_introspection()
 
     tests_hdf()
-    print(get_object_attribute(""))
+    test_local_depth_crs()
+    test_wellbore_marker_frame_representation()
+
+    test_obj_attribs()
