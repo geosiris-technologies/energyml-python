@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<resqml2:LocalDepth3dCrs xmlns:resqml2="http://www.energistics.org/energyml/data/resqmlv2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" schemaVersion="2.0" uuid="716f6472-18a3-4f19-a57c-d4f5642ccc53" xsi:type="LocalDepth3dCrs">
+<resqml2:LocalDepth3dCrs xmlns:resqml2="http://www.energistics.org/energyml/data/resqmlv2" xmlns:eml="http://www.energistics.org/energyml/data/commonv2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" schemaVersion="2.0" uuid="716f6472-18a3-4f19-a57c-d4f5642ccc53" xsi:type="LocalDepth3dCrs">
    <eml:Citation xmlns:eml="http://www.energistics.org/energyml/data/commonv2">
       <eml:Title>Default</eml:Title>
       <eml:Originator>aplougoulen</eml:Originator>
@@ -18,10 +18,10 @@
    <resqml2:VerticalUom>m</resqml2:VerticalUom>
    <resqml2:XOffset>420000.0</resqml2:XOffset>
    <resqml2:ZIncreasingDownward>true</resqml2:ZIncreasingDownward>
-   <resqml2:VerticalCrs xsi:type="VerticalCrsEpsgCode">
-      <eml:EpsgCode xmlns:eml="http://www.energistics.org/energyml/data/commonv2">6230</eml:EpsgCode>
+   <resqml2:VerticalCrs xsi:type="eml:VerticalCrsEpsgCode">
+      <eml:EpsgCode>6230</eml:EpsgCode>
    </resqml2:VerticalCrs>
-   <resqml2:ProjectedCrs xsi:type="ProjectedCrsEpsgCode">
+   <resqml2:ProjectedCrs xsi:type="eml:ProjectedCrsEpsgCode">
       <eml:EpsgCode xmlns:eml="http://www.energistics.org/energyml/data/commonv2">23031</eml:EpsgCode>
    </resqml2:ProjectedCrs>
 </resqml2:LocalDepth3dCrs>

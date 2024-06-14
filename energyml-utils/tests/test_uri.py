@@ -5,18 +5,23 @@ from src.energyml.utils.uri import Uri, parse_uri
 
 
 def test_uri_constructor():
-    assert str(Uri(
-        dataspace="/folder-name/project-name",
-        domain="resqml",
-        domain_version="20",
-        object_type="obj_HorizonInterpretation",
-        uuid="421a7a05-033a-450d-bcef-051352023578",
-        version="2.0",
-        collection_domain=None,
-        collection_domain_version=None,
-        collection_domain_type=None,
-        query="query",
-    )) == "eml:///dataspace('/folder-name/project-name')/resqml20.obj_HorizonInterpretation(uuid=421a7a05-033a-450d-bcef-051352023578,version='2.0')?query"
+    assert (
+        str(
+            Uri(
+                dataspace="/folder-name/project-name",
+                domain="resqml",
+                domain_version="20",
+                object_type="obj_HorizonInterpretation",
+                uuid="421a7a05-033a-450d-bcef-051352023578",
+                version="2.0",
+                collection_domain=None,
+                collection_domain_version=None,
+                collection_domain_type=None,
+                query="query",
+            )
+        )
+        == "eml:///dataspace('/folder-name/project-name')/resqml20.obj_HorizonInterpretation(uuid=421a7a05-033a-450d-bcef-051352023578,version='2.0')?query"
+    )
 
 
 def test_uri_error():

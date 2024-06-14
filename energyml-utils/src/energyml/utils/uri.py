@@ -10,6 +10,7 @@ class Uri:
     """
     A class to represent an ETP URI
     """
+
     dataspace: Optional[str] = field(default=None)
     domain: Optional[str] = field(default=None)
     domain_version: Optional[str] = field(default=None)
@@ -35,7 +36,9 @@ class Uri:
             res.uuid = m.group(URI_RGX_GRP_UUID) or m.group(URI_RGX_GRP_UUID2)
             res.version = m.group(URI_RGX_GRP_VERSION)
             res.collection_domain = m.group(URI_RGX_GRP_COLLECTION_DOMAIN)
-            res.collection_domain_version = m.group(URI_RGX_GRP_COLLECTION_DOMAIN_VERSION)
+            res.collection_domain_version = m.group(
+                URI_RGX_GRP_COLLECTION_DOMAIN_VERSION
+            )
             res.collection_domain_type = m.group(URI_RGX_GRP_COLLECTION_TYPE)
             res.query = m.group(URI_RGX_GRP_QUERY)
             return res
@@ -43,10 +46,20 @@ class Uri:
             return None
 
     def is_dataspace_uri(self):
-        return self.domain is None and self.object_type is None and self.query is None and self.collection_domain_type is None
+        return (
+            self.domain is None
+            and self.object_type is None
+            and self.query is None
+            and self.collection_domain_type is None
+        )
 
     def is_object_uri(self):
-        return self.domain is not None and self.domain_version is not None and self.object_type is not None and self.uuid is not None
+        return (
+            self.domain is not None
+            and self.domain_version is not None
+            and self.object_type is not None
+            and self.uuid is not None
+        )
 
     def __str__(self):
         res = "eml:///"
@@ -63,7 +76,10 @@ class Uri:
                 else:
                     res += self.uuid
                 res += ")"
-        if self.collection_domain is not None and self.collection_domain_version:
+        if (
+            self.collection_domain is not None
+            and self.collection_domain_version
+        ):
             res += f"/{self.collection_domain}{self.collection_domain_version}"
             if self.collection_domain_type is not None:
                 res += f".{self.collection_domain_type}"

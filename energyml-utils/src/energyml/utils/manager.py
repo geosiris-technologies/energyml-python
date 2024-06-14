@@ -3,7 +3,7 @@
 import importlib
 import inspect
 import pkgutil
-from typing import List, Union, Any
+from typing import Union, Any, Dict
 
 from .constants import *
 
@@ -24,7 +24,7 @@ def get_related_energyml_modules_name(cls: Union[type, Any]) -> List[str]:
     return []
 
 
-def dict_energyml_modules() -> List:
+def dict_energyml_modules() -> Dict:
     """
     List all accessible energyml python modules
     :return:
@@ -99,7 +99,11 @@ def get_sub_classes(cls: type) -> List[type]:
     return list(dict.fromkeys(sub_classes))
 
 
-def get_classes_matching_name(cls: type, name_rgx: str, re_flags=re.IGNORECASE,) -> List[type]:
+def get_classes_matching_name(
+    cls: type,
+    name_rgx: str,
+    re_flags=re.IGNORECASE,
+) -> List[type]:
     """
     Search a class matching the regex @re_flags. The search is the energyml packages related to the objet type @cls.
     :param cls:
@@ -112,7 +116,9 @@ def get_classes_matching_name(cls: type, name_rgx: str, re_flags=re.IGNORECASE,)
         try:
             module = importlib.import_module(related)
             for _, obj in inspect.getmembers(module):
-                if inspect.isclass(obj) and re.match(name_rgx, obj.__name__, re_flags):
+                if inspect.isclass(obj) and re.match(
+                    name_rgx, obj.__name__, re_flags
+                ):
                     match_classes.append(obj)
         except ModuleNotFoundError:
             pass

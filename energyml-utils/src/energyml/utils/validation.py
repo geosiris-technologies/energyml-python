@@ -6,7 +6,8 @@ from enum import Enum
 from typing import Any, List
 
 from .epc import (
-    get_obj_identifier, Epc,
+    get_obj_identifier,
+    Epc,
 )
 from .introspection import (
     get_class_fields,
@@ -14,8 +15,12 @@ from .introspection import (
     search_attribute_matching_type_with_path,
     get_object_attribute_no_verif,
     get_object_attribute_rgx,
-    get_matching_class_attribute_name, get_obj_uuid, get_obj_version, get_content_type_from_class,
-    get_qualified_type_from_class, is_enum,
+    get_matching_class_attribute_name,
+    get_obj_uuid,
+    get_obj_version,
+    get_content_type_from_class,
+    get_qualified_type_from_class,
+    is_enum,
 )
 
 
@@ -292,9 +297,9 @@ def validate_attribute(
             )
             if isinstance(value, list):
                 for val in value:
-                    if (
-                            (isinstance(val, str) and len(val) > min_inclusive)
-                            or ((isinstance(val, int) or isinstance(val, float)) and val > min_inclusive)
+                    if (isinstance(val, str) and len(val) > min_inclusive) or (
+                        (isinstance(val, int) or isinstance(val, float))
+                        and val > min_inclusive
                     ):
                         errs.append(potential_err)
 

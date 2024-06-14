@@ -6,7 +6,9 @@ import logging
 from src.energyml.utils.xml import *
 
 CT_20 = "application/x-resqml+xml;version=2.0;type=obj_TriangulatedSetRepresentation"
-CT_22 = "application/x-resqml+xml;version=2.2;type=TriangulatedSetRepresentation"
+CT_22 = (
+    "application/x-resqml+xml;version=2.2;type=TriangulatedSetRepresentation"
+)
 CT_22_DEV = "application/x-resqml+xml;version=2.2dev3;type=TriangulatedSetRepresentation"
 
 QT_20 = "resqml20.obj_TriangulatedSetRepresentation"
@@ -163,8 +165,12 @@ def test_parse_qualified_type_22_dev():
 
 def test_is_energyml_content_type():
     for d in ENERGYML_NAMESPACES_PACKAGE.keys():
-        assert is_energyml_content_type(f"application/x-{d}+xml;version=2.0;type=obj_XXX")
-    assert not is_energyml_content_type(f"application/x-randomValue+xml;version=2.0;type=obj_XXX")
+        assert is_energyml_content_type(
+            f"application/x-{d}+xml;version=2.0;type=obj_XXX"
+        )
+    assert not is_energyml_content_type(
+        f"application/x-randomValue+xml;version=2.0;type=obj_XXX"
+    )
 
 
 def test_get_root_type_20():

@@ -1,15 +1,20 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import energyml.resqml.v2_0_1.resqmlv2
-from energyml.opc.opc import (
-    Dcmitype1,
-    Contributor
-)
+from energyml.opc.opc import Dcmitype1, Contributor
 
-from src.energyml.utils.constants import date_to_epoch, pascal_case, epoch, epoch_to_date, snake_case
+from src.energyml.utils.constants import (
+    date_to_epoch,
+    pascal_case,
+    epoch,
+    epoch_to_date,
+    snake_case,
+)
 from src.energyml.utils.introspection import (
-    is_primitive, is_enum, get_class_from_name,
-    get_class_from_content_type
+    is_primitive,
+    is_enum,
+    get_class_from_name,
+    get_class_from_content_type,
 )
 
 
@@ -52,6 +57,8 @@ def test_epoch():
 
 
 def test_get_class_from_content_type():
-    found_type = get_class_from_content_type('resqml20.obj_Grid2dRepresentation')
+    found_type = get_class_from_content_type(
+        "resqml20.obj_Grid2dRepresentation"
+    )
     assert found_type is not None
     assert found_type == energyml.resqml.v2_0_1.resqmlv2.Grid2DRepresentation

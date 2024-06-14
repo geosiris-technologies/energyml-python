@@ -1,17 +1,33 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 
-from energyml.eml.v2_3.commonv2 import JaggedArray, AbstractValueArray, AbstractIntegerArray, StringXmlArray, \
-    IntegerXmlArray
+from energyml.eml.v2_3.commonv2 import (
+    JaggedArray,
+    AbstractValueArray,
+    AbstractIntegerArray,
+    StringXmlArray,
+    IntegerXmlArray,
+)
 from energyml.resqml.v2_0_1.resqmlv2 import WellboreMarkerFrameRepresentation
 
-from src.energyml.utils.data.hdf import get_hdf_reference_with_path, get_hdf5_path_from_external_path
-from src.energyml.utils.data.helper import get_array_reader_function, get_supported_array, get_not_supported_array
+from src.energyml.utils.data.hdf import (
+    get_hdf_reference_with_path,
+    get_hdf5_path_from_external_path,
+)
+from src.energyml.utils.data.helper import (
+    get_array_reader_function,
+    get_supported_array,
+    get_not_supported_array,
+)
 from src.energyml.utils.data.mesh import *
 from src.energyml.utils.epc import gen_energyml_object_path
-from src.energyml.utils.introspection import is_abstract, get_obj_uuid
+from src.energyml.utils.introspection import is_abstract, get_obj_uuid, get_class_fields
 from src.energyml.utils.manager import get_sub_classes
-from src.energyml.utils.serialization import read_energyml_xml_file, read_energyml_xml_str, read_energyml_xml_bytes
+from src.energyml.utils.serialization import (
+    read_energyml_xml_file,
+    read_energyml_xml_str,
+    read_energyml_xml_bytes,
+)
 from src.energyml.utils.validation import validate_epc
 from src.energyml.utils.xml import RGX_CONTENT_TYPE
 
@@ -20,8 +36,16 @@ def test_array():
 
     hdf5filereader = HDF5FileReader()
 
-    hdf5filereader.read_array("../../../#data/Volve_Horizons_and_Faults_Depth_originEQN_Plus.h5", "/RESQML/d9b95bb5-019d-4341-bcf6-df392338187f/points_patch0")
-    print(hdf5filereader.get_array_dimension("../../../#data/Volve_Horizons_and_Faults_Depth_originEQN_Plus.h5", "/RESQML/d9b95bb5-019d-4341-bcf6-df392338187f/points_patch0"))
+    hdf5filereader.read_array(
+        "../../../#data/Volve_Horizons_and_Faults_Depth_originEQN_Plus.h5",
+        "/RESQML/d9b95bb5-019d-4341-bcf6-df392338187f/points_patch0",
+    )
+    print(
+        hdf5filereader.get_array_dimension(
+            "../../../#data/Volve_Horizons_and_Faults_Depth_originEQN_Plus.h5",
+            "/RESQML/d9b95bb5-019d-4341-bcf6-df392338187f/points_patch0",
+        )
+    )
     # print(hdf5filereader.read_array("../../../#data/Volve_Horizons_and_Faults_Depth_originEQN_Plus.h5", "/RESQML/d9b95bb5-019d-4341-bcf6-df392338187f/points_patch0"))
 
 
@@ -33,12 +57,16 @@ def test_h5_path():
     ref_obj = epc.get_object_by_uuid("2bbac140-ff17-4649-ae85-52a9285a4373")[0]
     for refer_path, refer_value in get_hdf_reference_with_path(ref_obj):
         try:
-            print(get_hdf5_path_from_external_path(
-                        external_path_obj=get_object_attribute(ref_obj, refer_path),
-                        path_in_root=refer_path,
-                        root_obj=ref_obj,
-                        epc=epc,
-            ))
+            print(
+                get_hdf5_path_from_external_path(
+                    external_path_obj=get_object_attribute(
+                        ref_obj, refer_path
+                    ),
+                    path_in_root=refer_path,
+                    root_obj=ref_obj,
+                    epc=epc,
+                )
+            )
             # print("CRS:", get_crs_obj(
             #             context_obj=get_object_attribute(ref_obj, refer_path),
             #             path_in_root=refer_path,
@@ -57,15 +85,19 @@ def test_h5_path():
 
     print(epc201.additional_rels)
 
-    ref_obj = epc201.get_object_by_uuid("2bbac140-ff17-4649-ae85-52a9285a4373")[0]
+    ref_obj = epc201.get_object_by_uuid(
+        "2bbac140-ff17-4649-ae85-52a9285a4373"
+    )[0]
     for refer_path, refer_value in get_hdf_reference_with_path(ref_obj):
         try:
-            print(get_hdf5_path_from_external_path(
-                        external_path_obj=refer_value,
-                        path_in_root=refer_path,
-                        root_obj=ref_obj,
-                        epc=epc201,
-            ))
+            print(
+                get_hdf5_path_from_external_path(
+                    external_path_obj=refer_value,
+                    path_in_root=refer_path,
+                    root_obj=ref_obj,
+                    epc=epc201,
+                )
+            )
             # crs = get_crs_obj(
             #             context_obj=refer_value,
             #             path_in_root=refer_path,
@@ -88,8 +120,7 @@ def read_h5_datasets():
     print(epc201.epc_file_path)
 
     pt_set_list = read_point_representation(
-        energyml_object=psr,
-        workspace=EPCWorkspace(epc=epc201)
+        energyml_object=psr, workspace=EPCWorkspace(epc=epc201)
     )
 
     with open("../example/result/file_point_set.off", "wb") as f:
@@ -203,12 +234,16 @@ def read_meshes():
         workspace=EPCWorkspace(epc22),
     )
     print("Exporting")
-    with open(f"result/{gen_energyml_object_path(energyml_obj)}.obj", "wb") as f:
+    with open(
+        f"result/{gen_energyml_object_path(energyml_obj)}.obj", "wb"
+    ) as f:
         export_obj(
             mesh_list=mesh_list,
             out=f,
         )
-    with open(f"result/{gen_energyml_object_path(energyml_obj)}.off", "wb") as f:
+    with open(
+        f"result/{gen_energyml_object_path(energyml_obj)}.off", "wb"
+    ) as f:
         export_off(
             mesh_list=mesh_list,
             out=f,
@@ -222,7 +257,9 @@ def read_arrays():
     print(get_array_reader_function("BooleanConstantArray"))
 
     print("=====] ", r"LinePatch.\d+")
-    for array_path, array_value in search_attribute_matching_name_with_path(poly, r"LinePatch.\d+.ClosedPolylines"):
+    for array_path, array_value in search_attribute_matching_name_with_path(
+        poly, r"LinePatch.\d+.ClosedPolylines"
+    ):
         # print(f"{array_path}\n\t{array_value}")
         try:
             val = read_array(
@@ -235,8 +272,16 @@ def read_arrays():
         except Exception as e:
             print(e)
 
-    print([x for x in get_sub_classes(AbstractValueArray) if not is_abstract(x)])
-    print([x for x in get_sub_classes(AbstractIntegerArray) if not is_abstract(x)])
+    print(
+        [x for x in get_sub_classes(AbstractValueArray) if not is_abstract(x)]
+    )
+    print(
+        [
+            x
+            for x in get_sub_classes(AbstractIntegerArray)
+            if not is_abstract(x)
+        ]
+    )
 
     jagged_array = JaggedArray(
         elements=StringXmlArray(
@@ -266,7 +311,6 @@ def test_export_multiple():
         "8659a66c-8727-420a-badf-578819698239",  # TrSet
         "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
         "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
-
     ]
     export_multiple_data(
         epc_path="D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/EQN_ORIGIN_PLUS_TRIANG_SET/"
@@ -326,7 +370,6 @@ def test_export_closed_poly():
         uuid_list=[
             "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
             "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
-
         ],
         output_folder_path="../example/result/export-energyml-utils",
         # output_folder_path="D:/Geosiris/OSDU/manifestTranslation/#Data/export-energyml-utils",
@@ -339,7 +382,6 @@ def test_export_closed_poly():
         uuid_list=[
             "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
             "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
-
         ],
         output_folder_path="../example/result/export-energyml-utils",
         # output_folder_path="D:/Geosiris/OSDU/manifestTranslation/#Data/export-energyml-utils",
@@ -395,7 +437,7 @@ def test_read_external_part_with_xsi():
 
     with open(path, "rb") as f:
         xml_content = f.read()
-#         print(xml_content)
+        #         print(xml_content)
 
         print(read_energyml_xml_bytes(xml_content))
 
@@ -417,6 +459,7 @@ def read_unreferenced_h5_file():
 
 
 if __name__ == "__main__":
+    print(get_class_fields(WellboreMarkerFrameRepresentation))
     # test_array()
     # test_h5_path()
     # read_h5_datasets()
@@ -436,6 +479,6 @@ if __name__ == "__main__":
     # test_export_closed_poly()
     # test_export_multiple_testing_package()
     # test_read_resqml22dev3()
-    # WellboreMarkerFrameRepresentation
+    #
     # test_read_external_part_with_xsi()
-    read_unreferenced_h5_file()
+    # read_unreferenced_h5_file()

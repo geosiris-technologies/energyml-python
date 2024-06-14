@@ -20,7 +20,7 @@ ENERGYML_NAMESPACES_PACKAGE = {
     "resqml": ["http://www.energistics.org/energyml/data/resqmlv2"],
     "opc": [
         "http://schemas.openxmlformats.org/package/2006/content-types",
-        "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+        "http://schemas.openxmlformats.org/package/2006/metadata/core-properties",
     ],
 }
 """
@@ -48,9 +48,7 @@ RELATED_MODULES = [
     ],
 ]
 
-RGX_UUID_NO_GRP = (
-    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-)
+RGX_UUID_NO_GRP = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 RGX_UUID = r"(?P<uuid>" + RGX_UUID_NO_GRP + ")"
 RGX_DOMAIN_VERSION = r"(?P<domainVersion>(?P<versionNum>([\d]+[\._])*\d)\s*(?P<dev>dev\s*(?P<devNum>[\d]+))?)"
 RGX_DOMAIN_VERSION_FLAT = r"(?P<domainVersion>(?P<versionNumFlat>([\d]+)*\d)\s*(?P<dev>dev\s*(?P<devNum>[\d]+))?)"
@@ -64,24 +62,33 @@ RGX_CT_TOKEN_VERSION = r"version=" + RGX_DOMAIN_VERSION
 RGX_CT_TOKEN_TYPE = r"type=(?P<type>[\w\_]+)"
 
 RGX_CONTENT_TYPE = (
-        RGX_MIME_TYPE_MEDIA + "/"
-        + "(?P<rawDomain>(" + RGX_CT_ENERGYML_DOMAIN + ")|(" + RGX_CT_XML_DOMAIN + r")|([\w-]+\.?)+)"
-        + "(;((" + RGX_CT_TOKEN_VERSION + ")|(" + RGX_CT_TOKEN_TYPE + ")))*"
+    RGX_MIME_TYPE_MEDIA
+    + "/"
+    + "(?P<rawDomain>("
+    + RGX_CT_ENERGYML_DOMAIN
+    + ")|("
+    + RGX_CT_XML_DOMAIN
+    + r")|([\w-]+\.?)+)"
+    + "(;(("
+    + RGX_CT_TOKEN_VERSION
+    + ")|("
+    + RGX_CT_TOKEN_TYPE
+    + ")))*"
 )
 RGX_QUALIFIED_TYPE = (
-        r"(?P<domain>[a-zA-Z]+)" + RGX_DOMAIN_VERSION_FLAT + r"\.(?P<type>[\w_]+)"
+    r"(?P<domain>[a-zA-Z]+)" + RGX_DOMAIN_VERSION_FLAT + r"\.(?P<type>[\w_]+)"
 )
 # =========
 
 RGX_SCHEMA_VERSION = (
-        r"(?P<name>[eE]ml|[cC]ommon|[rR]esqml|[wW]itsml|[pP]rodml|[oO]pc)?\s*v?"
-        + RGX_DOMAIN_VERSION
-        + r"\s*$"
+    r"(?P<name>[eE]ml|[cC]ommon|[rR]esqml|[wW]itsml|[pP]rodml|[oO]pc)?\s*v?"
+    + RGX_DOMAIN_VERSION
+    + r"\s*$"
 )
 
 RGX_ENERGYML_FILE_NAME_OLD = r"(?P<type>[\w]+)_" + RGX_UUID_NO_GRP + r"\.xml$"
 RGX_ENERGYML_FILE_NAME_NEW = (
-        RGX_UUID_NO_GRP + r"\.(?P<objectVersion>\d+(\.\d+)*)\.xml$"
+    RGX_UUID_NO_GRP + r"\.(?P<objectVersion>\d+(\.\d+)*)\.xml$"
 )
 RGX_ENERGYML_FILE_NAME = (
     rf"^(.*/)?({RGX_ENERGYML_FILE_NAME_OLD})|({RGX_ENERGYML_FILE_NAME_NEW})"
@@ -108,18 +115,47 @@ URI_RGX_GRP_COLLECTION_TYPE = "collectionType"
 URI_RGX_GRP_QUERY = "query"
 
 # Patterns
-_uri_rgx_pkg_name = "|".join(ENERGYML_NAMESPACES.keys())  # "[a-zA-Z]+\w+" //witsml|resqml|prodml|eml
+_uri_rgx_pkg_name = "|".join(
+    ENERGYML_NAMESPACES.keys()
+)  # "[a-zA-Z]+\w+" //witsml|resqml|prodml|eml
 URI_RGX = (
-        r"^eml:\/\/\/(?:dataspace\('(?P<" + URI_RGX_GRP_DATASPACE + r">[^']*?(?:''[^']*?)*)'\)\/?)?((?P<" + URI_RGX_GRP_DOMAIN
-        + r">" + _uri_rgx_pkg_name + r")(?P<" + URI_RGX_GRP_DOMAIN_VERSION + r">[1-9]\d)\.(?P<" + URI_RGX_GRP_OBJECT_TYPE
-        + r">\w+)(\((?:(?P<" + URI_RGX_GRP_UUID + r">(uuid=)?" + RGX_UUID_NO_GRP + r")|uuid=(?P<" + URI_RGX_GRP_UUID2
-        + r">" + RGX_UUID_NO_GRP + r"),\s*version='(?P<" + URI_RGX_GRP_VERSION + r">[^']*?(?:''[^']*?)*)')\))?)?(\/(?P<"
-        + URI_RGX_GRP_COLLECTION_DOMAIN + r">" + _uri_rgx_pkg_name + r")(?P<" + URI_RGX_GRP_COLLECTION_DOMAIN_VERSION
-        + r">[1-9]\d)\.(?P<" + URI_RGX_GRP_COLLECTION_TYPE + r">\w+))?(?:\?(?P<" + URI_RGX_GRP_QUERY + r">[^#]+))?$"
+    r"^eml:\/\/\/(?:dataspace\('(?P<"
+    + URI_RGX_GRP_DATASPACE
+    + r">[^']*?(?:''[^']*?)*)'\)\/?)?((?P<"
+    + URI_RGX_GRP_DOMAIN
+    + r">"
+    + _uri_rgx_pkg_name
+    + r")(?P<"
+    + URI_RGX_GRP_DOMAIN_VERSION
+    + r">[1-9]\d)\.(?P<"
+    + URI_RGX_GRP_OBJECT_TYPE
+    + r">\w+)(\((?:(?P<"
+    + URI_RGX_GRP_UUID
+    + r">(uuid=)?"
+    + RGX_UUID_NO_GRP
+    + r")|uuid=(?P<"
+    + URI_RGX_GRP_UUID2
+    + r">"
+    + RGX_UUID_NO_GRP
+    + r"),\s*version='(?P<"
+    + URI_RGX_GRP_VERSION
+    + r">[^']*?(?:''[^']*?)*)')\))?)?(\/(?P<"
+    + URI_RGX_GRP_COLLECTION_DOMAIN
+    + r">"
+    + _uri_rgx_pkg_name
+    + r")(?P<"
+    + URI_RGX_GRP_COLLECTION_DOMAIN_VERSION
+    + r">[1-9]\d)\.(?P<"
+    + URI_RGX_GRP_COLLECTION_TYPE
+    + r">\w+))?(?:\?(?P<"
+    + URI_RGX_GRP_QUERY
+    + r">[^#]+))?$"
 )
 
 # ================================
-RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
+RELS_CONTENT_TYPE = (
+    "application/vnd.openxmlformats-package.core-properties+xml"
+)
 RELS_FOLDER_NAME = "_rels"
 
 primitives = (bool, str, int, float, type(None))
@@ -133,15 +169,15 @@ primitives = (bool, str, int, float, type(None))
 
 
 def snake_case(s: str) -> str:
-    """ Transform a str into snake case. """
-    s = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', s)
-    s = re.sub('__([A-Z])', r'_\1', s)
-    s = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s)
+    """Transform a str into snake case."""
+    s = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", s)
+    s = re.sub("__([A-Z])", r"_\1", s)
+    s = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s)
     return s.lower()
 
 
 def pascal_case(s: str) -> str:
-    """ Transform a str into pascal case. """
+    """Transform a str into pascal case."""
     return snake_case(s).replace("_", " ").title().replace(" ", "")
 
 
@@ -169,12 +205,16 @@ def parse_qualified_type(ct: str):
     return re.search(RGX_QUALIFIED_TYPE, ct)
 
 
-def now(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> float:
-    """ Return an epoch value """
+def now(
+    time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")
+) -> float:
+    """Return an epoch value"""
     return datetime.datetime.timestamp(datetime.datetime.now(time_zone))
 
 
-def epoch(time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> int:
+def epoch(
+    time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")
+) -> int:
     return int(now(time_zone))
 
 
@@ -186,7 +226,10 @@ def date_to_epoch(date: str) -> int:
     return int(datetime.datetime.fromisoformat(date).timestamp())
 
 
-def epoch_to_date(epoch_value: int, time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")) -> str:
+def epoch_to_date(
+    epoch_value: int,
+    time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC"),
+) -> str:
     date = datetime.datetime.fromtimestamp(epoch_value, time_zone)
     return date.strftime("%Y-%m-%dT%H:%M:%S%z")
 
