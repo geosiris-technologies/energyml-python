@@ -1,6 +1,7 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import inspect
+import logging
 import random
 import re
 import sys
@@ -94,7 +95,7 @@ def find_class_in_module(module_name, class_name):
                     return cls
             except Exception as e:
                 pass
-    print(f"Not Found : {module_name}; {class_name}")
+    logging.error(f"Not Found : {module_name}; {class_name}")
     return None
 
 
@@ -131,7 +132,7 @@ def get_class_from_name(class_name_and_module: str) -> Optional[type]:
         return find_class_in_module(module_name, last_ns_part)
     except AttributeError as e:
         # if "2d" in last_ns_part:
-        #     print("replace 2D")
+        #     logging.debug("replace 2D")
         #     return get_class_from_name(
         #         class_name_and_module.replace("2d", "2D")
         #     )
@@ -145,7 +146,7 @@ def get_class_from_name(class_name_and_module: str) -> Optional[type]:
         #     )
         # elif "2D" in last_ns_part or "3D" in last_ns_part:
         #     idx = -1
-        #     print(class_name_and_module)
+        #     logging.debug(class_name_and_module)
         #     try:
         #         idx = class_name_and_module.rindex("2D") + 2
         #     except:
@@ -156,13 +157,13 @@ def get_class_from_name(class_name_and_module: str) -> Optional[type]:
         #                 + class_name_and_module[idx].lower()
         #                 + class_name_and_module[idx + 1:]
         #         )
-        #         print(f"reformated {reformated}")
+        #         logging.debug(f"reformated {reformated}")
         #         return get_class_from_name(reformated)
         # else:
-        #     print(e)
-        print(e)
+        #     logging.debug(e)
+        logging.error(e)
     except KeyError:
-        print(f"[ERR] module not found : '{module_name}'")
+        logging.error(f"[ERR] module not found : '{module_name}'")
     return None
 
 
@@ -174,13 +175,13 @@ def get_energyml_module_dev_version(pkg: str, current_version: str):
     current_version = current_version.replace("-", "_").replace(".", "_")
     res = []
     if pkg in accessible_modules:
-        # print("\t", pkg, current_version)
+        # logging.debug("\t", pkg, current_version)
         for am_pkg_version in accessible_modules[pkg]:
             if (
                 am_pkg_version != current_version
                 and am_pkg_version.startswith(current_version)
             ):
-                # print("\t\t", am_pkg_version)
+                # logging.debug("\t\t", am_pkg_version)
                 res.append(get_module_name(pkg, am_pkg_version))
 
     return res
@@ -199,8 +200,8 @@ def get_energyml_class_in_related_dev_pkg(cls: type):
         try:
             res.append(get_class_from_name(f"{dev_module_name}.{class_name}"))
         except Exception as e:
-            print(f"FAILED {dev_module_name}.{class_name}")
-            print(e)
+            logging.error(f"FAILED {dev_module_name}.{class_name}")
+            logging.error(e)
             pass
 
     return res
@@ -229,7 +230,7 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
 
     domain = ct.group("domain")
     if domain is None:
-        # print(f"\tdomain {domain} xmlDomain {ct.group('xmlDomain')} ")
+        # logging.debug(f"\tdomain {domain} xmlDomain {ct.group('xmlDomain')} ")
         domain = "opc"
     if domain == "opc":
         xml_domain = ct.group("xmlDomain")
@@ -242,7 +243,7 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
         #         xml_domain = xml_domain[1:]
         #
         opc_type = pascal_case(xml_domain).replace("-", "")
-        # print("\tenergyml.opc.opc." + opc_type)
+        # logging.debug("\tenergyml.opc.opc." + opc_type)
         return get_class_from_name("energyml.opc.opc." + opc_type)
     else:
         domain = ct.group("domain")
@@ -256,7 +257,7 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
         if domain.lower() == "resqml" and version_num.startswith("2_0"):
             version_num = "2_0_1"
 
-        # print(get_module_name(domain, version_num)
+        # logging.debug(get_module_name(domain, version_num)
         #     + "."
         #     + obj_type)
         return get_class_from_name(
@@ -284,7 +285,7 @@ def import_related_module(energyml_module_name: str) -> None:
                     import_module(m)
                 except Exception as e:
                     pass
-                    # print(e)
+                    # logging.error(e)
 
 
 def get_class_fields(cls: Union[type, Any]) -> Dict[str, Field]:
@@ -333,7 +334,7 @@ def get_matching_class_attribute_name(
     # search regex after to avoid shadowing perfect match
     pattern = re.compile(attribute_name, flags=re_flags)
     for name, cf in class_fields.items():
-        # print(f"\t->{name} : {attribute_name} {pattern.match(name)} {('name' in cf.metadata and pattern.match(cf.metadata['name']))}")
+        # logging.error(f"\t->{name} : {attribute_name} {pattern.match(name)} {('name' in cf.metadata and pattern.match(cf.metadata['name']))}")
         if pattern.match(name) or (
             "name" in cf.metadata and pattern.match(cf.metadata["name"])
         ):
@@ -781,7 +782,7 @@ def get_obj_version(obj: Any) -> str:
         try:
             return get_object_attribute_no_verif(obj, "version_string")
         except Exception:
-            print(f"Error with {type(obj)}")
+            logging.error(f"Error with {type(obj)}")
             # raise e
 
 
@@ -814,7 +815,7 @@ def get_obj_pkg_pkgv_type_uuid_version(
 
     if ct is not None:
         ct_match = parse_content_type(ct)
-        print("ct : ", ct_match)
+        logging.debug("ct : ", ct_match)
         if ct_match is not None:
             pkg = ct_match.group("domain")
             pkg_v = ct_match.group("domainVersion")
@@ -823,7 +824,7 @@ def get_obj_pkg_pkgv_type_uuid_version(
         try:
             qt = get_object_attribute_no_verif(obj, "qualified_type")
             qt_match = parse_qualified_type(qt)
-            print("qt : ", qt, obj.__dict__, qt_match)
+            logging.debug("qt : ", qt, obj.__dict__, qt_match)
             if qt_match is not None:
                 pkg = qt_match.group("domain")
                 pkg_v = qt_match.group("domainVersion")
@@ -927,7 +928,7 @@ def get_content_type_from_class(
             + get_object_type_for_file_path_from_class(cls)
         )
 
-    print(f"@get_content_type_from_class not supported type : {cls}")
+    logging.error(f"@get_content_type_from_class not supported type : {cls}")
     return None
 
 
@@ -1134,7 +1135,7 @@ def _random_value_from_class(
                 ]
                 args = {}
                 for k, v in get_class_fields(chosen_type).items():
-                    # print(f"get_class_fields {k} : {v}")
+                    # logging.debug(f"get_class_fields {k} : {v}")
                     args[k] = _random_value_from_class(
                         cls=get_class_from_simple_name(
                             simple_name=v.type,
@@ -1150,10 +1151,10 @@ def _random_value_from_class(
                 return chosen_type(**args)
 
     except Exception as e:
-        print(f"exception on attribute '{attribute_name}' for class {cls} :")
+        logging.error(f"exception on attribute '{attribute_name}' for class {cls} :")
         raise e
 
-    print(
+    logging.error(
         f"@_random_value_from_class Not supported object type generation {cls}"
     )
     return None

@@ -465,17 +465,17 @@ def test_obj_attribs():
 
 
 if __name__ == "__main__":
-    # tests_0()
-    # tests_content_type()
-    #
-    # tests_epc()
-    # tests_dor()
-    # test_verif()
-    # test_ast()
-    # test_introspection()
-    #
-    # tests_hdf()
-    # test_local_depth_crs()
+    tests_0()
+    tests_content_type()
+
+    tests_epc()
+    tests_dor()
+    test_verif()
+    test_ast()
+    test_introspection()
+
+    tests_hdf()
+    test_local_depth_crs()
     test_wellbore_marker_frame_representation()
 
-    # test_obj_attribs()
+    test_obj_attribs()

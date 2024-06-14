@@ -5,6 +5,7 @@ This module contains utilities to read/write EPC files.
 """
 
 import datetime
+import logging
 import re
 import traceback
 import zipfile
@@ -429,7 +430,7 @@ class Epc:
                 _read_files.append(content_type_file_name)
 
                 if content_type_info is None:
-                    print(f"No {content_type_file_name} file found")
+                    logging.error(f"No {content_type_file_name} file found")
                 else:
                     content_type_obj: Types = read_energyml_xml_bytes(
                         epc_file.read(content_type_file_name)
@@ -438,7 +439,7 @@ class Epc:
                     for ov in content_type_obj.override:
                         ov_ct = ov.content_type
                         ov_path = ov.part_name
-                        # print(ov_ct)
+                        # logging.debug(ov_ct)
                         while ov_path.startswith("/") or ov_path.startswith(
                             "\\"
                         ):
@@ -455,16 +456,15 @@ class Epc:
                                 path_to_obj[ov_path] = ov_obj
                                 obj_list.append(ov_obj)
                             except Exception as e:
-                                print(traceback.format_exc())
-                                print(
+                                logging.error(traceback.format_exc())
+                                logging.error(
                                     f"Epc.@read_stream failed to parse file {ov_path} for content-type: {ov_ct} => {get_class_from_content_type(ov_ct)}\n\n",
                                     get_class_from_content_type(ov_ct),
                                 )
                                 try:
-                                    print(epc_file.read(ov_path))
+                                    logging.debug(epc_file.read(ov_path))
                                 except:
                                     pass
-                                print(e)
                                 # raise e
                         elif (
                             get_class_from_content_type(ov_ct)
@@ -490,13 +490,13 @@ class Epc:
                                         )
                                     )
                                 except IOError as e:
-                                    print(traceback.format_exc())
+                                    logging.error(traceback.format_exc())
                             elif (
                                 f_info.filename != "_rels/.rels"
                             ):  # CoreProperties rels file
                                 # RELS FILES READING START
 
-                                # print(f"reading rels {f_info.filename}")
+                                # logging.debug(f"reading rels {f_info.filename}")
                                 (
                                     rels_folder,
                                     rels_file_name,
@@ -528,7 +528,7 @@ class Epc:
                                             )
                                         )
                                         for rel in rels_file.relationship:
-                                            # print(f"\t\t{rel.type_value}")
+                                            # logging.debug(f"\t\t{rel.type_value}")
                                             if (
                                                 rel.type_value
                                                 != EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
@@ -548,15 +548,15 @@ class Epc:
                                                     additional_rels_key
                                                 ].append(rel)
                                     except AttributeError:
-                                        print(traceback.format_exc())
+                                        logging.error(traceback.format_exc())
                                         pass  # 'CoreProperties' object has no attribute 'object_version'
                                     except Exception as e:
-                                        print(
+                                        logging.error(
                                             f"Error with obj path {obj_path} {path_to_obj[obj_path]}"
                                         )
                                         raise e
                                 else:
-                                    print(
+                                    logging.error(
                                         f"xml file '{f_info.filename}' is not associate to any readable object "
                                         f"(or the object type is not supported because"
                                         f" of a lack of a dependency module) "
@@ -569,7 +569,7 @@ class Epc:
                 additional_rels=additional_rels,
             )
         except zipfile.BadZipFile as error:
-            print(error)
+            logging.error(error)
 
         return None
 

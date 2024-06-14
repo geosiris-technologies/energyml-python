@@ -218,9 +218,9 @@ def _patterns_validation(
                 val, root_obj, f"{current_attribute_dot_path}.{k}"
             )
     else:
-        # print(get_class_fields(obj))
+        # logging.debug(get_class_fields(obj))
         for att_name, att_field in get_class_fields(obj).items():
-            # print(f"att_name : {att_field.metadata}")
+            # logging.debug(f"att_name : {att_field.metadata}")
             error_list = error_list + validate_attribute(
                 get_object_attribute(obj, att_name, False),
                 root_obj,

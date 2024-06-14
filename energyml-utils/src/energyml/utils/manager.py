@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import importlib
 import inspect
+import logging
 import pkgutil
 from typing import Union, Any, Dict
 
@@ -32,10 +33,10 @@ def dict_energyml_modules() -> Dict:
     modules = {}
 
     energyml_module = importlib.import_module("energyml")
-    # print("> energyml")
+    # logging.debug("> energyml")
 
     for mod in pkgutil.iter_modules(energyml_module.__path__):
-        # print(f"{mod.name}")
+        # logging.debug(f"{mod.name}")
         if mod.name in ENERGYML_MODULES_NAMES:
             energyml_sub_module = importlib.import_module(
                 f"energyml.{mod.name}"
@@ -54,7 +55,7 @@ def list_energyml_modules():
         energyml_module = importlib.import_module("energyml")
         modules = []
         for obj in pkgutil.iter_modules(energyml_module.__path__):
-            # print(f"{obj.name}")
+            # logging.debug(f"{obj.name}")
             if obj.name in ENERGYML_MODULES_NAMES:
                 modules.append(obj.name)
         return modules
@@ -76,7 +77,7 @@ def list_classes(module_path: str) -> List:
                 class_list.append(obj)
         return class_list
     except ModuleNotFoundError:
-        print(f"Err : module {module_path} not found")
+        logging.error(f"Err : module {module_path} not found")
         return []
 
 
@@ -158,7 +159,7 @@ def get_class_pkg(cls):
         m = p.search(cls.__module__)
         return m.group("pkg")
     except AttributeError as e:
-        print(f"Exception to get class package for '{cls}'")
+        logging.error(f"Exception to get class package for '{cls}'")
         raise e
 
 

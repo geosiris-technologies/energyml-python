@@ -62,7 +62,7 @@ def _read_energyml_xml_bytes_as_class(file: bytes, obj_class: Type, fail_on_unkn
         logging.error(f"Failed to parse file {file} as class {obj_class}")
         if len(e.args) > 0:
             if "unknown property" in e.args[0].lower():
-                print(e)
+                logging.error(e)
                 logging.error(
                     "A property has not been found, please check if your 'xsi::type' values contains "
                     "the xml namespace (e.g. 'xsi:type=\"eml:VerticalCrsEpsgCode\"')."
@@ -86,19 +86,19 @@ def read_energyml_xml_bytes(
     except xsdata.exceptions.ParserError as e:
         if len(e.args) > 0:
             if "unknown property" in e.args[0].lower():
-                print(f"Trying reading without fail on unknown attribute/property")
+                logging.error(f"Trying reading without fail on unknown attribute/property")
                 try:
                     return _read_energyml_xml_bytes_as_class(file, obj_type, False, False)
                 except Exception as e:
-                    print(traceback.print_stack())
+                    logging.error(traceback.print_stack())
                     pass
 
         # Otherwise
         for obj_type_dev in get_energyml_class_in_related_dev_pkg(obj_type):
             try:
-                print(f"Trying with class : {obj_type_dev}")
+                logging.debug(f"Trying with class : {obj_type_dev}")
                 obj = _read_energyml_xml_bytes_as_class(file, obj_type_dev)
-                print(f" ==> succeed read with {obj_type_dev}")
+                logging.debug(f" ==> succeed read with {obj_type_dev}")
                 return obj
             except Exception:
                 pass
@@ -147,7 +147,7 @@ def _read_energyml_json_bytes_as_class(
         try:
             return parser.from_bytes(file, obj_class)
         except ParserError as e:
-            print(f"Failed to parse file {file} as class {obj_class}")
+            logging.error(f"Failed to parse file {file} as class {obj_class}")
             raise e
     elif json_version == JSON_VERSION.OSDU_OFFICIAL:
         return read_json_dict(json.loads(file))
@@ -170,18 +170,18 @@ def read_energyml_json_bytes(
         try:
             return _read_energyml_json_bytes_as_class(file, obj_type)
         except xsdata.exceptions.ParserError as e:
-            print(
+            logging.error(
                 f"Failed to read file with type {obj_type}: {get_energyml_class_in_related_dev_pkg(obj_type)}"
             )
             for obj_type_dev in get_energyml_class_in_related_dev_pkg(
                 obj_type
             ):
                 try:
-                    print(f"Trying with class : {obj_type_dev}")
+                    logging.debug(f"Trying with class : {obj_type_dev}")
                     obj = _read_energyml_json_bytes_as_class(
                         file, obj_type_dev
                     )
-                    print(f" ==> succeed read with {obj_type_dev}")
+                    logging.debug(f" ==> succeed read with {obj_type_dev}")
                     return obj
                 except Exception:
                     pass
@@ -312,14 +312,13 @@ def _read_json_dict(obj_json: Any, sub_obj: List) -> Any:
                 elif not att.startswith("$"):
                     if att == "_":
                         att = "value"
-                    # print(f"setting : {att} {get_matching_class_attribute_name(obj, att)}")
                     setattr(
                         obj,
                         get_matching_class_attribute_name(obj, att),
                         _read_json_dict(val, sub_obj),
                     )
         except Exception as e:
-            print(
+            logging.error(
                 f"Err on {att}",
                 search_attribute_matching_name(
                     obj=obj,
@@ -334,7 +333,7 @@ def _read_json_dict(obj_json: Any, sub_obj: List) -> Any:
     elif isinstance(obj_json, list):
         return [_read_json_dict(o, sub_obj) for o in obj_json]
     elif is_primitive(obj_json):
-        # print(f"PRIM : {obj_json}")
+        # logging.debug(f"PRIM : {obj_json}")
         return obj_json
     else:
         raise NotParsableType(type(obj_json) + " " + obj_json)
@@ -374,9 +373,6 @@ def _fill_dict_with_attribs(
     _parent: Optional[Any] = None,
 ) -> None:
 
-    # if "WellboreMarker" in str(type(obj)):
-    #     print("===================================\n\t", list(map(lambda f: f[0], get_class_fields(obj).items())))
-
     for att_name, field in get_class_fields(obj).items():
         field_name = (
             field.metadata["name"]
@@ -393,10 +389,8 @@ def _fill_dict_with_attribs(
         )
         value = getattr(obj, att_name)
 
-        # if "WellboreMarker" in str(type(obj)):
-        #     print(f"\t> {field_name}, {att_name} : {value}")
         if "Any_element" in str(field_name):
-            print(f"\t> {field_name}, {att_name} : {value}, {type(obj)}")
+            logging.debug(f"\t> {field_name}, {att_name} : {value}, {type(obj)}")
 
         if (value is not None or mandatory) and (
             not isinstance(value, list) or len(value) > 0
@@ -417,7 +411,7 @@ def _fill_dict_with_attribs(
                             ref_value, f_identifier_to_obj
                         )
                     else:
-                        print(f"NotFound : {ref_identifier}")
+                        logging.debug(f"NotFound : {ref_identifier}")
 
 
 def _to_json_dict_fn(
@@ -434,8 +428,6 @@ def _to_json_dict_fn(
             in the original object given by the user
     :return: Any
     """
-    if "WellboreMarker" in str(type(obj)):
-        print(obj)
     if obj is None:
         return None
     elif is_enum(obj):
@@ -449,7 +441,6 @@ def _to_json_dict_fn(
     elif isinstance(obj, xsdata.models.datatype.XmlDateTime):
         return str(obj)
     elif isinstance(obj, DerivedElement):
-        # res = {"$type": "DisabledMarkers"}
         res = {"$type": get_qualified_type_from_class(obj.value)}
         # _fill_dict_with_attribs(res, obj.value, f_identifier_to_obj, _parent)
         return res
@@ -461,7 +452,7 @@ def _to_json_dict_fn(
             _fill_dict_with_attribs(res, obj, f_identifier_to_obj, _parent)
             return res
         except Exception as e:
-            print(f"Except on qt: {obj} - {type(obj)}")
+            logging.error(f"Except on qt: {obj} - {type(obj)}")
             raise e
 
 

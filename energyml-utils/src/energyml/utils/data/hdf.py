@@ -1,5 +1,6 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
+import logging
 import os
 from dataclasses import dataclass
 from io import BytesIO
@@ -167,13 +168,13 @@ def get_hdf5_path_from_external_path(
     # resqml 2.0.1
     if hdf_proxy_lst is not None and len(hdf_proxy_lst) > 0:
         hdf_proxy = hdf_proxy_lst
-        # print("h5Proxy", hdf_proxy)
+        # logging.debug("h5Proxy", hdf_proxy)
         while isinstance(hdf_proxy, list):
             hdf_proxy = hdf_proxy[0]
         hdf_proxy_obj = epc.get_object_by_identifier(
             get_obj_identifier(hdf_proxy)
         )
-        print("hdf_proxy_obj : ", hdf_proxy_obj, " hdf_proxy : ", hdf_proxy)
+        logging.debug("hdf_proxy_obj : ", hdf_proxy_obj, " hdf_proxy : ", hdf_proxy)
         if hdf_proxy_obj is not None:
             for rel in epc.additional_rels.get(
                 get_obj_identifier(hdf_proxy_obj), []
@@ -214,7 +215,7 @@ def get_hdf5_path_from_external_path(
     if len(result) == 0:
         result = [epc.epc_file_path[:-4] + ".h5"]
 
-    print(
+    logging.debug(
         external_path_obj,
         result,
         "\n\t",

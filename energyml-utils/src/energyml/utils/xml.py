@@ -1,5 +1,6 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
+import logging
 from io import BytesIO
 from typing import Optional, Any, Union
 
@@ -29,7 +30,7 @@ def get_class_name_from_xml(tree: ETREE.Element) -> str:
     root_namespace = get_root_namespace(tree)
     pkg = get_pkg_from_namespace(root_namespace)
     if pkg is None:
-        print(f"No pkg found for elt {tree}")
+        logging.error(f"No pkg found for elt {tree}")
     else:
         if pkg == "opc":
             return "energyml.opc.opc." + get_root_type(tree)
@@ -39,7 +40,7 @@ def get_class_name_from_xml(tree: ETREE.Element) -> str:
                 .replace(".", "_")
                 .replace("-", "_")
             )
-            # print(schema_version)
+            # logging.debug(schema_version)
             if pkg == "resqml" and schema_version == "2_0":
                 schema_version = "2_0_1"
 

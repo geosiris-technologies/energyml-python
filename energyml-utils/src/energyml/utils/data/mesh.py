@@ -1,6 +1,7 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import inspect
+import logging
 import os
 import re
 import sys
@@ -147,7 +148,7 @@ def read_mesh_object(
             workspace=workspace,
         )
     else:
-        print(
+        logging.error(
             f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found"
         )
         raise Exception(
@@ -392,7 +393,7 @@ def read_grid2d_representation(
         fa_count = fa_count[0]
         sa_count = sa_count[0]
 
-        # print(f"sa_count {sa_count} fa_count {fa_count}")
+        # logging.debug(f"sa_count {sa_count} fa_count {fa_count}")
 
         points_no_nan = []
 
@@ -423,13 +424,13 @@ def read_grid2d_representation(
             sa_count = sa_count + 1
             fa_count = fa_count + 1
 
-        # print(f"sa_count {sa_count} fa_count {fa_count} : {sa_count*fa_count} - {len(points)} ")
+        # logging.debug(f"sa_count {sa_count} fa_count {fa_count} : {sa_count*fa_count} - {len(points)} ")
 
         for sa in range(sa_count - 1):
             for fa in range(fa_count - 1):
                 line = sa * fa_count
                 # if sa+1 == int(sa_count / 2) and fa == int(fa_count / 2):
-                #     print(
+                #     logging.debug(
                 #         "\n\t", (line + fa), " : ", (line + fa) in indice_to_final_indice,
                 #         "\n\t", (line + fa + 1), " : ", (line + fa + 1) in indice_to_final_indice,
                 #         "\n\t", (line + fa_count + fa + 1), " : ", (line + fa_count + fa + 1) in indice_to_final_indice,
@@ -458,7 +459,7 @@ def read_grid2d_representation(
                             indice_to_final_indice[line + fa_count + fa],
                         ]
                     )
-        # print(indices)
+        # logging.debug(indices)
         meshes.append(
             SurfaceMesh(
                 identifier=f"{get_obj_identifier(energyml_object)}_patch{patch_idx}",
@@ -713,7 +714,7 @@ def export_multiple_data(
             f".{file_format.value}"
         )
         file_path = f"{output_folder_path}/{file_name}"
-        print(f"Exporting : {file_path}")
+        logging.debug(f"Exporting : {file_path}")
         mesh_list = read_mesh_object(
             energyml_object=energyml_obj,
             workspace=EPCWorkspace(epc=epc),
@@ -731,4 +732,4 @@ def export_multiple_data(
                     out=f,
                 )
         else:
-            print(f"Code is not written for format {file_format}")
+            logging.error(f"Code is not written for format {file_format}")

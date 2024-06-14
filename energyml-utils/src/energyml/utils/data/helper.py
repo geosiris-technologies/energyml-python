@@ -187,7 +187,7 @@ class EPCWorkspace(EnergymlWorkspace):
                 try:
                     return h5_reader.read_array(h5_io, path_in_external)
                 except Exception as e:
-                    print(traceback.format_exc())
+                    logging.error(traceback.format_exc())
                     pass
             return self.read_external_array(
                 energyml_array=energyml_array,
@@ -218,7 +218,7 @@ class EPCWorkspace(EnergymlWorkspace):
                     f"Failed to read h5 file. Paths tried : {hdf5_paths}"
                 )
 
-            # print(f"\tpath_in_root : {path_in_root}")
+            # logging.debug(f"\tpath_in_root : {path_in_root}")
             # if path_in_root.lower().endswith("points") and len(result_array) > 0 and len(result_array[0]) == 3:
             #     crs = None
             #     try:
@@ -230,7 +230,7 @@ class EPCWorkspace(EnergymlWorkspace):
             #         )
             #     except ObjectNotFoundNotError as e:
             #         logging.error("No CRS found, not able to check zIncreasingDownward")
-            # print(f"\tzincreasing_downward : {zincreasing_downward}")
+            # logging.debug(f"\tzincreasing_downward : {zincreasing_downward}")
             # zincreasing_downward = is_z_reversed(crs)
 
             # if zincreasing_downward:
@@ -254,13 +254,13 @@ def get_crs_obj(
     :return:
     """
     if workspace is None:
-        print("@get_crs_obj no Epc file given")
+        logging.error("@get_crs_obj no Epc file given")
     else:
         crs_list = search_attribute_matching_name(
             context_obj, r"\.*Crs", search_in_sub_obj=True, deep_search=False
         )
         if crs_list is not None and len(crs_list) > 0:
-            # print(crs_list[0])
+            # logging.debug(crs_list[0])
             crs = workspace.get_object_by_identifier(
                 get_obj_identifier(crs_list[0])
             )
@@ -400,7 +400,7 @@ def read_array(
             workspace=workspace,
         )
     else:
-        print(
+        logging.error(
             f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found"
         )
         raise Exception(
@@ -422,12 +422,12 @@ def read_constant_array(
     :param workspace:
     :return:
     """
-    # print(f"Reading constant array\n\t{energyml_array}")
+    # logging.debug(f"Reading constant array\n\t{energyml_array}")
 
     value = get_object_attribute_no_verif(energyml_array, "value")
     count = get_object_attribute_no_verif(energyml_array, "count")
 
-    # print(f"\tValue : {[value for i in range(0, count)]}")
+    # logging.debug(f"\tValue : {[value for i in range(0, count)]}")
 
     return [value for i in range(0, count)]
 
@@ -562,7 +562,7 @@ def read_point3d_zvalue_array(
             sup_geom_array[i][2] = zvalues_array[i]
         except Exception as e:
             if count == 0:
-                print(e, f": {i} is out of bound of {len(zvalues_array)}")
+                logging.error(e, f": {i} is out of bound of {len(zvalues_array)}")
                 count = count + 1
 
     return sup_geom_array
@@ -590,13 +590,13 @@ def read_point3d_from_representation_lattice_array(
             energyml_array, "supporting_representation"
         )
     )
-    # print(f"energyml_array : {energyml_array}\n\t{supporting_rep_identifier}")
+    # logging.debug(f"energyml_array : {energyml_array}\n\t{supporting_rep_identifier}")
     supporting_rep = workspace.get_object_by_identifier(
         supporting_rep_identifier
     )
 
     # TODO chercher un pattern \.*patch\.*.[d]+ pour trouver le numero du patch dans le path_in_root puis lire le patch
-    # print(f"path_in_root {path_in_root}")
+    # logging.debug(f"path_in_root {path_in_root}")
 
     result = []
     if "grid2d" in str(type(supporting_rep)).lower():
@@ -725,7 +725,7 @@ def read_point3d_lattice_array(
                 crs_sa_count[0] == fastest_size - 1
                 and crs_fa_count[0] == slowest_size - 1
             ):
-                print("reversing order")
+                logging.debug("reversing order")
                 # if offset were given in the wrong order
                 tmp_table = slowest_table
                 slowest_table = fastest_table
@@ -788,4 +788,4 @@ def read_point3d_lattice_array(
 #         path_in_root: Optional[str] = None,
 #         workspace: Optional[EnergymlWorkspace] = None
 # ):
-#     print(energyml_array)
+#     logging.debug(energyml_array)
