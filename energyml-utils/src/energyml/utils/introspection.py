@@ -1151,7 +1151,9 @@ def _random_value_from_class(
                 return chosen_type(**args)
 
     except Exception as e:
-        logging.error(f"exception on attribute '{attribute_name}' for class {cls} :")
+        logging.error(
+            f"exception on attribute '{attribute_name}' for class {cls} :"
+        )
         raise e
 
     logging.error(

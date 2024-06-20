@@ -44,3 +44,5 @@ manip*
 *.epc
 *.off
 *.obj
+*.log
+*.geojson

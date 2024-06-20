@@ -20,16 +20,25 @@ from src.energyml.utils.data.helper import (
     get_not_supported_array,
 )
 from src.energyml.utils.data.mesh import *
+from src.energyml.utils.data.mesh import _create_shape, _write_geojson_shape
 from src.energyml.utils.epc import gen_energyml_object_path
-from src.energyml.utils.introspection import is_abstract, get_obj_uuid, get_class_fields
+from src.energyml.utils.introspection import (
+    is_abstract,
+    get_obj_uuid,
+    get_class_fields,
+)
 from src.energyml.utils.manager import get_sub_classes
 from src.energyml.utils.serialization import (
     read_energyml_xml_file,
     read_energyml_xml_str,
     read_energyml_xml_bytes,
+    read_energyml_xml_tree,
 )
 from src.energyml.utils.validation import validate_epc
-from src.energyml.utils.xml import RGX_CONTENT_TYPE
+from src.energyml.utils.xml import RGX_CONTENT_TYPE, get_tree
+
+
+logger = logging.getLogger(__name__)
 
 
 def test_array():
@@ -331,6 +340,40 @@ def test_export_multiple():
     )
 
 
+def test_export_multiple_geojson():
+    uuid_list = [
+        # "a3f31b20-c93a-4682-8f6c-71be087202a4",  # grid2d
+        # "e6d5e3b4-ca6b-4182-89fa-96f7efee42ca",  # grid2d
+        # "a3f31b20-c93a-4682-8f6c-71be087202a4",  # TrSet
+        # "8659a66c-8727-420a-badf-578819698239",  # TrSet
+        # "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
+        "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
+    ]
+    export_multiple_data(
+        epc_path="D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/EQN_ORIGIN_PLUS_TRIANG_SET/"
+        "Volve_Horizons_and_Faults_Depth_originEQN_Plus.epc",
+        uuid_list=uuid_list,
+        output_folder_path="../example/result/export-energyml-utils",
+        # output_folder_path="D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/EQN_ORIGIN_PLUS_TRIANG_SET/export-energyml-utils",
+        file_format=MeshFileFormat.GEOJSON,
+        logger=logger,
+    )
+
+
+def test_export_multiple_geojson_volve():
+    uuid_list = [
+        "d87b8581-7c98-4d73-8e62-6a5fe6501f6b",  # grid
+    ]
+    export_multiple_data(
+        epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/VOLVE_STRUCT_simple.epc",
+        uuid_list=uuid_list,
+        output_folder_path="../example/result/export-energyml-utils",
+        # output_folder_path="D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/EQN_ORIGIN_PLUS_TRIANG_SET/export-energyml-utils",
+        file_format=MeshFileFormat.GEOJSON,
+        logger=logger,
+    )
+
+
 def test_export_multiple_testing_package():
     uuid_list = [
         "030a82f6-10a7-4ecf-af03-54749e098624",  # grid2d
@@ -458,8 +501,157 @@ def read_unreferenced_h5_file():
     )
 
 
+def test_etree():
+    path = "../rc/obj_EpcExternalPartReference_61fa2fdf-46ab-4c02-ab72-7895cce58e37.xml"
+
+    with open(path, "rb") as f:
+        xml_content = f.read()
+        print(read_energyml_xml_tree(get_tree(xml_content)))
+
+
+def test_simple_geojson():
+
+    # data = [
+    #     [0, 0, 0],
+    #     [1, 1, 1],
+    #     [2, 2, 2],
+    #     [3, 3, 3],
+    #     [4, 4, 4],
+    #     [5, 5, 5],
+    #     [6, 6, 6],
+    #     [7, 7, 7],
+    # ]
+
+    data = [
+        [1.9014022183555446, 58.44504279085361, 6473036.072509766],
+        [1.9013737107179551, 58.44504703767692, 6472932.990478516],
+        [1.9003568945435436, 58.44551437459448, 6472946.729736328],
+        [1.9003568945435436, 58.44551437459448, 6473144.458251953],
+        [1.8988426423505782, 58.446273843095085, 6472907.2568359375],
+        # [0, 0, 0],
+        [1.8693970878231008, 58.458691432495556, 6473685.377441406],
+        #         [666, 666, 66600000000],
+        [1.8680866057645866, 58.45740440847041, 6473473.168212891],
+        [1.8667123866065054, 58.45605393200282, 6473242.957763672],
+    ]
+
+    indices_a = [0, 1, 2]
+    indices_b = [3, 4, 5, 6, 7]
+
+    indices_all = [indices_a, indices_b]
+
+    for t in GeoJsonGeometryType:
+        print(
+            f"> NI {t}\n",
+            _create_shape(
+                geo_type=t,
+                point_list=data,
+                indices=indices_b,
+                point_offset=0,
+                logger=logger,
+            ),
+        )
+
+        print(
+            f"> I {t}\n",
+            _create_shape(
+                geo_type=t,
+                point_list=data,
+                indices=indices_b,
+                point_offset=0,
+                logger=logger,
+            ),
+        )
+        print(
+            f"> II {t}\n",
+            _create_shape(
+                geo_type=t,
+                point_list=data,
+                indices=indices_all,
+                point_offset=0,
+                logger=logger,
+            ),
+        )
+
+        print(f"\n+++++++++++++++++++++++++\n")
+
+
+def test_simple_geojson_io():
+
+    data = [
+        [0, 0, 0],
+        [1, 1, 1],
+        [2, 2, 2],
+        [3, 3, 3],
+        [4, 4, 4],
+        [5, 5, 5],
+        [6, 6, 6],
+        [7, 7, 7],
+    ]
+
+    indices_a = [0, 1, 2]
+    indices_b = [3, 4, 5, 6, 7]
+
+    indices_all = [indices_a, indices_b]
+
+    for t in GeoJsonGeometryType:
+        io_a = BytesIO()
+        _write_geojson_shape(
+            out=io_a,
+            geo_type=t,
+            point_list=data,
+            indices=indices_b,
+            point_offset=0,
+            logger=logger,
+        )
+        print(f"> NI {t}\n", io_a.getvalue())
+
+        io_b = BytesIO()
+        _write_geojson_shape(
+            out=io_b,
+            geo_type=t,
+            point_list=data,
+            indices=indices_b,
+            point_offset=0,
+            logger=logger,
+        )
+        print(f"> I {t}\n", io_b.getvalue())
+
+        io_c = BytesIO()
+        _write_geojson_shape(
+            out=io_c,
+            geo_type=t,
+            point_list=data,
+            indices=indices_all,
+            point_offset=0,
+            logger=logger,
+        )
+        print(f"> II {t}\n", io_c.getvalue())
+
+        print(
+            f"> REF {t}\n  ",
+            _create_shape(
+                geo_type=t,
+                point_list=data,
+                indices=indices_all,
+                point_offset=0,
+                logger=logger,
+            )[0],
+        )
+
+        print(f"\n+++++++++++++++++++++++++\n")
+
+
 if __name__ == "__main__":
-    print(get_class_fields(WellboreMarkerFrameRepresentation))
+
+    logging.basicConfig(
+        format="%(asctime)s %(levelname)-8s %(message)s",
+        filename="main_data.log",
+        level=logging.DEBUG,
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    # print(get_class_fields(WellboreMarkerFrameRepresentation))
     # test_array()
     # test_h5_path()
     # read_h5_datasets()
@@ -482,3 +674,10 @@ if __name__ == "__main__":
     #
     # test_read_external_part_with_xsi()
     # read_unreferenced_h5_file()
+
+    # test_export_multiple_geojson()
+    # test_export_multiple_geojson_volve()
+    # test_simple_geojson()
+    test_simple_geojson_io()
+
+    # test_etree()
