@@ -22,6 +22,7 @@ from ..introspection import (
     search_attribute_in_upper_matching_name,
     get_obj_uuid,
     get_object_attribute,
+    get_object_attribute_rgx,
 )
 
 _ARRAY_NAMES_ = [
@@ -63,70 +64,6 @@ _ARRAY_NAMES_ = [
     "StringHdf5Array",
     "StringXmlArray",
 ]
-
-
-def _point_as_array(point: Any) -> List:
-    """
-    Transform a point that has "coordinate1", "coordinate2", "coordinate3" as attributes into a list.
-    :param point:
-    :return:
-    """
-    return [
-        get_object_attribute_no_verif(point, "coordinate1"),
-        get_object_attribute_no_verif(point, "coordinate2"),
-        get_object_attribute_no_verif(point, "coordinate3"),
-    ]
-
-
-def is_z_reversed(crs: Optional[Any]) -> bool:
-    """
-    Returns True if the Z axe is reverse (ZIncreasingDownward=='True' or VerticalAxis.Direction=='down')
-    :param crs:
-    :return: By default, False is returned (if 'crs' is None)
-    """
-    reverse_z_values = False
-    if crs is not None:
-        # resqml 201
-        zincreasing_downward = search_attribute_matching_name(
-            crs, "ZIncreasingDownward"
-        )
-        if len(zincreasing_downward) > 0:
-            reverse_z_values = zincreasing_downward[0]
-
-        # resqml >= 22
-        vert_axis = search_attribute_matching_name(
-            crs, "VerticalAxis.Direction"
-        )
-        if len(vert_axis) > 0:
-            reverse_z_values = vert_axis[0].lower() == "down"
-
-    return reverse_z_values
-
-
-def prod_n_tab(val: Union[float, int, str], tab: List[Union[float, int, str]]):
-    """
-    Multiply every value of the list 'tab' by the constant 'val'
-    :param val:
-    :param tab:
-    :return:
-    """
-    return list(map(lambda x: x * val, tab))
-
-
-def sum_lists(l1: List, l2: List):
-    """
-    Sums 2 lists values.
-
-    Example:
-        [1,1,1] and [2,2,3,6] gives : [3,3,4,6]
-
-    :param l1:
-    :param l2:
-    :return:
-    """
-    return [l1[i] + l2[i] for i in range(min(len(l1), len(l2)))] + max(
-        l1, l2, key=len
-    )[min(len(l1), len(l2)) :]
 
 
 #  _       __           __
@@ -237,6 +174,170 @@ class EPCWorkspace(EnergymlWorkspace):
             #     result_array = list(map(lambda p: [p[0], p[1], -p[2]], result_array))
 
             return result_array
+
+
+def _point_as_array(point: Any) -> List:
+    """
+    Transform a point that has "coordinate1", "coordinate2", "coordinate3" as attributes into a list.
+    :param point:
+    :return:
+    """
+    return [
+        get_object_attribute_no_verif(point, "coordinate1"),
+        get_object_attribute_no_verif(point, "coordinate2"),
+        get_object_attribute_no_verif(point, "coordinate3"),
+    ]
+
+
+def is_z_reversed(crs: Optional[Any]) -> bool:
+    """
+    Returns True if the Z axe is reverse (ZIncreasingDownward=='True' or VerticalAxis.Direction=='down')
+    :param crs: a CRS object
+    :return: By default, False is returned (if 'crs' is None)
+    """
+    reverse_z_values = False
+    if crs is not None:
+        # resqml 201
+        zincreasing_downward = search_attribute_matching_name(
+            crs, "ZIncreasingDownward"
+        )
+        if len(zincreasing_downward) > 0:
+            reverse_z_values = zincreasing_downward[0]
+
+        # resqml >= 22
+        vert_axis = search_attribute_matching_name(
+            crs, "VerticalAxis.Direction"
+        )
+        if len(vert_axis) > 0:
+            reverse_z_values = vert_axis[0].lower() == "down"
+
+    return reverse_z_values
+
+
+def get_vertical_epsg_code(crs_object: Any):
+    projected_epsg_code = None
+    if crs_object is not None:  # LocalDepth3dCRS
+        projected_epsg_code = get_object_attribute_rgx(
+            crs_object, "VerticalCrs.EpsgCode"
+        )
+        if projected_epsg_code is None:  # LocalEngineering2DCrs
+            projected_epsg_code = get_object_attribute_rgx(
+                crs_object, "OriginProjectedCrs.AbstractProjectedCrs.EpsgCode"
+            )
+    return projected_epsg_code
+
+
+def get_projected_epsg_code(
+    crs_object: Any, workspace: Optional[EnergymlWorkspace] = None
+):
+    if crs_object is not None:  # LocalDepth3dCRS
+        projected_epsg_code = get_object_attribute_rgx(
+            crs_object, "ProjectedCrs.EpsgCode"
+        )
+        if projected_epsg_code is None:  # LocalEngineering2DCrs
+            projected_epsg_code = get_object_attribute_rgx(
+                crs_object, "OriginProjectedCrs.AbstractProjectedCrs.EpsgCode"
+            )
+
+        if projected_epsg_code is None and workspace is not None:
+            return get_projected_epsg_code(
+                workspace.get_object_by_uuid(
+                    get_object_attribute_rgx(
+                        crs_object, "LocalEngineering2[dD]Crs.Uuid"
+                    )
+                )
+            )
+        return projected_epsg_code
+    return None
+
+
+def get_projected_uom(
+    crs_object: Any, workspace: Optional[EnergymlWorkspace] = None
+):
+    if crs_object is not None:
+        projected_epsg_code = get_object_attribute_rgx(
+            crs_object, "ProjectedUom"
+        )
+        if projected_epsg_code is None:
+            projected_epsg_code = get_object_attribute_rgx(
+                crs_object, "HorizontalAxes.ProjectedUom"
+            )
+
+        if projected_epsg_code is None and workspace is not None:
+            return get_projected_uom(
+                workspace.get_object_by_uuid(
+                    get_object_attribute_rgx(
+                        crs_object, "LocalEngineering2[dD]Crs.Uuid"
+                    )
+                )
+            )
+        return projected_epsg_code
+    return None
+
+
+def get_crs_origin_offset(self, crs_obj: Any) -> List[float]:
+    """
+    Return a list [X,Y,Z] corresponding to the crs Offset [XOffset/OriginProjectedCoordinate1, ... ] depending on the
+    crs energyml version.
+    :param self:
+    :param crs_obj:
+    :return:
+    """
+    tmp_offset_x = get_object_attribute_rgx(crs_obj, "XOffset")
+    if tmp_offset_x is None:
+        tmp_offset_x = get_object_attribute_rgx(
+            crs_obj, "OriginProjectedCoordinate1"
+        )
+
+    tmp_offset_y = get_object_attribute_rgx(crs_obj, "YOffset")
+    if tmp_offset_y is None:
+        tmp_offset_y = get_object_attribute_rgx(
+            crs_obj, "OriginProjectedCoordinate2"
+        )
+
+    tmp_offset_z = get_object_attribute_rgx(crs_obj, "YOffset")
+    if tmp_offset_z is None:
+        tmp_offset_z = get_object_attribute_rgx(
+            crs_obj, "OriginProjectedCoordinate3"
+        )
+
+    crs_point_offset = [0, 0, 0]
+    try:
+        crs_point_offset = [
+            float(tmp_offset_x) if tmp_offset_x is not None else 0,
+            float(tmp_offset_y) if tmp_offset_y is not None else 0,
+            float(tmp_offset_z) if tmp_offset_z is not None else 0,
+        ]
+    except Exception as e:
+        self.logger.info(f"ERR reading crs offset {e}")
+
+    return crs_point_offset
+
+
+def prod_n_tab(val: Union[float, int, str], tab: List[Union[float, int, str]]):
+    """
+    Multiply every value of the list 'tab' by the constant 'val'
+    :param val:
+    :param tab:
+    :return:
+    """
+    return list(map(lambda x: x * val, tab))
+
+
+def sum_lists(l1: List, l2: List):
+    """
+    Sums 2 lists values.
+
+    Example:
+        [1,1,1] and [2,2,3,6] gives : [3,3,4,6]
+
+    :param l1:
+    :param l2:
+    :return:
+    """
+    return [l1[i] + l2[i] for i in range(min(len(l1), len(l2)))] + max(
+        l1, l2, key=len
+    )[min(len(l1), len(l2)) :]
 
 
 def get_crs_obj(
@@ -429,7 +530,7 @@ def read_constant_array(
 
     # logging.debug(f"\tValue : {[value for i in range(0, count)]}")
 
-    return [value for i in range(0, count)]
+    return [value] * count
 
 
 def read_xml_array(
@@ -562,7 +663,9 @@ def read_point3d_zvalue_array(
             sup_geom_array[i][2] = zvalues_array[i]
         except Exception as e:
             if count == 0:
-                logging.error(e, f": {i} is out of bound of {len(zvalues_array)}")
+                logging.error(
+                    e, f": {i} is out of bound of {len(zvalues_array)}"
+                )
                 count = count + 1
 
     return sup_geom_array

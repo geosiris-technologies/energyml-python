@@ -8,11 +8,16 @@ from io import BytesIO
 from typing import Optional, Any, Union, List, Dict, Callable, Type
 
 import xsdata
+from lxml import etree
 from xsdata.exceptions import ParserError
 from xsdata.formats.dataclass.context import XmlContext
 from xsdata.formats.dataclass.models.generics import DerivedElement
 from xsdata.formats.dataclass.parsers import XmlParser, JsonParser
 from xsdata.formats.dataclass.parsers.config import ParserConfig
+from xsdata.formats.dataclass.parsers.handlers import (
+    LxmlEventHandler,
+    XmlEventHandler,
+)
 from xsdata.formats.dataclass.serializers import JsonSerializer
 from xsdata.formats.dataclass.serializers import XmlSerializer
 from xsdata.formats.dataclass.serializers.config import SerializerConfig
@@ -28,7 +33,8 @@ from .introspection import (
     is_primitive,
     search_attribute_matching_name,
     get_class_from_qualified_type,
-    get_matching_class_attribute_name, is_enum,
+    get_matching_class_attribute_name,
+    is_enum,
 )
 from .xml import (
     get_class_name_from_xml,
@@ -43,7 +49,12 @@ class JSON_VERSION(Enum):
     OSDU_OFFICIAL = "OSDU_OFFICIAL"
 
 
-def _read_energyml_xml_bytes_as_class(file: bytes, obj_class: Type, fail_on_unknown_properties=True, fail_on_unknown_attributes=True) -> Any:
+def _read_energyml_xml_bytes_as_class(
+    file: bytes,
+    obj_class: Type,
+    fail_on_unknown_properties=True,
+    fail_on_unknown_attributes=True,
+) -> Any:
     """
     Read a xml file into the instance of type :param:`obj_class`.
     :param file:
@@ -70,6 +81,17 @@ def _read_energyml_xml_bytes_as_class(file: bytes, obj_class: Type, fail_on_unkn
         raise e
 
 
+def read_energyml_xml_tree(
+    file: etree, obj_type: Optional[type] = None
+) -> Any:
+    # if obj_type is None:
+    #     obj_type = get_class_from_name(get_class_name_from_xml(file))
+    # parser = XmlParser(handler=XmlEventHandler)
+    # # parser = XmlParser(handler=LxmlEventHandler)
+    # return parser.parse(file, obj_type)
+    return read_energyml_xml_bytes(etree.tostring(file, encoding="utf8"))
+
+
 def read_energyml_xml_bytes(
     file: bytes, obj_type: Optional[type] = None
 ) -> Any:
@@ -86,9 +108,13 @@ def read_energyml_xml_bytes(
     except xsdata.exceptions.ParserError as e:
         if len(e.args) > 0:
             if "unknown property" in e.args[0].lower():
-                logging.error(f"Trying reading without fail on unknown attribute/property")
+                logging.error(
+                    f"Trying reading without fail on unknown attribute/property"
+                )
                 try:
-                    return _read_energyml_xml_bytes_as_class(file, obj_type, False, False)
+                    return _read_energyml_xml_bytes_as_class(
+                        file, obj_type, False, False
+                    )
                 except Exception as e:
                     logging.error(traceback.print_stack())
                     pass
@@ -375,9 +401,7 @@ def _fill_dict_with_attribs(
 
     for att_name, field in get_class_fields(obj).items():
         field_name = (
-            field.metadata["name"]
-            if "name" in field.metadata
-            else field.name
+            field.metadata["name"] if "name" in field.metadata else field.name
         )
         if field_name == "value":
             field_name = "_"
@@ -390,14 +414,14 @@ def _fill_dict_with_attribs(
         value = getattr(obj, att_name)
 
         if "Any_element" in str(field_name):
-            logging.debug(f"\t> {field_name}, {att_name} : {value}, {type(obj)}")
+            logging.debug(
+                f"\t> {field_name}, {att_name} : {value}, {type(obj)}"
+            )
 
         if (value is not None or mandatory) and (
             not isinstance(value, list) or len(value) > 0
         ):
-            res[field_name] = _to_json_dict_fn(
-                value, f_identifier_to_obj, obj
-            )
+            res[field_name] = _to_json_dict_fn(value, f_identifier_to_obj, obj)
 
             if _parent is not None and (
                 field_name.lower() == "uuid" or field_name.lower() == "uid"
@@ -454,5 +478,3 @@ def _to_json_dict_fn(
         except Exception as e:
             logging.error(f"Except on qt: {obj} - {type(obj)}")
             raise e
-
-

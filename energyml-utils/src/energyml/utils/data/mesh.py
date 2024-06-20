@@ -1,6 +1,7 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import inspect
+import json
 import logging
 import os
 import re
@@ -8,7 +9,7 @@ import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from io import BytesIO
-from typing import List, Optional, Any, Callable
+from typing import List, Optional, Any, Callable, Dict, Union, Tuple
 
 from .hdf import HDF5FileReader
 from .helper import (
@@ -38,6 +39,36 @@ Point = list[float]
 class MeshFileFormat(Enum):
     OFF = "off"
     OBJ = "obj"
+    GEOJSON = "geojson"
+
+
+class GeoJsonGeometryType(Enum):
+    """GeoJson type enum"""
+
+    Point = "Point"
+    MultiPoint = "MultiPoint"
+    LineString = "LineString"
+    MultiLineString = "MultiLineString"
+    Polygon = "Polygon"
+    MultiPolygon = "MultiPolygon"
+
+
+def energyml_type_to_geojson_type(energyml_type: str):
+    if "PolylineSet" in energyml_type:
+        return GeoJsonGeometryType.MultiLineString
+    elif "Polyline" in energyml_type:
+        return GeoJsonGeometryType.LineString
+    elif "PointSet" in energyml_type:
+        return GeoJsonGeometryType.MultiPoint
+    elif "Point" in energyml_type:
+        return GeoJsonGeometryType.Point
+    elif "TriangulatedSet" in energyml_type:
+        return GeoJsonGeometryType.MultiPolygon
+    elif "Triangulated" in energyml_type:
+        return GeoJsonGeometryType.Polygon
+    elif "Grid2" in energyml_type:
+        return GeoJsonGeometryType.MultiPolygon
+    return GeoJsonGeometryType.Point
 
 
 @dataclass
@@ -53,9 +84,6 @@ class AbstractMesh:
     identifier: str = field(
         default=None,
     )
-
-    def export_off(self, out: BytesIO) -> None:
-        pass
 
     def get_nb_edges(self) -> int:
         return 0
@@ -359,6 +387,7 @@ def read_grid2d_representation(
     for patch_path, patch in search_attribute_matching_name_with_path(
         energyml_object, "Grid2dPatch"
     ):
+        crs = None
         reverse_z_values = False
         try:
             crs = get_crs_obj(
@@ -464,7 +493,7 @@ def read_grid2d_representation(
             SurfaceMesh(
                 identifier=f"{get_obj_identifier(energyml_object)}_patch{patch_idx}",
                 energyml_object=energyml_object,
-                crs_object=None,
+                crs_object=crs,
                 point_list=points if keep_holes else points_no_nan,
                 faces_indices=indices,
             )
@@ -482,7 +511,10 @@ def read_triangulated_set_representation(
     point_offset = 0
     patch_idx = 0
     for patch_path, patch in search_attribute_matching_name_with_path(
-        energyml_object, "\\.*Patch"
+        energyml_object,
+        "\\.*Patch.\\d+",
+        deep_search=False,
+        search_in_sub_obj=False,
     ):
         crs = None
         try:
@@ -529,13 +561,531 @@ def read_triangulated_set_representation(
                 faces_indices=triangles_list,
             )
         )
-
         point_offset = point_offset + len(point_list)
+        patch_idx += 1
 
     return meshes
 
 
 # MESH FILES
+
+
+def _recompute_min_max(
+    old_min: List,  # out parameters
+    old_max: List,  # out parameters
+    potential_min: List,
+    potential_max: List,
+) -> None:
+    for i in range(len(potential_min)):
+        if i >= len(old_min):
+            old_min.append(potential_min[i])
+        elif potential_min[i] is not None:
+            old_min[i] = min(old_min[i], potential_min[i])
+
+    for i in range(len(potential_max)):
+        if i >= len(old_max):
+            old_max.append(potential_max[i])
+        elif potential_max[i] is not None:
+            old_max[i] = max(old_max[i], potential_max[i])
+
+
+def _recompute_min_max_from_points(
+    old_min: List,  # out parameters
+    old_max: List,  # out parameters
+    points: Union[List[Point], Point],
+) -> None:
+    if len(points) > 0:
+        if isinstance(points[0], list):
+            for p in points:
+                _recompute_min_max_from_points(old_min, old_max, p)
+        else:
+            _recompute_min_max(old_min, old_max, points, points)
+
+
+def _create_shape(
+    geo_type: GeoJsonGeometryType,
+    point_list: List[List[float]],
+    indices: Optional[Union[List[List[int]], List[int]]] = None,
+    point_offset: int = 0,
+    logger: Optional[Any] = None,
+) -> Tuple[List, List[float], List[float]]:
+    """
+    Creates a shape from a point list [ [x0, y0 (, z0)? ], ..., [xn, yn (, zn)? ] ]
+    using indices. If indices is a simple list, result will be a line like :  [p0, ..., pn]. With p0 and pn
+    a list of coordinate from "points" parameter (like [x0, y0 (, z0)? ])
+    If the indices are a list of list, result will be polygones like :
+    [
+        [poly0_p0, ..., poly0_pn],
+        ...
+        [polyn_p0, ..., polyn_pn],
+    ]
+    :return shape, minXYZ (as list), maxXYZ (as list)
+    """
+    mins = []
+    maxs = []
+    result = None
+    try:
+        if geo_type == GeoJsonGeometryType.LineString:
+            result = []
+            if indices is not None and len(indices) > 0:
+                for idx in indices:
+                    result.append(point_list[idx + point_offset])
+                    _recompute_min_max_from_points(
+                        mins, maxs, point_list[idx + point_offset]
+                    )
+            else:
+                result = point_list
+                _recompute_min_max_from_points(mins, maxs, result)
+        elif (
+            geo_type == GeoJsonGeometryType.MultiPoint
+            or geo_type == GeoJsonGeometryType.Point
+        ):
+            result = point_list
+            _recompute_min_max_from_points(mins, maxs, result)
+        elif geo_type == GeoJsonGeometryType.MultiLineString:
+            if (
+                indices is not None
+                and len(indices) > 0
+                and isinstance(indices[0], list)
+            ):
+                result = []
+                for idx in indices:
+                    _res, _min, _max = _create_shape(
+                        geo_type=GeoJsonGeometryType.MultiLineString,
+                        point_list=point_list,
+                        indices=idx,
+                        point_offset=point_offset,
+                        logger=logger,
+                    )
+                    result = result + _res
+                    _recompute_min_max(mins, maxs, _min, _max)
+            else:
+                _res, _min, _max = _create_shape(
+                    geo_type=GeoJsonGeometryType.LineString,
+                    point_list=point_list,
+                    indices=indices,
+                    point_offset=point_offset,
+                    logger=logger,
+                )
+                result = [_res]
+                _recompute_min_max(mins, maxs, _min, _max)
+        elif geo_type == GeoJsonGeometryType.Polygon:
+            result, mins, maxs = _create_shape(
+                geo_type=GeoJsonGeometryType.MultiLineString,  # Here we only provide 1 line, the external one (outer-ring)
+                point_list=point_list,
+                indices=indices,
+                point_offset=point_offset,
+                logger=logger,
+            )
+            # First and last must be the same
+            if len(result) > 0 and result[0] != result[-1]:
+                result.append(result[0])
+        elif geo_type == GeoJsonGeometryType.MultiPolygon:
+            if (
+                indices is not None
+                and len(indices) > 0
+                and isinstance(indices[0], list)
+            ):
+                result = []
+                for idx in indices:
+                    _res, _min, _max = _create_shape(
+                        geo_type=GeoJsonGeometryType.MultiPolygon,  # Here we only provide 1 line, the external one (outer-ring)
+                        point_list=point_list,
+                        indices=idx,
+                        point_offset=point_offset,
+                        logger=logger,
+                    )
+                    result = result + _res
+                    _recompute_min_max(mins, maxs, _min, _max)
+            else:
+                _res, _min, _max = _create_shape(
+                    geo_type=GeoJsonGeometryType.Polygon,  # Here we only provide 1 line, the external one (outer-ring)
+                    point_list=point_list,
+                    indices=indices,
+                    point_offset=point_offset,
+                    logger=logger,
+                )
+                result = [_res]
+                _recompute_min_max(mins, maxs, _min, _max)
+    except Exception as e:
+        if logger is not None:
+            logger.error(e)
+        # raise e
+    return result, mins, maxs
+
+
+def _write_geojson_shape(
+    out: BytesIO,
+    geo_type: GeoJsonGeometryType,
+    point_list: List[List[float]],
+    indices: Optional[Union[List[List[int]], List[int]]] = None,
+    point_offset: int = 0,
+    logger: Optional[Any] = None,
+    _print_list_boundaries: Optional[bool] = True,
+) -> Tuple[List[float], List[float]]:
+    """
+    Write a shape from a point list [ [x0, y0 (, z0)? ], ..., [xn, yn (, zn)? ] ]
+    using indices. If indices is a simple list, result will be a line like :  [p0, ..., pn]. With p0 and pn
+    a list of coordinate from "points" parameter (like [x0, y0 (, z0)? ])
+    If the indices are a list of list, result will be polygones like :
+    [
+        [poly0_p0, ..., poly0_pn],
+        ...
+        [polyn_p0, ..., polyn_pn],
+    ]
+    :return shape, minXYZ (as list), maxXYZ (as list)
+    """
+    mins = []
+    maxs = []
+    try:
+        if geo_type == GeoJsonGeometryType.LineString:
+            if indices is not None and len(indices) > 0:
+                cpt = 0
+                if _print_list_boundaries:
+                    out.write(b"[")
+                for idx in indices:
+                    out.write(
+                        json.dumps(point_list[idx + point_offset]).encode(
+                            "utf-8"
+                        )
+                    )
+                    if cpt < len(indices) - 1:
+                        out.write(b", ")
+                    cpt += 1
+                    _recompute_min_max_from_points(
+                        mins, maxs, point_list[idx + point_offset]
+                    )
+                if _print_list_boundaries:
+                    out.write(b"]")
+            else:
+                out.write(json.dumps(point_list).encode("utf-8"))
+                _recompute_min_max_from_points(mins, maxs, point_list)
+        elif (
+            geo_type == GeoJsonGeometryType.MultiPoint
+            or geo_type == GeoJsonGeometryType.Point
+        ):
+            out.write(json.dumps(point_list).encode("utf-8"))
+            _recompute_min_max_from_points(mins, maxs, point_list)
+        elif geo_type == GeoJsonGeometryType.MultiLineString:
+            if (
+                indices is not None
+                and len(indices) > 0
+                and isinstance(indices[0], list)
+            ):
+                if _print_list_boundaries:
+                    out.write(b"[")
+                cpt = 0
+                for idx in indices:
+                    _min, _max = _write_geojson_shape(
+                        out=out,
+                        geo_type=GeoJsonGeometryType.MultiLineString,
+                        point_list=point_list,
+                        indices=idx,
+                        point_offset=point_offset,
+                        logger=logger,
+                        _print_list_boundaries=False,
+                    )
+                    if cpt < len(indices) - 1:
+                        out.write(b", ")
+                    cpt += 1
+                    _recompute_min_max(mins, maxs, _min, _max)
+                if _print_list_boundaries:
+                    out.write(b"]")
+            else:
+                if _print_list_boundaries:
+                    out.write(b"[")
+                _min, _max = _write_geojson_shape(
+                    out=out,
+                    geo_type=GeoJsonGeometryType.LineString,
+                    point_list=point_list,
+                    indices=indices,
+                    point_offset=point_offset,
+                    logger=logger,
+                )
+                _recompute_min_max(mins, maxs, _min, _max)
+                if _print_list_boundaries:
+                    out.write(b"]")
+        elif geo_type == GeoJsonGeometryType.Polygon:
+            # First and last must be the same
+            if indices is not None and len(indices) > 0:
+                if indices[0] != indices[-1]:
+                    indices.append(indices[0])
+            elif point_list[0] != point_list[-1]:
+                point_list.append(point_list[0])
+
+            mins, maxs = _write_geojson_shape(
+                out=out,
+                geo_type=GeoJsonGeometryType.MultiLineString,  # Here we only provide 1 line, the external one (outer-ring)
+                point_list=point_list,
+                indices=indices,
+                point_offset=point_offset,
+                logger=logger,
+                _print_list_boundaries=_print_list_boundaries,
+            )
+        elif geo_type == GeoJsonGeometryType.MultiPolygon:
+            if (
+                indices is not None
+                and len(indices) > 0
+                and isinstance(indices[0], list)
+            ):
+                if _print_list_boundaries:
+                    out.write(b"[")
+                cpt = 0
+                for idx in indices:
+                    _min, _max = _write_geojson_shape(
+                        out=out,
+                        geo_type=GeoJsonGeometryType.MultiPolygon,  # Here we only provide 1 line, the external one (outer-ring)
+                        point_list=point_list,
+                        indices=idx,
+                        point_offset=point_offset,
+                        logger=logger,
+                        _print_list_boundaries=False,
+                    )
+                    if cpt < len(indices) - 1:
+                        out.write(b", ")
+                    cpt += 1
+                    _recompute_min_max(mins, maxs, _min, _max)
+                if _print_list_boundaries:
+                    out.write(b"]")
+            else:
+                if _print_list_boundaries:
+                    out.write(b"[")
+                _min, _max = _write_geojson_shape(
+                    out=out,
+                    geo_type=GeoJsonGeometryType.Polygon,  # Here we only provide 1 line, the external one (outer-ring)
+                    point_list=point_list,
+                    indices=indices,
+                    point_offset=point_offset,
+                    logger=logger,
+                )
+                _recompute_min_max(mins, maxs, _min, _max)
+                if _print_list_boundaries:
+                    out.write(b"]")
+    except Exception as e:
+        if logger is not None:
+            logger.error(e)
+        # raise e
+    return mins, maxs
+
+
+def to_geojson_feature(
+    mesh: AbstractMesh,
+    geo_type: GeoJsonGeometryType = GeoJsonGeometryType.Point,
+    geo_type_prefix: Optional[str] = "AnyCrs",
+    properties: Optional[dict] = None,
+    point_offset: int = 0,
+    logger=None,
+) -> Dict:
+    feature = {}
+
+    if mesh.point_list is not None and len(mesh.point_list) > 0:
+        points = mesh.point_list
+
+        #  TODO: remove :
+        # points = list(map(
+        #     lambda p: list(map(lambda x: round(x/10000., 4), p)),
+        #     mesh.point_list
+        # ))
+
+        indices = mesh.get_indices()
+        # polygon must have the first and last point as the same
+        if (
+            geo_type == GeoJsonGeometryType.Polygon
+            or geo_type == GeoJsonGeometryType.MultiPolygon
+        ):
+            if logger is not None:
+                logger.debug(
+                    "# to_geojson_feature > Reshaping indices for polygons"
+                )
+            if indices is not None:
+                for indices_i in indices:
+                    indices_i.append(indices_i[0])
+            if logger is not None:
+                logger.debug("\t# to_geojson_feature > Indices reshaped")
+
+        if logger is not None:
+            logger.debug("# to_geojson_feature > Computing shape")
+
+        coordinates, mins, maxs = _create_shape(
+            geo_type=geo_type,
+            point_list=points,
+            indices=indices,
+            point_offset=point_offset,
+            logger=logger,
+        )
+
+        # Pop previously added last :
+        if (
+            geo_type == GeoJsonGeometryType.Polygon
+            or geo_type == GeoJsonGeometryType.MultiPolygon
+        ):
+            if indices is not None:
+                for indices_i in indices:
+                    indices_i.pop()
+
+        if logger is not None:
+            logger.debug("\t# to_geojson_feature > shaped")
+
+        bbox_geometry = (
+            []
+        )  # TODO : see : https://www.rfc-editor.org/rfc/rfc7946#section-5
+
+        bbox_geometry = mins + maxs
+
+        geometry = {
+            # "type": f"{geo_type_prefix}{geo_type.name}",
+            "type": f"{geo_type.name}",
+            "coordinates": coordinates,
+            "bbox": bbox_geometry,
+        }
+
+        feature = {
+            "type": f"{geo_type_prefix}Feature",
+            "properties": properties or {},
+            "geometry": geometry,
+        }
+
+    return feature
+
+
+def write_geojson_feature(
+    out: BytesIO,
+    mesh: AbstractMesh,
+    geo_type: GeoJsonGeometryType = GeoJsonGeometryType.Point,
+    geo_type_prefix: Optional[str] = "AnyCrs",
+    properties: Optional[dict] = None,
+    point_offset: int = 0,
+    logger=None,
+) -> None:
+    if mesh.point_list is not None and len(mesh.point_list) > 0:
+        points = mesh.point_list
+
+        indices = mesh.get_indices()
+        # polygon must have the first and last point as the same
+        if (
+            geo_type == GeoJsonGeometryType.Polygon
+            or geo_type == GeoJsonGeometryType.MultiPolygon
+        ):
+            if logger is not None:
+                logger.debug(
+                    "# to_geojson_feature > Reshaping indices for polygons"
+                )
+            if indices is not None:
+                for indices_i in indices:
+                    indices_i.append(indices_i[0])
+            if logger is not None:
+                logger.debug("\t# to_geojson_feature > Indices reshaped")
+
+        if logger is not None:
+            logger.debug("# to_geojson_feature > Computing shape")
+
+        out.write(b"{")  # start feature
+        out.write(f'"type": "{geo_type_prefix}Feature", '.encode())
+        out.write(f'"properties": {json.dumps(properties or {}) }, '.encode())
+        out.write(b'"geometry": ')
+
+        out.write(b"{")  # start geometry
+        # "type": f"{geo_type_prefix}{geo_type.name}",
+        out.write(f'"type": "{geo_type.name}", '.encode())
+        out.write(f'"coordinates": '.encode())
+        mins, maxs = _write_geojson_shape(
+            out=out,
+            geo_type=geo_type,
+            point_list=points,
+            indices=indices,
+            point_offset=point_offset,
+            logger=logger,
+        )
+        bbox_geometry = (
+            mins + maxs
+        )  # TODO : see : https://www.rfc-editor.org/rfc/rfc7946#section-5
+
+        out.write(f', "bbox": {json.dumps(bbox_geometry)}'.encode())
+        out.write(b"}")  # end geometry
+
+        # Pop previously added last :
+        if (
+            geo_type == GeoJsonGeometryType.Polygon
+            or geo_type == GeoJsonGeometryType.MultiPolygon
+        ):
+            if indices is not None:
+                for indices_i in indices:
+                    indices_i.pop()
+
+        if logger is not None:
+            logger.debug("\t# to_geojson_feature > shaped")
+
+        out.write(b"}")  # End feature
+
+
+def mesh_to_geojson_type(obj: AbstractMesh) -> GeoJsonGeometryType:
+    if isinstance(obj, SurfaceMesh):
+        return GeoJsonGeometryType.MultiPolygon
+    elif isinstance(obj, PolylineSetMesh):
+        return GeoJsonGeometryType.MultiLineString
+    else:
+        return GeoJsonGeometryType.MultiPoint
+
+
+def export_geojson_io(
+    out: BytesIO,
+    mesh_list: List[AbstractMesh],
+    obj_name: Optional[str] = None,
+    properties: Optional[List[Optional[Dict]]] = None,
+    logger: Optional[Any] = None,
+):
+    out.write(b"{")
+    out.write(b'"type": "FeatureCollection",')
+    out.write(b'"features": [')
+
+    cpt = 0
+    point_offset = 0
+
+    for mesh in mesh_list:
+        pos = out.tell()
+        write_geojson_feature(
+            out=out,
+            mesh=mesh,
+            geo_type=mesh_to_geojson_type(mesh),
+            properties=properties[cpt]
+            if properties is not None and len(properties) > cpt
+            else None,
+            point_offset=0,  # point_offset,
+            logger=logger,
+        )
+        if out.tell() != pos and cpt < len(mesh_list) - 1:
+            out.write(b",")
+        cpt += 1
+        point_offset = point_offset + len(mesh.point_list)
+    out.write(b"]")  # end features
+    out.write(b"}")  # end geojson
+
+
+def export_geojson_dict(
+    mesh_list: List[AbstractMesh],
+    obj_name: Optional[str] = None,
+    properties: Optional[List[Optional[Dict]]] = None,
+    logger: Optional[Any] = None,
+):
+    res = {"type": "FeatureCollection", "features": []}
+    cpt = 0
+    point_offset = 0
+    for mesh in mesh_list:
+        feature = to_geojson_feature(
+            mesh=mesh,
+            geo_type=mesh_to_geojson_type(mesh),
+            properties=properties[cpt]
+            if properties is not None and len(properties) > cpt
+            else None,
+            point_offset=0,  # point_offset,
+            logger=logger,
+        )
+        if feature is not None:
+            res["features"].append(feature)
+        cpt += 1
+        point_offset = point_offset + len(mesh.point_list)
+
+    return res
 
 
 def export_off(mesh_list: List[AbstractMesh], out: BytesIO):
@@ -693,6 +1243,7 @@ def export_multiple_data(
     output_folder_path: str,
     output_file_path_suffix: str = "",
     file_format: MeshFileFormat = MeshFileFormat.OBJ,
+    logger: Optional[Any] = None,
 ):
     epc = Epc.read_file(epc_path)
 
@@ -731,5 +1282,8 @@ def export_multiple_data(
                     mesh_list=mesh_list,
                     out=f,
                 )
+        elif file_format == MeshFileFormat.GEOJSON:
+            with open(file_path, "wb") as f:
+                export_geojson_io(out=f, mesh_list=mesh_list, logger=logger)
         else:
             logging.error(f"Code is not written for format {file_format}")

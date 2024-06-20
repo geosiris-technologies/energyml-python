@@ -174,7 +174,12 @@ def get_hdf5_path_from_external_path(
         hdf_proxy_obj = epc.get_object_by_identifier(
             get_obj_identifier(hdf_proxy)
         )
-        logging.debug("hdf_proxy_obj : ", hdf_proxy_obj, " hdf_proxy : ", hdf_proxy)
+        try:
+            logging.debug(
+                f"hdf_proxy_obj : {hdf_proxy_obj} {hdf_proxy} : {hdf_proxy}"
+            )
+        except:
+            pass
         if hdf_proxy_obj is not None:
             for rel in epc.additional_rels.get(
                 get_obj_identifier(hdf_proxy_obj), []
@@ -215,12 +220,10 @@ def get_hdf5_path_from_external_path(
     if len(result) == 0:
         result = [epc.epc_file_path[:-4] + ".h5"]
 
-    logging.debug(
-        external_path_obj,
-        result,
-        "\n\t",
-        hdf_proxy_lst,
-        "\n\t",
-        ext_file_proxy_lst,
-    )
+    try:
+        logging.debug(
+            f"{external_path_obj} {result} \n\t{hdf_proxy_lst}\n\t{ext_file_proxy_lst}"
+        )
+    except:
+        pass
     return result

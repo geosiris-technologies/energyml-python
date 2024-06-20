@@ -36,11 +36,10 @@ def get_class_name_from_xml(tree: ETREE.Element) -> str:
             return "energyml.opc.opc." + get_root_type(tree)
         else:
             schema_version = (
-                find_schema_version_in_element(tree)
+                (find_schema_version_in_element(tree) or "")
                 .replace(".", "_")
                 .replace("-", "_")
             )
-            # logging.debug(schema_version)
             if pkg == "resqml" and schema_version == "2_0":
                 schema_version = "2_0_1"
 
@@ -131,8 +130,8 @@ def find_schema_version_in_element(tree: ETREE.ElementTree) -> str:
     if _schema_version is None:
         _schema_version = tree.xpath("@SchemaVersion")
 
-    if _schema_version is not None:
+    if _schema_version is not None and len(_schema_version) > 0:
         match_version = re.search(r"\d+(\.\d+)*(dev\d+)?", _schema_version[0])
         if match_version is not None:
             return match_version.group(0).replace("dev", "-dev")
-    return ""
+    return None

@@ -389,19 +389,19 @@ def test_introspection():
 
     print("=====] ", r"ClosedPolylines.\d+")
     for array_path, array_value in search_attribute_matching_name_with_path(
-            poly, r"ClosedPolylines.\d+"
+        poly, r"ClosedPolylines.\d+"
     ):
         print(f"{array_path}\n\t{array_value}")
 
     print("=====] ", r"ClosedPolylines.values.\d+")
     for array_path, array_value in search_attribute_matching_name_with_path(
-            poly, r"ClosedPolylines.values.\d+"
+        poly, r"ClosedPolylines.values.\d+"
     ):
         print(f"{array_path}\n\t{array_value}")
 
     print("=====] ", r"LinePatch.\d+")
     for array_path, array_value in search_attribute_matching_name_with_path(
-            poly, r"LinePatch.\d+"
+        poly, r"LinePatch.\d+"
     ):
         print(f"{array_path}\n\t{array_value}")
 
