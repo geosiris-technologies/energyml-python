@@ -1,6 +1,7 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import json
+import re
 from dataclasses import fields
 
 from energyml.eml.v2_3.commonv2 import *
@@ -464,6 +465,57 @@ def test_obj_attribs():
     print(get_obj_uri(tr, "coucou"))
 
 
+def test_copy_values():
+    data_in = {
+        "a": {"b": "v_0", "c": "v_1"},
+        "uuid": "215f8219-cabd-4e24-9e4f-e371cabc9622",
+        "objectVersion": "Resqml 2.0",
+        "non_existing": 42,
+    }
+    data_out = {
+        "a": None,
+        "Uuid": "8291afd6-ae01-49f5-bc96-267e7b27450d",
+        "object_version": "Resqml 2.0",
+    }
+    copy_attributes(
+        obj_in=data_in,
+        obj_out=data_out,
+        only_existing_attributes=True,
+        ignore_case=True,
+    )
+
+
+def class_field():
+    print(get_class_fields(tr)["citation"])
+    print(get_class_pkg_version(tr))
+    print(create_energyml_object("resqml22.TriangulatedSetRepresentation"))
+    ext_20 = create_energyml_object(
+        "application/x-eml+xml;version=2.0;type=obj_EpcExternalPartReference"
+    )
+    print(ext_20)
+    print(gen_energyml_object_path(ext_20))
+    print(create_external_part_reference("2.0", "my_h5"))
+
+    print(
+        parse_content_or_qualified_type(
+            "application/x-eml+xml;version=2.0;type=obj_EpcExternalPartReference"
+        )
+    )
+    print(
+        get_domain_version_from_content_or_qualified_type(
+            "application/x-eml+xml;version=2.0;type=obj_EpcExternalPartReference"
+        )
+    )
+    print(
+        get_domain_version_from_content_or_qualified_type(
+            "resqml20.obj_EpcExternalPartReference"
+        )
+    )
+
+    # print(create_external_part_reference("2.2", "myfile.h5"))
+    # print(create_external_part_reference("2.0", "myfile.h5"))
+
+
 if __name__ == "__main__":
     tests_0()
     tests_content_type()
@@ -479,3 +531,5 @@ if __name__ == "__main__":
     test_wellbore_marker_frame_representation()
 
     test_obj_attribs()
+    test_copy_values()
+    class_field()

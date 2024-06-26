@@ -59,6 +59,14 @@ class MandatoryError(ValidationObjectError):
         return f"{ValidationError.__str__(self)}\n\tMandatory value is None for {get_obj_identifier(self.target_obj)} : '{self.attribute_dot_path}'"
 
 
+@dataclass
+class MissingEntityError(ValidationObjectError):
+    missing_uuid: str = field(default=None)
+
+    def __str__(self):
+        return f"{ValidationError.__str__(self)}\n\tMissing entity in {get_obj_identifier(self.target_obj)} at path '{self.attribute_dot_path}'. Missing entity uuid: {self.missing_uuid}"
+
+
 def validate_epc(epc: Epc) -> List[ValidationError]:
     """
     Verify if all :param:`epc`'s objects are valid.
@@ -106,11 +114,12 @@ def dor_validation(energyml_objects: List[Any]) -> List[ValidationError]:
                 dor_version = get_obj_version(dor)
                 if dor_uuid not in dict_obj_uuid:
                     errs.append(
-                        ValidationObjectError(
+                        MissingEntityError(
                             error_type=ErrorType.CRITICAL,
                             target_obj=obj,
                             attribute_dot_path=dor_path,
-                            msg=f"[DOR ERR] has wrong information. Unkown object with uuid '{dor_uuid}'",
+                            missing_uuid=dor_uuid
+                            # msg=f"[DOR ERR] has wrong information. Unkown object with uuid '{dor_uuid}'",
                         )
                     )
                 else:

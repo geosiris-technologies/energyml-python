@@ -15,6 +15,9 @@ from src.energyml.utils.introspection import (
     is_enum,
     get_class_from_name,
     get_class_from_content_type,
+    get_object_attribute,
+    set_attribute_from_path,
+    copy_attributes,
 )
 
 
@@ -62,3 +65,84 @@ def test_get_class_from_content_type():
     )
     assert found_type is not None
     assert found_type == energyml.resqml.v2_0_1.resqmlv2.Grid2DRepresentation
+
+
+def test_set_attribute_from_path():
+    data = {"a": {"b": ["v_x", {"c": "v_test"}]}}
+    assert get_object_attribute(data, "a.b.1.c") == "v_test"
+    set_attribute_from_path(data, "a.b.1.c", "v_new")
+    assert get_object_attribute(data, "a.b.1.c") == "v_new"
+    set_attribute_from_path(data, "a", "v_new")
+    assert get_object_attribute(data, "a") == "v_new"
+
+
+def test_copy_attributes_existing_ignore_case():
+    data_in = {
+        "a": {"b": "v_0", "c": "v_1"},
+        "uuid": "215f8219-cabd-4e24-9e4f-e371cabc9622",
+        "objectVersion": "Resqml 2.0",
+        "non_existing": 42,
+    }
+    data_out = {
+        "a": None,
+        "Uuid": "8291afd6-ae01-49f5-bc96-267e7b27450d",
+        "object_version": "Resqml 2.0",
+    }
+    copy_attributes(
+        obj_in=data_in,
+        obj_out=data_out,
+        only_existing_attributes=True,
+        ignore_case=True,
+    )
+    assert data_out["a"] == data_in["a"]
+    assert data_out["Uuid"] == data_in["uuid"]
+    assert data_out["object_version"] == data_in["objectVersion"]
+    assert "non_existing" not in data_out
+
+
+def test_copy_attributes_ignore_case():
+    data_in = {
+        "a": {"b": "v_0", "c": "v_1"},
+        "uuid": "215f8219-cabd-4e24-9e4f-e371cabc9622",
+        "objectVersion": "Resqml 2.0",
+        "non_existing": 42,
+    }
+    data_out = {
+        "a": None,
+        "Uuid": "8291afd6-ae01-49f5-bc96-267e7b27450d",
+        "object_version": "Resqml 2.0",
+    }
+    copy_attributes(
+        obj_in=data_in,
+        obj_out=data_out,
+        only_existing_attributes=False,
+        ignore_case=True,
+    )
+    assert data_out["a"] == data_in["a"]
+    assert data_out["Uuid"] == data_in["uuid"]
+    assert data_out["object_version"] == data_in["objectVersion"]
+    assert data_out["non_existing"] == data_in["non_existing"]
+
+
+def test_copy_attributes_case_sensitive():
+    data_in = {
+        "a": {"b": "v_0", "c": "v_1"},
+        "uuid": "215f8219-cabd-4e24-9e4f-e371cabc9622",
+        "objectVersion": "Resqml 2.0",
+        "non_existing": 42,
+    }
+    data_out = {
+        "a": None,
+        "Uuid": "8291afd6-ae01-49f5-bc96-267e7b27450d",
+        "object_version": "Resqml 2.0",
+    }
+    copy_attributes(
+        obj_in=data_in,
+        obj_out=data_out,
+        only_existing_attributes=False,
+        ignore_case=False,
+    )
+    assert data_out["a"] == data_in["a"]
+    assert data_out["Uuid"] != data_in["uuid"]
+    assert data_out["object_version"] == data_in["objectVersion"]
+    assert data_out["non_existing"] == data_in["non_existing"]
