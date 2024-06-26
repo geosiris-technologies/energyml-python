@@ -1,7 +1,7 @@
 import datetime
 import re
 import uuid as uuid_mod
-from typing import List
+from typing import List, Optional
 
 ENERGYML_NAMESPACES = {
     "eml": "http://www.energistics.org/energyml/data/commonv2",
@@ -197,24 +197,59 @@ def flatten_concatenation(matrix) -> List:
     return flat_list
 
 
-def parse_content_type(ct: str):
+def parse_content_type(ct: str) -> Optional[re.Match[str]]:
     return re.search(RGX_CONTENT_TYPE, ct)
 
 
-def parse_qualified_type(ct: str):
+def parse_qualified_type(ct: str) -> Optional[re.Match[str]]:
     return re.search(RGX_QUALIFIED_TYPE, ct)
 
 
-def now(
-    time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")
-) -> float:
+def parse_content_or_qualified_type(cqt: str) -> Optional[re.Match[str]]:
+    """
+    Give a re.Match object (or None if failed).
+    You can access to groups like : "domainVersion", "versionNum", "domain", "type"
+
+    :param cqt:
+    :return:
+    """
+    parsed = None
+    try:
+        parsed = parse_content_type(cqt)
+    except:
+        try:
+            parsed = parse_qualified_type(cqt)
+        except:
+            pass
+
+    return parsed
+
+
+def get_domain_version_from_content_or_qualified_type(cqt: str) -> str:
+    """
+    return a version number like "2.2" or "2.0"
+
+    :param cqt:
+    :return:
+    """
+    try:
+        parsed = parse_content_type(cqt)
+        return parsed.group("domainVersion")
+    except:
+        try:
+            parsed = parse_qualified_type(cqt)
+            return ".".join(parsed.group("domainVersion"))
+        except:
+            pass
+    return None
+
+
+def now(time_zone=datetime.timezone.utc) -> float:
     """Return an epoch value"""
     return datetime.datetime.timestamp(datetime.datetime.now(time_zone))
 
 
-def epoch(
-    time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC")
-) -> int:
+def epoch(time_zone=datetime.timezone.utc) -> int:
     return int(now(time_zone))
 
 
@@ -228,10 +263,14 @@ def date_to_epoch(date: str) -> int:
 
 def epoch_to_date(
     epoch_value: int,
-    time_zone=datetime.timezone(datetime.timedelta(hours=1), "UTC"),
 ) -> str:
-    date = datetime.datetime.fromtimestamp(epoch_value, time_zone)
-    return date.strftime("%Y-%m-%dT%H:%M:%S%z")
+    date = datetime.datetime.fromtimestamp(epoch_value, datetime.timezone.utc)
+    return date.astimezone(datetime.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    # date = datetime.datetime.fromtimestamp(epoch_value, datetime.timezone.utc)
+    # return date.astimezone(datetime.timezone(datetime.timedelta(hours=0), "UTC")).strftime('%Y-%m-%dT%H:%M:%SZ')
+    # return date.strftime("%Y-%m-%dT%H:%M:%SZ%z")
 
 
 def gen_uuid() -> str:
