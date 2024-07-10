@@ -1,7 +1,3 @@
-import re
-from dataclasses import dataclass, field
-from typing import Optional
-
 from .constants import *
 
 
@@ -36,9 +32,7 @@ class Uri:
             res.uuid = m.group(URI_RGX_GRP_UUID) or m.group(URI_RGX_GRP_UUID2)
             res.version = m.group(URI_RGX_GRP_VERSION)
             res.collection_domain = m.group(URI_RGX_GRP_COLLECTION_DOMAIN)
-            res.collection_domain_version = m.group(
-                URI_RGX_GRP_COLLECTION_DOMAIN_VERSION
-            )
+            res.collection_domain_version = m.group(URI_RGX_GRP_COLLECTION_DOMAIN_VERSION)
             res.collection_domain_type = m.group(URI_RGX_GRP_COLLECTION_TYPE)
             res.query = m.group(URI_RGX_GRP_QUERY)
             return res
@@ -76,10 +70,7 @@ class Uri:
                 else:
                     res += self.uuid
                 res += ")"
-        if (
-            self.collection_domain is not None
-            and self.collection_domain_version
-        ):
+        if self.collection_domain is not None and self.collection_domain_version:
             res += f"/{self.collection_domain}{self.collection_domain_version}"
             if self.collection_domain_type is not None:
                 res += f".{self.collection_domain_type}"

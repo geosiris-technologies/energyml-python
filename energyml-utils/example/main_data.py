@@ -407,29 +407,42 @@ def test_export_multiple_testing_package():
 
 
 def test_export_closed_poly():
-    export_multiple_data(
-        epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/"
-        "Volve_Fault_Depth_originEQN_v201_poly_closed.epc",
-        uuid_list=[
-            "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
-            "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
-        ],
-        output_folder_path="../example/result/export-energyml-utils",
-        # output_folder_path="D:/Geosiris/OSDU/manifestTranslation/#Data/export-energyml-utils",
-        output_file_path_suffix="_poly_closed",
-        file_format=MeshFileFormat.OBJ,
-    )
+    # export_multiple_data(
+    #     epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/"
+    #     "Volve_Fault_Depth_originEQN_v201_poly_closed.epc",
+    #     uuid_list=[
+    #         "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
+    #         "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
+    #     ],
+    #     output_folder_path="../example/result/export-energyml-utils",
+    #     # output_folder_path="D:/Geosiris/OSDU/manifestTranslation/#Data/export-energyml-utils",
+    #     output_file_path_suffix="_poly_closed",
+    #     file_format=MeshFileFormat.OBJ,
+    # )
+    # export_multiple_data(
+    #     epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/"
+    #     "Volve_Fault_Depth_originEQN_v201.epc",
+    #     uuid_list=[
+    #         "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
+    #         "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
+    #     ],
+    #     output_folder_path="../example/result/export-energyml-utils",
+    #     # output_folder_path="D:/Geosiris/OSDU/manifestTranslation/#Data/export-energyml-utils",
+    #     output_file_path_suffix="closed",
+    #     file_format=MeshFileFormat.OBJ,
+    # )
     export_multiple_data(
         epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/"
         "Volve_Fault_Depth_originEQN_v201.epc",
         uuid_list=[
             "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
             "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
+            "5db39032-4998-4b75-9156-ea104a8649d2",  # TrSet
         ],
-        output_folder_path="../example/result/export-energyml-utils",
+        output_folder_path="../example/result/export-energyml-utils/geojson",
         # output_folder_path="D:/Geosiris/OSDU/manifestTranslation/#Data/export-energyml-utils",
-        output_file_path_suffix="closed",
-        file_format=MeshFileFormat.OBJ,
+        output_file_path_suffix="new",
+        file_format=MeshFileFormat.GEOJSON,
     )
 
 
@@ -642,6 +655,17 @@ def test_simple_geojson_io():
         print(f"\n+++++++++++++++++++++++++\n")
 
 
+def test_wellbore_reading():
+    # WIP
+    path = "../rc/obj_EpcExternalPartReference_61fa2fdf-46ab-4c02-ab72-7895cce58e37.xml"
+
+    with open(path, "rb") as f:
+        xml_content = f.read()
+        # print(xml_content)
+
+        print(read_energyml_xml_bytes(xml_content))
+
+
 if __name__ == "__main__":
 
     logging.basicConfig(
@@ -668,7 +692,7 @@ if __name__ == "__main__":
     # read_meshes()
     #
     # test_export_multiple()
-    # test_export_closed_poly()
+    test_export_closed_poly()
     # test_export_multiple_testing_package()
     # test_read_resqml22dev3()
     #
@@ -678,6 +702,7 @@ if __name__ == "__main__":
     # test_export_multiple_geojson()
     # test_export_multiple_geojson_volve()
     # test_simple_geojson()
-    test_simple_geojson_io()
+    # test_simple_geojson_io()
 
     # test_etree()
+    # test_wellbore_reading()

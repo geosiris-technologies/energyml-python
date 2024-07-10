@@ -1,6 +1,9 @@
 import datetime
 import re
 import uuid as uuid_mod
+from dataclasses import field, dataclass
+from enum import Enum
+from io import BytesIO
 from typing import List, Optional
 
 ENERGYML_NAMESPACES = {
@@ -27,7 +30,7 @@ ENERGYML_NAMESPACES_PACKAGE = {
 dict of all energyml namespace packages
 """  # pylint: disable=W0105
 
-RGX_ENERGYML_MODULE_NAME = r"energyml\.(?P<pkg>.*)\.v(?P<version>(?P<versionNumber>\d+(_\d+)*)(_dev(?P<versionDev>.*))?)\..*"
+RGX_ENERGYML_MODULE_NAME = r"energyml\.(?P<pkg>.*)\.v(?P<version>(?P<versionNumber>\d+(_\d+)*)(_dev(?P<versionDev>.*))?)\..*"  # pylint: disable=C0301
 RGX_PROJECT_VERSION = r"(?P<n0>[\d]+)(.(?P<n1>[\d]+)(.(?P<n2>[\d]+))?)?"
 
 ENERGYML_MODULES_NAMES = ["eml", "prodml", "witsml", "resqml"]
@@ -94,7 +97,7 @@ RGX_ENERGYML_FILE_NAME = (
     rf"^(.*/)?({RGX_ENERGYML_FILE_NAME_OLD})|({RGX_ENERGYML_FILE_NAME_NEW})"
 )
 
-RGX_XML_HEADER = r"^\s*<\?xml(\s+(encoding\s*=\s*\"(?P<encoding>[^\"]+)\"|version\s*=\s*\"(?P<version>[^\"]+)\"|standalone\s*=\s*\"(?P<standalone>[^\"]+)\"))+"
+RGX_XML_HEADER = r"^\s*<\?xml(\s+(encoding\s*=\s*\"(?P<encoding>[^\"]+)\"|version\s*=\s*\"(?P<version>[^\"]+)\"|standalone\s*=\s*\"(?P<standalone>[^\"]+)\"))+"  # pylint: disable=C0301
 
 #    __  ______  ____
 #   / / / / __ \/  _/
@@ -115,7 +118,7 @@ URI_RGX_GRP_COLLECTION_TYPE = "collectionType"
 URI_RGX_GRP_QUERY = "query"
 
 # Patterns
-_uri_rgx_pkg_name = "|".join(
+_URI_RGX_PKG_NAME = "|".join(
     ENERGYML_NAMESPACES.keys()
 )  # "[a-zA-Z]+\w+" //witsml|resqml|prodml|eml
 URI_RGX = (
@@ -124,7 +127,7 @@ URI_RGX = (
     + r">[^']*?(?:''[^']*?)*)'\)\/?)?((?P<"
     + URI_RGX_GRP_DOMAIN
     + r">"
-    + _uri_rgx_pkg_name
+    + _URI_RGX_PKG_NAME
     + r")(?P<"
     + URI_RGX_GRP_DOMAIN_VERSION
     + r">[1-9]\d)\.(?P<"
@@ -142,7 +145,7 @@ URI_RGX = (
     + r">[^']*?(?:''[^']*?)*)')\))?)?(\/(?P<"
     + URI_RGX_GRP_COLLECTION_DOMAIN
     + r">"
-    + _uri_rgx_pkg_name
+    + _URI_RGX_PKG_NAME
     + r")(?P<"
     + URI_RGX_GRP_COLLECTION_DOMAIN_VERSION
     + r">[1-9]\d)\.(?P<"
@@ -161,6 +164,67 @@ RELS_FOLDER_NAME = "_rels"
 primitives = (bool, str, int, float, type(None))
 
 
+class EpcExportVersion(Enum):
+    """EPC export version."""
+
+    #: Classical export
+    CLASSIC = 1
+    #: Export with objet path sorted by package (eml/resqml/witsml/prodml)
+    EXPANDED = 2
+
+
+class EPCRelsRelationshipType(Enum):
+    """ Rels relationship types """
+
+    #: The object in Target is the destination of the relationship.
+    DESTINATION_OBJECT = "destinationObject"
+    #: The current object is the source in the relationship with the target object.
+    SOURCE_OBJECT = "sourceObject"
+    #: The target object is a proxy object for an external data object (HDF5 file).
+    ML_TO_EXTERNAL_PART_PROXY = "mlToExternalPartProxy"
+    #: The current object is used as a proxy object by the target object.
+    EXTERNAL_PART_PROXY_TO_ML = "externalPartProxyToMl"
+    #: The target is a resource outside of the EPC package. Note that TargetMode should be "External"
+    #: for this relationship.
+    EXTERNAL_RESOURCE = "externalResource"
+    #: The object in Target is a media representation for the current object. As a guideline, media files
+    #: should be stored in a "media" folder in the ROOT of the package.
+    DestinationMedia = "destinationMedia"
+    #: The current object is a media representation for the object in Target.
+    SOURCE_MEDIA = "sourceMedia"
+    #: The target is part of a larger data object that has been chunked into several smaller files
+    CHUNKED_PART = "chunkedPart"
+    #: The core properties
+    CORE_PROPERTIES = "core-properties"
+    #: /!\ not in the norm
+    EXTENDED_CORE_PROPERTIES = "extended-core-properties"
+
+    def get_type(self) -> str:
+        match self:
+            case EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES:
+                return "http://schemas.f2i-consulting.com/package/2014/relationships/" + str(self.value)
+            case EPCRelsRelationshipType.CORE_PROPERTIES:
+                return "http://schemas.openxmlformats.org/package/2006/relationships/metadata/" + str(self.value)
+            case (
+                EPCRelsRelationshipType.CHUNKED_PART
+                | EPCRelsRelationshipType.DESTINATION_OBJECT
+                | EPCRelsRelationshipType.SOURCE_OBJECT
+                | EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY
+                | EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML
+                | EPCRelsRelationshipType.EXTERNAL_RESOURCE
+                | EPCRelsRelationshipType.DestinationMedia
+                | EPCRelsRelationshipType.SOURCE_MEDIA
+                | _
+            ):
+                return "http://schemas.energistics.org/package/2012/relationships/" + str(self.value)
+
+
+@dataclass
+class RawFile:
+    """ A class for a non energyml file to be stored in an EPC file """
+    path: str = field(default="_")
+    content: BytesIO = field(default=None)
+
 #     ______                 __  _
 #    / ____/_  ______  _____/ /_(_)___  ____  _____
 #   / /_  / / / / __ \/ ___/ __/ / __ \/ __ \/ ___/
@@ -168,17 +232,17 @@ primitives = (bool, str, int, float, type(None))
 # /_/    \__,_/_/ /_/\___/\__/_/\____/_/ /_/____/
 
 
-def snake_case(s: str) -> str:
+def snake_case(string: str) -> str:
     """Transform a str into snake case."""
-    s = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", s)
-    s = re.sub("__([A-Z])", r"_\1", s)
-    s = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s)
-    return s.lower()
+    string = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", string)
+    string = re.sub("__([A-Z])", r"_\1", string)
+    string = re.sub("([a-z0-9])([A-Z])", r"\1_\2", string)
+    return string.lower()
 
 
-def pascal_case(s: str) -> str:
+def pascal_case(string: str) -> str:
     """Transform a str into pascal case."""
-    return snake_case(s).replace("_", " ").title().replace(" ", "")
+    return snake_case(string).replace("_", " ").title().replace(" ", "")
 
 
 def flatten_concatenation(matrix) -> List:
@@ -225,7 +289,7 @@ def parse_content_or_qualified_type(cqt: str) -> Optional[re.Match[str]]:
     return parsed
 
 
-def get_domain_version_from_content_or_qualified_type(cqt: str) -> str:
+def get_domain_version_from_content_or_qualified_type(cqt: str) -> Optional[str]:
     """
     return a version number like "2.2" or "2.0"
 

@@ -38,9 +38,7 @@ def dict_energyml_modules() -> Dict:
     for mod in pkgutil.iter_modules(energyml_module.__path__):
         # logging.debug(f"{mod.name}")
         if mod.name in ENERGYML_MODULES_NAMES:
-            energyml_sub_module = importlib.import_module(
-                f"energyml.{mod.name}"
-            )
+            energyml_sub_module = importlib.import_module(f"energyml.{mod.name}")
             if mod.name not in modules:
                 modules[mod.name] = []
             for sub_mod in pkgutil.iter_modules(energyml_sub_module.__path__):
@@ -117,9 +115,7 @@ def get_classes_matching_name(
         try:
             module = importlib.import_module(related)
             for _, obj in inspect.getmembers(module):
-                if inspect.isclass(obj) and re.match(
-                    name_rgx, obj.__name__, re_flags
-                ):
+                if inspect.isclass(obj) and re.match(name_rgx, obj.__name__, re_flags):
                     match_classes.append(obj)
         except ModuleNotFoundError:
             pass
@@ -180,18 +176,12 @@ def reshape_version(version: str, nb_digit: int) -> str:
         elif nb_digit == 2:
             return n0 + ("." + n1 if n1 is not None else "")
         elif nb_digit == 3:
-            return n0 + (
-                "." + n1 + ("." + n2 if n2 is not None else "")
-                if n1 is not None
-                else ""
-            )
+            return n0 + ("." + n1 + ("." + n2 if n2 is not None else "") if n1 is not None else "")
 
     return version
 
 
-def get_class_pkg_version(
-    cls, print_dev_version: bool = True, nb_max_version_digits: int = 2
-):
+def get_class_pkg_version(cls, print_dev_version: bool = True, nb_max_version_digits: int = 2):
     p = re.compile(RGX_ENERGYML_MODULE_NAME)
     class_module = None
     if isinstance(cls, type):
@@ -203,9 +193,7 @@ def get_class_pkg_version(
 
     m = p.search(class_module)
     return reshape_version(m.group("versionNumber"), nb_max_version_digits) + (
-        "dev" + m.group("versionDev")
-        if m.group("versionDev") is not None and print_dev_version
-        else ""
+        "dev" + m.group("versionDev") if m.group("versionDev") is not None and print_dev_version else ""
     )
 
 

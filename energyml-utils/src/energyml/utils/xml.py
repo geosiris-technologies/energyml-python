@@ -1,8 +1,7 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import logging
-from io import BytesIO
-from typing import Optional, Any, Union
+from typing import Any, Union
 
 from lxml import etree as ETREE  # type: Any
 
