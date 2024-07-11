@@ -136,11 +136,10 @@ def get_projected_uom(crs_object: Any, workspace: Optional[EnergymlWorkspace] = 
     return None
 
 
-def get_crs_origin_offset(self, crs_obj: Any) -> List[float]:
+def get_crs_origin_offset(crs_obj: Any) -> List[float]:
     """
     Return a list [X,Y,Z] corresponding to the crs Offset [XOffset/OriginProjectedCoordinate1, ... ] depending on the
     crs energyml version.
-    :param self:
     :param crs_obj:
     :return:
     """
@@ -152,7 +151,7 @@ def get_crs_origin_offset(self, crs_obj: Any) -> List[float]:
     if tmp_offset_y is None:
         tmp_offset_y = get_object_attribute_rgx(crs_obj, "OriginProjectedCoordinate2")
 
-    tmp_offset_z = get_object_attribute_rgx(crs_obj, "YOffset")
+    tmp_offset_z = get_object_attribute_rgx(crs_obj, "ZOffset")
     if tmp_offset_z is None:
         tmp_offset_z = get_object_attribute_rgx(crs_obj, "OriginProjectedCoordinate3")
 
@@ -164,7 +163,7 @@ def get_crs_origin_offset(self, crs_obj: Any) -> List[float]:
             float(tmp_offset_z) if tmp_offset_z is not None else 0,
         ]
     except Exception as e:
-        self.logger.info(f"ERR reading crs offset {e}")
+        logging.info(f"ERR reading crs offset {e}")
 
     return crs_point_offset
 
@@ -553,7 +552,7 @@ def read_grid2d_patch(
     return read_array(
         energyml_array=points_obj,
         root_obj=grid2d,
-        path_in_root=path_in_root + points_path,
+        path_in_root=path_in_root + "." + points_path,
         workspace=workspace,
     )
 

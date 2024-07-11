@@ -1,0 +1,98 @@
+
+<Trajectory xmlns="http://www.energistics.org/energyml/data/witsmlv2" xmlns:ns2="http://www.energistics.org/energyml/data/commonv2" uuid="4e76e1de-eff1-4458-805e-a6a877fa333b" schemaVersion="2.1">
+    <ns2:Citation>
+        <ns2:Title>My trajectory</ns2:Title>
+        <ns2:Originator>philippe</ns2:Originator>
+        <ns2:Creation>2023-04-05T14:30:41Z</ns2:Creation>
+        <ns2:Format>F2I-CONSULTING:FESAPI Example:2.7.0.0</ns2:Format>
+        <ns2:LastUpdate>2023-12-22T01:50:06.318Z</ns2:LastUpdate>
+    </ns2:Citation>
+    <ns2:ActiveStatus>inactive</ns2:ActiveStatus>
+    <ns2:Index>
+        <ns2:IndexKind>measured depth</ns2:IndexKind>
+        <ns2:Uom>Euc</ns2:Uom>
+        <ns2:Direction>increasing</ns2:Direction>
+    </ns2:Index>
+    <Definitive>true</Definitive>
+    <FinalTraj>true</FinalTraj>
+    <TrajectoryStation uid="d3ac5401-d3e7-4474-b846-070673b210ae">
+        <ns2:Creation>1970-01-01T00:00:00Z</ns2:Creation>
+        <ns2:LastUpdate>1970-01-01T00:00:00Z</ns2:LastUpdate>
+        <ns2:Md>
+            <ns2:MeasuredDepth uom="m">0.0</ns2:MeasuredDepth>
+        </ns2:Md>
+        <ManuallyEntered>true</ManuallyEntered>
+        <TypeTrajStation>N E and TVD</TypeTrajStation>
+        <Tvd xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ns2:DatumVerticalDepth">
+            <ns2:VerticalDepth uom="m">0.0</ns2:VerticalDepth>
+        </Tvd>
+        <DispNs uom="m">0.0</DispNs>
+        <DispEw uom="m">0.0</DispEw>
+        <Location xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ns2:ProjectedCompoundPosition">
+            <ns2:Coordinate1>0.0</ns2:Coordinate1>
+            <ns2:Coordinate2>0.0</ns2:Coordinate2>
+            <ns2:VerticalCoordinate>0.0</ns2:VerticalCoordinate>
+            <ns2:ProjectedCompoundCrs uuid="51150e56-e9f2-03b1-6d90-c2452be58f7d" schemaVersion="2.3">
+                <ns2:Citation>
+                    <ns2:Title>ProjectedCompountSample</ns2:Title>
+                    <ns2:Originator>Geosiris</ns2:Originator>
+                    <ns2:Creation>2023-12-22T01:49:14.357Z</ns2:Creation>
+                    <ns2:Format>Geosiris Webstudio</ns2:Format>
+                    <ns2:LastUpdate>2023-12-22T01:49:15.165Z</ns2:LastUpdate>
+                </ns2:Citation>
+                <ns2:ProjectedCrs>
+                    <ns2:Uuid>158be8be-8f12-4e85-a7d9-a667a8f19992</ns2:Uuid>
+                    <ns2:QualifiedType>resqml20.obj_LocalDepth3dCrs</ns2:QualifiedType>
+                    <ns2:Title>Default local CRS</ns2:Title>
+                </ns2:ProjectedCrs>
+            </ns2:ProjectedCompoundCrs>
+        </Location>
+    </TrajectoryStation>
+    <TrajectoryStation uid="d3ac5401-d3e7-4474-b846-070673b210ae">
+        <ns2:Creation>1970-01-01T00:00:00Z</ns2:Creation>
+        <ns2:LastUpdate>1970-01-01T00:00:00Z</ns2:LastUpdate>
+        <ns2:Md>
+            <ns2:MeasuredDepth uom="m">325.0</ns2:MeasuredDepth>
+        </ns2:Md>
+        <ManuallyEntered>true</ManuallyEntered>
+        <TypeTrajStation>N E and TVD</TypeTrajStation>
+        <Tvd xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ns2:DatumVerticalDepth">
+            <ns2:VerticalDepth uom="m">325.0</ns2:VerticalDepth>
+        </Tvd>
+        <DispNs uom="m">325.0</DispNs>
+        <DispEw uom="m">325.0</DispEw>
+    </TrajectoryStation>
+    <TrajectoryStation uid="d3ac5401-d3e7-4474-b846-070673b210ae">
+        <ns2:Creation>1970-01-01T00:00:00Z</ns2:Creation>
+        <ns2:LastUpdate>1970-01-01T00:00:00Z</ns2:LastUpdate>
+        <ns2:Md>
+            <ns2:MeasuredDepth uom="m">500.0</ns2:MeasuredDepth>
+        </ns2:Md>
+        <ManuallyEntered>true</ManuallyEntered>
+        <TypeTrajStation>N E and TVD</TypeTrajStation>
+        <Tvd xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ns2:DatumVerticalDepth">
+            <ns2:VerticalDepth uom="m">500.0</ns2:VerticalDepth>
+        </Tvd>
+        <DispNs uom="m">500.0</DispNs>
+        <DispEw uom="m">500.0</DispEw>
+    </TrajectoryStation>
+    <TrajectoryStation uid="d3ac5401-d3e7-4474-b846-070673b210ae">
+        <ns2:Creation>1970-01-01T00:00:00Z</ns2:Creation>
+        <ns2:LastUpdate>1970-01-01T00:00:00Z</ns2:LastUpdate>
+        <ns2:Md>
+            <ns2:MeasuredDepth uom="m">1000.0</ns2:MeasuredDepth>
+        </ns2:Md>
+        <ManuallyEntered>true</ManuallyEntered>
+        <TypeTrajStation>N E and TVD</TypeTrajStation>
+        <Tvd xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ns2:DatumVerticalDepth">
+            <ns2:VerticalDepth uom="m">1000.0</ns2:VerticalDepth>
+        </Tvd>
+        <DispNs uom="m">1000.0</DispNs>
+        <DispEw uom="m">1000.0</DispEw>
+    </TrajectoryStation>
+    <Wellbore>
+        <ns2:Uuid>3c321e10-d04a-4b6d-8bcd-5eae01cab52d</ns2:Uuid>
+        <ns2:QualifiedType>witsml21.Wellbore</ns2:QualifiedType>
+        <ns2:Title>Drilling_Demo1</ns2:Title>
+    </Wellbore>
+</Trajectory>

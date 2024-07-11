@@ -15,9 +15,8 @@ from .hdf import HDF5FileReader
 from .helper import (
     read_array,
     read_grid2d_patch,
-    is_z_reversed,
     EnergymlWorkspace,
-    get_crs_obj,
+    get_crs_obj, get_crs_origin_offset, is_z_reversed,
 )
 from ..epc import Epc, get_obj_identifier, gen_energyml_object_path
 from ..exception import ObjectNotFoundNotError
@@ -127,6 +126,28 @@ class SurfaceMesh(AbstractMesh):
 
     def get_indices(self) -> List[List[int]]:
         return self.faces_indices
+
+
+def crs_displacement(
+    points: List[Point], crs_obj: Any
+) -> Tuple[List[Point], Point]:
+    """
+    Transform a point list with CRS information (XYZ offset and ZIncreasingDownward)
+    :param points: in/out : the list is directly modified
+    :param crs_obj:
+    :return: The translated points and the crs offset vector.
+    """
+    crs_point_offset = get_crs_origin_offset(crs_obj=crs_obj)
+    zincreasing_downward = is_z_reversed(crs_obj)
+
+    if crs_point_offset != [0, 0, 0]:
+        for p in points:
+            for xyz in range(len(p)):
+                p[xyz] = p[xyz] + crs_point_offset[xyz]
+            if zincreasing_downward and len(p) >= 3:
+                p[2] = -p[2]
+
+    return points, crs_point_offset
 
 
 def get_mesh_reader_function(mesh_type_name: str) -> Optional[Callable]:
@@ -352,7 +373,6 @@ def read_grid2d_representation(
     patch_idx = 0
     for patch_path, patch in search_attribute_matching_name_with_path(energyml_object, "Grid2dPatch"):
         crs = None
-        reverse_z_values = False
         try:
             crs = get_crs_obj(
                 context_obj=patch,
@@ -360,7 +380,6 @@ def read_grid2d_representation(
                 root_obj=energyml_object,
                 workspace=workspace,
             )
-            reverse_z_values = is_z_reversed(crs)
         except ObjectNotFoundNotError as e:
             pass
 
@@ -392,14 +411,10 @@ def read_grid2d_representation(
                 p = points[i]
                 if p[2] != p[2]:  # a NaN
                     points[i][2] = 0
-                elif reverse_z_values:
-                    points[i][2] = -points[i][2]
         else:
             for i in range(len(points)):
                 p = points[i]
                 if p[2] == p[2]:  # not a NaN
-                    if reverse_z_values:
-                        points[i][2] = -points[i][2]
                     indice_to_final_indice[i] = len(points_no_nan)
                     points_no_nan.append(p)
 
