@@ -379,6 +379,16 @@ def test_export_multiple_geojson_volve_struct():
         output_folder_path="../example/result/export-energyml-utils/VOLVE_STRUCT",
         # output_folder_path="D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/EQN_ORIGIN_PLUS_TRIANG_SET/export-energyml-utils",
         file_format=MeshFileFormat.GEOJSON,
+        use_crs_displacement=False,
+        logger=logger,
+    )
+    export_multiple_data(
+        epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/VOLVE_STRUCT.epc",
+        uuid_list=uuid_list,
+        output_folder_path="../example/result/export-energyml-utils/VOLVE_STRUCT_CRS_displaced",
+        # output_folder_path="D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/EQN_ORIGIN_PLUS_TRIANG_SET/export-energyml-utils",
+        file_format=MeshFileFormat.GEOJSON,
+        use_crs_displacement=True,
         logger=logger,
     )
 
@@ -675,6 +685,23 @@ def test_wellbore_reading():
         print(read_energyml_xml_bytes(xml_content))
 
 
+def read_sub_representation():
+    epc_path = "D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/ASPEN_TECH_RDDMS_IMPORT/Volve_Demo_Horizons_Depth.epc"
+    # epc_path = "D:/Geosiris/Cloud/Resqml_Tools/OSDU/OSDU_RESERVOIR_DDMS/F2F_Demo.epc"
+    # epc = Epc.read_file(epc_path)
+
+    uuid_list = [
+        "e2e7f8a9-c602-4c02-99cb-cff3ef79ce84"  # Grid Subrep
+    ]
+
+    export_multiple_data(
+        epc_path=epc_path,
+        uuid_list=uuid_list,
+        output_folder_path="../example/result/subrep/",
+        file_format=MeshFileFormat.OBJ,
+    )
+
+
 if __name__ == "__main__":
 
     logging.basicConfig(
@@ -712,7 +739,8 @@ if __name__ == "__main__":
     # test_export_multiple_geojson_volve()
     # test_simple_geojson()
     # test_simple_geojson_io()
-    test_export_multiple_geojson_volve_struct()
+    # test_export_multiple_geojson_volve_struct()
+    read_sub_representation()
 
     # test_etree()
     # test_wellbore_reading()

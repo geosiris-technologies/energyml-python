@@ -48,7 +48,7 @@ def dict_energyml_modules() -> Dict:
     return modules
 
 
-def list_energyml_modules():
+def list_energyml_modules() -> List:
     try:
         energyml_module = importlib.import_module("energyml")
         modules = []

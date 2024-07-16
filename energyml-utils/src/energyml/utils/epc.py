@@ -613,6 +613,7 @@ def create_external_part_reference(
     :param eml_version:
     :param h5_file_path:
     :param citation:
+    :param uuid:
     :return:
     """
     version_flat = re.findall(RGX_DOMAIN_VERSION, eml_version)[0][0].replace(".", "").replace("_", "")
@@ -691,7 +692,7 @@ def get_file_folder_and_name_from_path(path: str) -> Tuple[str, str]:
     :return:
     """
     obj_folder = path[: path.rindex("/") + 1] if "/" in path else ""
-    obj_file_name = path[path.rindex("/") + 1 :] if "/" in path else path
+    obj_file_name = path[path.rindex("/") + 1:] if "/" in path else path
     return obj_folder, obj_file_name
 
 
