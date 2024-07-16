@@ -24,7 +24,7 @@ from ..introspection import (
     search_attribute_matching_name,
     search_attribute_matching_name_with_path,
     snake_case,
-    get_object_attribute,
+    get_object_attribute, get_obj_uuid,
 )
 
 _FILE_HEADER: bytes = b"# file exported by energyml-utils python module (Geosiris)\n"
@@ -177,7 +177,8 @@ def _mesh_name_mapping(array_type_name: str) -> str:
 def read_mesh_object(
         energyml_object: Any,
         workspace: Optional[EnergymlWorkspace] = None,
-        use_crs_displacement: bool = False
+        use_crs_displacement: bool = False,
+        sub_indices: List[int] = None
 ) -> List[AbstractMesh]:
     """
     Read and "meshable" object. If :param:`energyml_object` is not supported, an exception will be raised.
@@ -196,6 +197,7 @@ def read_mesh_object(
         surfaces: List[AbstractMesh] = reader_func(
             energyml_object=energyml_object,
             workspace=workspace,
+            sub_indices=sub_indices
         )
         if use_crs_displacement:
             for s in surfaces:
@@ -208,18 +210,21 @@ def read_mesh_object(
         )
 
 
-def read_point_representation(energyml_object: Any, workspace: EnergymlWorkspace) -> List[PointSetMesh]:
+def read_point_representation(energyml_object: Any, workspace: EnergymlWorkspace, sub_indices: List[int] = None) -> List[PointSetMesh]:
     # pt_geoms = search_attribute_matching_type(point_set, "AbstractGeometry")
     h5_reader = HDF5FileReader()
 
     meshes = []
 
     patch_idx = 0
-    # resqml 2.0.1
+    total_size = 0
     for (
             points_path_in_obj,
             points_obj,
-    ) in search_attribute_matching_name_with_path(energyml_object, "NodePatch.[\d]+.Geometry.Points"):
+    ) in (
+            search_attribute_matching_name_with_path(energyml_object, "NodePatch.[\d]+.Geometry.Points")  # resqml 2.0.1
+            + search_attribute_matching_name_with_path(energyml_object, "NodePatchGeometry.[\d]+.Points")  # resqml 2.2
+    ):
         points = read_array(
             energyml_array=points_obj,
             root_obj=energyml_object,
@@ -237,44 +242,22 @@ def read_point_representation(energyml_object: Any, workspace: EnergymlWorkspace
             )
         except ObjectNotFoundNotError as e:
             pass
+
+        if sub_indices is not None and len(sub_indices) > 0:
+            new_points = []
+            for idx in sub_indices:
+                t_idx = idx - total_size
+                if 0 <= t_idx < len(points):
+                    new_points.append(points[t_idx])
+            total_size = total_size + len(points)
+            points = new_points
+        else:
+            points = total_size + len(points)
+
         if points is not None:
             meshes.append(
                 PointSetMesh(
-                    identifier=f"NodePatch num {patch_idx}",
-                    energyml_object=energyml_object,
-                    crs_object=crs,
-                    point_list=points,
-                )
-            )
-
-        patch_idx = patch_idx + 1
-
-    # resqml 2.2
-    for (
-            points_path_in_obj,
-            points_obj,
-    ) in search_attribute_matching_name_with_path(energyml_object, "NodePatchGeometry.[\d]+.Points"):
-        points = read_array(
-            energyml_array=points_obj,
-            root_obj=energyml_object,
-            path_in_root=points_path_in_obj,
-            workspace=workspace,
-        )
-
-        crs = None
-        try:
-            crs = get_crs_obj(
-                context_obj=points_obj,
-                path_in_root=points_path_in_obj,
-                root_obj=energyml_object,
-                workspace=workspace,
-            )
-        except ObjectNotFoundNotError as e:
-            pass
-        if points is not None:
-            meshes.append(
-                PointSetMesh(
-                    identifier=f"NodePatchGeometry num {patch_idx}",
+                    identifier=f"Patch num {patch_idx}",
                     energyml_object=energyml_object,
                     crs_object=crs,
                     point_list=points,
@@ -286,13 +269,14 @@ def read_point_representation(energyml_object: Any, workspace: EnergymlWorkspace
     return meshes
 
 
-def read_polyline_representation(energyml_object: Any, workspace: EnergymlWorkspace) -> List[PolylineSetMesh]:
+def read_polyline_representation(energyml_object: Any, workspace: EnergymlWorkspace, sub_indices: List[int] = None) -> List[PolylineSetMesh]:
     # pt_geoms = search_attribute_matching_type(point_set, "AbstractGeometry")
     h5_reader = HDF5FileReader()
 
     meshes = []
 
     patch_idx = 0
+    total_size = 0
     for patch_path_in_obj, patch in search_attribute_matching_name_with_path(
             energyml_object, "NodePatch"
     ) + search_attribute_matching_name_with_path(energyml_object, "LinePatch.[\\d]+"):
@@ -356,6 +340,17 @@ def read_polyline_representation(energyml_object: Any, workspace: EnergymlWorksp
             # No indices ==> all point in the polyline
             point_indices = [list(range(len(points)))]
 
+        if sub_indices is not None and len(sub_indices) > 0:
+            new_indices = []
+            for idx in sub_indices:
+                t_idx = idx - total_size
+                if 0 <= t_idx < len(point_indices):
+                    new_indices.append(point_indices[t_idx])
+            total_size = total_size + len(point_indices)
+            point_indices = new_indices
+        else:
+            total_size = total_size + len(point_indices)
+
         if len(points) > 0:
             meshes.append(
                 PolylineSetMesh(
@@ -376,11 +371,16 @@ def read_grid2d_representation(
         energyml_object: Any,
         workspace: Optional[EnergymlWorkspace] = None,
         keep_holes=False,
+        sub_indices: List[int] = None
 ) -> List[SurfaceMesh]:
     # h5_reader = HDF5FileReader()
     meshes = []
 
+    if sub_indices is not None:
+        sub_indices = list(sorted(sub_indices))
+
     patch_idx = 0
+    total_size = 0
     for patch_path, patch in search_attribute_matching_name_with_path(energyml_object, "Grid2dPatch"):
         crs = None
         try:
@@ -473,6 +473,16 @@ def read_grid2d_representation(
                             indice_to_final_indice[line + fa_count + fa],
                         ]
                     )
+        if sub_indices is not None and len(sub_indices) > 0:
+            new_indices = []
+            for idx in sub_indices:
+                t_idx = idx - total_size
+                if 0 <= t_idx < len(indices):
+                    new_indices.append(indices[t_idx])
+            total_size = total_size + len(indices)
+            indices = new_indices
+        else:
+            total_size = total_size + len(indices)
         # logging.debug(indices)
         meshes.append(
             SurfaceMesh(
@@ -488,11 +498,16 @@ def read_grid2d_representation(
     return meshes
 
 
-def read_triangulated_set_representation(energyml_object: Any, workspace: EnergymlWorkspace) -> List[SurfaceMesh]:
+def read_triangulated_set_representation(
+        energyml_object: Any,
+        workspace: EnergymlWorkspace,
+        sub_indices: List[int] = None,
+) -> List[SurfaceMesh]:
     meshes = []
 
     point_offset = 0
     patch_idx = 0
+    total_size = 0
     for patch_path, patch in search_attribute_matching_name_with_path(
             energyml_object,
             "\\.*Patch.\\d+",
@@ -531,6 +546,16 @@ def read_triangulated_set_representation(energyml_object: Any, workspace: Energy
                 workspace=workspace,
             )
         triangles_list = list(map(lambda tr: [ti - point_offset for ti in tr], triangles_list))
+        if sub_indices is not None and len(sub_indices) > 0:
+            new_triangles_list = []
+            for idx in sub_indices:
+                t_idx = idx - total_size
+                if 0 <= t_idx < len(triangles_list):
+                    new_triangles_list.append(triangles_list[t_idx])
+            total_size = total_size + len(triangles_list)
+            triangles_list = new_triangles_list
+        else:
+            total_size = total_size + len(triangles_list)
         meshes.append(
             SurfaceMesh(
                 identifier=f"{get_obj_identifier(energyml_object)}_patch{patch_idx}",
@@ -546,6 +571,64 @@ def read_triangulated_set_representation(energyml_object: Any, workspace: Energy
     return meshes
 
 
+def read_sub_representation(
+        energyml_object: Any,
+        workspace: EnergymlWorkspace,
+        sub_indices: List[int] = None,
+) -> List[AbstractMesh]:
+    supporting_rep_dor = search_attribute_matching_name(
+        obj=energyml_object,
+        name_rgx="(SupportingRepresentation|RepresentedObject)"
+    )[0]
+    supporting_rep_identifier = get_obj_identifier(supporting_rep_dor)
+    supporting_rep = workspace.get_object_by_identifier(supporting_rep_identifier)
+
+    total_size = 0
+    all_indices = []
+    for patch_path, patch_indices in (
+            search_attribute_matching_name_with_path(
+                obj=energyml_object,
+                name_rgx="SubRepresentationPatch.\\d+.ElementIndices.\\d+.Indices",
+                deep_search=False,
+                search_in_sub_obj=False,
+            )
+            + search_attribute_matching_name_with_path(
+                obj=energyml_object,
+                name_rgx="SubRepresentationPatch.\\d+.Indices",
+                deep_search=False,
+                search_in_sub_obj=False,
+            )
+    ):
+        array = read_array(
+            energyml_array=patch_indices,
+            root_obj=energyml_object,
+            path_in_root=patch_path,
+            workspace=workspace,
+            sub_indices=sub_indices
+        )
+
+        if sub_indices is not None and len(sub_indices) > 0:
+            new_array = []
+            for idx in sub_indices:
+                t_idx = idx - total_size
+                if 0 <= t_idx < len(array):
+                    new_array.append(array[t_idx])
+            total_size = total_size + len(array)
+            array = new_array
+        else:
+            total_size = total_size + len(array)
+
+        all_indices = all_indices + array
+    meshes = read_mesh_object(
+        energyml_object=supporting_rep,
+        workspace=workspace,
+        sub_indices=all_indices,
+    )
+
+    for m in meshes:
+        m.identifier = f"sub representation {get_obj_identifier(energyml_object)} of {m.identifier}"
+
+    return meshes
 # MESH FILES
 
 

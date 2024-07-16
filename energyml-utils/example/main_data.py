@@ -691,7 +691,10 @@ def read_sub_representation():
     # epc = Epc.read_file(epc_path)
 
     uuid_list = [
-        "e2e7f8a9-c602-4c02-99cb-cff3ef79ce84"  # Grid Subrep
+        "e2e7f8a9-c602-4c02-99cb-cff3ef79ce84",  # Grid Subrep
+        "5bc4bfd9-44fa-433a-a362-59c5b35cd9e8",  # Grid Subrep
+        "218283a7-44eb-44fa-9074-7cb1cff125f2",  # Grid Subrep
+        "1450e49e-830a-4430-a482-aa06fcd013f5",  # Grid Subrep
     ]
 
     export_multiple_data(

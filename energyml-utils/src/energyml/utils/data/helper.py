@@ -284,6 +284,7 @@ def read_external_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
+    sub_indices: List[int] = None
 ) -> List[Any]:
     """
     Read an external array (BooleanExternalArray, BooleanHdf5Array, DoubleHdf5Array, IntegerHdf5Array, StringExternalArray ...)
@@ -293,11 +294,18 @@ def read_external_array(
     :param workspace:
     :return:
     """
-    return workspace.read_external_array(
+    array = workspace.read_external_array(
         energyml_array=energyml_array,
         root_obj=root_obj,
         path_in_root=path_in_root,
     )
+    if sub_indices is not None and len(sub_indices) > 0:
+        res = []
+        for idx in sub_indices:
+            res.append(array[idx])
+        array = res
+
+    return array
 
 
 def get_array_reader_function(array_type_name: str) -> Optional[Callable]:
@@ -317,6 +325,7 @@ def read_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
+    sub_indices: List[int] = None
 ) -> List[Any]:
     """
     Read an array and return a list. The array is read depending on its type. see. :py:func:`energyml.utils.data.helper.get_supported_array`
@@ -324,6 +333,7 @@ def read_array(
     :param root_obj:
     :param path_in_root:
     :param workspace:
+    :param sub_indices: for SubRepresentation
     :return:
     """
     if isinstance(energyml_array, list):
@@ -337,6 +347,7 @@ def read_array(
             root_obj=root_obj,
             path_in_root=path_in_root,
             workspace=workspace,
+            sub_indices=sub_indices
         )
     else:
         logging.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
@@ -350,6 +361,7 @@ def read_constant_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
+    sub_indices: List[int] = None
 ) -> List[Any]:
     """
     Read a constant array ( BooleanConstantArray, DoubleConstantArray, FloatingPointConstantArray, IntegerConstantArray ...)
@@ -357,12 +369,13 @@ def read_constant_array(
     :param root_obj:
     :param path_in_root:
     :param workspace:
+    :param sub_indices:
     :return:
     """
     # logging.debug(f"Reading constant array\n\t{energyml_array}")
 
     value = get_object_attribute_no_verif(energyml_array, "value")
-    count = get_object_attribute_no_verif(energyml_array, "count")
+    count = len(sub_indices) if sub_indices is not None and len(sub_indices) > 0 else get_object_attribute_no_verif(energyml_array, "count")
 
     # logging.debug(f"\tValue : {[value for i in range(0, count)]}")
 
@@ -374,6 +387,7 @@ def read_xml_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
+    sub_indices: List[int] = None
 ) -> List[Any]:
     """
     Read a xml array ( BooleanXmlArray, FloatingPointXmlArray, IntegerXmlArray, StringXmlArray ...)
@@ -381,10 +395,17 @@ def read_xml_array(
     :param root_obj:
     :param path_in_root:
     :param workspace:
+    :param sub_indices:
     :return:
     """
     values = get_object_attribute_no_verif(energyml_array, "values")
     # count = get_object_attribute_no_verif(energyml_array, "count_per_value")
+
+    if sub_indices is not None and len(sub_indices) > 0:
+        res = []
+        for idx in sub_indices:
+            res.append(values[idx])
+        values = res
     return values
 
 
@@ -393,6 +414,7 @@ def read_jagged_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
+    sub_indices: List[int] = None
 ) -> List[Any]:
     """
     Read a jagged array
@@ -400,6 +422,7 @@ def read_jagged_array(
     :param root_obj:
     :param path_in_root:
     :param workspace:
+    :param sub_indices:
     :return:
     """
     elements = read_array(
@@ -415,12 +438,18 @@ def read_jagged_array(
         workspace=workspace,
     )
 
-    res = []
+    array = []
     previous = 0
     for cl in cumulative_length:
-        res.append(elements[previous:cl])
+        array.append(elements[previous:cl])
         previous = cl
-    return res
+
+    if sub_indices is not None and len(sub_indices) > 0:
+        res = []
+        for idx in sub_indices:
+            res.append(array[idx])
+        array = res
+    return array
 
 
 def read_int_double_lattice_array(
@@ -428,6 +457,7 @@ def read_int_double_lattice_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
+    sub_indices: List[int] = None
 ):
     """
     Read DoubleLatticeArray or IntegerLatticeArray.
@@ -435,6 +465,7 @@ def read_int_double_lattice_array(
     :param root_obj:
     :param path_in_root:
     :param workspace:
+    :param sub_indices:
     :return:
     """
     start_value = get_object_attribute_no_verif(energyml_array, "start_value")
@@ -457,6 +488,7 @@ def read_point3d_zvalue_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
+    sub_indices: List[int] = None
 ):
     """
     Read a Point3D2ValueArray
@@ -464,6 +496,7 @@ def read_point3d_zvalue_array(
     :param root_obj:
     :param path_in_root:
     :param workspace:
+    :param sub_indices:
     :return:
     """
     supporting_geometry = get_object_attribute_no_verif(energyml_array, "supporting_geometry")
@@ -472,6 +505,7 @@ def read_point3d_zvalue_array(
         root_obj=root_obj,
         path_in_root=path_in_root + ".SupportingGeometry",
         workspace=workspace,
+        sub_indices=sub_indices
     )
 
     zvalues = get_object_attribute_no_verif(energyml_array, "zvalues")
@@ -481,6 +515,7 @@ def read_point3d_zvalue_array(
             root_obj=root_obj,
             path_in_root=path_in_root + ".ZValues",
             workspace=workspace,
+            sub_indices=sub_indices
         )
     )
 
@@ -502,6 +537,7 @@ def read_point3d_from_representation_lattice_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
+    sub_indices: List[int] = None
 ):
     """
     Read a Point3DFromRepresentationLatticeArray.
@@ -512,6 +548,7 @@ def read_point3d_from_representation_lattice_array(
     :param root_obj:
     :param path_in_root:
     :param workspace:
+    :param sub_indices:
     :return:
     """
     supporting_rep_identifier = get_obj_identifier(
@@ -531,6 +568,7 @@ def read_point3d_from_representation_lattice_array(
             grid2d=supporting_rep,
             path_in_root=patch_path,
             workspace=workspace,
+            sub_indices=sub_indices
         )
         # TODO: take the points by there indices from the NodeIndicesOnSupportingRepresentation
         result = points
@@ -546,6 +584,7 @@ def read_grid2d_patch(
     grid2d: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
+    sub_indices: List[int] = None
 ) -> List:
     points_path, points_obj = search_attribute_matching_name_with_path(patch, "Geometry.Points")[0]
 
@@ -554,6 +593,7 @@ def read_grid2d_patch(
         root_obj=grid2d,
         path_in_root=path_in_root + "." + points_path,
         workspace=workspace,
+        sub_indices=sub_indices
     )
 
 
@@ -562,6 +602,7 @@ def read_point3d_lattice_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
+    sub_indices: List[int] = None
 ) -> List:
     """
     Read a Point3DLatticeArray.
@@ -572,6 +613,7 @@ def read_point3d_lattice_array(
     :param root_obj:
     :param path_in_root:
     :param workspace:
+    :param sub_indices:
     :return:
     """
     result = []
@@ -665,6 +707,12 @@ def read_point3d_lattice_array(
                         result.append(previous_value)
     else:
         raise Exception(f"{type(energyml_array)} read with an offset of length {len(offset)} is not supported")
+
+    if sub_indices is not None and len(sub_indices) > 0:
+        res = []
+        for idx in sub_indices:
+            res.append(result[idx])
+        result = res
 
     return result
 
