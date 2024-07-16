@@ -91,9 +91,7 @@ def dor_validation(energyml_objects: List[Any]) -> List[ValidationError]:
     """
     errs = []
 
-    dict_obj_identifier = {
-        get_obj_identifier(obj): obj for obj in energyml_objects
-    }
+    dict_obj_identifier = {get_obj_identifier(obj): obj for obj in energyml_objects}
     dict_obj_uuid = {}
     for obj in energyml_objects:
         uuid = get_obj_uuid(obj)
@@ -104,9 +102,7 @@ def dor_validation(energyml_objects: List[Any]) -> List[ValidationError]:
     # TODO: chercher dans les objets les AbstractObject (en Witsml des sous objet peuvent etre aussi references)
 
     for obj in energyml_objects:
-        dor_list = search_attribute_matching_type_with_path(
-            obj, "DataObjectReference"
-        )
+        dor_list = search_attribute_matching_type_with_path(obj, "DataObjectReference")
         for dor_path, dor in dor_list:
             dor_target_id = get_obj_identifier(dor)
             if dor_target_id not in dict_obj_identifier:
@@ -123,10 +119,7 @@ def dor_validation(energyml_objects: List[Any]) -> List[ValidationError]:
                         )
                     )
                 else:
-                    accessible_version = [
-                        get_obj_version(ref_obj)
-                        for ref_obj in dict_obj_uuid[dor_uuid]
-                    ]
+                    accessible_version = [get_obj_version(ref_obj) for ref_obj in dict_obj_uuid[dor_uuid]]
                     errs.append(
                         ValidationObjectError(
                             error_type=ErrorType.CRITICAL,
@@ -138,9 +131,7 @@ def dor_validation(energyml_objects: List[Any]) -> List[ValidationError]:
                     )
             else:
                 target = dict_obj_identifier[dor_target_id]
-                target_title = get_object_attribute_rgx(
-                    target, "citation.title"
-                )
+                target_title = get_object_attribute_rgx(target, "citation.title")
                 target_content_type = get_content_type_from_class(target)
                 target_qualified_type = get_qualified_type_from_class(target)
 
@@ -156,13 +147,8 @@ def dor_validation(energyml_objects: List[Any]) -> List[ValidationError]:
                         )
                     )
 
-                if (
-                    get_matching_class_attribute_name(dor, "content_type")
-                    is not None
-                ):
-                    dor_content_type = get_object_attribute_no_verif(
-                        dor, "content_type"
-                    )
+                if get_matching_class_attribute_name(dor, "content_type") is not None:
+                    dor_content_type = get_object_attribute_no_verif(dor, "content_type")
                     if dor_content_type != target_content_type:
                         errs.append(
                             ValidationObjectError(
@@ -173,13 +159,8 @@ def dor_validation(energyml_objects: List[Any]) -> List[ValidationError]:
                             )
                         )
 
-                if (
-                    get_matching_class_attribute_name(dor, "qualified_type")
-                    is not None
-                ):
-                    dor_qualified_type = get_object_attribute_no_verif(
-                        dor, "qualified_type"
-                    )
+                if get_matching_class_attribute_name(dor, "qualified_type") is not None:
+                    dor_qualified_type = get_object_attribute_no_verif(dor, "qualified_type")
                     if dor_qualified_type != target_qualified_type:
                         errs.append(
                             ValidationObjectError(
@@ -202,9 +183,7 @@ def patterns_validation(obj: Any) -> List[ValidationError]:
     return _patterns_validation(obj, obj, "")
 
 
-def _patterns_validation(
-    obj: Any, root_obj: Any, current_attribute_dot_path: str = ""
-) -> List[ValidationError]:
+def _patterns_validation(obj: Any, root_obj: Any, current_attribute_dot_path: str = "") -> List[ValidationError]:
     """
     Verification on object values, using the patterns defined in the original energyml xsd files.
     :param obj:
@@ -217,15 +196,11 @@ def _patterns_validation(
     if isinstance(obj, list):
         cpt = 0
         for val in obj:
-            error_list = error_list + _patterns_validation(
-                val, root_obj, f"{current_attribute_dot_path}.{cpt}"
-            )
+            error_list = error_list + _patterns_validation(val, root_obj, f"{current_attribute_dot_path}.{cpt}")
             cpt = cpt + 1
     elif isinstance(obj, dict):
         for k, val in obj.items():
-            error_list = error_list + _patterns_validation(
-                val, root_obj, f"{current_attribute_dot_path}.{k}"
-            )
+            error_list = error_list + _patterns_validation(val, root_obj, f"{current_attribute_dot_path}.{k}")
     else:
         # logging.debug(get_class_fields(obj))
         for att_name, att_field in get_class_fields(obj).items():
@@ -240,9 +215,7 @@ def _patterns_validation(
     return error_list
 
 
-def validate_attribute(
-    value: Any, root_obj: Any, att_field: Field, path: str
-) -> List[ValidationError]:
+def validate_attribute(value: Any, root_obj: Any, att_field: Field, path: str) -> List[ValidationError]:
     errs = []
 
     if value is None:
@@ -307,8 +280,7 @@ def validate_attribute(
             if isinstance(value, list):
                 for val in value:
                     if (isinstance(val, str) and len(val) > min_inclusive) or (
-                        (isinstance(val, int) or isinstance(val, float))
-                        and val > min_inclusive
+                        (isinstance(val, int) or isinstance(val, float)) and val > min_inclusive
                     ):
                         errs.append(potential_err)
 
@@ -336,9 +308,7 @@ def correct_dor(energyml_objects: List[Any]) -> None:
     :param energyml_objects:
     :return:
     """
-    dict_obj_identifier = {
-        get_obj_identifier(obj): obj for obj in energyml_objects
-    }
+    dict_obj_identifier = {get_obj_identifier(obj): obj for obj in energyml_objects}
     dict_obj_uuid = {}
     for obj in energyml_objects:
         uuid = get_obj_uuid(obj)
@@ -349,16 +319,12 @@ def correct_dor(energyml_objects: List[Any]) -> None:
     # TODO: chercher dans les objets les AbstractObject (en Witsml des sous objet peuvent etre aussi references)
 
     for obj in energyml_objects:
-        dor_list = search_attribute_matching_type_with_path(
-            obj, "DataObjectReference"
-        )
+        dor_list = search_attribute_matching_type_with_path(obj, "DataObjectReference")
         for dor_path, dor in dor_list:
             dor_target_id = get_obj_identifier(dor)
             if dor_target_id in dict_obj_identifier:
                 target = dict_obj_identifier[dor_target_id]
-                target_title = get_object_attribute_rgx(
-                    target, "citation.title"
-                )
+                target_title = get_object_attribute_rgx(target, "citation.title")
                 target_content_type = get_content_type_from_class(target)
                 target_qualified_type = get_qualified_type_from_class(target)
 
@@ -367,22 +333,12 @@ def correct_dor(energyml_objects: List[Any]) -> None:
                 if dor_title != target_title:
                     dor.title = target_title
 
-                if (
-                    get_matching_class_attribute_name(dor, "content_type")
-                    is not None
-                ):
-                    dor_content_type = get_object_attribute_no_verif(
-                        dor, "content_type"
-                    )
+                if get_matching_class_attribute_name(dor, "content_type") is not None:
+                    dor_content_type = get_object_attribute_no_verif(dor, "content_type")
                     if dor_content_type != target_content_type:
                         dor.content_type = target_content_type
 
-                if (
-                    get_matching_class_attribute_name(dor, "qualified_type")
-                    is not None
-                ):
-                    dor_qualified_type = get_object_attribute_no_verif(
-                        dor, "qualified_type"
-                    )
+                if get_matching_class_attribute_name(dor, "qualified_type") is not None:
+                    dor_qualified_type = get_object_attribute_no_verif(dor, "qualified_type")
                     if dor_qualified_type != target_qualified_type:
                         dor.qualified_type = target_qualified_type

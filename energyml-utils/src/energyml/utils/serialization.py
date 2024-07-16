@@ -81,9 +81,7 @@ def _read_energyml_xml_bytes_as_class(
         raise e
 
 
-def read_energyml_xml_tree(
-    file: etree, obj_type: Optional[type] = None
-) -> Any:
+def read_energyml_xml_tree(file: etree, obj_type: Optional[type] = None) -> Any:
     # if obj_type is None:
     #     obj_type = get_class_from_name(get_class_name_from_xml(file))
     # parser = XmlParser(handler=XmlEventHandler)
@@ -92,9 +90,7 @@ def read_energyml_xml_tree(
     return read_energyml_xml_bytes(etree.tostring(file, encoding="utf8"))
 
 
-def read_energyml_xml_bytes(
-    file: bytes, obj_type: Optional[type] = None
-) -> Any:
+def read_energyml_xml_bytes(file: bytes, obj_type: Optional[type] = None) -> Any:
     """
     Read a xml file. The type of object is searched from the xml root name if not given.
     :param obj_type:
@@ -108,13 +104,9 @@ def read_energyml_xml_bytes(
     except xsdata.exceptions.ParserError as e:
         if len(e.args) > 0:
             if "unknown property" in e.args[0].lower():
-                logging.error(
-                    f"Trying reading without fail on unknown attribute/property"
-                )
+                logging.error(f"Trying reading without fail on unknown attribute/property")
                 try:
-                    return _read_energyml_xml_bytes_as_class(
-                        file, obj_type, False, False
-                    )
+                    return _read_energyml_xml_bytes_as_class(file, obj_type, False, False)
                 except Exception as e:
                     logging.error(traceback.print_stack())
                     pass
@@ -131,9 +123,7 @@ def read_energyml_xml_bytes(
         raise e
 
 
-def read_energyml_xml_io(
-    file: BytesIO, obj_class: Optional[type] = None
-) -> Any:
+def read_energyml_xml_io(file: BytesIO, obj_class: Optional[type] = None) -> Any:
     if obj_class is not None:
         return _read_energyml_xml_bytes_as_class(file.getbuffer(), obj_class)
     else:
@@ -152,9 +142,7 @@ def read_energyml_xml_file(file_path: str) -> Any:
     return read_energyml_xml_bytes(xml_content_b)
 
 
-def _read_energyml_json_bytes_as_class(
-    file: bytes, json_version: JSON_VERSION, obj_class: type
-) -> Union[List, Any]:
+def _read_energyml_json_bytes_as_class(file: bytes, json_version: JSON_VERSION, obj_class: type) -> Union[List, Any]:
     """
     Read a json file into energyml object. If json_version==JSON_VERSION.XSDATA the instance will be of type :param:`obj_class`.
     For json_version==JSON_VERSION.OSDU_OFFICIAL a list of read objects is returned
@@ -199,14 +187,10 @@ def read_energyml_json_bytes(
             logging.error(
                 f"Failed to read file with type {obj_type}: {get_energyml_class_in_related_dev_pkg(obj_type)}"
             )
-            for obj_type_dev in get_energyml_class_in_related_dev_pkg(
-                obj_type
-            ):
+            for obj_type_dev in get_energyml_class_in_related_dev_pkg(obj_type):
                 try:
                     logging.debug(f"Trying with class : {obj_type_dev}")
-                    obj = _read_energyml_json_bytes_as_class(
-                        file, obj_type_dev
-                    )
+                    obj = _read_energyml_json_bytes_as_class(file, obj_type_dev)
                     logging.debug(f" ==> succeed read with {obj_type_dev}")
                     return obj
                 except Exception:
@@ -220,22 +204,16 @@ def read_energyml_json_io(
     file: BytesIO, json_version: JSON_VERSION, obj_class: Optional[type] = None
 ) -> Union[List, Any]:
     if obj_class is not None:
-        return _read_energyml_json_bytes_as_class(
-            file.getbuffer(), json_version, obj_class
-        )
+        return _read_energyml_json_bytes_as_class(file.getbuffer(), json_version, obj_class)
     else:
         return read_energyml_json_bytes(file.getbuffer(), json_version)
 
 
-def read_energyml_json_str(
-    file_content: str, json_version: JSON_VERSION
-) -> Union[List, Any]:
+def read_energyml_json_str(file_content: str, json_version: JSON_VERSION) -> Union[List, Any]:
     return read_energyml_json_bytes(file_content.encode("utf-8"), json_version)
 
 
-def read_energyml_json_file(
-    file_path: str, json_version: JSON_VERSION
-) -> Union[List, Any]:
+def read_energyml_json_file(file_path: str, json_version: JSON_VERSION) -> Union[List, Any]:
     json_content_b = ""
     with open(file_path, "rb") as f:
         json_content_b = f.read()
@@ -374,9 +352,7 @@ def to_json_dict(obj: Any, obj_id_to_obj: Optional[Dict] = None) -> Any:
     """
     return to_json_dict_fn(
         obj,
-        lambda _id: obj_id_to_obj[_id]
-        if obj_id_to_obj is not None and _id in obj_id_to_obj
-        else None,
+        lambda _id: obj_id_to_obj[_id] if obj_id_to_obj is not None and _id in obj_id_to_obj else None,
     )
 
 
@@ -400,40 +376,26 @@ def _fill_dict_with_attribs(
 ) -> None:
 
     for att_name, field in get_class_fields(obj).items():
-        field_name = (
-            field.metadata["name"] if "name" in field.metadata else field.name
-        )
+        field_name = field.metadata["name"] if "name" in field.metadata else field.name
         if field_name == "value":
             field_name = "_"
         field_name = field_name[0].upper() + field_name[1:]
-        mandatory = (
-            field.metadata["required"]
-            if "required" in field.metadata
-            else False
-        )
+        mandatory = field.metadata["required"] if "required" in field.metadata else False
         value = getattr(obj, att_name)
 
         if "Any_element" in str(field_name):
-            logging.debug(
-                f"\t> {field_name}, {att_name} : {value}, {type(obj)}"
-            )
+            logging.debug(f"\t> {field_name}, {att_name} : {value}, {type(obj)}")
 
-        if (value is not None or mandatory) and (
-            not isinstance(value, list) or len(value) > 0
-        ):
+        if (value is not None or mandatory) and (not isinstance(value, list) or len(value) > 0):
             res[field_name] = _to_json_dict_fn(value, f_identifier_to_obj, obj)
 
-            if _parent is not None and (
-                field_name.lower() == "uuid" or field_name.lower() == "uid"
-            ):
+            if _parent is not None and (field_name.lower() == "uuid" or field_name.lower() == "uid"):
                 # adding referenced data
                 ref_identifier = get_obj_identifier(obj)
                 if f_identifier_to_obj is not None:
                     ref_value = f_identifier_to_obj(ref_identifier)
                     if ref_value is not None:
-                        res["_data"] = to_json_dict_fn(
-                            ref_value, f_identifier_to_obj
-                        )
+                        res["_data"] = to_json_dict_fn(ref_value, f_identifier_to_obj)
                     else:
                         logging.debug(f"NotFound : {ref_identifier}")
 

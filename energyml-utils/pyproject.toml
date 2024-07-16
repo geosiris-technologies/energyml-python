@@ -77,7 +77,7 @@ branch = true
 source = ["src/energyml"]
 
 [tool.black]
-line-length = 79
+line-length = 120
 target-version = ["py39"]
 include = '\.pyi?$'
 exclude = '''
@@ -97,7 +97,7 @@ exclude = '''
 '''
 
 [tool.pylint.format]
-max-line-length = "88"
+max-line-length = "120"
 
 [tool.poetry-dynamic-versioning]
 enable = true

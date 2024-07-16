@@ -8,24 +8,19 @@ from energyml.eml.v2_3.commonv2 import (
     StringXmlArray,
     IntegerXmlArray,
 )
-from energyml.resqml.v2_0_1.resqmlv2 import WellboreMarkerFrameRepresentation
 
 from src.energyml.utils.data.hdf import (
     get_hdf_reference_with_path,
-    get_hdf5_path_from_external_path,
 )
 from src.energyml.utils.data.helper import (
     get_array_reader_function,
-    get_supported_array,
-    get_not_supported_array,
 )
 from src.energyml.utils.data.mesh import *
 from src.energyml.utils.data.mesh import _create_shape, _write_geojson_shape
-from src.energyml.utils.epc import gen_energyml_object_path
+from src.energyml.utils.epc import gen_energyml_object_path, get_hdf5_path_from_external_path
 from src.energyml.utils.introspection import (
     is_abstract,
     get_obj_uuid,
-    get_class_fields,
 )
 from src.energyml.utils.manager import get_sub_classes
 from src.energyml.utils.serialization import (
@@ -35,8 +30,7 @@ from src.energyml.utils.serialization import (
     read_energyml_xml_tree,
 )
 from src.energyml.utils.validation import validate_epc
-from src.energyml.utils.xml import RGX_CONTENT_TYPE, get_tree
-
+from src.energyml.utils.xml import get_tree
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +123,7 @@ def read_h5_datasets():
     print(epc201.epc_file_path)
 
     pt_set_list = read_point_representation(
-        energyml_object=psr, workspace=EPCWorkspace(epc=epc201)
+        energyml_object=psr, workspace=epc201
     )
 
     with open("../example/result/file_point_set.off", "wb") as f:
@@ -153,7 +147,7 @@ def read_h5_polyline():
     poly = epc201.get_object_by_uuid("77bfb696-1bc0-4858-a304-f8faeb37d809")[0]
     poly_set_list = read_polyline_representation(
         energyml_object=poly,
-        workspace=EPCWorkspace(epc201),
+        workspace=epc201,
     )
     with open("../example/result/polyline_set.obj", "wb") as f:
         export_obj(
@@ -215,7 +209,7 @@ def read_h5_grid2d():
     grid = epc22.get_object_by_uuid(uuid)[0]
     grid_list = read_mesh_object(
         energyml_object=grid,
-        workspace=EPCWorkspace(epc22),
+        workspace=epc22,
         # keep_holes=False
     )
     print("Exporting")
@@ -240,7 +234,7 @@ def read_meshes():
     energyml_obj = epc22.get_object_by_uuid(uuid)[0]
     mesh_list = read_mesh_object(
         energyml_object=energyml_obj,
-        workspace=EPCWorkspace(epc22),
+        workspace=epc22,
     )
     print("Exporting")
     with open(
@@ -374,6 +368,31 @@ def test_export_multiple_geojson_volve():
     )
 
 
+def test_export_multiple_geojson_volve_struct():
+    uuid_list = [
+        "c2f53ce1-1b2d-4819-b397-f174bc8c23e0",  # depthVolve_F11_2011_MBA
+        "d9b95bb5-019d-4341-bcf6-df392338187f",  # depth_Ty_Fm_Top_MBA
+    ]
+    export_multiple_data(
+        epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/VOLVE_STRUCT.epc",
+        uuid_list=uuid_list,
+        output_folder_path="../example/result/export-energyml-utils/VOLVE_STRUCT",
+        # output_folder_path="D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/EQN_ORIGIN_PLUS_TRIANG_SET/export-energyml-utils",
+        file_format=MeshFileFormat.GEOJSON,
+        use_crs_displacement=False,
+        logger=logger,
+    )
+    export_multiple_data(
+        epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/VOLVE_STRUCT.epc",
+        uuid_list=uuid_list,
+        output_folder_path="../example/result/export-energyml-utils/VOLVE_STRUCT_CRS_displaced",
+        # output_folder_path="D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/EQN_ORIGIN_PLUS_TRIANG_SET/export-energyml-utils",
+        file_format=MeshFileFormat.GEOJSON,
+        use_crs_displacement=True,
+        logger=logger,
+    )
+
+
 def test_export_multiple_testing_package():
     uuid_list = [
         "030a82f6-10a7-4ecf-af03-54749e098624",  # grid2d
@@ -407,29 +426,42 @@ def test_export_multiple_testing_package():
 
 
 def test_export_closed_poly():
-    export_multiple_data(
-        epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/"
-        "Volve_Fault_Depth_originEQN_v201_poly_closed.epc",
-        uuid_list=[
-            "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
-            "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
-        ],
-        output_folder_path="../example/result/export-energyml-utils",
-        # output_folder_path="D:/Geosiris/OSDU/manifestTranslation/#Data/export-energyml-utils",
-        output_file_path_suffix="_poly_closed",
-        file_format=MeshFileFormat.OBJ,
-    )
+    # export_multiple_data(
+    #     epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/"
+    #     "Volve_Fault_Depth_originEQN_v201_poly_closed.epc",
+    #     uuid_list=[
+    #         "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
+    #         "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
+    #     ],
+    #     output_folder_path="../example/result/export-energyml-utils",
+    #     # output_folder_path="D:/Geosiris/OSDU/manifestTranslation/#Data/export-energyml-utils",
+    #     output_file_path_suffix="_poly_closed",
+    #     file_format=MeshFileFormat.OBJ,
+    # )
+    # export_multiple_data(
+    #     epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/"
+    #     "Volve_Fault_Depth_originEQN_v201.epc",
+    #     uuid_list=[
+    #         "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
+    #         "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
+    #     ],
+    #     output_folder_path="../example/result/export-energyml-utils",
+    #     # output_folder_path="D:/Geosiris/OSDU/manifestTranslation/#Data/export-energyml-utils",
+    #     output_file_path_suffix="closed",
+    #     file_format=MeshFileFormat.OBJ,
+    # )
     export_multiple_data(
         epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/"
         "Volve_Fault_Depth_originEQN_v201.epc",
         uuid_list=[
             "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
             "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
+            "5db39032-4998-4b75-9156-ea104a8649d2",  # TrSet
         ],
-        output_folder_path="../example/result/export-energyml-utils",
+        output_folder_path="../example/result/export-energyml-utils/geojson",
         # output_folder_path="D:/Geosiris/OSDU/manifestTranslation/#Data/export-energyml-utils",
-        output_file_path_suffix="closed",
-        file_format=MeshFileFormat.OBJ,
+        output_file_path_suffix="new",
+        file_format=MeshFileFormat.GEOJSON,
     )
 
 
@@ -642,6 +674,37 @@ def test_simple_geojson_io():
         print(f"\n+++++++++++++++++++++++++\n")
 
 
+def test_wellbore_reading():
+    # WIP
+    path = "../rc/obj_EpcExternalPartReference_61fa2fdf-46ab-4c02-ab72-7895cce58e37.xml"
+
+    with open(path, "rb") as f:
+        xml_content = f.read()
+        # print(xml_content)
+
+        print(read_energyml_xml_bytes(xml_content))
+
+
+def read_sub_representation():
+    epc_path = "D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/ASPEN_TECH_RDDMS_IMPORT/Volve_Demo_Horizons_Depth.epc"
+    # epc_path = "D:/Geosiris/Cloud/Resqml_Tools/OSDU/OSDU_RESERVOIR_DDMS/F2F_Demo.epc"
+    # epc = Epc.read_file(epc_path)
+
+    uuid_list = [
+        "e2e7f8a9-c602-4c02-99cb-cff3ef79ce84",  # Grid Subrep
+        "5bc4bfd9-44fa-433a-a362-59c5b35cd9e8",  # Grid Subrep
+        "218283a7-44eb-44fa-9074-7cb1cff125f2",  # Grid Subrep
+        "1450e49e-830a-4430-a482-aa06fcd013f5",  # Grid Subrep
+    ]
+
+    export_multiple_data(
+        epc_path=epc_path,
+        uuid_list=uuid_list,
+        output_folder_path="../example/result/subrep/",
+        file_format=MeshFileFormat.OBJ,
+    )
+
+
 if __name__ == "__main__":
 
     logging.basicConfig(
@@ -678,6 +741,9 @@ if __name__ == "__main__":
     # test_export_multiple_geojson()
     # test_export_multiple_geojson_volve()
     # test_simple_geojson()
-    test_simple_geojson_io()
+    # test_simple_geojson_io()
+    # test_export_multiple_geojson_volve_struct()
+    read_sub_representation()
 
     # test_etree()
+    # test_wellbore_reading()

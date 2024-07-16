@@ -15,10 +15,8 @@ from .hdf import HDF5FileReader
 from .helper import (
     read_array,
     read_grid2d_patch,
-    is_z_reversed,
     EnergymlWorkspace,
-    get_crs_obj,
-    EPCWorkspace,
+    get_crs_obj, get_crs_origin_offset, is_z_reversed,
 )
 from ..epc import Epc, get_obj_identifier, gen_energyml_object_path
 from ..exception import ObjectNotFoundNotError
@@ -26,12 +24,10 @@ from ..introspection import (
     search_attribute_matching_name,
     search_attribute_matching_name_with_path,
     snake_case,
-    get_object_attribute,
+    get_object_attribute, get_obj_uuid,
 )
 
-_FILE_HEADER: bytes = (
-    b"# file exported by energyml-utils python module (Geosiris)\n"
-)
+_FILE_HEADER: bytes = b"# file exported by energyml-utils python module (Geosiris)\n"
 
 Point = list[float]
 
@@ -132,6 +128,28 @@ class SurfaceMesh(AbstractMesh):
         return self.faces_indices
 
 
+def crs_displacement(
+        points: List[Point], crs_obj: Any
+) -> Tuple[List[Point], Point]:
+    """
+    Transform a point list with CRS information (XYZ offset and ZIncreasingDownward)
+    :param points: in/out : the list is directly modified
+    :param crs_obj:
+    :return: The translated points and the crs offset vector.
+    """
+    crs_point_offset = get_crs_origin_offset(crs_obj=crs_obj)
+    zincreasing_downward = is_z_reversed(crs_obj)
+
+    if crs_point_offset != [0, 0, 0]:
+        for p in points:
+            for xyz in range(len(p)):
+                p[xyz] = p[xyz] + crs_point_offset[xyz]
+            if zincreasing_downward and len(p) >= 3:
+                p[2] = -p[2]
+
+    return points, crs_point_offset
+
+
 def get_mesh_reader_function(mesh_type_name: str) -> Optional[Callable]:
     """
     Returns the name of the potential appropriate function to read an object with type is named mesh_type_name
@@ -157,12 +175,17 @@ def _mesh_name_mapping(array_type_name: str) -> str:
 
 
 def read_mesh_object(
-    energyml_object: Any, workspace: Optional[EnergymlWorkspace] = None
+        energyml_object: Any,
+        workspace: Optional[EnergymlWorkspace] = None,
+        use_crs_displacement: bool = False,
+        sub_indices: List[int] = None
 ) -> List[AbstractMesh]:
     """
     Read and "meshable" object. If :param:`energyml_object` is not supported, an exception will be raised.
     :param energyml_object:
     :param workspace:
+    :param use_crs_displacement: If true the :py:function:`crs_displacement <energyml.utils.mesh.crs_displacement>`
+    is used to translate the data with the CRS offsets
     :return:
     """
     if isinstance(energyml_object, list):
@@ -171,34 +194,36 @@ def read_mesh_object(
 
     reader_func = get_mesh_reader_function(array_type_name)
     if reader_func is not None:
-        return reader_func(
+        surfaces: List[AbstractMesh] = reader_func(
             energyml_object=energyml_object,
             workspace=workspace,
+            sub_indices=sub_indices
         )
+        if use_crs_displacement:
+            for s in surfaces:
+                crs_displacement(s.point_list, s.crs_object)
+        return surfaces
     else:
-        logging.error(
-            f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found"
-        )
+        logging.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
         raise Exception(
             f"Type {array_type_name} is not supported\n\t{energyml_object}: \n\tfunction read_{snake_case(array_type_name)} not found"
         )
 
 
-def read_point_representation(
-    energyml_object: Any, workspace: EnergymlWorkspace
-) -> List[PointSetMesh]:
+def read_point_representation(energyml_object: Any, workspace: EnergymlWorkspace, sub_indices: List[int] = None) -> List[PointSetMesh]:
     # pt_geoms = search_attribute_matching_type(point_set, "AbstractGeometry")
     h5_reader = HDF5FileReader()
 
     meshes = []
 
     patch_idx = 0
-    # resqml 2.0.1
+    total_size = 0
     for (
-        points_path_in_obj,
-        points_obj,
-    ) in search_attribute_matching_name_with_path(
-        energyml_object, "NodePatch.[\d]+.Geometry.Points"
+            points_path_in_obj,
+            points_obj,
+    ) in (
+            search_attribute_matching_name_with_path(energyml_object, "NodePatch.[\d]+.Geometry.Points")  # resqml 2.0.1
+            + search_attribute_matching_name_with_path(energyml_object, "NodePatchGeometry.[\d]+.Points")  # resqml 2.2
     ):
         points = read_array(
             energyml_array=points_obj,
@@ -217,46 +242,22 @@ def read_point_representation(
             )
         except ObjectNotFoundNotError as e:
             pass
+
+        if sub_indices is not None and len(sub_indices) > 0:
+            new_points = []
+            for idx in sub_indices:
+                t_idx = idx - total_size
+                if 0 <= t_idx < len(points):
+                    new_points.append(points[t_idx])
+            total_size = total_size + len(points)
+            points = new_points
+        else:
+            points = total_size + len(points)
+
         if points is not None:
             meshes.append(
                 PointSetMesh(
-                    identifier=f"NodePatch num {patch_idx}",
-                    energyml_object=energyml_object,
-                    crs_object=crs,
-                    point_list=points,
-                )
-            )
-
-        patch_idx = patch_idx + 1
-
-    # resqml 2.2
-    for (
-        points_path_in_obj,
-        points_obj,
-    ) in search_attribute_matching_name_with_path(
-        energyml_object, "NodePatchGeometry.[\d]+.Points"
-    ):
-        points = read_array(
-            energyml_array=points_obj,
-            root_obj=energyml_object,
-            path_in_root=points_path_in_obj,
-            workspace=workspace,
-        )
-
-        crs = None
-        try:
-            crs = get_crs_obj(
-                context_obj=points_obj,
-                path_in_root=points_path_in_obj,
-                root_obj=energyml_object,
-                workspace=workspace,
-            )
-        except ObjectNotFoundNotError as e:
-            pass
-        if points is not None:
-            meshes.append(
-                PointSetMesh(
-                    identifier=f"NodePatchGeometry num {patch_idx}",
+                    identifier=f"Patch num {patch_idx}",
                     energyml_object=energyml_object,
                     crs_object=crs,
                     point_list=points,
@@ -268,27 +269,22 @@ def read_point_representation(
     return meshes
 
 
-def read_polyline_representation(
-    energyml_object: Any, workspace: EnergymlWorkspace
-) -> List[PolylineSetMesh]:
+def read_polyline_representation(energyml_object: Any, workspace: EnergymlWorkspace, sub_indices: List[int] = None) -> List[PolylineSetMesh]:
     # pt_geoms = search_attribute_matching_type(point_set, "AbstractGeometry")
     h5_reader = HDF5FileReader()
 
     meshes = []
 
     patch_idx = 0
+    total_size = 0
     for patch_path_in_obj, patch in search_attribute_matching_name_with_path(
-        energyml_object, "NodePatch"
-    ) + search_attribute_matching_name_with_path(
-        energyml_object, "LinePatch.[\\d]+"
-    ):
-        points_path, points_obj = search_attribute_matching_name_with_path(
-            patch, "Geometry.Points"
-        )[0]
+            energyml_object, "NodePatch"
+    ) + search_attribute_matching_name_with_path(energyml_object, "LinePatch.[\\d]+"):
+        points_path, points_obj = search_attribute_matching_name_with_path(patch, "Geometry.Points")[0]
         points = read_array(
             energyml_array=points_obj,
             root_obj=energyml_object,
-            path_in_root=patch_path_in_obj + points_path,
+            path_in_root=patch_path_in_obj + "." + points_path,
             workspace=workspace,
         )
 
@@ -296,7 +292,7 @@ def read_polyline_representation(
         try:
             crs = get_crs_obj(
                 context_obj=points_obj,
-                path_in_root=patch_path_in_obj + points_path,
+                path_in_root=patch_path_in_obj + "." + points_path,
                 root_obj=energyml_object,
                 workspace=workspace,
             )
@@ -305,18 +301,13 @@ def read_polyline_representation(
 
         close_poly = None
         try:
-            (
-                close_poly_path,
-                close_poly_obj,
-            ) = search_attribute_matching_name_with_path(
+            (close_poly_path, close_poly_obj,) = search_attribute_matching_name_with_path(
                 patch, "ClosedPolylines"
-            )[
-                0
-            ]
+            )[0]
             close_poly = read_array(
                 energyml_array=close_poly_obj,
                 root_obj=energyml_object,
-                path_in_root=patch_path_in_obj + close_poly_path,
+                path_in_root=patch_path_in_obj + "." + close_poly_path,
                 workspace=workspace,
             )
         except IndexError:
@@ -324,30 +315,20 @@ def read_polyline_representation(
 
         point_indices = []
         try:
-            (
-                node_count_per_poly_path_in_obj,
-                node_count_per_poly,
-            ) = search_attribute_matching_name_with_path(
+            (node_count_per_poly_path_in_obj, node_count_per_poly,) = search_attribute_matching_name_with_path(
                 patch, "NodeCountPerPolyline"
-            )[
-                0
-            ]
+            )[0]
             node_counts_list = read_array(
                 energyml_array=node_count_per_poly,
                 root_obj=energyml_object,
-                path_in_root=patch_path_in_obj
-                + node_count_per_poly_path_in_obj,
+                path_in_root=patch_path_in_obj + node_count_per_poly_path_in_obj,
                 workspace=workspace,
             )
             idx = 0
             poly_idx = 0
             for nb_node in node_counts_list:
                 point_indices.append([x for x in range(idx, idx + nb_node)])
-                if (
-                    close_poly is not None
-                    and len(close_poly) > poly_idx
-                    and close_poly[poly_idx]
-                ):
+                if close_poly is not None and len(close_poly) > poly_idx and close_poly[poly_idx]:
                     point_indices[len(point_indices) - 1].append(idx)
                 idx = idx + nb_node
                 poly_idx = poly_idx + 1
@@ -358,6 +339,17 @@ def read_polyline_representation(
         if point_indices is None or len(point_indices) == 0:
             # No indices ==> all point in the polyline
             point_indices = [list(range(len(points)))]
+
+        if sub_indices is not None and len(sub_indices) > 0:
+            new_indices = []
+            for idx in sub_indices:
+                t_idx = idx - total_size
+                if 0 <= t_idx < len(point_indices):
+                    new_indices.append(point_indices[t_idx])
+            total_size = total_size + len(point_indices)
+            point_indices = new_indices
+        else:
+            total_size = total_size + len(point_indices)
 
         if len(points) > 0:
             meshes.append(
@@ -376,19 +368,21 @@ def read_polyline_representation(
 
 
 def read_grid2d_representation(
-    energyml_object: Any,
-    workspace: Optional[EnergymlWorkspace] = None,
-    keep_holes=False,
+        energyml_object: Any,
+        workspace: Optional[EnergymlWorkspace] = None,
+        keep_holes=False,
+        sub_indices: List[int] = None
 ) -> List[SurfaceMesh]:
     # h5_reader = HDF5FileReader()
     meshes = []
 
+    if sub_indices is not None:
+        sub_indices = list(sorted(sub_indices))
+
     patch_idx = 0
-    for patch_path, patch in search_attribute_matching_name_with_path(
-        energyml_object, "Grid2dPatch"
-    ):
+    total_size = 0
+    for patch_path, patch in search_attribute_matching_name_with_path(energyml_object, "Grid2dPatch"):
         crs = None
-        reverse_z_values = False
         try:
             crs = get_crs_obj(
                 context_obj=patch,
@@ -396,7 +390,6 @@ def read_grid2d_representation(
                 root_obj=energyml_object,
                 workspace=workspace,
             )
-            reverse_z_values = is_z_reversed(crs)
         except ObjectNotFoundNotError as e:
             pass
 
@@ -409,15 +402,11 @@ def read_grid2d_representation(
 
         fa_count = search_attribute_matching_name(patch, "FastestAxisCount")
         if fa_count is None:
-            fa_count = search_attribute_matching_name(
-                energyml_object, "FastestAxisCount"
-            )
+            fa_count = search_attribute_matching_name(energyml_object, "FastestAxisCount")
 
         sa_count = search_attribute_matching_name(patch, "SlowestAxisCount")
         if sa_count is None:
-            sa_count = search_attribute_matching_name(
-                energyml_object, "SlowestAxisCount"
-            )
+            sa_count = search_attribute_matching_name(energyml_object, "SlowestAxisCount")
 
         fa_count = fa_count[0]
         sa_count = sa_count[0]
@@ -432,14 +421,10 @@ def read_grid2d_representation(
                 p = points[i]
                 if p[2] != p[2]:  # a NaN
                     points[i][2] = 0
-                elif reverse_z_values:
-                    points[i][2] = -points[i][2]
         else:
             for i in range(len(points)):
                 p = points[i]
                 if p[2] == p[2]:  # not a NaN
-                    if reverse_z_values:
-                        points[i][2] = -points[i][2]
                     indice_to_final_indice[i] = len(points_no_nan)
                     points_no_nan.append(p)
 
@@ -472,13 +457,13 @@ def read_grid2d_representation(
                             line + fa + 1,
                             line + fa_count + fa + 1,
                             line + fa_count + fa,
-                        ]
+                            ]
                     )
                 elif (
-                    (line + fa) in indice_to_final_indice
-                    and (line + fa + 1) in indice_to_final_indice
-                    and (line + fa_count + fa + 1) in indice_to_final_indice
-                    and (line + fa_count + fa) in indice_to_final_indice
+                        (line + fa) in indice_to_final_indice
+                        and (line + fa + 1) in indice_to_final_indice
+                        and (line + fa_count + fa + 1) in indice_to_final_indice
+                        and (line + fa_count + fa) in indice_to_final_indice
                 ):
                     indices.append(
                         [
@@ -488,6 +473,16 @@ def read_grid2d_representation(
                             indice_to_final_indice[line + fa_count + fa],
                         ]
                     )
+        if sub_indices is not None and len(sub_indices) > 0:
+            new_indices = []
+            for idx in sub_indices:
+                t_idx = idx - total_size
+                if 0 <= t_idx < len(indices):
+                    new_indices.append(indices[t_idx])
+            total_size = total_size + len(indices)
+            indices = new_indices
+        else:
+            total_size = total_size + len(indices)
         # logging.debug(indices)
         meshes.append(
             SurfaceMesh(
@@ -504,17 +499,20 @@ def read_grid2d_representation(
 
 
 def read_triangulated_set_representation(
-    energyml_object: Any, workspace: EnergymlWorkspace
+        energyml_object: Any,
+        workspace: EnergymlWorkspace,
+        sub_indices: List[int] = None,
 ) -> List[SurfaceMesh]:
     meshes = []
 
     point_offset = 0
     patch_idx = 0
+    total_size = 0
     for patch_path, patch in search_attribute_matching_name_with_path(
-        energyml_object,
-        "\\.*Patch.\\d+",
-        deep_search=False,
-        search_in_sub_obj=False,
+            energyml_object,
+            "\\.*Patch.\\d+",
+            deep_search=False,
+            search_in_sub_obj=False,
     ):
         crs = None
         try:
@@ -528,30 +526,36 @@ def read_triangulated_set_representation(
             pass
 
         point_list: List[Point] = []
-        for point_path, point_obj in search_attribute_matching_name_with_path(
-            patch, "Geometry.Points"
-        ):
+        for point_path, point_obj in search_attribute_matching_name_with_path(patch, "Geometry.Points"):
             point_list = point_list + read_array(
                 energyml_array=point_obj,
                 root_obj=energyml_object,
-                path_in_root=patch_path + point_path,
+                path_in_root=patch_path + "." + point_path,
                 workspace=workspace,
             )
 
         triangles_list: List[List[int]] = []
         for (
-            triangles_path,
-            triangles_obj,
+                triangles_path,
+                triangles_obj,
         ) in search_attribute_matching_name_with_path(patch, "Triangles"):
             triangles_list = triangles_list + read_array(
                 energyml_array=triangles_obj,
                 root_obj=energyml_object,
-                path_in_root=patch_path + triangles_path,
+                path_in_root=patch_path + "." + triangles_path,
                 workspace=workspace,
             )
-        triangles_list = list(
-            map(lambda tr: [ti - point_offset for ti in tr], triangles_list)
-        )
+        triangles_list = list(map(lambda tr: [ti - point_offset for ti in tr], triangles_list))
+        if sub_indices is not None and len(sub_indices) > 0:
+            new_triangles_list = []
+            for idx in sub_indices:
+                t_idx = idx - total_size
+                if 0 <= t_idx < len(triangles_list):
+                    new_triangles_list.append(triangles_list[t_idx])
+            total_size = total_size + len(triangles_list)
+            triangles_list = new_triangles_list
+        else:
+            total_size = total_size + len(triangles_list)
         meshes.append(
             SurfaceMesh(
                 identifier=f"{get_obj_identifier(energyml_object)}_patch{patch_idx}",
@@ -567,14 +571,72 @@ def read_triangulated_set_representation(
     return meshes
 
 
+def read_sub_representation(
+        energyml_object: Any,
+        workspace: EnergymlWorkspace,
+        sub_indices: List[int] = None,
+) -> List[AbstractMesh]:
+    supporting_rep_dor = search_attribute_matching_name(
+        obj=energyml_object,
+        name_rgx="(SupportingRepresentation|RepresentedObject)"
+    )[0]
+    supporting_rep_identifier = get_obj_identifier(supporting_rep_dor)
+    supporting_rep = workspace.get_object_by_identifier(supporting_rep_identifier)
+
+    total_size = 0
+    all_indices = []
+    for patch_path, patch_indices in (
+            search_attribute_matching_name_with_path(
+                obj=energyml_object,
+                name_rgx="SubRepresentationPatch.\\d+.ElementIndices.\\d+.Indices",
+                deep_search=False,
+                search_in_sub_obj=False,
+            )
+            + search_attribute_matching_name_with_path(
+                obj=energyml_object,
+                name_rgx="SubRepresentationPatch.\\d+.Indices",
+                deep_search=False,
+                search_in_sub_obj=False,
+            )
+    ):
+        array = read_array(
+            energyml_array=patch_indices,
+            root_obj=energyml_object,
+            path_in_root=patch_path,
+            workspace=workspace,
+            sub_indices=sub_indices
+        )
+
+        if sub_indices is not None and len(sub_indices) > 0:
+            new_array = []
+            for idx in sub_indices:
+                t_idx = idx - total_size
+                if 0 <= t_idx < len(array):
+                    new_array.append(array[t_idx])
+            total_size = total_size + len(array)
+            array = new_array
+        else:
+            total_size = total_size + len(array)
+
+        all_indices = all_indices + array
+    meshes = read_mesh_object(
+        energyml_object=supporting_rep,
+        workspace=workspace,
+        sub_indices=all_indices,
+    )
+
+    for m in meshes:
+        m.identifier = f"sub representation {get_obj_identifier(energyml_object)} of {m.identifier}"
+
+    return meshes
 # MESH FILES
 
 
 def _recompute_min_max(
-    old_min: List,  # out parameters
-    old_max: List,  # out parameters
-    potential_min: List,
-    potential_max: List,
+        old_min: List,  # out parameters
+        old_max: List,  # out parameters
+        potential_min: List,
+        potential_max: List,
 ) -> None:
     for i in range(len(potential_min)):
         if i >= len(old_min):
@@ -590,9 +652,9 @@ def _recompute_min_max(
 
 
 def _recompute_min_max_from_points(
-    old_min: List,  # out parameters
-    old_max: List,  # out parameters
-    points: Union[List[Point], Point],
+        old_min: List,  # out parameters
+        old_max: List,  # out parameters
+        points: Union[List[Point], Point],
 ) -> None:
     if len(points) > 0:
         if isinstance(points[0], list):
@@ -603,11 +665,11 @@ def _recompute_min_max_from_points(
 
 
 def _create_shape(
-    geo_type: GeoJsonGeometryType,
-    point_list: List[List[float]],
-    indices: Optional[Union[List[List[int]], List[int]]] = None,
-    point_offset: int = 0,
-    logger: Optional[Any] = None,
+        geo_type: GeoJsonGeometryType,
+        point_list: List[List[float]],
+        indices: Optional[Union[List[List[int]], List[int]]] = None,
+        point_offset: int = 0,
+        logger: Optional[Any] = None,
 ) -> Tuple[List, List[float], List[float]]:
     """
     Creates a shape from a point list [ [x0, y0 (, z0)? ], ..., [xn, yn (, zn)? ] ]
@@ -630,24 +692,15 @@ def _create_shape(
             if indices is not None and len(indices) > 0:
                 for idx in indices:
                     result.append(point_list[idx + point_offset])
-                    _recompute_min_max_from_points(
-                        mins, maxs, point_list[idx + point_offset]
-                    )
+                    _recompute_min_max_from_points(mins, maxs, point_list[idx + point_offset])
             else:
                 result = point_list
                 _recompute_min_max_from_points(mins, maxs, result)
-        elif (
-            geo_type == GeoJsonGeometryType.MultiPoint
-            or geo_type == GeoJsonGeometryType.Point
-        ):
+        elif geo_type == GeoJsonGeometryType.MultiPoint or geo_type == GeoJsonGeometryType.Point:
             result = point_list
             _recompute_min_max_from_points(mins, maxs, result)
         elif geo_type == GeoJsonGeometryType.MultiLineString:
-            if (
-                indices is not None
-                and len(indices) > 0
-                and isinstance(indices[0], list)
-            ):
+            if indices is not None and len(indices) > 0 and isinstance(indices[0], list):
                 result = []
                 for idx in indices:
                     _res, _min, _max = _create_shape(
@@ -681,11 +734,7 @@ def _create_shape(
             if len(result) > 0 and result[0] != result[-1]:
                 result.append(result[0])
         elif geo_type == GeoJsonGeometryType.MultiPolygon:
-            if (
-                indices is not None
-                and len(indices) > 0
-                and isinstance(indices[0], list)
-            ):
+            if indices is not None and len(indices) > 0 and isinstance(indices[0], list):
                 result = []
                 for idx in indices:
                     _res, _min, _max = _create_shape(
@@ -715,13 +764,13 @@ def _create_shape(
 
 
 def _write_geojson_shape(
-    out: BytesIO,
-    geo_type: GeoJsonGeometryType,
-    point_list: List[List[float]],
-    indices: Optional[Union[List[List[int]], List[int]]] = None,
-    point_offset: int = 0,
-    logger: Optional[Any] = None,
-    _print_list_boundaries: Optional[bool] = True,
+        out: BytesIO,
+        geo_type: GeoJsonGeometryType,
+        point_list: List[List[float]],
+        indices: Optional[Union[List[List[int]], List[int]]] = None,
+        point_offset: int = 0,
+        logger: Optional[Any] = None,
+        _print_list_boundaries: Optional[bool] = True,
 ) -> Tuple[List[float], List[float]]:
     """
     Write a shape from a point list [ [x0, y0 (, z0)? ], ..., [xn, yn (, zn)? ] ]
@@ -744,34 +793,21 @@ def _write_geojson_shape(
                 if _print_list_boundaries:
                     out.write(b"[")
                 for idx in indices:
-                    out.write(
-                        json.dumps(point_list[idx + point_offset]).encode(
-                            "utf-8"
-                        )
-                    )
+                    out.write(json.dumps(point_list[idx + point_offset]).encode("utf-8"))
                     if cpt < len(indices) - 1:
                         out.write(b", ")
                     cpt += 1
-                    _recompute_min_max_from_points(
-                        mins, maxs, point_list[idx + point_offset]
-                    )
+                    _recompute_min_max_from_points(mins, maxs, point_list[idx + point_offset])
                 if _print_list_boundaries:
                     out.write(b"]")
             else:
                 out.write(json.dumps(point_list).encode("utf-8"))
                 _recompute_min_max_from_points(mins, maxs, point_list)
-        elif (
-            geo_type == GeoJsonGeometryType.MultiPoint
-            or geo_type == GeoJsonGeometryType.Point
-        ):
+        elif geo_type == GeoJsonGeometryType.MultiPoint or geo_type == GeoJsonGeometryType.Point:
             out.write(json.dumps(point_list).encode("utf-8"))
             _recompute_min_max_from_points(mins, maxs, point_list)
         elif geo_type == GeoJsonGeometryType.MultiLineString:
-            if (
-                indices is not None
-                and len(indices) > 0
-                and isinstance(indices[0], list)
-            ):
+            if indices is not None and len(indices) > 0 and isinstance(indices[0], list):
                 if _print_list_boundaries:
                     out.write(b"[")
                 cpt = 0
@@ -823,11 +859,7 @@ def _write_geojson_shape(
                 _print_list_boundaries=_print_list_boundaries,
             )
         elif geo_type == GeoJsonGeometryType.MultiPolygon:
-            if (
-                indices is not None
-                and len(indices) > 0
-                and isinstance(indices[0], list)
-            ):
+            if indices is not None and len(indices) > 0 and isinstance(indices[0], list):
                 if _print_list_boundaries:
                     out.write(b"[")
                 cpt = 0
@@ -869,12 +901,12 @@ def _write_geojson_shape(
 
 
 def to_geojson_feature(
-    mesh: AbstractMesh,
-    geo_type: GeoJsonGeometryType = GeoJsonGeometryType.Point,
-    geo_type_prefix: Optional[str] = "AnyCrs",
-    properties: Optional[dict] = None,
-    point_offset: int = 0,
-    logger=None,
+        mesh: AbstractMesh,
+        geo_type: GeoJsonGeometryType = GeoJsonGeometryType.Point,
+        geo_type_prefix: Optional[str] = "AnyCrs",
+        properties: Optional[dict] = None,
+        point_offset: int = 0,
+        logger=None,
 ) -> Dict:
     feature = {}
 
@@ -889,14 +921,9 @@ def to_geojson_feature(
 
         indices = mesh.get_indices()
         # polygon must have the first and last point as the same
-        if (
-            geo_type == GeoJsonGeometryType.Polygon
-            or geo_type == GeoJsonGeometryType.MultiPolygon
-        ):
+        if geo_type == GeoJsonGeometryType.Polygon or geo_type == GeoJsonGeometryType.MultiPolygon:
             if logger is not None:
-                logger.debug(
-                    "# to_geojson_feature > Reshaping indices for polygons"
-                )
+                logger.debug("# to_geojson_feature > Reshaping indices for polygons")
             if indices is not None:
                 for indices_i in indices:
                     indices_i.append(indices_i[0])
@@ -915,10 +942,7 @@ def to_geojson_feature(
         )
 
         # Pop previously added last :
-        if (
-            geo_type == GeoJsonGeometryType.Polygon
-            or geo_type == GeoJsonGeometryType.MultiPolygon
-        ):
+        if geo_type == GeoJsonGeometryType.Polygon or geo_type == GeoJsonGeometryType.MultiPolygon:
             if indices is not None:
                 for indices_i in indices:
                     indices_i.pop()
@@ -926,9 +950,7 @@ def to_geojson_feature(
         if logger is not None:
             logger.debug("\t# to_geojson_feature > shaped")
 
-        bbox_geometry = (
-            []
-        )  # TODO : see : https://www.rfc-editor.org/rfc/rfc7946#section-5
+        bbox_geometry = []  # TODO : see : https://www.rfc-editor.org/rfc/rfc7946#section-5
 
         bbox_geometry = mins + maxs
 
@@ -949,27 +971,22 @@ def to_geojson_feature(
 
 
 def write_geojson_feature(
-    out: BytesIO,
-    mesh: AbstractMesh,
-    geo_type: GeoJsonGeometryType = GeoJsonGeometryType.Point,
-    geo_type_prefix: Optional[str] = "AnyCrs",
-    properties: Optional[dict] = None,
-    point_offset: int = 0,
-    logger=None,
+        out: BytesIO,
+        mesh: AbstractMesh,
+        geo_type: GeoJsonGeometryType = GeoJsonGeometryType.Point,
+        geo_type_prefix: Optional[str] = "AnyCrs",
+        properties: Optional[dict] = None,
+        point_offset: int = 0,
+        logger=None,
 ) -> None:
     if mesh.point_list is not None and len(mesh.point_list) > 0:
         points = mesh.point_list
 
         indices = mesh.get_indices()
         # polygon must have the first and last point as the same
-        if (
-            geo_type == GeoJsonGeometryType.Polygon
-            or geo_type == GeoJsonGeometryType.MultiPolygon
-        ):
+        if geo_type == GeoJsonGeometryType.Polygon or geo_type == GeoJsonGeometryType.MultiPolygon:
             if logger is not None:
-                logger.debug(
-                    "# to_geojson_feature > Reshaping indices for polygons"
-                )
+                logger.debug("# to_geojson_feature > Reshaping indices for polygons")
             if indices is not None:
                 for indices_i in indices:
                     indices_i.append(indices_i[0])
@@ -996,18 +1013,13 @@ def write_geojson_feature(
             point_offset=point_offset,
             logger=logger,
         )
-        bbox_geometry = (
-            mins + maxs
-        )  # TODO : see : https://www.rfc-editor.org/rfc/rfc7946#section-5
+        bbox_geometry = mins + maxs  # TODO : see : https://www.rfc-editor.org/rfc/rfc7946#section-5
 
         out.write(f', "bbox": {json.dumps(bbox_geometry)}'.encode())
         out.write(b"}")  # end geometry
 
         # Pop previously added last :
-        if (
-            geo_type == GeoJsonGeometryType.Polygon
-            or geo_type == GeoJsonGeometryType.MultiPolygon
-        ):
+        if geo_type == GeoJsonGeometryType.Polygon or geo_type == GeoJsonGeometryType.MultiPolygon:
             if indices is not None:
                 for indices_i in indices:
                     indices_i.pop()
@@ -1028,14 +1040,28 @@ def mesh_to_geojson_type(obj: AbstractMesh) -> GeoJsonGeometryType:
 
 
 def export_geojson_io(
-    out: BytesIO,
-    mesh_list: List[AbstractMesh],
-    obj_name: Optional[str] = None,
-    properties: Optional[List[Optional[Dict]]] = None,
-    logger: Optional[Any] = None,
+        out: BytesIO,
+        mesh_list: List[AbstractMesh],
+        obj_name: Optional[str] = None,
+        properties: Optional[List[Optional[Dict]]] = None,
+        global_properties: Optional[Dict] = None,
+        logger: Optional[Any] = None,
 ):
     out.write(b"{")
     out.write(b'"type": "FeatureCollection",')
+    if obj_name is not None:
+        out.write(b'"name": "')
+        out.write(obj_name.encode())
+        out.write(b'",')
+
+    if global_properties is not None and len(global_properties) > 0:
+        for k, v in global_properties.items():
+            out.write(b'"')
+            out.write(k.encode())
+            out.write(b'": ')
+            out.write(json.dumps(v).encode())
+            out.write(b",")
+
     out.write(b'"features": [')
 
     cpt = 0
@@ -1047,9 +1073,7 @@ def export_geojson_io(
             out=out,
             mesh=mesh,
             geo_type=mesh_to_geojson_type(mesh),
-            properties=properties[cpt]
-            if properties is not None and len(properties) > cpt
-            else None,
+            properties=properties[cpt] if properties is not None and len(properties) > cpt else None,
             point_offset=0,  # point_offset,
             logger=logger,
         )
@@ -1062,10 +1086,10 @@ def export_geojson_io(
 
 
 def export_geojson_dict(
-    mesh_list: List[AbstractMesh],
-    obj_name: Optional[str] = None,
-    properties: Optional[List[Optional[Dict]]] = None,
-    logger: Optional[Any] = None,
+        mesh_list: List[AbstractMesh],
+        obj_name: Optional[str] = None,
+        properties: Optional[List[Optional[Dict]]] = None,
+        logger: Optional[Any] = None,
 ):
     res = {"type": "FeatureCollection", "features": []}
     cpt = 0
@@ -1074,9 +1098,7 @@ def export_geojson_dict(
         feature = to_geojson_feature(
             mesh=mesh,
             geo_type=mesh_to_geojson_type(mesh),
-            properties=properties[cpt]
-            if properties is not None and len(properties) > cpt
-            else None,
+            properties=properties[cpt] if properties is not None and len(properties) > cpt else None,
             point_offset=0,  # point_offset,
             logger=logger,
         )
@@ -1123,12 +1145,12 @@ def export_off(mesh_list: List[AbstractMesh], out: BytesIO):
 
 
 def export_off_part(
-    off_point_part: BytesIO,
-    off_face_part: BytesIO,
-    points: List[List[float]],
-    indices: List[List[int]],
-    point_offset: Optional[int] = 0,
-    colors: Optional[List[List[int]]] = None,
+        off_point_part: BytesIO,
+        off_face_part: BytesIO,
+        points: List[List[float]],
+        indices: List[List[int]],
+        point_offset: Optional[int] = 0,
+        colors: Optional[List[List[int]]] = None,
 ) -> None:
     for p in points:
         for pi in p:
@@ -1142,12 +1164,7 @@ def export_off_part(
             for pi in face:
                 off_face_part.write(f"{pi + point_offset} ".encode("utf-8"))
 
-            if (
-                colors is not None
-                and len(colors) > cpt
-                and colors[cpt] is not None
-                and len(colors[cpt]) > 0
-            ):
+            if colors is not None and len(colors) > cpt and colors[cpt] is not None and len(colors[cpt]) > 0:
                 for col in colors[cpt]:
                     off_face_part.write(f"{col} ".encode("utf-8"))
 
@@ -1155,9 +1172,7 @@ def export_off_part(
         cpt += 1
 
 
-def export_obj(
-    mesh_list: List[AbstractMesh], out: BytesIO, obj_name: Optional[str] = None
-):
+def export_obj(mesh_list: List[AbstractMesh], out: BytesIO, obj_name: Optional[str] = None):
     """
     Export an :class:`AbstractMesh` into obj format.
 
@@ -1167,11 +1182,7 @@ def export_obj(
     :param obj_name:
     :return:
     """
-    out.write(
-        f"# Generated by energyml-utils a Geosiris python module\n\n".encode(
-            "utf-8"
-        )
-    )
+    out.write(f"# Generated by energyml-utils a Geosiris python module\n\n".encode("utf-8"))
 
     if obj_name is not None:
         out.write(f"o {obj_name}\n\n".encode("utf-8"))
@@ -1193,13 +1204,13 @@ def export_obj(
 
 
 def _export_obj_elt(
-    off_point_part: BytesIO,
-    off_face_part: BytesIO,
-    points: List[List[float]],
-    indices: List[List[int]],
-    point_offset: Optional[int] = 0,
-    colors: Optional[List[List[int]]] = None,
-    elt_letter: str = "f",
+        off_point_part: BytesIO,
+        off_face_part: BytesIO,
+        points: List[List[float]],
+        indices: List[List[int]],
+        point_offset: Optional[int] = 0,
+        colors: Optional[List[List[int]]] = None,
+        elt_letter: str = "f",
 ) -> None:
     """
 
@@ -1215,11 +1226,7 @@ def _export_obj_elt(
     offset_obj = 1  # OBJ point indices starts at 1 not 0
     for p in points:
         if len(p) > 0:
-            off_point_part.write(
-                f"v {' '.join(list(map(lambda xyz: str(xyz), p)))}\n".encode(
-                    "utf-8"
-                )
-            )
+            off_point_part.write(f"v {' '.join(list(map(lambda xyz: str(xyz), p)))}\n".encode("utf-8"))
 
     # cpt = 0
     for face in indices:
@@ -1238,12 +1245,13 @@ def _export_obj_elt(
 
 
 def export_multiple_data(
-    epc_path: str,
-    uuid_list: List[str],
-    output_folder_path: str,
-    output_file_path_suffix: str = "",
-    file_format: MeshFileFormat = MeshFileFormat.OBJ,
-    logger: Optional[Any] = None,
+        epc_path: str,
+        uuid_list: List[str],
+        output_folder_path: str,
+        output_file_path_suffix: str = "",
+        file_format: MeshFileFormat = MeshFileFormat.OBJ,
+        use_crs_displacement: bool = True,
+        logger: Optional[Any] = None,
 ):
     epc = Epc.read_file(epc_path)
 
@@ -1257,7 +1265,15 @@ def export_multiple_data(
         pass
 
     for uuid in uuid_list:
-        energyml_obj = epc.get_object_by_uuid(uuid)[0]
+        energyml_obj = None
+        try:
+            energyml_obj = epc.get_object_by_uuid(uuid)[0]
+        except:
+            if logger is not None:
+                logger.error(f"Object with uuid {uuid} not found")
+            else:
+                logging.error(f"Object with uuid {uuid} not found")
+            continue
         file_name = (
             f"{gen_energyml_object_path(energyml_obj)}_"
             f"[{get_object_attribute(energyml_obj, 'citation.title')}]"
@@ -1268,7 +1284,8 @@ def export_multiple_data(
         logging.debug(f"Exporting : {file_path}")
         mesh_list = read_mesh_object(
             energyml_object=energyml_obj,
-            workspace=EPCWorkspace(epc=epc),
+            workspace=epc,
+            use_crs_displacement=use_crs_displacement,
         )
         if file_format == MeshFileFormat.OBJ:
             with open(file_path, "wb") as f:
@@ -1284,6 +1301,11 @@ def export_multiple_data(
                 )
         elif file_format == MeshFileFormat.GEOJSON:
             with open(file_path, "wb") as f:
-                export_geojson_io(out=f, mesh_list=mesh_list, logger=logger)
+                export_geojson_io(
+                    out=f,
+                    mesh_list=mesh_list,
+                    logger=logger,
+                    global_properties={"epc_path": epc_path},
+                )
         else:
             logging.error(f"Code is not written for format {file_format}")
