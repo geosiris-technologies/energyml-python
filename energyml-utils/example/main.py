@@ -15,6 +15,7 @@ from energyml.resqml.v2_2.resqmlv2 import (
 )
 
 from src.energyml.utils.data.hdf import *
+from src.energyml.utils.data.helper import get_projected_uom
 from src.energyml.utils.epc import *
 from src.energyml.utils.introspection import *
 from src.energyml.utils.manager import *
@@ -440,6 +441,18 @@ def test_local_depth_crs():
         print(e)
 
 
+def test_get_projected_uom():
+    # Fails because the xsi:type="VerticalCrsEpsgCode" doesn't
+    # contain the namespace : xsi:type="eml:VerticalCrsEpsgCode"
+    try:
+        depth3d = read_energyml_xml_file(
+            "../rc/obj_LocalDepth3dCrs_716f6472-18a3-4f19-a57c-d4f5642ccc53.xml"
+        )
+        print(get_projected_uom(depth3d).value)
+    except Exception as e:
+        print(e)
+
+
 def test_wellbore_marker_frame_representation():
     # Fails because the xsi:type="VerticalCrsEpsgCode" doesn't
     # contain the namespace : xsi:type="eml:VerticalCrsEpsgCode"
@@ -517,19 +530,20 @@ def class_field():
 
 
 if __name__ == "__main__":
-    tests_0()
-    tests_content_type()
-
-    tests_epc()
-    tests_dor()
-    test_verif()
-    test_ast()
-    test_introspection()
-
-    tests_hdf()
-    test_local_depth_crs()
-    test_wellbore_marker_frame_representation()
-
-    test_obj_attribs()
-    test_copy_values()
-    class_field()
+    # tests_0()
+    # tests_content_type()
+    #
+    # tests_epc()
+    # tests_dor()
+    # test_verif()
+    # test_ast()
+    # test_introspection()
+    #
+    # tests_hdf()
+    # test_local_depth_crs()
+    # test_wellbore_marker_frame_representation()
+    #
+    # test_obj_attribs()
+    # test_copy_values()
+    # class_field()
+    test_get_projected_uom()

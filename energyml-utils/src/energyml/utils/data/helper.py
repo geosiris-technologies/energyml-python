@@ -96,14 +96,14 @@ def is_z_reversed(crs: Optional[Any]) -> bool:
 
 
 def get_vertical_epsg_code(crs_object: Any):
-    projected_epsg_code = None
+    vertical_epsg_code = None
     if crs_object is not None:  # LocalDepth3dCRS
-        projected_epsg_code = get_object_attribute_rgx(crs_object, "VerticalCrs.EpsgCode")
-        if projected_epsg_code is None:  # LocalEngineering2DCrs
-            projected_epsg_code = get_object_attribute_rgx(
+        vertical_epsg_code = get_object_attribute_rgx(crs_object, "VerticalCrs.EpsgCode")
+        if vertical_epsg_code is None:  # LocalEngineering2DCrs
+            vertical_epsg_code = get_object_attribute_rgx(
                 crs_object, "OriginProjectedCrs.AbstractProjectedCrs.EpsgCode"
             )
-    return projected_epsg_code
+    return vertical_epsg_code
 
 
 def get_projected_epsg_code(crs_object: Any, workspace: Optional[EnergymlWorkspace] = None):
@@ -124,15 +124,15 @@ def get_projected_epsg_code(crs_object: Any, workspace: Optional[EnergymlWorkspa
 
 def get_projected_uom(crs_object: Any, workspace: Optional[EnergymlWorkspace] = None):
     if crs_object is not None:
-        projected_epsg_code = get_object_attribute_rgx(crs_object, "ProjectedUom")
-        if projected_epsg_code is None:
-            projected_epsg_code = get_object_attribute_rgx(crs_object, "HorizontalAxes.ProjectedUom")
+        projected_epsg_uom = get_object_attribute_rgx(crs_object, "ProjectedUom")
+        if projected_epsg_uom is None:
+            projected_epsg_uom = get_object_attribute_rgx(crs_object, "HorizontalAxes.ProjectedUom")
 
-        if projected_epsg_code is None and workspace is not None:
+        if projected_epsg_uom is None and workspace is not None:
             return get_projected_uom(
                 workspace.get_object_by_uuid(get_object_attribute_rgx(crs_object, "LocalEngineering2[dD]Crs.Uuid"))
             )
-        return projected_epsg_code
+        return projected_epsg_uom
     return None
 
 
