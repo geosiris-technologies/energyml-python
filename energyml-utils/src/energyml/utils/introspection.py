@@ -602,7 +602,7 @@ def search_attribute_matching_name_with_path(
 ) -> List[Tuple[str, Any]]:
     """
     Returns a list of tuple (path, value) for each sub attribute with type matching param "name_rgx".
-    The path is a dot-version like ".Citation.Title"
+        The path is a dot-version like ".Citation.Title"
     :param obj:
     :param name_rgx:
     :param re_flags:
