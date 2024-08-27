@@ -1,10 +1,13 @@
+# Copyright (c) 2023-2024 Geosiris.
+# SPDX-License-Identifier: Apache-2.0
 import datetime
 import re
 import uuid as uuid_mod
 from dataclasses import field, dataclass
 from enum import Enum
 from io import BytesIO
-from typing import List, Optional
+from re import findall
+from typing import List, Optional, Tuple
 
 ENERGYML_NAMESPACES = {
     "eml": "http://www.energistics.org/energyml/data/commonv2",
@@ -65,33 +68,33 @@ RGX_CT_TOKEN_VERSION = r"version=" + RGX_DOMAIN_VERSION
 RGX_CT_TOKEN_TYPE = r"type=(?P<type>[\w\_]+)"
 
 RGX_CONTENT_TYPE = (
-    RGX_MIME_TYPE_MEDIA
-    + "/"
-    + "(?P<rawDomain>("
-    + RGX_CT_ENERGYML_DOMAIN
-    + ")|("
-    + RGX_CT_XML_DOMAIN
-    + r")|([\w-]+\.?)+)"
-    + "(;(("
-    + RGX_CT_TOKEN_VERSION
-    + ")|("
-    + RGX_CT_TOKEN_TYPE
-    + ")))*"
+        RGX_MIME_TYPE_MEDIA
+        + "/"
+        + "(?P<rawDomain>("
+        + RGX_CT_ENERGYML_DOMAIN
+        + ")|("
+        + RGX_CT_XML_DOMAIN
+        + r")|([\w-]+\.?)+)"
+        + "(;(("
+        + RGX_CT_TOKEN_VERSION
+        + ")|("
+        + RGX_CT_TOKEN_TYPE
+        + ")))*"
 )
 RGX_QUALIFIED_TYPE = (
-    r"(?P<domain>[a-zA-Z]+)" + RGX_DOMAIN_VERSION_FLAT + r"\.(?P<type>[\w_]+)"
+        r"(?P<domain>[a-zA-Z]+)" + RGX_DOMAIN_VERSION_FLAT + r"\.(?P<type>[\w_]+)"
 )
 # =========
 
 RGX_SCHEMA_VERSION = (
-    r"(?P<name>[eE]ml|[cC]ommon|[rR]esqml|[wW]itsml|[pP]rodml|[oO]pc)?\s*v?"
-    + RGX_DOMAIN_VERSION
-    + r"\s*$"
+        r"(?P<name>[eE]ml|[cC]ommon|[rR]esqml|[wW]itsml|[pP]rodml|[oO]pc)?\s*v?"
+        + RGX_DOMAIN_VERSION
+        + r"\s*$"
 )
 
 RGX_ENERGYML_FILE_NAME_OLD = r"(?P<type>[\w]+)_" + RGX_UUID_NO_GRP + r"\.xml$"
 RGX_ENERGYML_FILE_NAME_NEW = (
-    RGX_UUID_NO_GRP + r"\.(?P<objectVersion>\d+(\.\d+)*)\.xml$"
+        RGX_UUID_NO_GRP + r"\.(?P<objectVersion>\d+(\.\d+)*)\.xml$"
 )
 RGX_ENERGYML_FILE_NAME = (
     rf"^(.*/)?({RGX_ENERGYML_FILE_NAME_OLD})|({RGX_ENERGYML_FILE_NAME_NEW})"
@@ -122,37 +125,37 @@ _URI_RGX_PKG_NAME = "|".join(
     ENERGYML_NAMESPACES.keys()
 )  # "[a-zA-Z]+\w+" //witsml|resqml|prodml|eml
 URI_RGX = (
-    r"^eml:\/\/\/(?:dataspace\('(?P<"
-    + URI_RGX_GRP_DATASPACE
-    + r">[^']*?(?:''[^']*?)*)'\)\/?)?((?P<"
-    + URI_RGX_GRP_DOMAIN
-    + r">"
-    + _URI_RGX_PKG_NAME
-    + r")(?P<"
-    + URI_RGX_GRP_DOMAIN_VERSION
-    + r">[1-9]\d)\.(?P<"
-    + URI_RGX_GRP_OBJECT_TYPE
-    + r">\w+)(\((?:(?P<"
-    + URI_RGX_GRP_UUID
-    + r">(uuid=)?"
-    + RGX_UUID_NO_GRP
-    + r")|uuid=(?P<"
-    + URI_RGX_GRP_UUID2
-    + r">"
-    + RGX_UUID_NO_GRP
-    + r"),\s*version='(?P<"
-    + URI_RGX_GRP_VERSION
-    + r">[^']*?(?:''[^']*?)*)')\))?)?(\/(?P<"
-    + URI_RGX_GRP_COLLECTION_DOMAIN
-    + r">"
-    + _URI_RGX_PKG_NAME
-    + r")(?P<"
-    + URI_RGX_GRP_COLLECTION_DOMAIN_VERSION
-    + r">[1-9]\d)\.(?P<"
-    + URI_RGX_GRP_COLLECTION_TYPE
-    + r">\w+))?(?:\?(?P<"
-    + URI_RGX_GRP_QUERY
-    + r">[^#]+))?$"
+        r"^eml:\/\/\/(?:dataspace\('(?P<"
+        + URI_RGX_GRP_DATASPACE
+        + r">[^']*?(?:''[^']*?)*)'\)\/?)?((?P<"
+        + URI_RGX_GRP_DOMAIN
+        + r">"
+        + _URI_RGX_PKG_NAME
+        + r")(?P<"
+        + URI_RGX_GRP_DOMAIN_VERSION
+        + r">[1-9]\d)\.(?P<"
+        + URI_RGX_GRP_OBJECT_TYPE
+        + r">\w+)(\((?:(?P<"
+        + URI_RGX_GRP_UUID
+        + r">(uuid=)?"
+        + RGX_UUID_NO_GRP
+        + r")|uuid=(?P<"
+        + URI_RGX_GRP_UUID2
+        + r">"
+        + RGX_UUID_NO_GRP
+        + r"),\s*version='(?P<"
+        + URI_RGX_GRP_VERSION
+        + r">[^']*?(?:''[^']*?)*)')\))?)?(\/(?P<"
+        + URI_RGX_GRP_COLLECTION_DOMAIN
+        + r">"
+        + _URI_RGX_PKG_NAME
+        + r")(?P<"
+        + URI_RGX_GRP_COLLECTION_DOMAIN_VERSION
+        + r">[1-9]\d)\.(?P<"
+        + URI_RGX_GRP_COLLECTION_TYPE
+        + r">\w+))?(?:\?(?P<"
+        + URI_RGX_GRP_QUERY
+        + r">[^#]+))?$"
 )
 
 # ================================
@@ -162,6 +165,9 @@ RELS_CONTENT_TYPE = (
 RELS_FOLDER_NAME = "_rels"
 
 primitives = (bool, str, int, float, type(None))
+
+DOT_PATH_ATTRIBUTE = r"(?:(?<=\\)\.|[^\.])+"
+DOT_PATH = rf"\.*(?P<first>{DOT_PATH_ATTRIBUTE})(?P<next>(\.(?P<last>{DOT_PATH_ATTRIBUTE}))*)"
 
 
 class EpcExportVersion(Enum):
@@ -206,15 +212,15 @@ class EPCRelsRelationshipType(Enum):
             case EPCRelsRelationshipType.CORE_PROPERTIES:
                 return "http://schemas.openxmlformats.org/package/2006/relationships/metadata/" + str(self.value)
             case (
-                EPCRelsRelationshipType.CHUNKED_PART
-                | EPCRelsRelationshipType.DESTINATION_OBJECT
-                | EPCRelsRelationshipType.SOURCE_OBJECT
-                | EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY
-                | EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML
-                | EPCRelsRelationshipType.EXTERNAL_RESOURCE
-                | EPCRelsRelationshipType.DestinationMedia
-                | EPCRelsRelationshipType.SOURCE_MEDIA
-                | _
+            EPCRelsRelationshipType.CHUNKED_PART
+            | EPCRelsRelationshipType.DESTINATION_OBJECT
+            | EPCRelsRelationshipType.SOURCE_OBJECT
+            | EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY
+            | EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML
+            | EPCRelsRelationshipType.EXTERNAL_RESOURCE
+            | EPCRelsRelationshipType.DestinationMedia
+            | EPCRelsRelationshipType.SOURCE_MEDIA
+            | _
             ):
                 return "http://schemas.energistics.org/package/2012/relationships/" + str(self.value)
 
@@ -326,7 +332,7 @@ def date_to_epoch(date: str) -> int:
 
 
 def epoch_to_date(
-    epoch_value: int,
+        epoch_value: int,
 ) -> str:
     date = datetime.datetime.fromtimestamp(epoch_value, datetime.timezone.utc)
     return date.astimezone(datetime.timezone.utc).strftime(
@@ -343,3 +349,61 @@ def gen_uuid() -> str:
     :return:
     """
     return str(uuid_mod.uuid4())
+
+
+def mime_type_to_file_extension(mime_type: str) -> Optional[str]:
+    if mime_type is not None:
+        mime_type_lw = mime_type.lower()
+        if (
+                mime_type_lw == "application/x-parquet"
+                or mime_type_lw == "application/parquet"
+                or mime_type_lw == "application/vnd.apache.parquet"
+        ):
+            return "parquet"
+        elif mime_type_lw == "application/x-hdf5":
+            return "h5"
+        elif mime_type_lw == "text/csv":
+            return "csv"
+        elif mime_type_lw == "application/vnd.openxmlformats-package.relationships+xml":
+            return "rels"
+        elif mime_type_lw == "application/pdf":
+            return "pdf"
+
+    return None
+
+
+def path_next_attribute(dot_path: str) -> Tuple[Optional[str], Optional[str]]:
+    _m = re.match(DOT_PATH, dot_path)
+    if _m is not None:
+        _next = _m.group("next")
+        return _m.group("first"), _next if _next is not None and len(_next) > 0 else None
+    return None, None
+
+
+def path_last_attribute(dot_path: str) -> str:
+    _m = re.match(DOT_PATH, dot_path)
+    if _m is not None:
+        return _m.group("last")
+    return None
+
+
+def path_iter(dot_path: str) -> List[str]:
+    return findall(DOT_PATH_ATTRIBUTE, dot_path)
+
+
+if __name__ == "__main__":
+    m = re.match(DOT_PATH, ".Citation.Title.Coucou")
+    print(m.groups())
+    print(m.group("first"))
+    print(m.group("last"))
+    print(m.group("next"))
+    m = re.match(DOT_PATH, ".Citation")
+    print(m.groups())
+    print(m.group("first"))
+    print(m.group("last"))
+    print(m.group("next"))
+
+    print(path_next_attribute(".Citation.Title.Coucou"))
+    print(path_iter(".Citation.Title.Coucou"))
+    print(path_iter(".Citation.Ti\\.*.Coucou"))
+

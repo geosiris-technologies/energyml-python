@@ -424,7 +424,7 @@ def tests_hdf():
 
     for o in tr_list:
         print(o.__class__)
-        print(get_hdf_reference_with_path(o))
+        print(get_path_in_external_with_path(o))
         exit(0)
 
 

@@ -9,15 +9,12 @@ from energyml.eml.v2_3.commonv2 import (
     IntegerXmlArray,
 )
 
-from src.energyml.utils.data.hdf import (
-    get_hdf_reference_with_path,
-)
 from src.energyml.utils.data.helper import (
     get_array_reader_function,
 )
 from src.energyml.utils.data.mesh import *
 from src.energyml.utils.data.mesh import _create_shape, _write_geojson_shape
-from src.energyml.utils.epc import gen_energyml_object_path, get_hdf5_path_from_external_path
+from src.energyml.utils.epc import gen_energyml_object_path
 from src.energyml.utils.introspection import (
     is_abstract,
     get_obj_uuid,
@@ -31,6 +28,8 @@ from src.energyml.utils.serialization import (
 )
 from src.energyml.utils.validation import validate_epc
 from src.energyml.utils.xml import get_tree
+from utils.data.datasets_io import HDF5FileReader, get_path_in_external_with_path, \
+    get_external_file_path_from_external_path
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +57,10 @@ def test_h5_path():
     )
 
     ref_obj = epc.get_object_by_uuid("2bbac140-ff17-4649-ae85-52a9285a4373")[0]
-    for refer_path, refer_value in get_hdf_reference_with_path(ref_obj):
+    for refer_path, refer_value in get_path_in_external_with_path(ref_obj):
         try:
             print(
-                get_hdf5_path_from_external_path(
+                get_external_file_path_from_external_path(
                     external_path_obj=get_object_attribute(
                         ref_obj, refer_path
                     ),
@@ -91,10 +90,10 @@ def test_h5_path():
     ref_obj = epc201.get_object_by_uuid(
         "2bbac140-ff17-4649-ae85-52a9285a4373"
     )[0]
-    for refer_path, refer_value in get_hdf_reference_with_path(ref_obj):
+    for refer_path, refer_value in get_path_in_external_with_path(ref_obj):
         try:
             print(
-                get_hdf5_path_from_external_path(
+                get_external_file_path_from_external_path(
                     external_path_obj=refer_value,
                     path_in_root=refer_path,
                     root_obj=ref_obj,

@@ -45,11 +45,18 @@ packages = [
 #[tool.pytest.ini_options]
 #pythonpath = [ "src" ]
 
+[tool.poetry.extras]
+parquet = ["pyarrow", "numpy", "pandas"]
+hdf5 = ["h5py"]
+
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.10"
 xsdata = {version = "^24.0", extras = ["cli", "lxml"]}
 energyml-opc = "^1.12.0"
-h5py = "^3.7.0"
+h5py = { version = "^3.7.0", optional = false }
+pyarrow = { version = "^14.0.1", optional = false }
+numpy = { version = "^1.16.6", optional = false }
+pandas = { version = "^1.1.0", optional = false }
 
 [tool.poetry.dev-dependencies]
 coverage = {extras = ["toml"], version = "^6.2"}
@@ -116,4 +123,6 @@ format-jinja = """
 """
 
 [tool.poetry.scripts]
-example = "energyml.utils.main:main"
+extract_3d = "example.tools:extract_representation_in_3d_file"
+csv_to_dataset = "example.tools:csv_to_dataset"
+generate_data = "example.tools:generate_data"

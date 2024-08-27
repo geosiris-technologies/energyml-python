@@ -11,7 +11,6 @@ from enum import Enum
 from io import BytesIO
 from typing import List, Optional, Any, Callable, Dict, Union, Tuple
 
-from .hdf import HDF5FileReader
 from .helper import (
     read_array,
     read_grid2d_patch,
@@ -24,8 +23,7 @@ from ..introspection import (
     search_attribute_matching_name,
     search_attribute_matching_name_with_path,
     snake_case,
-    get_object_attribute, get_obj_uuid,
-)
+    get_object_attribute, )
 
 _FILE_HEADER: bytes = b"# file exported by energyml-utils python module (Geosiris)\n"
 
@@ -212,7 +210,6 @@ def read_mesh_object(
 
 def read_point_representation(energyml_object: Any, workspace: EnergymlWorkspace, sub_indices: List[int] = None) -> List[PointSetMesh]:
     # pt_geoms = search_attribute_matching_type(point_set, "AbstractGeometry")
-    h5_reader = HDF5FileReader()
 
     meshes = []
 
@@ -271,7 +268,6 @@ def read_point_representation(energyml_object: Any, workspace: EnergymlWorkspace
 
 def read_polyline_representation(energyml_object: Any, workspace: EnergymlWorkspace, sub_indices: List[int] = None) -> List[PolylineSetMesh]:
     # pt_geoms = search_attribute_matching_type(point_set, "AbstractGeometry")
-    h5_reader = HDF5FileReader()
 
     meshes = []
 

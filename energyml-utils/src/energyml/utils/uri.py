@@ -1,3 +1,5 @@
+# Copyright (c) 2023-2024 Geosiris.
+# SPDX-License-Identifier: Apache-2.0
 from .constants import *
 
 

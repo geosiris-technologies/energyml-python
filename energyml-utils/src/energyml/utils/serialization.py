@@ -237,7 +237,7 @@ def serialize_xml(obj) -> str:
     return serializer.render(obj, ns_map=ENERGYML_NAMESPACES)
 
 
-def serialize_json(obj, json_version: JSON_VERSION) -> str:
+def serialize_json(obj, json_version: JSON_VERSION = JSON_VERSION.OSDU_OFFICIAL) -> str:
     if json_version == JSON_VERSION.XSDATA:
         context = XmlContext(
             # element_name_generator=text.camel_case,

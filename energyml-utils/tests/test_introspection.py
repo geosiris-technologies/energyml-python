@@ -67,6 +67,11 @@ def test_get_class_from_content_type():
     assert found_type == energyml.resqml.v2_0_1.resqmlv2.Grid2DRepresentation
 
 
+def test_get_object_attribute():
+    data = {"a": {"b": ["v_x", {"c": "v_test"}]}}
+    assert get_object_attribute(data, "a.b.1.c") == "v_test"
+
+
 def test_set_attribute_from_path():
     data = {"a": {"b": ["v_x", {"c": "v_test"}]}}
     assert get_object_attribute(data, "a.b.1.c") == "v_test"

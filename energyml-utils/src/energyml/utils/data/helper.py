@@ -5,6 +5,7 @@ import logging
 import sys
 from typing import Any, Optional, Callable, List, Union
 
+from .datasets_io import read_external_dataset_array
 from ..constants import flatten_concatenation
 from ..epc import get_obj_identifier
 from ..exception import ObjectNotFoundNotError
@@ -294,11 +295,20 @@ def read_external_array(
     :param workspace:
     :return:
     """
-    array = workspace.read_external_array(
-        energyml_array=energyml_array,
-        root_obj=root_obj,
-        path_in_root=path_in_root,
-    )
+    array = None
+    if workspace is not None:
+        array = workspace.read_external_array(
+            energyml_array=energyml_array,
+            root_obj=root_obj,
+            path_in_root=path_in_root,
+        )
+    else:
+        array = read_external_dataset_array(
+            energyml_array=energyml_array,
+            root_obj=root_obj,
+            path_in_root=path_in_root,
+        )
+
     if sub_indices is not None and len(sub_indices) > 0:
         res = []
         for idx in sub_indices:
