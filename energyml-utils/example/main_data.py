@@ -28,8 +28,11 @@ from src.energyml.utils.serialization import (
 )
 from src.energyml.utils.validation import validate_epc
 from src.energyml.utils.xml import get_tree
-from utils.data.datasets_io import HDF5FileReader, get_path_in_external_with_path, \
-    get_external_file_path_from_external_path
+from utils.data.datasets_io import (
+    HDF5FileReader,
+    get_path_in_external_with_path,
+    get_external_file_path_from_external_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +64,7 @@ def test_h5_path():
         try:
             print(
                 get_external_file_path_from_external_path(
-                    external_path_obj=get_object_attribute(
-                        ref_obj, refer_path
-                    ),
+                    external_path_obj=get_object_attribute(ref_obj, refer_path),
                     path_in_root=refer_path,
                     root_obj=ref_obj,
                     epc=epc,
@@ -81,15 +82,11 @@ def test_h5_path():
 
     print("\n--------------\n")
 
-    epc201 = Epc.read_file(
-        "D:/Geosiris/OSDU/manifestTranslation/#Data/VOLVE_STRUCT.epc"
-    )
+    epc201 = Epc.read_file("D:/Geosiris/OSDU/manifestTranslation/#Data/VOLVE_STRUCT.epc")
 
     print(epc201.additional_rels)
 
-    ref_obj = epc201.get_object_by_uuid(
-        "2bbac140-ff17-4649-ae85-52a9285a4373"
-    )[0]
+    ref_obj = epc201.get_object_by_uuid("2bbac140-ff17-4649-ae85-52a9285a4373")[0]
     for refer_path, refer_value in get_path_in_external_with_path(ref_obj):
         try:
             print(
@@ -113,17 +110,13 @@ def test_h5_path():
 
 
 def read_h5_datasets():
-    epc201 = Epc.read_file(
-        "D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/01_ALWYN_DEPTH/V2.2/Alwyn-surface_input.epc"
-    )
+    epc201 = Epc.read_file("D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/01_ALWYN_DEPTH/V2.2/Alwyn-surface_input.epc")
 
     psr = epc201.get_object_by_uuid("a320b62b-c327-4eaa-848f-05847da5a94f")
 
     print(epc201.epc_file_path)
 
-    pt_set_list = read_point_representation(
-        energyml_object=psr, workspace=epc201
-    )
+    pt_set_list = read_point_representation(energyml_object=psr, workspace=epc201)
 
     with open("../example/result/file_point_set.off", "wb") as f:
         export_off(
@@ -139,9 +132,7 @@ def read_h5_datasets():
 
 
 def read_h5_polyline():
-    epc201 = Epc.read_file(
-        "D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/01_ALWYN_DEPTH/V2.2/Alwyn-surface_input.epc"
-    )
+    epc201 = Epc.read_file("D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/01_ALWYN_DEPTH/V2.2/Alwyn-surface_input.epc")
 
     poly = epc201.get_object_by_uuid("77bfb696-1bc0-4858-a304-f8faeb37d809")[0]
     poly_set_list = read_polyline_representation(
@@ -157,6 +148,33 @@ def read_h5_polyline():
 
 def read_h5_grid2d_bis():
     path = "../rc/obj_Grid2dRepresentation_7c43bad9-4cad-4ab0-bb50-9afb24a4b883.xml"
+
+    xml_content = ""
+    with open(path, "r") as f:
+        xml_content = f.read()
+
+    grid = read_energyml_xml_str(xml_content)
+
+    grid_list = read_grid2d_representation(
+        energyml_object=grid,
+        workspace=None,
+    )
+    uuid = get_obj_uuid(grid)
+    print("Exporting")
+    with open(f"result/grid2d_{uuid}.obj", "wb") as f:
+        export_obj(
+            mesh_list=grid_list,
+            out=f,
+        )
+    with open(f"result/grid2d_{uuid}_bis.off", "wb") as f:
+        export_off(
+            mesh_list=grid_list,
+            out=f,
+        )
+
+
+def read_h5_grid2d_ter():
+    path = "../rc/Grid2dRepresentation_78bf01c0-d5bb-46d3-aa70-9cc4ee5c8230.xml"
 
     xml_content = ""
     with open(path, "r") as f:
@@ -236,16 +254,12 @@ def read_meshes():
         workspace=epc22,
     )
     print("Exporting")
-    with open(
-        f"result/{gen_energyml_object_path(energyml_obj)}.obj", "wb"
-    ) as f:
+    with open(f"result/{gen_energyml_object_path(energyml_obj)}.obj", "wb") as f:
         export_obj(
             mesh_list=mesh_list,
             out=f,
         )
-    with open(
-        f"result/{gen_energyml_object_path(energyml_obj)}.off", "wb"
-    ) as f:
+    with open(f"result/{gen_energyml_object_path(energyml_obj)}.off", "wb") as f:
         export_off(
             mesh_list=mesh_list,
             out=f,
@@ -259,9 +273,7 @@ def read_arrays():
     print(get_array_reader_function("BooleanConstantArray"))
 
     print("=====] ", r"LinePatch.\d+")
-    for array_path, array_value in search_attribute_matching_name_with_path(
-        poly, r"LinePatch.\d+.ClosedPolylines"
-    ):
+    for array_path, array_value in search_attribute_matching_name_with_path(poly, r"LinePatch.\d+.ClosedPolylines"):
         # print(f"{array_path}\n\t{array_value}")
         try:
             val = read_array(
@@ -274,16 +286,8 @@ def read_arrays():
         except Exception as e:
             print(e)
 
-    print(
-        [x for x in get_sub_classes(AbstractValueArray) if not is_abstract(x)]
-    )
-    print(
-        [
-            x
-            for x in get_sub_classes(AbstractIntegerArray)
-            if not is_abstract(x)
-        ]
-    )
+    print([x for x in get_sub_classes(AbstractValueArray) if not is_abstract(x)])
+    print([x for x in get_sub_classes(AbstractIntegerArray) if not is_abstract(x)])
 
     jagged_array = JaggedArray(
         elements=StringXmlArray(
@@ -450,8 +454,7 @@ def test_export_closed_poly():
     #     file_format=MeshFileFormat.OBJ,
     # )
     export_multiple_data(
-        epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/"
-        "Volve_Fault_Depth_originEQN_v201.epc",
+        epc_path="D:/Geosiris/OSDU/manifestTranslation/#Data/" "Volve_Fault_Depth_originEQN_v201.epc",
         uuid_list=[
             "4e23ee3e-54a7-427a-83f9-1473de6c56a4",  # polyline
             "38bf3283-9514-43ab-81e3-17080dc5826f",  # polyline
@@ -685,21 +688,26 @@ def test_wellbore_reading():
 
 
 def read_sub_representation():
-    epc_path = "D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/ASPEN_TECH_RDDMS_IMPORT/Volve_Demo_Horizons_Depth.epc"
+    # epc_path = "D:/Geosiris/Cloud/Resqml_Tools/2023-DATA/03_VOLVE/V2.0.1/ASPEN_TECH_RDDMS_IMPORT/Volve_Demo_Horizons_Depth.epc"
+    epc_path = (
+        "D:/Geosiris/Cloud/Geo-Workflow/BRGM/test_ColumnBaseTable_parquet_hdf5/OSDU_JSON_SHETLAND/shetland-horizon.epc"
+    )
     # epc_path = "D:/Geosiris/Cloud/Resqml_Tools/OSDU/OSDU_RESERVOIR_DDMS/F2F_Demo.epc"
     # epc = Epc.read_file(epc_path)
 
     uuid_list = [
-        "e2e7f8a9-c602-4c02-99cb-cff3ef79ce84",  # Grid Subrep
-        "5bc4bfd9-44fa-433a-a362-59c5b35cd9e8",  # Grid Subrep
-        "218283a7-44eb-44fa-9074-7cb1cff125f2",  # Grid Subrep
-        "1450e49e-830a-4430-a482-aa06fcd013f5",  # Grid Subrep
+        "64f31bc7-5bf6-4054-81ad-7bb32c4a1c24",  # PSR
+        # "e2e7f8a9-c602-4c02-99cb-cff3ef79ce84",  # Grid Subrep
+        # "5bc4bfd9-44fa-433a-a362-59c5b35cd9e8",  # Grid Subrep
+        # "218283a7-44eb-44fa-9074-7cb1cff125f2",  # Grid Subrep
+        # "1450e49e-830a-4430-a482-aa06fcd013f5",  # Grid Subrep
     ]
 
     export_multiple_data(
         epc_path=epc_path,
         uuid_list=uuid_list,
-        output_folder_path="../example/result/subrep/",
+        # output_folder_path="../example/result/subrep/",
+        output_folder_path="../wip",
         file_format=MeshFileFormat.OBJ,
     )
 
@@ -724,7 +732,8 @@ if __name__ == "__main__":
     # print("Not supported : ", get_not_supported_array())
     #
     # read_h5_grid2d()
-    # read_h5_grid2d_bis()
+    read_h5_grid2d_bis()
+    # read_h5_grid2d_ter()
     # print(RGX_CONTENT_TYPE)
     #
     # read_meshes()
@@ -742,7 +751,7 @@ if __name__ == "__main__":
     # test_simple_geojson()
     # test_simple_geojson_io()
     # test_export_multiple_geojson_volve_struct()
-    read_sub_representation()
+    # read_sub_representation()
 
     # test_etree()
     # test_wellbore_reading()

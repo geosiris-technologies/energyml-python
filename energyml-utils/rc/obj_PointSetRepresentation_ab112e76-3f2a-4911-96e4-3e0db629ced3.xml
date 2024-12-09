@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ns2:PointSetRepresentation xmlns="http://www.energistics.org/energyml/data/commonv2" xmlns:ns2="http://www.energistics.org/energyml/data/resqmlv2" xmlns:ns3="http://www.isotc211.org/2005/gco" xmlns:ns4="http://www.isotc211.org/2005/gmd" xmlns:ns5="http://www.w3.org/1999/xlink" xmlns:ns6="http://www.opengis.net/gml/3.2" schemaVersion="2.0" uuid="ab112e76-3f2a-4911-96e4-3e0db629ced3">
+    <Citation>
+        <Title>AUG27_Top_Aare</Title>
+        <Originator>okag</Originator>
+        <Creation>2016-07-06T09:51:18Z</Creation>
+        <Format>Paradigm SKUA-GOCAD 15.5 Build://skua-gocad/Production/branches/2015.5 - 20151224-cl615796 for Win_x64_6.1_v12</Format>
+        <Editor>okag</Editor>
+        <LastUpdate>2016-07-06T09:51:19Z</LastUpdate>
+    </Citation>
+    <ns2:ExtraMetadata>
+        <ns2:Name>pdgm/dx/resqml/creatorGroup</ns2:Name>
+        <ns2:Value>okag</ns2:Value>
+    </ns2:ExtraMetadata>
+    <ns2:ExtraMetadata>
+        <ns2:Name>pdgm/dx/resqml/project</ns2:Name>
+        <ns2:Value>0caa2b2a-8d8d-4a55-9cf8-715c1518febd</ns2:Value>
+    </ns2:ExtraMetadata>
+    <ns2:RepresentedInterpretation>
+        <ContentType>application/x-resqml+xml;version=2.0;type=obj_HorizonInterpretation</ContentType>
+        <Title>Norne NTNU2</Title>
+        <UUID>eb4bc5ff-f6d8-4cd4-af95-12ddc7515e3e</UUID>
+        <UuidAuthority>pdgm</UuidAuthority>
+    </ns2:RepresentedInterpretation>
+    <ns2:NodePatch>
+        <ns2:PatchIndex>0</ns2:PatchIndex>
+        <ns2:Count>40922</ns2:Count>
+        <ns2:Geometry>
+            <ns2:LocalCrs>
+                <ContentType>application/x-resqml+xml;version=2.0;type=obj_LocalTime3dCrs</ContentType>
+                <Title>gocad Local</Title>
+                <UUID>6bfbb09f-e557-408e-93b3-b27a756d3234</UUID>
+                <UuidAuthority>pdgm</UuidAuthority>
+            </ns2:LocalCrs>
+            <ns2:Points xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ns2:Point3dHdf5Array">
+                <ns2:Coordinates>
+                    <PathInHdfFile>/RESQML/ab112e76-3f2a-4911-96e4-3e0db629ced3/points_patch0</PathInHdfFile>
+                    <HdfProxy>
+                        <ContentType>application/x-resqml+xml;version=2.0;type=EpcExternalPartReference</ContentType>
+                        <Title>Hdf5File</Title>
+                        <UUID>34b91f9e-bf9d-4407-ab69-76199efb8155</UUID>
+                        <UuidAuthority>pdgm</UuidAuthority>
+                    </HdfProxy>
+                </ns2:Coordinates>
+            </ns2:Points>
+        </ns2:Geometry>
+    </ns2:NodePatch>
+</ns2:PointSetRepresentation>

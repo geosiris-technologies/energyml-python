@@ -130,11 +130,7 @@ def file_test():
     print(find_schema_version_in_element(get_tree(xml_content)))
     print(get_class_name_from_xml(get_tree(xml_content)))
 
-    print(
-        get_class_from_name(
-            "energyml.resqml.v2_2.resqmlv2.TriangulatedSetRepresentation"
-        )
-    )
+    print(get_class_from_name("energyml.resqml.v2_2.resqmlv2.TriangulatedSetRepresentation"))
 
     print(read_energyml_xml_str(xml_content))
     print(read_energyml_xml_file(path))
@@ -143,53 +139,27 @@ def file_test():
 def tests_content_type():
     print(RGX_CONTENT_TYPE)
 
-    print(
-        parse_content_type(
-            "application/x-resqml+xml;version=2.2;type=TriangulatedSetRepresentation"
-        )
-    )
-    print(
-        parse_content_type(
-            "application/vnd.openxmlformats-package.core-properties+xml"
-        ).group("domain")
-    )
+    print(parse_content_type("application/x-resqml+xml;version=2.2;type=TriangulatedSetRepresentation"))
+    print(parse_content_type("application/vnd.openxmlformats-package.core-properties+xml").group("domain"))
 
-    print(
-        get_class_from_content_type(
-            "application/x-resqml+xml;version=2.2;type=TriangulatedSetRepresentation"
-        )
-    )
+    print(get_class_from_content_type("application/x-resqml+xml;version=2.2;type=TriangulatedSetRepresentation"))
     print(
         "CT 201 : ",
-        get_class_from_content_type(
-            "application/x-resqml+xml;version=2.0;type=obj_HorizonInterpretation"
-        ),
+        get_class_from_content_type("application/x-resqml+xml;version=2.0;type=obj_HorizonInterpretation"),
     )
-    print(
-        parse_content_type(
-            "application/x-resqml+xml;version=2.0;type=obj_HorizonInterpretation"
-        )
-    )
+    print(parse_content_type("application/x-resqml+xml;version=2.0;type=obj_HorizonInterpretation"))
 
-    print(
-        get_class_from_content_type(
-            "application/vnd.openxmlformats-package.core-properties+xml"
-        )
-    )
+    print(get_class_from_content_type("application/vnd.openxmlformats-package.core-properties+xml"))
 
     print(get_content_type_from_class(tr))
     print(get_qualified_type_from_class(tr))
     print(
         get_qualified_type_from_class(DoubleHdf5Array()),
-        get_class_from_qualified_type(
-            get_qualified_type_from_class(DoubleHdf5Array())
-        ),
+        get_class_from_qualified_type(get_qualified_type_from_class(DoubleHdf5Array())),
     )
     print(
         get_qualified_type_from_class(dor_correct),
-        get_class_from_qualified_type(
-            get_qualified_type_from_class(dor_correct)
-        ),
+        get_class_from_qualified_type(get_qualified_type_from_class(dor_correct)),
     )
 
     print(gen_energyml_object_path(tr, EpcExportVersion.EXPANDED))
@@ -204,17 +174,11 @@ def tests_epc():
     print(epc)
     epc.export_file("D:/Geosiris/Github/energyml/energyml-python/test.epc")
     epc.export_version = EpcExportVersion.EXPANDED
-    epc.export_file(
-        "D:/Geosiris/Github/energyml/energyml-python/test_EXPANDED.epc"
-    )
+    epc.export_file("D:/Geosiris/Github/energyml/energyml-python/test_EXPANDED.epc")
     epc.core_props = None
-    epc.export_file(
-        "D:/Geosiris/Github/energyml/energyml-python/test_no_core.epc"
-    )
+    epc.export_file("D:/Geosiris/Github/energyml/energyml-python/test_no_core.epc")
 
-    epc201 = Epc.read_file(
-        "D:/Geosiris/OSDU/manifestTranslation/#Data/VOLVE_STRUCT.epc"
-    )
+    epc201 = Epc.read_file("D:/Geosiris/OSDU/manifestTranslation/#Data/VOLVE_STRUCT.epc")
     print(epc201)
 
     print(f"NB errors {len(validate_epc(epc201))}")
@@ -239,10 +203,7 @@ def tests_dor():
 
     print(
         json.dumps(
-            {
-                k: [get_obj_uuid(x) for x in v]
-                for k, v in get_reverse_dor_list(epc.energyml_objects).items()
-            },
+            {k: [get_obj_uuid(x) for x in v] for k, v in get_reverse_dor_list(epc.energyml_objects).items()},
             indent=4,
         )
     )
@@ -301,16 +262,8 @@ def test_introspection():
     print(search_attribute_matching_type(tr, "Citation"))
     print(search_attribute_matching_type(tr, "DataObjectreference"))
     print(search_attribute_matching_type_with_path(tr, "DataObjectreference"))
-    print(
-        class_match_rgx(
-            ContactElement, "DataObjectreference", super_class_search=False
-        )
-    )
-    print(
-        class_match_rgx(
-            ContactElement, "DataObjectreference", super_class_search=True
-        )
-    )
+    print(class_match_rgx(ContactElement, "DataObjectreference", super_class_search=False))
+    print(class_match_rgx(ContactElement, "DataObjectreference", super_class_search=True))
     print(Enum in ExistenceKind.__bases__)
     print(Enum in TriangulatedSetRepresentation.__bases__)
     print(is_primitive(int))
@@ -331,9 +284,7 @@ def test_introspection():
     print(TriangulatedSetRepresentation.__dataclass_params__)
 
     # print(random_value_from_class(int))
-    print(
-        serialize_xml(random_value_from_class(TriangulatedSetRepresentation))
-    )
+    print(serialize_xml(random_value_from_class(TriangulatedSetRepresentation)))
     # print(serialize_json(random_value_from_class(TriangulatedSetRepresentation)))
 
     print(search_attribute_matching_name_with_path(tr, "[tT]it.*"))
@@ -342,13 +293,7 @@ def test_introspection():
     print(AbstractPoint3DArray.__dict__)
     print(TriangulatedSetRepresentation.__dict__)
     print(get_sub_classes(AbstractObject))
-    print(
-        list(
-            filter(
-                lambda _c: not is_abstract(_c), get_sub_classes(AbstractObject)
-            )
-        )
-    )
+    print(list(filter(lambda _c: not is_abstract(_c), get_sub_classes(AbstractObject))))
     print(AbstractColorMap.__name__.startswith("Abstract"))
     print(is_abstract(AbstractColorMap))
 
@@ -366,17 +311,13 @@ def test_introspection():
 
     print(f"object: {is_abstract(object)}")
     print(f"HDF5FileReader: {is_abstract(HDF5FileReader)}")
-    print(
-        f"TriangulatedSetRepresentation: {is_abstract(TriangulatedSetRepresentation)}"
-    )
+    print(f"TriangulatedSetRepresentation: {is_abstract(TriangulatedSetRepresentation)}")
 
     # print("HDF5FileReader")
     # for func in dir(HDF5FileReader):
     #     if callable(getattr(HDF5FileReader, func)) and not func.startswith("__"):
     #         print(f"\t{func} {type(getattr(HDF5FileReader, func))}")
-    print(
-        get_classes_matching_name(TriangulatedSetRepresentation, "Abstract.*")
-    )
+    print(get_classes_matching_name(TriangulatedSetRepresentation, "Abstract.*"))
     # print(get_matching_class_attribute_name(ExternalDataArrayPart, "(PathInHdfFile|PathInExternalFile)"))
     # print(object.__module__)
     # print(serialize_xml(random_value_from_class(PointSetRepresentation)))
@@ -390,21 +331,15 @@ def test_introspection():
     # print(serialize_xml(poly))
 
     print("=====] ", r"ClosedPolylines.\d+")
-    for array_path, array_value in search_attribute_matching_name_with_path(
-        poly, r"ClosedPolylines.\d+"
-    ):
+    for array_path, array_value in search_attribute_matching_name_with_path(poly, r"ClosedPolylines.\d+"):
         print(f"{array_path}\n\t{array_value}")
 
     print("=====] ", r"ClosedPolylines.values.\d+")
-    for array_path, array_value in search_attribute_matching_name_with_path(
-        poly, r"ClosedPolylines.values.\d+"
-    ):
+    for array_path, array_value in search_attribute_matching_name_with_path(poly, r"ClosedPolylines.values.\d+"):
         print(f"{array_path}\n\t{array_value}")
 
     print("=====] ", r"LinePatch.\d+")
-    for array_path, array_value in search_attribute_matching_name_with_path(
-        poly, r"LinePatch.\d+"
-    ):
+    for array_path, array_value in search_attribute_matching_name_with_path(poly, r"LinePatch.\d+"):
         print(f"{array_path}\n\t{array_value}")
 
 
@@ -432,9 +367,7 @@ def test_local_depth_crs():
     # Fails because the xsi:type="VerticalCrsEpsgCode" doesn't
     # contain the namespace : xsi:type="eml:VerticalCrsEpsgCode"
     try:
-        depth3d = read_energyml_xml_file(
-            "../rc/obj_LocalDepth3dCrs_716f6472-18a3-4f19-a57c-d4f5642ccc53.xml"
-        )
+        depth3d = read_energyml_xml_file("../rc/obj_LocalDepth3dCrs_716f6472-18a3-4f19-a57c-d4f5642ccc53.xml")
         print(serialize_json(depth3d, JSON_VERSION.XSDATA))
         print(serialize_xml(depth3d))
     except Exception as e:
@@ -445,9 +378,7 @@ def test_get_projected_uom():
     # Fails because the xsi:type="VerticalCrsEpsgCode" doesn't
     # contain the namespace : xsi:type="eml:VerticalCrsEpsgCode"
     try:
-        depth3d = read_energyml_xml_file(
-            "../rc/obj_LocalDepth3dCrs_716f6472-18a3-4f19-a57c-d4f5642ccc53.xml"
-        )
+        depth3d = read_energyml_xml_file("../rc/obj_LocalDepth3dCrs_716f6472-18a3-4f19-a57c-d4f5642ccc53.xml")
         print(get_projected_uom(depth3d).value)
     except Exception as e:
         print(e)
@@ -502,28 +433,18 @@ def class_field():
     print(get_class_fields(tr)["citation"])
     print(get_class_pkg_version(tr))
     print(create_energyml_object("resqml22.TriangulatedSetRepresentation"))
-    ext_20 = create_energyml_object(
-        "application/x-eml+xml;version=2.0;type=obj_EpcExternalPartReference"
-    )
+    ext_20 = create_energyml_object("application/x-eml+xml;version=2.0;type=obj_EpcExternalPartReference")
     print(ext_20)
     print(gen_energyml_object_path(ext_20))
     print(create_external_part_reference("2.0", "my_h5"))
 
-    print(
-        parse_content_or_qualified_type(
-            "application/x-eml+xml;version=2.0;type=obj_EpcExternalPartReference"
-        )
-    )
+    print(parse_content_or_qualified_type("application/x-eml+xml;version=2.0;type=obj_EpcExternalPartReference"))
     print(
         get_domain_version_from_content_or_qualified_type(
             "application/x-eml+xml;version=2.0;type=obj_EpcExternalPartReference"
         )
     )
-    print(
-        get_domain_version_from_content_or_qualified_type(
-            "resqml20.obj_EpcExternalPartReference"
-        )
-    )
+    print(get_domain_version_from_content_or_qualified_type("resqml20.obj_EpcExternalPartReference"))
 
     # print(create_external_part_reference("2.2", "myfile.h5"))
     # print(create_external_part_reference("2.0", "myfile.h5"))

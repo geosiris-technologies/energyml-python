@@ -1,7 +1,12 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
-from src.energyml.utils.data.datasets_io import ParquetFileReader, ParquetFileWriter, CSVFileReader, CSVFileWriter, \
-    read_dataset
+from src.energyml.utils.data.datasets_io import (
+    ParquetFileReader,
+    ParquetFileWriter,
+    CSVFileReader,
+    CSVFileWriter,
+    read_dataset,
+)
 from utils.data.helper import read_array
 from utils.introspection import search_attribute_matching_name_with_path
 from utils.serialization import read_energyml_xml_file
@@ -18,7 +23,7 @@ def local_parquet():
 
     print(pw.write_array("../wip/export.parquet", [[1, 2, 3], [2, 2, 2]]))
     print(pr.read_array("../wip/export.parquet"))
-    print(pw.write_array("../wip/export_matrice.parquet", [[[1,6,6], [2,9,9], [3,10,10]], [2, 2, 2]]))
+    print(pw.write_array("../wip/export_matrice.parquet", [[[1, 6, 6], [2, 9, 9], [3, 10, 10]], [2, 2, 2]]))
     print(pr.read_array("../wip/export_matrice.parquet"))
 
 
@@ -30,27 +35,27 @@ def local_csv():
     print(csvr.read_array(csv_path, "Line", has_headers=True))
     print(csvr.read_array(csv_path, None, has_headers=True))
 
-    with open(csv_path, 'r') as csv_file:
+    with open(csv_path, "r") as csv_file:
         print(csvr.read_array(csv_file, "Line", has_headers=True))
-    with open(csv_path, 'rb') as csv_file:
+    with open(csv_path, "rb") as csv_file:
         print(csvr.read_array(csv_file, "Line", has_headers=True))
-    with open(csv_path, 'rb') as csv_file:
+    with open(csv_path, "rb") as csv_file:
         print(csvr.read_array(csv_file, "1", has_headers=False))
 
-    csv_test_path = "../wip/export.csv"
+    csv_test_path = "../wip/data/export.csv"
     csvw.write_array(csv_test_path, [[1, 2, 3], [2, 2, 2]])
     print(csvr.read_array(csv_test_path))
 
     print("# DAT")
     dat_path = "D:/Geosiris/Cloud/Geo-Workflow/BRGM/test_ColumnBaseTable_parquet_hdf5/NT66-AGG-DAtA.truncated.dat"
-    with open(dat_path, 'r') as dat_file:
+    with open(dat_path, "r") as dat_file:
         print(csvr.read_array(dat_file, None, delimiter=" ", has_headers=False, skipinitialspace=True)[0])
         dat_file.seek(0)
         print(csvr.read_array(dat_file, "1", delimiter=" ", has_headers=False, skipinitialspace=True))
 
     print("# DAT shetland-horizon_Truncated")
     dat_path = "D:/Geosiris/Cloud/Geo-Workflow/BRGM/test_ColumnBaseTable_parquet_hdf5/shetland-horizon_Truncated.dat"
-    with open(dat_path, 'r') as dat_file:
+    with open(dat_path, "r") as dat_file:
         print(csvr.read_array(dat_file, None, delimiter=",", has_headers=False)[0])
         dat_file.seek(0)
         print(csvr.read_array(dat_file, "1", delimiter=",", has_headers=False))

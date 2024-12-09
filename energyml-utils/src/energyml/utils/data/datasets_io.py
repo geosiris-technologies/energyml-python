@@ -1,28 +1,40 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
+"""
+This module is a work in progress
+"""  # pylint: disable=W0105
+
 import logging
 import os
+import re
 from dataclasses import dataclass
-from functools import reduce
 from io import BytesIO, TextIOWrapper, StringIO, BufferedReader
-from typing import Optional, List, Tuple, Any, Union, TextIO, BinaryIO
+from typing import Optional, List, Tuple, Any, Union, TextIO, BinaryIO, Dict
 
 import numpy as np
+from pandas import DataFrame
 
 from .model import DatasetReader
 from ..constants import EPCRelsRelationshipType, mime_type_to_file_extension
 from ..exception import MissingExtraInstallation
-from ..introspection import search_attribute_matching_name_with_path, get_object_attribute, \
-    search_attribute_matching_name, get_obj_identifier, get_object_attribute_no_verif
+from ..introspection import (
+    search_attribute_matching_name_with_path,
+    get_object_attribute,
+    search_attribute_matching_name,
+    get_obj_identifier,
+    get_object_attribute_no_verif,
+)
 
 try:
     import h5py
+
     __H5PY_MODULE_EXISTS__ = True
 except Exception as e:
     __H5PY_MODULE_EXISTS__ = False
 
 try:
     import csv
+
     __CSV_MODULE_EXISTS__ = True
 except Exception as e:
     __CSV_MODULE_EXISTS__ = False
@@ -31,6 +43,7 @@ try:
     import pandas as pd
     import pyarrow as pa
     import pyarrow.parquet as pq
+
     # import pyarrow.feather as feather
     __PARQUET_MODULE_EXISTS__ = True
 except Exception as e:
@@ -38,6 +51,7 @@ except Exception as e:
 
 # HDF5
 if __H5PY_MODULE_EXISTS__:
+
     @dataclass
     class HDF5FileReader(DatasetReader):
         def read_array(self, source: Union[BytesIO, str], path_in_external_file: str) -> Optional[List[Any]]:
@@ -70,19 +84,26 @@ if __H5PY_MODULE_EXISTS__:
 
     @dataclass
     class HDF5FileWriter:
-        def write_array(self, target: Union[str, BytesIO, bytes], array: Union[list, np.array], path_in_external_file: str, dtype: Optional = None):
+        def write_array(
+            self,
+            target: Union[str, BytesIO, bytes],
+            array: Union[list, np.array],
+            path_in_external_file: str,
+            dtype: Optional = None,
+        ):
             if isinstance(array, list):
                 array = np.asarray(array)
             with h5py.File(target, "a") as f:
                 # print(array.dtype, h5py.string_dtype(), array.dtype == 'O')
                 # print("\t", dtype or (h5py.string_dtype() if array.dtype == '0' else array.dtype))
-                if array.dtype == 'O':
+                if array.dtype == "O":
                     array = np.asarray([s.encode() if isinstance(s, str) else s for s in array])
                     np.void(array)
                 dset = f.create_dataset(path_in_external_file, array.shape, dtype or array.dtype)
                 dset[()] = array
 
 else:
+
     class HDF5FileReader:
         def read_array(self, source: Union[BytesIO, str], path_in_external_file: str) -> Optional[List[Any]]:
             raise MissingExtraInstallation(extra_name="hdf5")
@@ -104,7 +125,9 @@ if __PARQUET_MODULE_EXISTS__:
 
     @dataclass
     class ParquetFileReader:
-        def read_array(self, source: Union[BytesIO, str], path_in_external_file: Optional[str] = None) -> Optional[List[Any]]:
+        def read_array(
+            self, source: Union[BytesIO, str], path_in_external_file: Optional[str] = None
+        ) -> Optional[List[Any]]:
             """
             :param source: the parquet file path or memory file
             :param path_in_external_file: the column name in the parquet file, if None, the entire table is returned
@@ -128,8 +151,14 @@ if __PARQUET_MODULE_EXISTS__:
 
     @dataclass
     class ParquetFileWriter:
-        def write_array(self, target: Union[str, BytesIO, bytes], array: list, column_titles: Optional[List[str]] = None) -> Optional[List[Any]]:
-            if not isinstance(array[0], list) and not isinstance(array[0], np.ndarray) and not isinstance(array[0], pd.Series):
+        def write_array(
+            self, target: Union[str, BytesIO, bytes], array: list, column_titles: Optional[List[str]] = None
+        ) -> None:
+            if (
+                not isinstance(array[0], list)
+                and not isinstance(array[0], np.ndarray)
+                and not isinstance(array[0], pd.Series)
+            ):
                 # print(f"dtype : {type(array[0])}")
                 array = [array]
 
@@ -141,11 +170,14 @@ if __PARQUET_MODULE_EXISTS__:
                 version="2.6",
                 compression="snappy",
             )
+
 else:
 
     @dataclass
     class ParquetFileReader:
-        def read_array(self, source: Union[BytesIO, str], path_in_external_file: Optional[str] = None) -> Optional[List[Any]]:
+        def read_array(
+            self, source: Union[BytesIO, str], path_in_external_file: Optional[str] = None
+        ) -> Optional[DataFrame]:
             raise MissingExtraInstallation(extra_name="parquet")
 
         def get_array_dimension(self, source: Union[BytesIO, str], path_in_external_file: str) -> Optional[List[Any]]:
@@ -153,14 +185,124 @@ else:
 
     @dataclass
     class ParquetFileWriter:
-        def write_array(self, target: Union[BytesIO, str], array: list, column_titles: Optional[List[str]] = None) -> Optional[List[Any]]:
+        def write_array(
+            self, target: Union[BytesIO, str], array: list, column_titles: Optional[List[str]] = None
+        ) -> None:
             raise MissingExtraInstallation(extra_name="parquet")
+
+
+# DAT
+@dataclass
+class DATFileReader:
+    def read_array(
+        self,
+        source: Union[BytesIO, TextIO, str],
+        path_in_external_file: Optional[Union[int, str]] = None,
+        delimiter: Optional[str] = ",",
+        has_headers: bool = False,
+        encoding: Optional[str] = "utf-8",
+        **fmtparams,
+    ) -> Optional[Dict]:
+        """
+        :param source: the dat file path or memory file
+        :param path_in_external_file: the column name (or number) in the dat file, if None, the entire table is returned
+            as it is in the file
+        :param delimiter: the column delimiter
+        :param has_headers: set it to True if the file contains column titles
+        :param encoding:
+        :return:
+        """
+        if isinstance(source, str):
+            with open(source, "r", newline="") as datFile:
+                return self.read_array(datFile, path_in_external_file, delimiter, has_headers, encoding, **fmtparams)
+        else:
+            comments = ""
+            s_pos = 0
+            c = source.readline()
+            while c.startswith("#"):
+                s_pos = source.tell()
+                comments += c
+                c = source.readline()
+
+            source.seek(s_pos)
+
+            logging.debug(comments)
+
+            items = []
+
+            if len(comments) > 0:
+                _delim = re.search(r'Default\s+delimiter:\s*"(?P<delim>[^"])"', comments, re.IGNORECASE)
+                logging.debug("delim", _delim, _delim.group("delim"))
+                if _delim is not None:
+                    _delim = _delim.group("delim")
+                    logging.debug(_delim, "<==")
+                    if len(_delim) > 0:
+                        delimiter = _delim
+
+                items = re.findall(
+                    r"Item\s*:\s*(?P<itemName>[\w]+)\s+line\s+number\s*:\s*(?P<lnum>\d+)\s+delimiter\s+field\s+number\s*:\s*(?P<idx>\d+)",
+                    comments,
+                    re.IGNORECASE,
+                )
+                logging.debug("items", items)
+
+                items = list(map(lambda it: (it[0], int(it[1]), int(it[2])), items))
+
+                _cst = re.findall(
+                    r"Item\s*:\s*(?P<itemName>[\w]+)\s+constant\s*:\s*(?P<value>\w+)", comments, re.IGNORECASE
+                )
+                logging.debug("cst", _cst)
+
+                max_line_number = 0
+                for (_, n, _) in items:
+                    if n > max_line_number:
+                        max_line_number = n
+
+                for i in range(max_line_number - 1):
+                    source.readline()  # on skip les values des autres items, on ne garde que le tableau de valeurs
+                logging.debug(max_line_number)
+                logging.debug(items)
+                # removing items not related to the columns titles items
+                items = list(filter(lambda it: it[1] == max_line_number, items))
+                logging.debug(items)
+
+            if isinstance(source, BytesIO) or isinstance(source, BinaryIO) or isinstance(source, BufferedReader):
+                source = TextIOWrapper(source, encoding=encoding)
+            elif isinstance(source, bytes):
+                source = StringIO(source.decode(encoding=encoding))
+
+            if items is not None and len(items) > 0:
+                return pd.read_csv(source, delimiter=delimiter, names=list(map(lambda it: it[0], items)), **fmtparams)
+            else:
+                array = csv.reader(source, delimiter=delimiter, **fmtparams)
+                if path_in_external_file is not None and array is not None:
+                    idx = int(path_in_external_file)
+                    return [row[idx] for row in list(filter(lambda l: len(l) > 0, list(array)))]
+                else:
+                    return list(array)
+
+    def read_array_as_panda_dict(
+        self, source: Union[BytesIO, TextIO, str], delimiter: Optional[str] = ",", has_header: bool = True, **fmtparams
+    ) -> Optional[Any]:
+        if isinstance(source, str):
+            with open(source, "r", newline="") as datFile:
+                return self.read_array_as_panda_dict(datFile, delimiter, has_header=has_header, **fmtparams)
+        else:
+            return pd.read_csv(source, delimiter=delimiter, header=0 if has_header else None, **fmtparams)
 
 
 # CSV
 @dataclass
 class CSVFileReader:
-    def read_array(self, source: Union[BytesIO, TextIO, str], path_in_external_file: Optional[Union[int, str]] = None, delimiter: Optional[str] = ',', has_headers: bool = False, encoding: Optional[str] = "utf-8", **fmtparams) -> Optional[List[Any]]:
+    def read_array(
+        self,
+        source: Union[BytesIO, TextIO, str],
+        path_in_external_file: Optional[Union[int, str]] = None,
+        delimiter: Optional[str] = ",",
+        has_headers: bool = False,
+        encoding: Optional[str] = "utf-8",
+        **fmtparams,
+    ) -> Optional[List[Any]]:
         """
         :param source: the csv file path or memory file
         :param path_in_external_file: the column name (or number) in the csv file, if None, the entire table is returned
@@ -170,7 +312,7 @@ class CSVFileReader:
         :return:
         """
         if isinstance(source, str):
-            with open(source, 'r', newline='') as csvFile:
+            with open(source, "r", newline="") as csvFile:
                 return self.read_array(csvFile, path_in_external_file, delimiter, has_headers, encoding, **fmtparams)
         else:
             if isinstance(source, BytesIO) or isinstance(source, BinaryIO) or isinstance(source, BufferedReader):
@@ -194,13 +336,15 @@ class CSVFileReader:
                     idx = int(path_in_external_file)
                     # for row in list(array):
                     #     print(len(row))
-                    return [row[idx] for row in list(filter(lambda l: len(l)>0, list(array)))]
+                    return [row[idx] for row in list(filter(lambda l: len(l) > 0, list(array)))]
                 else:
                     return list(array)
 
-    def read_array_as_panda_dict(self, source: Union[BytesIO, TextIO, str], delimiter: Optional[str] = ',', has_header: bool = True, **fmtparams) -> Optional[Any]:
+    def read_array_as_panda_dict(
+        self, source: Union[BytesIO, TextIO, str], delimiter: Optional[str] = ",", has_header: bool = True, **fmtparams
+    ) -> Optional[Any]:
         if isinstance(source, str):
-            with open(source, 'r', newline='') as csvFile:
+            with open(source, "r", newline="") as csvFile:
                 return self.read_array_as_panda_dict(csvFile, delimiter, has_header=has_header, **fmtparams)
         else:
             return pd.read_csv(source, delimiter=delimiter, header=0 if has_header else None, **fmtparams)
@@ -208,12 +352,19 @@ class CSVFileReader:
 
 @dataclass
 class CSVFileWriter:
-    def write_array(self, target: Union[BytesIO, TextIO, bytes, str], array: list, column_titles: Optional[List[str]] = None, delimiter: str = ',', **fmtparams) -> Optional[List[Any]]:
+    def write_array(
+        self,
+        target: Union[BytesIO, TextIO, bytes, str],
+        array: list,
+        column_titles: Optional[List[str]] = None,
+        delimiter: str = ",",
+        **fmtparams,
+    ) -> Optional[List[Any]]:
         if not isinstance(array[0], list):
             array = [array]
 
         if isinstance(target, str):
-            with open(target, 'w', newline='') as csvFile:
+            with open(target, "w", newline="") as csvFile:
                 return self.write_array(csvFile, array, column_titles, delimiter, **fmtparams)
         else:
             csvwriter = csv.writer(target, delimiter=delimiter, **fmtparams)
@@ -222,9 +373,7 @@ class CSVFileWriter:
 
 ##############
 def get_external_file_path_possibilities(
-        value_in_xml: str,
-        epc: Any,
-        file_extension: Optional[str] = "h5"
+    value_in_xml: str, epc: Any, file_extension: Optional[str] = "h5"
 ) -> List[str]:
     """
     Maybe the path in the epc file objet was given as an absolute one : 'C:/my_file.h5'
@@ -241,7 +390,9 @@ def get_external_file_path_possibilities(
     """
     if epc is not None:
         epc_folder = epc.get_epc_file_folder()
-        return get_external_file_path_possibilities_from_folder(file_raw_path=value_in_xml, folder_path=epc_folder) + [epc.epc_file_path[:-4] + f".{file_extension}",]
+        return get_external_file_path_possibilities_from_folder(file_raw_path=value_in_xml, folder_path=epc_folder) + [
+            epc.epc_file_path[:-4] + f".{file_extension}",
+        ]
     else:
         return get_external_file_path_possibilities_from_folder(file_raw_path=value_in_xml, folder_path=".")
 
@@ -276,9 +427,7 @@ def get_external_file_path_from_external_path(
         mimetype = next(iter(search_attribute_matching_name(external_path_obj, "MimeType")), None)
         if external_file_uri is not None and len(external_file_uri) > 0:
             result = get_external_file_path_possibilities(
-                value_in_xml=external_file_uri[0],
-                epc=epc,
-                file_extension=mime_type_to_file_extension(mimetype) or "h5"
+                value_in_xml=external_file_uri[0], epc=epc, file_extension=mime_type_to_file_extension(mimetype) or "h5"
             )
             # result = f"{epc_folder}/{h5_uri[0]}"
 
@@ -331,10 +480,7 @@ def get_external_file_path_from_external_path(
     return result
 
 
-def get_external_file_path_possibilities_from_folder(
-        file_raw_path: str,
-        folder_path: str
-) -> List[str]:
+def get_external_file_path_possibilities_from_folder(file_raw_path: str, folder_path: str) -> List[str]:
     external_path_respect = file_raw_path
     external_path_rematch = (
         f"{folder_path + '/' if folder_path is not None and len(folder_path) else ''}{os.path.basename(file_raw_path)}"
@@ -348,22 +494,30 @@ def get_external_file_path_possibilities_from_folder(
     ]
 
 
-def read_dataset(source: Union[BytesIO, str], path_in_external_file: Optional[str] = None, mimetype: Optional[str] = "application/x-hdf5") -> Any:
+def read_dataset(
+    source: Union[BytesIO, str],
+    path_in_external_file: Optional[str] = None,
+    mimetype: Optional[str] = "application/x-hdf5",
+) -> Any:
     mimetype = (mimetype or "").lower()
     file_reader = HDF5FileReader()  # default is hdf5
-    if "parquet" in mimetype or (isinstance(source, str) and (source.lower().endswith(".parquet") or source.lower().endswith(".pqt"))):
+    if "parquet" in mimetype or (
+        isinstance(source, str) and (source.lower().endswith(".parquet") or source.lower().endswith(".pqt"))
+    ):
         file_reader = ParquetFileReader()
-    elif "csv" in mimetype or (isinstance(source, str) and (source.lower().endswith(".csv") or source.lower().endswith(".dat"))):
+    elif "csv" in mimetype or (
+        isinstance(source, str) and (source.lower().endswith(".csv") or source.lower().endswith(".dat"))
+    ):
         file_reader = CSVFileReader()
     return file_reader.read_array(source, path_in_external_file)
 
 
 def read_external_dataset_array(
-        energyml_array: Any,
-        root_obj: Optional[Any] = None,
-        path_in_root: Optional[str] = None,
-        additional_sources: Optional[List[Union[str, BytesIO, BufferedReader]]] = None,
-        epc: Optional[any] = None
+    energyml_array: Any,
+    root_obj: Optional[Any] = None,
+    path_in_root: Optional[str] = None,
+    additional_sources: Optional[List[Union[str, BytesIO, BufferedReader]]] = None,
+    epc: Optional[any] = None,
 ):
     if additional_sources is None:
         additional_sources = []
@@ -377,15 +531,14 @@ def read_external_dataset_array(
 
         sources = additional_sources
         sources = sources + get_external_file_path_from_external_path(
-            external_path_obj=external_path_obj,
-            path_in_root=path_in_root,
-            root_obj=root_obj,
-            epc=epc
+            external_path_obj=external_path_obj, path_in_root=path_in_root, root_obj=root_obj, epc=epc
         )
         for s in sources:
             try:
                 # TODO: take care of the "Counts" and "Starts" list in ExternalDataArrayPart to fill array correctly
-                result_array = result_array + read_dataset(source=s, path_in_external_file=path_in_external, mimetype=mimetype)
+                result_array = result_array + read_dataset(
+                    source=s, path_in_external_file=path_in_external, mimetype=mimetype
+                )
                 succeed = True
                 break  # stop after the first read success
             except MissingExtraInstallation as mei:

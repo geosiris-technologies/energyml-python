@@ -10,8 +10,6 @@ import typing
 from dataclasses import Field
 from enum import Enum
 from importlib import import_module
-from linecache import cache
-from tkinter import EXCEPTION
 from types import ModuleType
 from typing import Any, List, Optional, Union, Dict, Tuple
 
@@ -21,7 +19,8 @@ from .constants import (
     epoch,
     gen_uuid,
     snake_case,
-    pascal_case, path_next_attribute,
+    pascal_case,
+    path_next_attribute,
 )
 from .manager import (
     get_class_pkg,
@@ -415,11 +414,7 @@ def create_default_value_for_type(cls: Any):
             lst = []
             for i in range(nb_value_for_list):
                 chosen_type = type_list[0]
-                lst.append(
-                    create_default_value_for_type(
-                        chosen_type
-                    )
-                )
+                lst.append(create_default_value_for_type(chosen_type))
             return lst
         else:
             chosen_type = type_list[random.randint(0, len(type_list) - 1)]
@@ -439,13 +434,15 @@ def create_default_value_for_type(cls: Any):
 
 
 def get_object_attribute_or_create(
-        obj: Any,
-        attr_dot_path: str,
-        force_snake_case=True,
-        fn_create: typing.Callable = lambda o, a_path : create_default_value_for_type(get_class_from_simple_name(
-                            simple_name=get_class_attribute_type(o, a_path),
-                            energyml_module_context=get_related_energyml_modules_name(o),
-                        ))
+    obj: Any,
+    attr_dot_path: str,
+    force_snake_case=True,
+    fn_create: typing.Callable = lambda o, a_path: create_default_value_for_type(
+        get_class_from_simple_name(
+            simple_name=get_class_attribute_type(o, a_path),
+            energyml_module_context=get_related_energyml_modules_name(o),
+        )
+    ),
 ) -> Any:
     """
     returns the value of an attribute given by a dot representation of its path in the object
@@ -665,15 +662,25 @@ def search_attribute_in_upper_matching_name(
     :param current_path:
     :return:
     """
+    # print(f"Searching {name_rgx} in {obj} : {root_obj}")
     elt_list = search_attribute_matching_name(obj, name_rgx, search_in_sub_obj=False, deep_search=False)
     if elt_list is not None and len(elt_list) > 0:
         return elt_list
 
-    if obj != root_obj:
+    if len(current_path) != 0:  # obj != root_obj:
         upper_path = current_path[: current_path.rindex(".")]
+        # print(f"\t {upper_path} ")
         if len(upper_path) > 0:
             return search_attribute_in_upper_matching_name(
                 obj=get_object_attribute(root_obj, upper_path),
+                name_rgx=name_rgx,
+                root_obj=root_obj,
+                re_flags=re_flags,
+                current_path=upper_path,
+            )
+        else:
+            return search_attribute_in_upper_matching_name(
+                obj=root_obj,
                 name_rgx=name_rgx,
                 root_obj=root_obj,
                 re_flags=re_flags,
@@ -896,23 +903,33 @@ def set_attribute_from_path(obj: Any, attribute_path: str, value: Any):
     upper = obj
     current_attrib_name, path_next = path_next_attribute(attribute_path)
     if path_next is not None:
-        set_attribute_from_path(get_object_attribute(obj, current_attrib_name,), path_next, value)
+        set_attribute_from_path(
+            get_object_attribute(
+                obj,
+                current_attrib_name,
+            ),
+            path_next,
+            value,
+        )
     else:
         current_attrib_real_name = get_matching_class_attribute_name(upper, current_attrib_name)
-        attrib_class = get_obj_attribute_class(upper, current_attrib_real_name)
-        if attrib_class is not None and is_enum(attrib_class):
-            val_snake = snake_case(value)
-            setattr(
-                upper,
-                current_attrib_real_name,
-                list(
-                    filter(
-                        lambda ev: snake_case(ev) == val_snake,
-                        attrib_class._member_names_,
-                    )
-                )[0],
-            )
-        else:  # If previous test failed, the attribute did not exist in the object, we create it
+        created = False
+        if current_attrib_real_name is not None:
+            attrib_class = get_obj_attribute_class(upper, current_attrib_real_name)
+            if attrib_class is not None and is_enum(attrib_class):
+                created = True
+                val_snake = snake_case(value)
+                setattr(
+                    upper,
+                    current_attrib_real_name,
+                    list(
+                        filter(
+                            lambda ev: snake_case(ev) == val_snake,
+                            attrib_class._member_names_,
+                        )
+                    )[0],
+                )
+        if not created:  # If previous test failed, the attribute did not exist in the object, we create it
             if isinstance(upper, dict):
                 upper[current_attrib_name] = value
             else:
@@ -1181,6 +1198,35 @@ def get_obj_attribute_class(
 
             if cls.__module__ == "typing":
                 return get_obj_attribute_class(chosen_type, None, random_for_typing)
+
+    elif cls is not None:
+        if isinstance(cls, typing.Union.__class__):
+            type_list = list(cls.__args__)
+            if type(None) in type_list:
+                type_list.remove(type(None))  # we don't want to generate none value
+            chosen_type = type_list[random.randint(0, len(type_list))]
+        elif cls.__module__ == "typing":
+            type_list = list(cls.__args__)
+            if type(None) in type_list:
+                type_list.remove(type(None))  # we don't want to generate none value
+
+            if cls._name == "List":
+                nb_value_for_list = random.randint(2, 3)
+                lst = []
+                for i in range(nb_value_for_list):
+                    chosen_type = type_list[random.randint(0, len(type_list) - 1)]
+                    lst.append(
+                        _random_value_from_class(
+                            chosen_type,
+                            get_related_energyml_modules_name(cls),
+                            attribute_name,
+                            list,
+                        )
+                    )
+                return lst
+            else:
+                chosen_type = type_list[random.randint(0, len(type_list) - 1)]
+
     return chosen_type
 
 

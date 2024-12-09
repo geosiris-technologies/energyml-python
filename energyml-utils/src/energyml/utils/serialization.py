@@ -201,7 +201,7 @@ def read_energyml_json_bytes(
 
 
 def read_energyml_json_io(
-    file: BytesIO, json_version: JSON_VERSION, obj_class: Optional[type] = None
+    file: BytesIO, json_version: JSON_VERSION = JSON_VERSION.OSDU_OFFICIAL, obj_class: Optional[type] = None
 ) -> Union[List, Any]:
     if obj_class is not None:
         return _read_energyml_json_bytes_as_class(file.getbuffer(), json_version, obj_class)
@@ -209,11 +209,15 @@ def read_energyml_json_io(
         return read_energyml_json_bytes(file.getbuffer(), json_version)
 
 
-def read_energyml_json_str(file_content: str, json_version: JSON_VERSION) -> Union[List, Any]:
+def read_energyml_json_str(
+    file_content: str, json_version: JSON_VERSION = JSON_VERSION.OSDU_OFFICIAL
+) -> Union[List, Any]:
     return read_energyml_json_bytes(file_content.encode("utf-8"), json_version)
 
 
-def read_energyml_json_file(file_path: str, json_version: JSON_VERSION) -> Union[List, Any]:
+def read_energyml_json_file(
+    file_path: str, json_version: JSON_VERSION = JSON_VERSION.OSDU_OFFICIAL
+) -> Union[List, Any]:
     json_content_b = ""
     with open(file_path, "rb") as f:
         json_content_b = f.read()
@@ -417,7 +421,7 @@ def _to_json_dict_fn(
     if obj is None:
         return None
     elif is_enum(obj):
-        return str(obj)
+        return obj.value
         # return {
         #     "$type": get_qualified_type_from_class(obj),
         #     "_": obj.value

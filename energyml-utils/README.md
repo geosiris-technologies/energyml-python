@@ -76,3 +76,12 @@ energyml-prodml2-2 = "^1.12.0"
   - The "EnergymlWorkspace" class allows to abstract the access of numerical data like "ExternalArrays". This class can thus be extended to interact with ETP "GetDataArray" request etc...
 - ETP URI support : the "Uri" class allows to parse/write an etp uri.
 
+
+# Poetry scripts : 
+
+- extract_3d : extract a representation into an 3D file (obj/off)
+- csv_to_dataset : translate csv data into h5 dataset
+- generate_data : generate a random data from a qualified_type 
+- xml_to_json : translate an energyml xml file into json.
+- json_to_xml : translate an energyml json file into an xml file
+- describe_as_csv : create a csv description of an EPC content

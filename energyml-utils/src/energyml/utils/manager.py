@@ -152,8 +152,8 @@ def get_all_classes(module_name: str, version: str) -> dict:
 def get_class_pkg(cls):
     try:
         p = re.compile(RGX_ENERGYML_MODULE_NAME)
-        m = p.search(cls.__module__)
-        return m.group("pkg")
+        match = p.search(cls.__module__)
+        return match.group("pkg")
     except AttributeError as e:
         logging.error(f"Exception to get class package for '{cls}'")
         raise e
@@ -166,11 +166,11 @@ def reshape_version(version: str, nb_digit: int) -> str:
     Example : reshapeVersion("v2.0.1", 2) ==> "2.0" and reshapeVersion("version2.0.1.3.2.5", 4) ==> "version2.0.1.3.2.5"
     """
     p = re.compile(RGX_PROJECT_VERSION)
-    m = p.search(version)
-    if m is not None:
-        n0 = m.group("n0")
-        n1 = m.group("n1")
-        n2 = m.group("n2")
+    match = p.search(version)
+    if match is not None:
+        n0 = match.group("n0")
+        n1 = match.group("n1")
+        n2 = match.group("n2")
         if nb_digit == 1:
             return n0
         elif nb_digit == 2:
@@ -191,9 +191,9 @@ def get_class_pkg_version(cls, print_dev_version: bool = True, nb_max_version_di
     else:
         class_module = type(cls).__module__
 
-    m = p.search(class_module)
-    return reshape_version(m.group("versionNumber"), nb_max_version_digits) + (
-        "dev" + m.group("versionDev") if m.group("versionDev") is not None and print_dev_version else ""
+    match = p.search(class_module)
+    return reshape_version(match.group("versionNumber"), nb_max_version_digits) + (
+        "dev" + match.group("versionDev") if match.group("versionDev") is not None and print_dev_version else ""
     )
 
 

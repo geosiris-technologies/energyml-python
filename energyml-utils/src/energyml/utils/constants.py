@@ -1,6 +1,7 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import datetime
+import json
 import re
 import uuid as uuid_mod
 from dataclasses import field, dataclass
@@ -8,6 +9,9 @@ from enum import Enum
 from io import BytesIO
 from re import findall
 from typing import List, Optional, Tuple
+
+from importlib.resources import files
+
 
 ENERGYML_NAMESPACES = {
     "eml": "http://www.energistics.org/energyml/data/commonv2",
@@ -102,6 +106,9 @@ RGX_ENERGYML_FILE_NAME = (
 
 RGX_XML_HEADER = r"^\s*<\?xml(\s+(encoding\s*=\s*\"(?P<encoding>[^\"]+)\"|version\s*=\s*\"(?P<version>[^\"]+)\"|standalone\s*=\s*\"(?P<standalone>[^\"]+)\"))+"  # pylint: disable=C0301
 
+RGX_IDENTIFIER = f"{RGX_UUID}(.(?P<version>\w+)?)?"
+
+
 #    __  ______  ____
 #   / / / / __ \/  _/
 #  / / / / /_/ // /
@@ -170,6 +177,18 @@ DOT_PATH_ATTRIBUTE = r"(?:(?<=\\)\.|[^\.])+"
 DOT_PATH = rf"\.*(?P<first>{DOT_PATH_ATTRIBUTE})(?P<next>(\.(?P<last>{DOT_PATH_ATTRIBUTE}))*)"
 
 
+class MimeType(Enum):
+    """Some mime types"""
+    CSV = "text/csv"
+    HDF5 = "application/x-hdf5"
+    PARQUET = "application/x-parquet"
+    PDF = "application/pdf"
+    RELS = "application/vnd.openxmlformats-package.relationships+xml"
+
+    def __str__(self):
+        return self.value
+
+
 class EpcExportVersion(Enum):
     """EPC export version."""
 
@@ -212,15 +231,15 @@ class EPCRelsRelationshipType(Enum):
             case EPCRelsRelationshipType.CORE_PROPERTIES:
                 return "http://schemas.openxmlformats.org/package/2006/relationships/metadata/" + str(self.value)
             case (
-            EPCRelsRelationshipType.CHUNKED_PART
-            | EPCRelsRelationshipType.DESTINATION_OBJECT
-            | EPCRelsRelationshipType.SOURCE_OBJECT
-            | EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY
-            | EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML
-            | EPCRelsRelationshipType.EXTERNAL_RESOURCE
-            | EPCRelsRelationshipType.DestinationMedia
-            | EPCRelsRelationshipType.SOURCE_MEDIA
-            | _
+                EPCRelsRelationshipType.CHUNKED_PART
+                | EPCRelsRelationshipType.DESTINATION_OBJECT
+                | EPCRelsRelationshipType.SOURCE_OBJECT
+                | EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY
+                | EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML
+                | EPCRelsRelationshipType.EXTERNAL_RESOURCE
+                | EPCRelsRelationshipType.DestinationMedia
+                | EPCRelsRelationshipType.SOURCE_MEDIA
+                | _
             ):
                 return "http://schemas.energistics.org/package/2012/relationships/" + str(self.value)
 
@@ -314,6 +333,11 @@ def get_domain_version_from_content_or_qualified_type(cqt: str) -> Optional[str]
     return None
 
 
+def split_identifier(identifier: str) -> Tuple[str, Optional[str]]:
+    match = re.match(RGX_IDENTIFIER, identifier)
+    return match.group(URI_RGX_GRP_UUID), match.group(URI_RGX_GRP_VERSION),
+
+
 def now(time_zone=datetime.timezone.utc) -> float:
     """Return an epoch value"""
     return datetime.datetime.timestamp(datetime.datetime.now(time_zone))
@@ -391,7 +415,28 @@ def path_iter(dot_path: str) -> List[str]:
     return findall(DOT_PATH_ATTRIBUTE, dot_path)
 
 
+def _get_property_kind_dict_path_as_str(file_type: str = "xml") -> str:
+    try:
+        import energyml.utils.rc as RC
+    except:
+        import src.energyml.utils.rc as RC
+    return files(RC).joinpath(f"PropertyKindDictionary_v2.3.{file_type.lower()}").read_text(encoding="utf-8")
+
+
+def get_property_kind_dict_path_as_json() -> str:
+    return _get_property_kind_dict_path_as_str("json")
+
+
+def get_property_kind_dict_path_as_dict() -> dict:
+    return json.loads(_get_property_kind_dict_path_as_str("json"))
+
+
+def get_property_kind_dict_path_as_xml() -> str:
+    return _get_property_kind_dict_path_as_str("xml")
+
+
 if __name__ == "__main__":
+
     m = re.match(DOT_PATH, ".Citation.Title.Coucou")
     print(m.groups())
     print(m.group("first"))

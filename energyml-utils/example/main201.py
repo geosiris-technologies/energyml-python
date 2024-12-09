@@ -9,9 +9,7 @@ def import_modules():
     # import energyml.opc.opc
     # import energyml.resqml.v2_0_1.resqmlv2
     # import_modules()
-    epc201 = Epc.read_file(
-        "D:/Geosiris/OSDU/manifestTranslation/#Data/VOLVE_STRUCT.epc"
-    )
+    epc201 = Epc.read_file("D:/Geosiris/OSDU/manifestTranslation/#Data/VOLVE_STRUCT.epc")
     print(epc201)
 
 

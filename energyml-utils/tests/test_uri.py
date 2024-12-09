@@ -24,6 +24,24 @@ def test_uri_constructor():
     )
 
 
+def test_uri_eq():
+    assert (
+        Uri(
+                dataspace="/folder-name/project-name",
+                domain="resqml",
+                domain_version="20",
+                object_type="obj_HorizonInterpretation",
+                uuid="421a7a05-033a-450d-bcef-051352023578",
+                version="2.0",
+                collection_domain=None,
+                collection_domain_version=None,
+                collection_domain_type=None,
+                query="query",
+            )
+        == Uri.parse("eml:///dataspace('/folder-name/project-name')/resqml20.obj_HorizonInterpretation(uuid=421a7a05-033a-450d-bcef-051352023578,version='2.0')?query")
+    )
+
+
 def test_uri_error():
     assert parse_uri("eml//") is None
     assert parse_uri("a random text") is None

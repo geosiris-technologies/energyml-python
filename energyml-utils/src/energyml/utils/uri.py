@@ -3,7 +3,7 @@
 from .constants import *
 
 
-@dataclass
+@dataclass(init=True, eq=True,)
 class Uri:
     """
     A class to represent an ETP URI

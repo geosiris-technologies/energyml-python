@@ -5,8 +5,8 @@ This module contains utilities to read/write EPC files.
 """
 
 import datetime
+import json
 import logging
-import os
 import re
 import traceback
 import zipfile
@@ -35,11 +35,14 @@ from .constants import (
     RGX_DOMAIN_VERSION,
     EpcExportVersion,
     RawFile,
-    EPCRelsRelationshipType, mime_type_to_file_extension,
+    EPCRelsRelationshipType,
+    MimeType,
+    split_identifier,
+    get_property_kind_dict_path_as_dict,
 )
-from .data.datasets_io import read_dataset, get_path_in_external_with_path, \
-    get_external_file_path_possibilities_from_folder, read_external_dataset_array
-from .exception import MissingExtraInstallation
+from .data.datasets_io import (
+    read_external_dataset_array,
+)
 from .introspection import (
     get_class_from_content_type,
     get_obj_type,
@@ -58,15 +61,15 @@ from .introspection import (
     get_obj_attribute_class,
     set_attribute_from_path,
     set_attribute_value,
-    search_attribute_matching_name,
     get_object_attribute,
-    get_object_attribute_no_verif,
+    get_qualified_type_from_class,
 )
 from .manager import get_class_pkg, get_class_pkg_version
 from .serialization import (
     serialize_xml,
     read_energyml_xml_str,
     read_energyml_xml_bytes,
+    read_energyml_json_str,
 )
 from .workspace import EnergymlWorkspace
 from .xml import is_energyml_content_type
@@ -262,13 +265,16 @@ class Epc(EnergymlWorkspace):
             if obj_id not in rels:
                 rels[obj_id] = []
             for target_obj in get_direct_dor_list(obj):
-                rels[obj_id].append(
-                    Relationship(
-                        target=gen_energyml_object_path(target_obj, self.export_version),
-                        type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
-                        id=f"_{obj_id}_{get_obj_type(target_obj)}_{get_obj_identifier(target_obj)}",
+                try:
+                    rels[obj_id].append(
+                        Relationship(
+                            target=gen_energyml_object_path(target_obj, self.export_version),
+                            type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
+                            id=f"_{obj_id}_{get_obj_type(target_obj)}_{get_obj_identifier(target_obj)}",
+                        )
                     )
-                )
+                except Exception:
+                    logging.error(f'Failed to create rels for "{obj_id}" with target {target_obj}')
 
         # filtering non-accessible objects from DOR
         rels = {k: v for k, v in rels.items() if self.get_object_by_identifier(k) is not None}
@@ -322,6 +328,18 @@ class Epc(EnergymlWorkspace):
         return rel
 
     # -- Functions inherited from EnergymlWorkspace
+
+    def get_object_as_dor(self, identifier: str, dor_qualified_type) -> Optional[Any]:
+        """
+        Search an object by its identifier and returns a DOR
+        :param identifier:
+        :param dor_qualified_type: the qualified type of the DOR (e.g. resqml22.DataObjectReference)
+        :return:
+        """
+        obj = self.get_object_by_identifier(identifier=identifier)
+        # if obj is None:
+
+        return as_dor(obj_or_identifier=obj or identifier, dor_qualified_type=dor_qualified_type)
 
     def get_object_by_uuid(self, uuid: str) -> List[Any]:
         """
@@ -521,6 +539,54 @@ class Epc(EnergymlWorkspace):
 # /_____/_/ /_/\___/_/   \__, /\__, /_/ /_/ /_/_/  /_/  \__,_/_/ /_/\___/\__/_/\____/_/ /_/____/
 #                       /____//____/
 
+__CACHE_PROP_KIND_DICT__ = {}
+
+
+def update_prop_kind_dict_cache():
+    prop_kind = get_property_kind_dict_path_as_dict()
+
+    for prop in prop_kind["PropertyKind"]:
+        __CACHE_PROP_KIND_DICT__[prop["Uuid"]] = read_energyml_json_str(json.dumps(prop))[0]
+
+
+def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectReference"):
+    """
+    Create an DOR from an object to target the latter.
+    :param obj_or_identifier:
+    :param dor_qualified_type: the qualified type of the DOR (e.g. "eml23.DataObjectReference" is the default value)
+    :return:
+    """
+    dor = None
+    if obj_or_identifier is not None:
+        if isinstance(obj_or_identifier, str):  # is an identifier
+            cls = get_class_from_qualified_type(dor_qualified_type)
+            dor = cls()
+            if len(__CACHE_PROP_KIND_DICT__) == 0:
+                # update the cache to check if it is a
+                update_prop_kind_dict_cache()
+            try:
+                uuid, version = split_identifier(obj_or_identifier)
+                if uuid in __CACHE_PROP_KIND_DICT__:
+                    return as_dor(__CACHE_PROP_KIND_DICT__[uuid])
+                else:
+                    set_attribute_from_path(dor, "uuid", uuid)
+                    set_attribute_from_path(dor, "ObjectVersion", version)
+            except AttributeError:
+                logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
+        else:
+            cls = get_class_from_qualified_type(dor_qualified_type)
+            dor = cls()
+            if hasattr(dor, "qualified_type"):
+                set_attribute_from_path(dor, "qualified_type", get_qualified_type_from_class(obj_or_identifier))
+            if hasattr(dor, "content_type"):
+                set_attribute_from_path(dor, "qualified_type", get_content_type_from_class(obj_or_identifier))
+
+            set_attribute_from_path(dor, "uuid", get_object_attribute(obj_or_identifier, "uuid"))
+            set_attribute_from_path(dor, "object_version", get_object_attribute(obj_or_identifier, "ObjectVersion"))
+            set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Citation.Title"))
+
+    return dor
+
 
 def create_energyml_object(
     content_or_qualified_type: str,
@@ -582,7 +648,7 @@ def create_external_part_reference(
         citation=citation,
         uuid=uuid,
     )
-    set_attribute_value(obj, "MimeType", "application/x-hdf5")
+    set_attribute_value(obj, "MimeType", MimeType.HDF5.value)
     set_attribute_value(obj, "ExistenceKind", "Actual")
     set_attribute_value(obj, "Filename", h5_file_path)
 
@@ -652,7 +718,7 @@ def get_file_folder_and_name_from_path(path: str) -> Tuple[str, str]:
     :return:
     """
     obj_folder = path[: path.rindex("/") + 1] if "/" in path else ""
-    obj_file_name = path[path.rindex("/") + 1:] if "/" in path else path
+    obj_file_name = path[path.rindex("/") + 1 :] if "/" in path else path
     return obj_folder, obj_file_name
 
 

@@ -113,18 +113,14 @@ def test_get_obj_pkg_pkgv_type_uuid_version_obj_22():
 
 
 def test_get_obj_uri():
-    assert (
-        str(get_obj_uri(tr))
-        == f"eml:///resqml22.TriangulatedSetRepresentation({tr.uuid})"
-    )
+    assert str(get_obj_uri(tr)) == f"eml:///resqml22.TriangulatedSetRepresentation({tr.uuid})"
     assert (
         str(get_obj_uri(tr, "/MyDataspace/"))
         == f"eml:///dataspace('/MyDataspace/')/resqml22.TriangulatedSetRepresentation({tr.uuid})"
     )
 
     assert (
-        str(get_obj_uri(fi))
-        == f"eml:///resqml20.obj_FaultInterpretation(uuid={fi.uuid},version='{fi.object_version}')"
+        str(get_obj_uri(fi)) == f"eml:///resqml20.obj_FaultInterpretation(uuid={fi.uuid},version='{fi.object_version}')"
     )
     assert (
         str(get_obj_uri(fi, "/MyDataspace/"))
@@ -133,10 +129,7 @@ def test_get_obj_uri():
 
 
 def test_gen_energyml_object_path():
-    assert (
-        gen_energyml_object_path(tr)
-        == f"TriangulatedSetRepresentation_{tr.uuid}.xml"
-    )
+    assert gen_energyml_object_path(tr) == f"TriangulatedSetRepresentation_{tr.uuid}.xml"
     assert (
         gen_energyml_object_path(tr, EpcExportVersion.EXPANDED)
         == f"namespace_resqml22/{tr.uuid}/TriangulatedSetRepresentation_{tr.uuid}.xml"
