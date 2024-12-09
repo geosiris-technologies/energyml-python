@@ -12,7 +12,6 @@ from io import BytesIO, TextIOWrapper, StringIO, BufferedReader
 from typing import Optional, List, Tuple, Any, Union, TextIO, BinaryIO, Dict
 
 import numpy as np
-from pandas import DataFrame
 
 from .model import DatasetReader
 from ..constants import EPCRelsRelationshipType, mime_type_to_file_extension
@@ -43,6 +42,7 @@ try:
     import pandas as pd
     import pyarrow as pa
     import pyarrow.parquet as pq
+    from pandas import DataFrame
 
     # import pyarrow.feather as feather
     __PARQUET_MODULE_EXISTS__ = True
@@ -177,7 +177,7 @@ else:
     class ParquetFileReader:
         def read_array(
             self, source: Union[BytesIO, str], path_in_external_file: Optional[str] = None
-        ) -> Optional[DataFrame]:
+        ) -> None:
             raise MissingExtraInstallation(extra_name="parquet")
 
         def get_array_dimension(self, source: Union[BytesIO, str], path_in_external_file: str) -> Optional[List[Any]]:

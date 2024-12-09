@@ -51,3 +51,6 @@ manip*
 *.json
 *.csv
 *.zip
+
+*.xml
+*.json
