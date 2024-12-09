@@ -27,6 +27,7 @@ from src.energyml.utils.validation import (
     correct_dor,
 )
 from src.energyml.utils.xml import *
+from utils.data.datasets_io import HDF5FileReader
 
 fi_cit = Citation(
     title="An interpretation",
