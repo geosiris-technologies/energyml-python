@@ -31,7 +31,7 @@ from .manager import (
     get_classes_matching_name,
     dict_energyml_modules,
 )
-from .uri import Uri
+from .uri import Uri, parse_uri
 from .xml import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
 
 
@@ -1102,6 +1102,13 @@ def get_qualified_type_from_class(cls: Union[type, Any], print_dev_version=True)
         get_data_object_type(cls, print_dev_version, 2).replace(".", "")
         + "."
         + get_object_type_for_file_path_from_class(cls)
+    )
+
+
+def get_object_uri(obj: any, dataspace: Optional[str] = None) -> Uri:
+    """ Returns an ETP URI """
+    return parse_uri(
+        f"eml:///dataspace('{dataspace or ''}')/{get_qualified_type_from_class(obj)}({get_obj_uuid(obj)})"
     )
 
 

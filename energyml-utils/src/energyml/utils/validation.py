@@ -20,9 +20,8 @@ from .introspection import (
     get_obj_version,
     get_content_type_from_class,
     get_qualified_type_from_class,
-    is_enum,
+    is_enum, get_object_uri,
 )
-
 
 class ErrorType(Enum):
     CRITICAL = "critical"
@@ -41,6 +40,12 @@ class ValidationError:
     def __str__(self):
         return f"[{str(self.error_type).upper()}] : {self.msg}"
 
+    def toJson(self):
+        return {
+            "msg": self.msg,
+            "error_type": self.error_type.value,
+        }
+
 
 @dataclass
 class ValidationObjectError(ValidationError):
@@ -51,6 +56,9 @@ class ValidationObjectError(ValidationError):
 
     def __str__(self):
         return f"{ValidationError.__str__(self)}\n\t{get_obj_identifier(self.target_obj)} : '{self.attribute_dot_path}'"
+
+    def toJson(self):
+        return super().toJson() | {"target_obj": str(get_object_uri(self.target_obj)), "attribute_dot_path": self.attribute_dot_path}
 
 
 @dataclass
@@ -231,8 +239,8 @@ def validate_attribute(value: Any, root_obj: Any, att_field: Field, path: str) -
         min_length = att_field.metadata.get("min_length", None)
         max_length = att_field.metadata.get("max_length", None)
         pattern = att_field.metadata.get("pattern", None)
-        min_occurs = att_field.metadata.get("pattern", None)
-        min_inclusive = att_field.metadata.get("pattern", None)
+        min_occurs = att_field.metadata.get("min_occurs", None)
+        min_inclusive = att_field.metadata.get("min_inclusive", None)
         # white_space
 
         if max_length is not None:
@@ -275,7 +283,7 @@ def validate_attribute(value: Any, root_obj: Any, att_field: Field, path: str) -
                 error_type=ErrorType.CRITICAL,
                 target_obj=root_obj,
                 attribute_dot_path=path,
-                msg=f"Min occurs was {min_inclusive} but found {len(value)}",
+                msg=f"Min occurs was {min_inclusive} but found {value}",
             )
             if isinstance(value, list):
                 for val in value:
@@ -285,15 +293,23 @@ def validate_attribute(value: Any, root_obj: Any, att_field: Field, path: str) -
                         errs.append(potential_err)
 
         if pattern is not None:
-            if re.match(pattern, value) is None:
-                errs.append(
-                    ValidationObjectError(
-                        error_type=ErrorType.CRITICAL,
-                        target_obj=root_obj,
-                        attribute_dot_path=path,
-                        msg=f"Pattern error. Value '{value}' was supposed to respect pattern '{pattern}'",
+            if not isinstance(value, list):
+                testing_value_list = [value]
+            else:
+                testing_value_list = value
+
+            for v in testing_value_list:
+                if is_enum(v):
+                    v = v.value
+                if re.match(pattern, v) is None:
+                    errs.append(
+                        ValidationObjectError(
+                            error_type=ErrorType.CRITICAL,
+                            target_obj=root_obj,
+                            attribute_dot_path=path,
+                            msg=f"Pattern error. Value '{v}' was supposed to respect pattern '{pattern}'",
+                        )
                     )
-                )
 
     return errs + _patterns_validation(
         obj=value,

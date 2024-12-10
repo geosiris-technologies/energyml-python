@@ -5,7 +5,7 @@
 ---
 
 name: Prepare Python and Poetry
-Description: Install Python, Poetry and dev dependencies, cached for speed
+description: Install Python, Poetry and dev dependencies, cached for speed
 
 inputs:
   python-version:  
