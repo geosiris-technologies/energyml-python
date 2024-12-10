@@ -5,8 +5,8 @@ This module contains utilities to read/write EPC files.
 """
 
 import datetime
+import json
 import logging
-import os
 import re
 import traceback
 import zipfile
@@ -36,8 +36,13 @@ from .constants import (
     EpcExportVersion,
     RawFile,
     EPCRelsRelationshipType,
+    MimeType,
+    split_identifier,
+    get_property_kind_dict_path_as_dict,
 )
-from .data.hdf import get_hdf_reference, HDF5FileReader
+from .data.datasets_io import (
+    read_external_dataset_array,
+)
 from .introspection import (
     get_class_from_content_type,
     get_obj_type,
@@ -56,15 +61,15 @@ from .introspection import (
     get_obj_attribute_class,
     set_attribute_from_path,
     set_attribute_value,
-    search_attribute_matching_name,
     get_object_attribute,
-    get_object_attribute_no_verif,
+    get_qualified_type_from_class,
 )
 from .manager import get_class_pkg, get_class_pkg_version
 from .serialization import (
     serialize_xml,
     read_energyml_xml_str,
     read_energyml_xml_bytes,
+    read_energyml_json_str,
 )
 from .workspace import EnergymlWorkspace
 from .xml import is_energyml_content_type
@@ -260,13 +265,16 @@ class Epc(EnergymlWorkspace):
             if obj_id not in rels:
                 rels[obj_id] = []
             for target_obj in get_direct_dor_list(obj):
-                rels[obj_id].append(
-                    Relationship(
-                        target=gen_energyml_object_path(target_obj, self.export_version),
-                        type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
-                        id=f"_{obj_id}_{get_obj_type(target_obj)}_{get_obj_identifier(target_obj)}",
+                try:
+                    rels[obj_id].append(
+                        Relationship(
+                            target=gen_energyml_object_path(target_obj, self.export_version),
+                            type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
+                            id=f"_{obj_id}_{get_obj_type(target_obj)}_{get_obj_identifier(target_obj)}",
+                        )
                     )
-                )
+                except Exception:
+                    logging.error(f'Failed to create rels for "{obj_id}" with target {target_obj}')
 
         # filtering non-accessible objects from DOR
         rels = {k: v for k, v in rels.items() if self.get_object_by_identifier(k) is not None}
@@ -321,6 +329,18 @@ class Epc(EnergymlWorkspace):
 
     # -- Functions inherited from EnergymlWorkspace
 
+    def get_object_as_dor(self, identifier: str, dor_qualified_type) -> Optional[Any]:
+        """
+        Search an object by its identifier and returns a DOR
+        :param identifier:
+        :param dor_qualified_type: the qualified type of the DOR (e.g. resqml22.DataObjectReference)
+        :return:
+        """
+        obj = self.get_object_by_identifier(identifier=identifier)
+        # if obj is None:
+
+        return as_dor(obj_or_identifier=obj or identifier, dor_qualified_type=dor_qualified_type)
+
     def get_object_by_uuid(self, uuid: str) -> List[Any]:
         """
         Search all objects with the uuid :param:`uuid`.
@@ -359,59 +379,17 @@ class Epc(EnergymlWorkspace):
         path_in_root: Optional[str] = None,
         use_epc_io_h5: bool = True,
     ) -> List[Any]:
-        h5_reader = HDF5FileReader()
-        path_in_external = get_hdf_reference(energyml_array)[0]
+        sources = []
         if self is not None and use_epc_io_h5 and self.h5_io_files is not None and len(self.h5_io_files):
-            for h5_io in self.h5_io_files:
-                try:
-                    return h5_reader.read_array(h5_io, path_in_external)
-                except Exception:
-                    logging.error(traceback.format_exc())
-                    pass
-            return self.read_external_array(
-                energyml_array=energyml_array,
-                root_obj=root_obj,
-                path_in_root=path_in_root,
-                use_epc_io_h5=False,
-            )
-        else:
-            hdf5_paths = get_hdf5_path_from_external_path(
-                external_path_obj=energyml_array,
-                path_in_root=path_in_root,
-                root_obj=root_obj,
-                epc=self,
-            )
+            sources = sources + self.h5_io_files
 
-            result_array = None
-            for hdf5_path in hdf5_paths:
-                try:
-                    result_array = h5_reader.read_array(hdf5_path, path_in_external)
-                    break  # if succeed, not try with other paths
-                except OSError as e:
-                    pass
-
-            if result_array is None:
-                raise Exception(f"Failed to read h5 file. Paths tried : {hdf5_paths}")
-
-            # logging.debug(f"\tpath_in_root : {path_in_root}")
-            # if path_in_root.lower().endswith("points") and len(result_array) > 0 and len(result_array[0]) == 3:
-            #     crs = None
-            #     try:
-            #         crs = get_crs_obj(
-            #             context_obj=energyml_array,
-            #             path_in_root=path_in_root,
-            #             root_obj=root_obj,
-            #             workspace=self,
-            #         )
-            #     except ObjectNotFoundNotError as e:
-            #         logging.error("No CRS found, not able to check zIncreasingDownward")
-            # logging.debug(f"\tzincreasing_downward : {zincreasing_downward}")
-            # zincreasing_downward = is_z_reversed(crs)
-
-            # if zincreasing_downward:
-            #     result_array = list(map(lambda p: [p[0], p[1], -p[2]], result_array))
-
-            return result_array
+        return read_external_dataset_array(
+            energyml_array=energyml_array,
+            root_obj=root_obj,
+            path_in_root=path_in_root,
+            additional_sources=sources,
+            epc=self,
+        )
 
     # Class methods
 
@@ -561,6 +539,54 @@ class Epc(EnergymlWorkspace):
 # /_____/_/ /_/\___/_/   \__, /\__, /_/ /_/ /_/_/  /_/  \__,_/_/ /_/\___/\__/_/\____/_/ /_/____/
 #                       /____//____/
 
+__CACHE_PROP_KIND_DICT__ = {}
+
+
+def update_prop_kind_dict_cache():
+    prop_kind = get_property_kind_dict_path_as_dict()
+
+    for prop in prop_kind["PropertyKind"]:
+        __CACHE_PROP_KIND_DICT__[prop["Uuid"]] = read_energyml_json_str(json.dumps(prop))[0]
+
+
+def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectReference"):
+    """
+    Create an DOR from an object to target the latter.
+    :param obj_or_identifier:
+    :param dor_qualified_type: the qualified type of the DOR (e.g. "eml23.DataObjectReference" is the default value)
+    :return:
+    """
+    dor = None
+    if obj_or_identifier is not None:
+        if isinstance(obj_or_identifier, str):  # is an identifier
+            cls = get_class_from_qualified_type(dor_qualified_type)
+            dor = cls()
+            if len(__CACHE_PROP_KIND_DICT__) == 0:
+                # update the cache to check if it is a
+                update_prop_kind_dict_cache()
+            try:
+                uuid, version = split_identifier(obj_or_identifier)
+                if uuid in __CACHE_PROP_KIND_DICT__:
+                    return as_dor(__CACHE_PROP_KIND_DICT__[uuid])
+                else:
+                    set_attribute_from_path(dor, "uuid", uuid)
+                    set_attribute_from_path(dor, "ObjectVersion", version)
+            except AttributeError:
+                logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
+        else:
+            cls = get_class_from_qualified_type(dor_qualified_type)
+            dor = cls()
+            if hasattr(dor, "qualified_type"):
+                set_attribute_from_path(dor, "qualified_type", get_qualified_type_from_class(obj_or_identifier))
+            if hasattr(dor, "content_type"):
+                set_attribute_from_path(dor, "qualified_type", get_content_type_from_class(obj_or_identifier))
+
+            set_attribute_from_path(dor, "uuid", get_object_attribute(obj_or_identifier, "uuid"))
+            set_attribute_from_path(dor, "object_version", get_object_attribute(obj_or_identifier, "ObjectVersion"))
+            set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Citation.Title"))
+
+    return dor
+
 
 def create_energyml_object(
     content_or_qualified_type: str,
@@ -622,7 +648,7 @@ def create_external_part_reference(
         citation=citation,
         uuid=uuid,
     )
-    set_attribute_value(obj, "MimeType", "application/x-hdf5")
+    set_attribute_value(obj, "MimeType", MimeType.HDF5.value)
     set_attribute_value(obj, "ExistenceKind", "Actual")
     set_attribute_value(obj, "Filename", h5_file_path)
 
@@ -692,7 +718,7 @@ def get_file_folder_and_name_from_path(path: str) -> Tuple[str, str]:
     :return:
     """
     obj_folder = path[: path.rindex("/") + 1] if "/" in path else ""
-    obj_file_name = path[path.rindex("/") + 1:] if "/" in path else path
+    obj_file_name = path[path.rindex("/") + 1 :] if "/" in path else path
     return obj_folder, obj_file_name
 
 
@@ -724,111 +750,3 @@ def get_epc_content_type_path(
     :return:
     """
     return "[Content_Types].xml"
-
-
-def get_h5_path_possibilities(value_in_xml: str, epc: Epc) -> List[str]:
-    """
-    Maybe the path in the epc file objet was given as an absolute one : 'C:/my_file.h5'
-    but if the epc has been moved (e.g. in 'D:/a_folder/') it will not work. Thus, the function
-    energyml.utils.data.hdf.get_hdf5_path_from_external_path return the value from epc objet concatenate to the
-    real epc folder path.
-    With our example we will have : 'D:/a_folder/C:/my_file.h5'
-    this function returns (following our example):
-        [ 'C:/my_file.h5', 'D:/a_folder/my_file.h5', 'my_file.h5' ]
-    :param value_in_xml:
-    :param epc:
-    :return:
-    """
-    epc_folder = epc.get_epc_file_folder()
-    hdf5_path_respect = value_in_xml
-    hdf5_path_rematch = (
-        f"{epc_folder+'/' if epc_folder is not None and len(epc_folder) else ''}{os.path.basename(value_in_xml)}"
-    )
-    hdf5_path_no_folder = f"{os.path.basename(value_in_xml)}"
-
-    return [
-        hdf5_path_respect,
-        hdf5_path_rematch,
-        hdf5_path_no_folder,
-        epc.epc_file_path[:-4] + ".h5",
-    ]
-
-
-def get_hdf5_path_from_external_path(
-    external_path_obj: Any,
-    path_in_root: Optional[str] = None,
-    root_obj: Optional[Any] = None,
-    epc: Optional[Epc] = None,
-) -> Optional[List[str]]:
-    """
-    Return the hdf5 file path (Searches for "uri" attribute or in :param:`epc` rels files).
-    :param external_path_obj: can be an attribute of an ExternalDataArrayPart
-    :param path_in_root:
-    :param root_obj:
-    :param epc:
-    :return:
-    """
-    result = []
-    if isinstance(external_path_obj, str):
-        # external_path_obj is maybe an attribute of an ExternalDataArrayPart, now search upper in the object
-        upper_path = path_in_root[: path_in_root.rindex(".")]
-        result = get_hdf5_path_from_external_path(
-            external_path_obj=get_object_attribute(root_obj, upper_path),
-            path_in_root=upper_path,
-            root_obj=root_obj,
-            epc=epc,
-        )
-    elif type(external_path_obj).__name__ == "ExternalDataArrayPart":
-        # epc_folder = epc.get_epc_file_folder()
-        h5_uri = search_attribute_matching_name(external_path_obj, "uri")
-        if h5_uri is not None and len(h5_uri) > 0:
-            result = get_h5_path_possibilities(value_in_xml=h5_uri[0], epc=epc)
-            # result = f"{epc_folder}/{h5_uri[0]}"
-
-    # epc_folder = epc.get_epc_file_folder()
-    hdf_proxy_lst = search_attribute_matching_name(external_path_obj, "HdfProxy")
-    ext_file_proxy_lst = search_attribute_matching_name(external_path_obj, "ExternalFileProxy")
-
-    # resqml 2.0.1
-    if hdf_proxy_lst is not None and len(hdf_proxy_lst) > 0:
-        hdf_proxy = hdf_proxy_lst
-        # logging.debug("h5Proxy", hdf_proxy)
-        while isinstance(hdf_proxy, list):
-            hdf_proxy = hdf_proxy[0]
-        hdf_proxy_obj = epc.get_object_by_identifier(get_obj_identifier(hdf_proxy))
-        try:
-            logging.debug(f"hdf_proxy_obj : {hdf_proxy_obj} {hdf_proxy} : {hdf_proxy}")
-        except:
-            pass
-        if hdf_proxy_obj is not None:
-            for rel in epc.additional_rels.get(get_obj_identifier(hdf_proxy_obj), []):
-                if rel.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
-                    result = get_h5_path_possibilities(value_in_xml=rel.target, epc=epc)
-                    # result = f"{epc_folder}/{rel.target}"
-
-    # resqml 2.2dev3
-    if ext_file_proxy_lst is not None and len(ext_file_proxy_lst) > 0:
-        ext_file_proxy = ext_file_proxy_lst
-        while isinstance(ext_file_proxy, list):
-            ext_file_proxy = ext_file_proxy[0]
-        ext_part_ref_obj = epc.get_object_by_identifier(
-            get_obj_identifier(get_object_attribute_no_verif(ext_file_proxy, "epc_external_part_reference"))
-        )
-        result = get_h5_path_possibilities(value_in_xml=ext_part_ref_obj.filename, epc=epc)
-        # return f"{epc_folder}/{ext_part_ref_obj.filename}"
-
-    result += list(
-        filter(
-            lambda p: p.lower().endswith(".h5") or p.lower().endswith(".hdf5"),
-            epc.external_files_path or [],
-        )
-    )
-
-    if len(result) == 0:
-        result = [epc.epc_file_path[:-4] + ".h5"]
-
-    try:
-        logging.debug(f"{external_path_obj} {result} \n\t{hdf_proxy_lst}\n\t{ext_file_proxy_lst}")
-    except:
-        pass
-    return result

@@ -1,0 +1,70 @@
+
+<ns2:Grid2dRepresentation xmlns="http://www.energistics.org/energyml/data/commonv2" xmlns:ns2="http://www.energistics.org/energyml/data/resqmlv2" xmlns:ns3="http://www.energistics.org/energyml/data/witsmlv2" uuid="78bf01c0-d5bb-46d3-aa70-9cc4ee5c8230" schemaVersion="2.2">
+    <Citation>
+        <Title>[Service] Activity_mba Result for instance processinstancekey_VALUE</Title>
+        <Originator>Open Geoscientific Workflow</Originator>
+        <Creation>2024-12-02T08:24:43Z</Creation>
+        <Format>Geosiris WebStudio</Format>
+    </Citation>
+    <Existence>actual</Existence>
+    <ns2:RepresentedObject>
+        <Uuid>3df91b3b-10b8-4348-aae4-f04a0fc5f9cc</Uuid>
+        <QualifiedType>resqml22.HorizonInterpretation</QualifiedType>
+        <Title>B09</Title>
+    </ns2:RepresentedObject>
+    <ns2:SurfaceRole>pick</ns2:SurfaceRole>
+    <ns2:FastestAxisCount>10</ns2:FastestAxisCount>
+    <ns2:SlowestAxisCount>10</ns2:SlowestAxisCount>
+    <ns2:Geometry>
+        <ns2:LocalCrs>
+            <Uuid>53e0bc44-9c05-4b91-93ff-9765f03d7ad8</Uuid>
+            <QualifiedType>eml23.LocalEngineeringCompoundCrs</QualifiedType>
+            <Title>gocad Local</Title>
+        </ns2:LocalCrs>
+        <ns2:Points xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ns2:Point3dZValueArray">
+            <ns2:SupportingGeometry xsi:type="ns2:Point3dLatticeArray">
+                <ns2:Origin>
+                    <ns2:Coordinate1>2252366.75</ns2:Coordinate1>
+                    <ns2:Coordinate2>324595.8125</ns2:Coordinate2>
+                    <ns2:Coordinate3>0.0</ns2:Coordinate3>
+                </ns2:Origin>
+                <ns2:Dimension>
+                    <ns2:Direction>
+                        <ns2:Coordinate1>1.0</ns2:Coordinate1>
+                        <ns2:Coordinate2>0.0</ns2:Coordinate2>
+                        <ns2:Coordinate3>0.0</ns2:Coordinate3>
+                    </ns2:Direction>
+                    <ns2:Spacing xsi:type="FloatingPointConstantArray">
+                        <Value>215.25</Value>
+                        <Count>10</Count>
+                    </ns2:Spacing>
+                </ns2:Dimension>
+                <ns2:Dimension>
+                    <ns2:Direction>
+                        <ns2:Coordinate1>0.0</ns2:Coordinate1>
+                        <ns2:Coordinate2>1.0</ns2:Coordinate2>
+                        <ns2:Coordinate3>0.0</ns2:Coordinate3>
+                    </ns2:Direction>
+                    <ns2:Spacing xsi:type="FloatingPointConstantArray">
+                        <Value>175.78125</Value>
+                        <Count>10</Count>
+                    </ns2:Spacing>
+                </ns2:Dimension>
+            </ns2:SupportingGeometry>
+            <ns2:ZValues xsi:type="FloatingPointExternalArray">
+                <ArrayFloatingPointType>arrayOfDouble64LE</ArrayFloatingPointType>
+                <CountPerValue>10</CountPerValue>
+                <Values>
+                    <ExternalDataArrayPart>
+                        <Count>10</Count>
+                        <Count>10</Count>
+                        <PathInExternalFile>/resqml22/78bf01c0-d5bb-46d3-aa70-9cc4ee5c8230/points_patch0</PathInExternalFile>
+                        <StartIndex>0</StartIndex>
+                        <URI>YourFile.h5</URI>
+                        <MimeType>application/x-hdf5</MimeType>
+                    </ExternalDataArrayPart>
+                </Values>
+            </ns2:ZValues>
+        </ns2:Points>
+    </ns2:Geometry>
+</ns2:Grid2dRepresentation>

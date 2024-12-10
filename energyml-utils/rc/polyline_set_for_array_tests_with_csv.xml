@@ -1,0 +1,67 @@
+
+<ns2:PolylineSetRepresentation xmlns="http://www.energistics.org/energyml/data/commonv2" xmlns:ns2="http://www.energistics.org/energyml/data/resqmlv2" xmlns:ns3="http://www.energistics.org/energyml/data/witsmlv2" uuid="b3e16e39-0875-44f0-8d32-e2ca740dd1ed" schemaVersion="2.2">
+    <Citation>
+        <Title>Empty</Title>
+        <Originator>Geosiris user</Originator>
+        <Creation>2024-03-22T14:20:50.614Z</Creation>
+        <Format>Geosiris WebStudio</Format>
+        <LastUpdate>2024-08-21T14:37:07.547Z</LastUpdate>
+    </Citation>
+    <ns2:LinePatch>
+        <ns2:NodeCount>0</ns2:NodeCount>
+        <ns2:IntervalCount>0</ns2:IntervalCount>
+        <ns2:ClosedPolylines xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="BooleanXmlArray">
+            <CountPerValue>0</CountPerValue>
+            <Values>false true false</Values>
+        </ns2:ClosedPolylines>
+    </ns2:LinePatch>
+    <ns2:LinePatch>
+        <ns2:NodeCount>0</ns2:NodeCount>
+        <ns2:IntervalCount>0</ns2:IntervalCount>
+        <ns2:ClosedPolylines xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="BooleanArrayFromIndexArray">
+            <Count>2</Count>
+            <Indices xsi:type="IntegerConstantArray">
+                <Value>3</Value>
+                <Count>10</Count>
+            </Indices>
+            <IndexIsTrue>true</IndexIsTrue>
+            <CountPerValue>0</CountPerValue>
+        </ns2:ClosedPolylines>
+    </ns2:LinePatch>
+    <ns2:LinePatch>
+        <ns2:NodeCount>0</ns2:NodeCount>
+        <ns2:IntervalCount>0</ns2:IntervalCount>
+        <ns2:ClosedPolylines xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="BooleanConstantArray">
+            <Value>false</Value>
+            <Count>5</Count>
+        </ns2:ClosedPolylines>
+    </ns2:LinePatch>
+    <ns2:LinePatch>
+        <ns2:NodeCount>0</ns2:NodeCount>
+        <ns2:IntervalCount>0</ns2:IntervalCount>
+        <ns2:ClosedPolylines xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ns2:BooleanArrayFromDiscretePropertyArray">
+            <ns2:Value>0</ns2:Value>
+            <ns2:Property>
+                <Uuid>f00ce8bb-f006-4af8-bbcb-b4f097654041</Uuid>
+                <QualifiedType>resqml22.ContinuousProperty</QualifiedType>
+                <Title>Empty</Title>
+            </ns2:Property>
+        </ns2:ClosedPolylines>
+    </ns2:LinePatch>
+    <ns2:LinePatch>
+        <ns2:NodeCount>0</ns2:NodeCount>
+        <ns2:IntervalCount>0</ns2:IntervalCount>
+        <ns2:NodeCountPerPolyline xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="IntegerExternalArray">
+            <ArrayIntegerType>arrayOfInt8</ArrayIntegerType>
+            <NullValue>0</NullValue>
+            <CountPerValue>0</CountPerValue>
+            <Values>
+                <ExternalDataArrayPart>
+                    <PathInExternalFile>0</PathInExternalFile>
+                    <URI>sample.csv</URI>
+                    <MimeType>text/csv</MimeType>
+                </ExternalDataArrayPart>
+            </Values>
+        </ns2:NodeCountPerPolyline>
+    </ns2:LinePatch>
+</ns2:PolylineSetRepresentation>

@@ -5,6 +5,7 @@ import logging
 import sys
 from typing import Any, Optional, Callable, List, Union
 
+from .datasets_io import read_external_dataset_array
 from ..constants import flatten_concatenation
 from ..epc import get_obj_identifier
 from ..exception import ObjectNotFoundNotError
@@ -284,7 +285,7 @@ def read_external_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None
+    sub_indices: List[int] = None,
 ) -> List[Any]:
     """
     Read an external array (BooleanExternalArray, BooleanHdf5Array, DoubleHdf5Array, IntegerHdf5Array, StringExternalArray ...)
@@ -294,11 +295,20 @@ def read_external_array(
     :param workspace:
     :return:
     """
-    array = workspace.read_external_array(
-        energyml_array=energyml_array,
-        root_obj=root_obj,
-        path_in_root=path_in_root,
-    )
+    array = None
+    if workspace is not None:
+        array = workspace.read_external_array(
+            energyml_array=energyml_array,
+            root_obj=root_obj,
+            path_in_root=path_in_root,
+        )
+    else:
+        array = read_external_dataset_array(
+            energyml_array=energyml_array,
+            root_obj=root_obj,
+            path_in_root=path_in_root,
+        )
+
     if sub_indices is not None and len(sub_indices) > 0:
         res = []
         for idx in sub_indices:
@@ -325,7 +335,7 @@ def read_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None
+    sub_indices: List[int] = None,
 ) -> List[Any]:
     """
     Read an array and return a list. The array is read depending on its type. see. :py:func:`energyml.utils.data.helper.get_supported_array`
@@ -347,7 +357,7 @@ def read_array(
             root_obj=root_obj,
             path_in_root=path_in_root,
             workspace=workspace,
-            sub_indices=sub_indices
+            sub_indices=sub_indices,
         )
     else:
         logging.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
@@ -361,7 +371,7 @@ def read_constant_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None
+    sub_indices: List[int] = None,
 ) -> List[Any]:
     """
     Read a constant array ( BooleanConstantArray, DoubleConstantArray, FloatingPointConstantArray, IntegerConstantArray ...)
@@ -375,7 +385,11 @@ def read_constant_array(
     # logging.debug(f"Reading constant array\n\t{energyml_array}")
 
     value = get_object_attribute_no_verif(energyml_array, "value")
-    count = len(sub_indices) if sub_indices is not None and len(sub_indices) > 0 else get_object_attribute_no_verif(energyml_array, "count")
+    count = (
+        len(sub_indices)
+        if sub_indices is not None and len(sub_indices) > 0
+        else get_object_attribute_no_verif(energyml_array, "count")
+    )
 
     # logging.debug(f"\tValue : {[value for i in range(0, count)]}")
 
@@ -387,7 +401,7 @@ def read_xml_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None
+    sub_indices: List[int] = None,
 ) -> List[Any]:
     """
     Read a xml array ( BooleanXmlArray, FloatingPointXmlArray, IntegerXmlArray, StringXmlArray ...)
@@ -414,7 +428,7 @@ def read_jagged_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None
+    sub_indices: List[int] = None,
 ) -> List[Any]:
     """
     Read a jagged array
@@ -457,7 +471,7 @@ def read_int_double_lattice_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None
+    sub_indices: List[int] = None,
 ):
     """
     Read DoubleLatticeArray or IntegerLatticeArray.
@@ -488,7 +502,7 @@ def read_point3d_zvalue_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None
+    sub_indices: List[int] = None,
 ):
     """
     Read a Point3D2ValueArray
@@ -505,7 +519,7 @@ def read_point3d_zvalue_array(
         root_obj=root_obj,
         path_in_root=path_in_root + ".SupportingGeometry",
         workspace=workspace,
-        sub_indices=sub_indices
+        sub_indices=sub_indices,
     )
 
     zvalues = get_object_attribute_no_verif(energyml_array, "zvalues")
@@ -515,7 +529,7 @@ def read_point3d_zvalue_array(
             root_obj=root_obj,
             path_in_root=path_in_root + ".ZValues",
             workspace=workspace,
-            sub_indices=sub_indices
+            sub_indices=sub_indices,
         )
     )
 
@@ -537,7 +551,7 @@ def read_point3d_from_representation_lattice_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None
+    sub_indices: List[int] = None,
 ):
     """
     Read a Point3DFromRepresentationLatticeArray.
@@ -564,11 +578,7 @@ def read_point3d_from_representation_lattice_array(
     if "grid2d" in str(type(supporting_rep)).lower():
         patch_path, patch = search_attribute_matching_name_with_path(supporting_rep, "Grid2dPatch")[0]
         points = read_grid2d_patch(
-            patch=patch,
-            grid2d=supporting_rep,
-            path_in_root=patch_path,
-            workspace=workspace,
-            sub_indices=sub_indices
+            patch=patch, grid2d=supporting_rep, path_in_root=patch_path, workspace=workspace, sub_indices=sub_indices
         )
         # TODO: take the points by there indices from the NodeIndicesOnSupportingRepresentation
         result = points
@@ -584,7 +594,7 @@ def read_grid2d_patch(
     grid2d: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None
+    sub_indices: List[int] = None,
 ) -> List:
     points_path, points_obj = search_attribute_matching_name_with_path(patch, "Geometry.Points")[0]
 
@@ -593,7 +603,7 @@ def read_grid2d_patch(
         root_obj=grid2d,
         path_in_root=path_in_root + "." + points_path,
         workspace=workspace,
-        sub_indices=sub_indices
+        sub_indices=sub_indices,
     )
 
 
@@ -602,7 +612,7 @@ def read_point3d_lattice_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None
+    sub_indices: List[int] = None,
 ) -> List:
     """
     Read a Point3DLatticeArray.
@@ -618,7 +628,7 @@ def read_point3d_lattice_array(
     """
     result = []
     origin = _point_as_array(get_object_attribute_no_verif(energyml_array, "origin"))
-    offset = get_object_attribute_no_verif(energyml_array, "offset")
+    offset = get_object_attribute_rgx(energyml_array, "offset|dimension")
 
     if len(offset) == 2:
         slowest = offset[0]
@@ -626,14 +636,14 @@ def read_point3d_lattice_array(
 
         crs_sa_count = search_attribute_in_upper_matching_name(
             obj=energyml_array,
-            name_rgx="SlowestAxisCount",
+            name_rgx="slowestAxisCount",
             root_obj=root_obj,
             current_path=path_in_root,
         )
 
         crs_fa_count = search_attribute_in_upper_matching_name(
             obj=energyml_array,
-            name_rgx="FastestAxisCount",
+            name_rgx="fastestAxisCount",
             root_obj=root_obj,
             current_path=path_in_root,
         )
@@ -651,11 +661,11 @@ def read_point3d_lattice_array(
 
         zincreasing_downward = is_z_reversed(crs)
 
-        slowest_vec = _point_as_array(get_object_attribute_no_verif(slowest, "offset"))
+        slowest_vec = _point_as_array(get_object_attribute_rgx(slowest, "offset|direction"))
         slowest_spacing = read_array(get_object_attribute_no_verif(slowest, "spacing"))
         slowest_table = list(map(lambda x: prod_n_tab(x, slowest_vec), slowest_spacing))
 
-        fastest_vec = _point_as_array(get_object_attribute_no_verif(fastest, "offset"))
+        fastest_vec = _point_as_array(get_object_attribute_rgx(fastest, "offset|direction"))
         fastest_spacing = read_array(get_object_attribute_no_verif(fastest, "spacing"))
         fastest_table = list(map(lambda x: prod_n_tab(x, fastest_vec), fastest_spacing))
 

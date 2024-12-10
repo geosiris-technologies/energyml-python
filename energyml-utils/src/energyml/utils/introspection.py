@@ -1,6 +1,7 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import inspect
+import json
 import logging
 import random
 import re
@@ -19,6 +20,7 @@ from .constants import (
     gen_uuid,
     snake_case,
     pascal_case,
+    path_next_attribute,
 )
 from .manager import (
     get_class_pkg,
@@ -29,7 +31,7 @@ from .manager import (
     get_classes_matching_name,
     dict_energyml_modules,
 )
-from .uri import Uri
+from .uri import Uri, parse_uri
 from .xml import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
 
 
@@ -301,6 +303,19 @@ def get_class_attributes(cls: Union[type, Any]) -> List[str]:
     return list(get_class_fields(cls).keys())
 
 
+def get_class_attribute_type(cls: Union[type, Any], attribute_name: str):
+    fields = get_class_fields(cls)
+    try:
+        return fields[attribute_name].type
+    except IndexError:
+        for fn, ft in fields:
+            _m = re.match(attribute_name, fn)
+            if _m is not None:
+                return ft.type
+
+    return None
+
+
 def get_matching_class_attribute_name(
     cls: Union[type, Any],
     attribute_name: str,
@@ -309,23 +324,32 @@ def get_matching_class_attribute_name(
     """
     From an object and an attribute name, returns the correct attribute name of the class.
     Example : "ObjectVersion" --> object_version.
-    This method doesn't only transform to snake case but search into the obj class attributes
+    This method doesn't only transform to snake case but search into the obj class attributes (or dict keys)
     """
-    class_fields = get_class_fields(cls)
+    if isinstance(cls, dict):
+        for name in cls.keys():
+            if snake_case(name) == snake_case(attribute_name):
+                return name
+        pattern = re.compile(attribute_name, flags=re_flags)
+        for name in cls.keys():
+            if pattern.match(name):
+                return name
+    else:
+        class_fields = get_class_fields(cls)
 
-    # a search with the exact value
-    for name, cf in class_fields.items():
-        if snake_case(name) == snake_case(attribute_name) or (
-            "name" in cf.metadata and cf.metadata["name"] == attribute_name
-        ):
-            return name
+        # a search with the exact value
+        for name, cf in class_fields.items():
+            if snake_case(name) == snake_case(attribute_name) or (
+                "name" in cf.metadata and cf.metadata["name"] == attribute_name
+            ):
+                return name
 
-    # search regex after to avoid shadowing perfect match
-    pattern = re.compile(attribute_name, flags=re_flags)
-    for name, cf in class_fields.items():
-        # logging.error(f"\t->{name} : {attribute_name} {pattern.match(name)} {('name' in cf.metadata and pattern.match(cf.metadata['name']))}")
-        if pattern.match(name) or ("name" in cf.metadata and pattern.match(cf.metadata["name"])):
-            return name
+        # search regex after to avoid shadowing perfect match
+        pattern = re.compile(attribute_name, flags=re_flags)
+        for name, cf in class_fields.items():
+            # logging.error(f"\t->{name} : {attribute_name} {pattern.match(name)} {('name' in cf.metadata and pattern.match(cf.metadata['name']))}")
+            if pattern.match(name) or ("name" in cf.metadata and pattern.match(cf.metadata["name"])):
+                return name
 
     return None
 
@@ -334,14 +358,13 @@ def get_object_attribute(obj: Any, attr_dot_path: str, force_snake_case=True) ->
     """
     returns the value of an attribute given by a dot representation of its path in the object
     example "Citation.Title"
+
+    :param obj:
+    :param attr_dot_path:
+    :param force_snake_case:
+    :return:
     """
-    while attr_dot_path.startswith("."):  # avoid '.Citation.Title' to take an empty attribute name before the first '.'
-        attr_dot_path = attr_dot_path[1:]
-
-    current_attrib_name = attr_dot_path
-
-    if "." in attr_dot_path:
-        current_attrib_name = attr_dot_path.split(".")[0]
+    current_attrib_name, path_next = path_next_attribute(attr_dot_path)
 
     if force_snake_case:
         current_attrib_name = snake_case(current_attrib_name)
@@ -354,8 +377,104 @@ def get_object_attribute(obj: Any, attr_dot_path: str, force_snake_case=True) ->
     else:
         value = getattr(obj, current_attrib_name)
 
-    if "." in attr_dot_path:
-        return get_object_attribute(value, attr_dot_path[len(current_attrib_name) + 1 :])
+    # if "." in attr_dot_path:
+    #     return get_object_attribute(value, attr_dot_path[len(current_attrib_name) + 1 :])
+    # print(f"OLD {obj}\n\t{current_attrib_name}\n\t{path_next}\n\t{value}")
+    if path_next is not None:
+        return get_object_attribute(value, path_next)
+    else:
+        return value
+
+
+def create_default_value_for_type(cls: Any):
+    if cls == str:
+        return ""
+    elif cls == int:
+        return 0
+    elif cls == float:
+        return 0
+    elif cls == bool:
+        return False
+    elif is_enum(cls):
+        return cls[cls._member_names_[random.randint(0, len(cls._member_names_) - 1)]]
+    elif isinstance(cls, typing.Union.__class__):
+        type_list = list(cls.__args__)
+        if type(None) in type_list:
+            type_list.remove(type(None))  # we don't want to generate none value
+        chosen_type = type_list[0]
+        return create_default_value_for_type(chosen_type)
+    elif cls.__module__ == "typing":
+        type_list = list(cls.__args__)
+        if type(None) in type_list:
+            type_list.remove(type(None))  # we don't want to generate none value
+
+        if cls._name == "List":
+            nb_value_for_list = 1
+            # On cree une valeur pour ne pas perdre le typage du dessous
+            lst = []
+            for i in range(nb_value_for_list):
+                chosen_type = type_list[0]
+                lst.append(create_default_value_for_type(chosen_type))
+            return lst
+        else:
+            chosen_type = type_list[random.randint(0, len(type_list) - 1)]
+            return create_default_value_for_type(chosen_type)
+    else:
+        potential_classes = list(
+            filter(
+                lambda _c: not is_abstract(_c),
+                [cls] + get_sub_classes(cls),
+            )
+        )
+        if len(potential_classes) > 0:
+            chosen_type = potential_classes[random.randint(0, len(potential_classes) - 1)]
+            if not isinstance(chosen_type, type):
+                chosen_type = type(chosen_type)
+            return chosen_type()
+
+
+def get_object_attribute_or_create(
+    obj: Any,
+    attr_dot_path: str,
+    force_snake_case=True,
+    fn_create: typing.Callable = lambda o, a_path: create_default_value_for_type(
+        get_class_from_simple_name(
+            simple_name=get_class_attribute_type(o, a_path),
+            energyml_module_context=get_related_energyml_modules_name(o),
+        )
+    ),
+) -> Any:
+    """
+    returns the value of an attribute given by a dot representation of its path in the object
+    example "Citation.Title"
+
+    :param obj:
+    :param attr_dot_path:
+    :param force_snake_case:
+    :return:
+    """
+    current_attrib_name, path_next = path_next_attribute(attr_dot_path)
+
+    if force_snake_case:
+        current_attrib_name = snake_case(current_attrib_name)
+
+    value = None
+    try:
+        if isinstance(obj, list):
+            value = obj[int(current_attrib_name)]
+        elif isinstance(obj, dict):
+            value = obj.get(current_attrib_name, None)
+        else:
+            value = getattr(obj, current_attrib_name)
+    except Exception:
+        pass
+
+    if value is None:
+        value = fn_create(obj, current_attrib_name)
+        set_attribute_value(obj, current_attrib_name, value)
+
+    if path_next is not None:
+        return get_object_attribute(value, path_next)
     else:
         return value
 
@@ -543,15 +662,25 @@ def search_attribute_in_upper_matching_name(
     :param current_path:
     :return:
     """
+    # print(f"Searching {name_rgx} in {obj} : {root_obj}")
     elt_list = search_attribute_matching_name(obj, name_rgx, search_in_sub_obj=False, deep_search=False)
     if elt_list is not None and len(elt_list) > 0:
         return elt_list
 
-    if obj != root_obj:
+    if len(current_path) != 0:  # obj != root_obj:
         upper_path = current_path[: current_path.rindex(".")]
+        # print(f"\t {upper_path} ")
         if len(upper_path) > 0:
             return search_attribute_in_upper_matching_name(
                 obj=get_object_attribute(root_obj, upper_path),
+                name_rgx=name_rgx,
+                root_obj=root_obj,
+                re_flags=re_flags,
+                current_path=upper_path,
+            )
+        else:
+            return search_attribute_in_upper_matching_name(
+                obj=root_obj,
                 name_rgx=name_rgx,
                 root_obj=root_obj,
                 re_flags=re_flags,
@@ -611,14 +740,15 @@ def search_attribute_matching_name_with_path(
     :param search_in_sub_obj:
     :return:
     """
-    while name_rgx.startswith("."):
-        name_rgx = name_rgx[1:]
-    current_match = name_rgx
-    next_match = current_match
-    if "." in current_match:
-        attrib_list = re.split(r"(?<!\\)\.+", name_rgx)
-        current_match = attrib_list[0]
-        next_match = ".".join(attrib_list[1:])
+    # while name_rgx.startswith("."):
+    #     name_rgx = name_rgx[1:]
+    # current_match = name_rgx
+    # next_match = current_match
+    # if "." in current_match:
+    #     attrib_list = re.split(r"(?<!\\)\.+", name_rgx)
+    #     current_match = attrib_list[0]
+    #     next_match = ".".join(attrib_list[1:])
+    current_match, next_match = path_next_attribute(name_rgx)
     res = []
 
     if current_path is None:
@@ -665,7 +795,7 @@ def search_attribute_matching_name_with_path(
                 )
 
     for matched_path, matched in match_path_and_obj:
-        if next_match != current_match and len(next_match) > 0:  # next_match is different, match is not final
+        if next_match is not None:  # next_match is different, match is not final
             res = res + search_attribute_matching_name_with_path(
                 obj=matched,
                 name_rgx=next_match,
@@ -728,6 +858,24 @@ def search_attribute_matching_name(
     ]
 
 
+def set_attribute_from_json_str(obj: Any, json_input: str) -> None:
+    set_attribute_from_dict(obj=obj, values=json.loads(json_input))
+
+
+def set_attribute_from_dict(obj: Any, values: Dict) -> None:
+    for k, v in values.items():
+        if isinstance(v, dict):
+            set_attribute_from_dict(obj=get_object_attribute(obj=obj, attr_dot_path=k), values=v)
+        elif isinstance(v, list):
+            obj_list: List = get_object_attribute(obj=obj, attr_dot_path=k)
+            while len(obj_list) > len(v):
+                obj_list.pop()
+            for i in range(len(v)):
+                set_attribute_from_dict(obj=get_object_attribute(obj=obj_list, attr_dot_path="i"), values=v[i])
+        else:
+            set_attribute_from_path(obj=obj, attribute_path=k, value=v)
+
+
 def set_attribute_from_path(obj: Any, attribute_path: str, value: Any):
     """
     Changes the value of a (sub)attribute.
@@ -752,32 +900,40 @@ def set_attribute_from_path(obj: Any, attribute_path: str, value: Any):
     :param value:
     :return:
     """
-    while attribute_path.startswith("."):
-        attribute_path = attribute_path[1:]
-
     upper = obj
-    final_attribute_name = attribute_path
-    if "." in attribute_path:
-        upper = get_object_attribute(obj, attribute_path[: attribute_path.rindex(".")])
-        final_attribute_name = attribute_path[attribute_path.rindex(".") + 1 :]
-    try:
-        upper[final_attribute_name] = value
-    except Exception:
-        attrib_class = get_obj_attribute_class(upper, final_attribute_name)
-        if attrib_class is not None and is_enum(attrib_class):
-            val_snake = snake_case(value)
-            setattr(
-                upper,
-                final_attribute_name,
-                list(
-                    filter(
-                        lambda ev: snake_case(ev) == val_snake,
-                        attrib_class._member_names_,
-                    )
-                )[0],
-            )
-        else:
-            setattr(upper, final_attribute_name, value)
+    current_attrib_name, path_next = path_next_attribute(attribute_path)
+    if path_next is not None:
+        set_attribute_from_path(
+            get_object_attribute(
+                obj,
+                current_attrib_name,
+            ),
+            path_next,
+            value,
+        )
+    else:
+        current_attrib_real_name = get_matching_class_attribute_name(upper, current_attrib_name)
+        created = False
+        if current_attrib_real_name is not None:
+            attrib_class = get_obj_attribute_class(upper, current_attrib_real_name)
+            if attrib_class is not None and is_enum(attrib_class):
+                created = True
+                val_snake = snake_case(value)
+                setattr(
+                    upper,
+                    current_attrib_real_name,
+                    list(
+                        filter(
+                            lambda ev: snake_case(ev) == val_snake,
+                            attrib_class._member_names_,
+                        )
+                    )[0],
+                )
+        if not created:  # If previous test failed, the attribute did not exist in the object, we create it
+            if isinstance(upper, dict):
+                upper[current_attrib_name] = value
+            else:
+                setattr(upper, current_attrib_name, value)
 
 
 def set_attribute_value(obj: any, attribute_name_rgx, value: Any):
@@ -949,6 +1105,13 @@ def get_qualified_type_from_class(cls: Union[type, Any], print_dev_version=True)
     )
 
 
+def get_object_uri(obj: any, dataspace: Optional[str] = None) -> Uri:
+    """ Returns an ETP URI """
+    return parse_uri(
+        f"eml:///dataspace('{dataspace or ''}')/{get_qualified_type_from_class(obj)}({get_obj_uuid(obj)})"
+    )
+
+
 def get_content_type_from_class(cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2):
     if not isinstance(cls, type):
         cls = type(cls)
@@ -1008,8 +1171,12 @@ def get_obj_attribute_class(
     :return:
     """
     chosen_type = None
-    if cls is not None:
-        if not isinstance(cls, type) and cls.__module__ != "typing":
+    if cls is not None and attribute_name is not None:
+        if isinstance(cls, dict):
+            attribute_name_real = get_matching_class_attribute_name(cls, attribute_name)
+            if attribute_name_real is not None:
+                return type(cls[attribute_name_real])
+        elif not isinstance(cls, type) and cls.__module__ != "typing":
             return get_obj_attribute_class(type(cls), attribute_name, random_for_typing)
         elif cls.__module__ == "typing":
             type_list = list(cls.__args__)
@@ -1022,15 +1189,12 @@ def get_obj_attribute_class(
                 chosen_type = type_list[0]
             return get_obj_attribute_class(chosen_type, None, random_for_typing)
         else:
-            # print(f"attribute_name {attribute_name} > {cls}, {get_class_fields(cls)[attribute_name]}")
             if attribute_name is not None and len(attribute_name) > 0:
                 cls = get_class_from_simple_name(
                     simple_name=get_class_fields(cls)[attribute_name].type,
                     energyml_module_context=get_related_energyml_modules_name(cls),
                 )
-            #             print(f"attribute_name {attribute_name} > {cls}")
             potential_classes = [cls] + get_sub_classes(cls)
-            #             print(f"potential_classes {potential_classes}")
             if no_abstract:
                 potential_classes = list(filter(lambda _c: not is_abstract(_c), potential_classes))
             if random_for_typing:
@@ -1041,6 +1205,35 @@ def get_obj_attribute_class(
 
             if cls.__module__ == "typing":
                 return get_obj_attribute_class(chosen_type, None, random_for_typing)
+
+    elif cls is not None:
+        if isinstance(cls, typing.Union.__class__):
+            type_list = list(cls.__args__)
+            if type(None) in type_list:
+                type_list.remove(type(None))  # we don't want to generate none value
+            chosen_type = type_list[random.randint(0, len(type_list))]
+        elif cls.__module__ == "typing":
+            type_list = list(cls.__args__)
+            if type(None) in type_list:
+                type_list.remove(type(None))  # we don't want to generate none value
+
+            if cls._name == "List":
+                nb_value_for_list = random.randint(2, 3)
+                lst = []
+                for i in range(nb_value_for_list):
+                    chosen_type = type_list[random.randint(0, len(type_list) - 1)]
+                    lst.append(
+                        _random_value_from_class(
+                            chosen_type,
+                            get_related_energyml_modules_name(cls),
+                            attribute_name,
+                            list,
+                        )
+                    )
+                return lst
+            else:
+                chosen_type = type_list[random.randint(0, len(type_list) - 1)]
+
     return chosen_type
 
 

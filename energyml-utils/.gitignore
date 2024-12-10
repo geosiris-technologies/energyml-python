@@ -33,6 +33,8 @@ dask-worker-space
 
 # Example for local test
 example-local/
+wip
+src/energyml/utils/converter/
 # utils/
 
 # Other files
@@ -46,3 +48,9 @@ manip*
 *.obj
 *.log
 *.geojson
+*.json
+*.csv
+*.zip
+
+*.xml
+*.json

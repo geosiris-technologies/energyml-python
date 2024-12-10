@@ -3,11 +3,18 @@
 from typing import Optional
 
 
-class NotImplementedError(Exception):
+class DetailedNotImplementedError(Exception):
     """Exception for not implemented functions"""
 
     def __init__(self, msg):
         super().__init__(msg)
+
+
+class MissingExtraInstallation(DetailedNotImplementedError):
+    """Exception for missing extra installation"""
+
+    def __init__(self, extra_name):
+        super().__init__(msg=f"Missing energml-utils extras installation '{extra_name}'")
 
 
 class NoCrsError(Exception):

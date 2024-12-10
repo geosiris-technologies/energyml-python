@@ -1,0 +1,47 @@
+
+<ns2:TriangulatedSetRepresentation xmlns="http://www.energistics.org/energyml/data/commonv2" xmlns:ns2="http://www.energistics.org/energyml/data/resqmlv2" xmlns:ns3="http://www.energistics.org/energyml/data/witsmlv2" uuid="3a9c9577-27db-34e8-8a5a-a1c6e051d4df" schemaVersion="2.2">
+    <Aliases/>
+    <Citation>
+        <Title>BO9 (TOP) [Result test 10x10]</Title>
+        <Originator></Originator>
+        <Creation>2024-11-05T08:51:09</Creation>
+        <Format></Format>
+    </Citation>
+    <ns2:RepresentedObject>
+        <Uuid>3df91b3b-10b8-4348-aae4-f04a0fc5f9cc</Uuid>
+        <QualifiedType>resqml22.HorizonInterpretation</QualifiedType>
+        <Title>B09</Title>
+    </ns2:RepresentedObject>
+    <ns2:TrianglePatch>
+        <ns2:NodeCount>100</ns2:NodeCount>
+        <ns2:Triangles xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="IntegerExternalArray">
+            <NullValue>-1</NullValue>
+            <CountPerValue>1</CountPerValue>
+            <Values>
+                <ExternalDataArrayPart>
+                    <Count>162</Count>
+                    <PathInExternalFile>/resqml22/3a9c9577-27db-34e8-8a5a-a1c6e051d4df/triangles_patch0</PathInExternalFile>
+                    <StartIndex>0</StartIndex>
+                    <URI>../res.h5</URI>
+                </ExternalDataArrayPart>
+            </Values>
+        </ns2:Triangles>
+        <ns2:Geometry>
+            <ns2:LocalCrs>
+                <Uuid>53e0bc44-9c05-4b91-93ff-9765f03d7ad8</Uuid>
+                <QualifiedType>eml23.LocalEngineeringCompoundCrs</QualifiedType>
+                <Title>gocad Local</Title>
+            </ns2:LocalCrs>
+            <ns2:Points xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ns2:Point3dExternalArray">
+                <ns2:Coordinates>
+                    <ExternalDataArrayPart>
+                        <Count>100</Count>
+                        <PathInExternalFile>/resqml22/3a9c9577-27db-34e8-8a5a-a1c6e051d4df/points_patch0</PathInExternalFile>
+                        <StartIndex>0</StartIndex>
+                        <URI>../res.h5</URI>
+                    </ExternalDataArrayPart>
+                </ns2:Coordinates>
+            </ns2:Points>
+        </ns2:Geometry>
+    </ns2:TrianglePatch>
+</ns2:TriangulatedSetRepresentation>
