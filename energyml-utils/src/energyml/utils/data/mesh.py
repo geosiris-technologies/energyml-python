@@ -11,7 +11,6 @@ from enum import Enum
 from io import BytesIO
 from typing import List, Optional, Any, Callable, Dict, Union, Tuple
 
-from energyml.resqml.v2_2.resqmlv2 import Grid2DRepresentation
 
 from .helper import (
     read_array,

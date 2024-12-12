@@ -168,36 +168,57 @@ def _read_energyml_json_bytes_as_class(file: bytes, json_version: JSON_VERSION, 
 
 
 def read_energyml_json_bytes(
-    file: bytes, json_version: JSON_VERSION, obj_type: Optional[type] = None
+    file: Union[dict, bytes], json_version: JSON_VERSION, obj_type: Optional[type] = None
 ) -> Union[List, Any]:
     """
     Read a json file into energyml object. If json_version==JSON_VERSION.XSDATA the instance will be of type :param:`obj_class`.
     For json_version==JSON_VERSION.OSDU_OFFICIAL a list of read objects is returned
     :param file:
     :param json_version:
-    :param obj_type:
+    :param obj_type: ignored if the json file is a list
     :return:
     """
-    if obj_type is None:
-        obj_type = get_class_from_content_type(get_class_from_json_dict(file))
-    if json_version == JSON_VERSION.XSDATA:
+
+    if isinstance(file, bytes):
+        json_obj = json.loads(file)
+    else:
+        json_obj = file
+
+    if not isinstance(json_obj, list):
+        json_obj = [json_obj]
+    else:
+        obj_type = None
+
+    result = []
+    for obj in json_obj:
         try:
-            return _read_energyml_json_bytes_as_class(file, obj_type)
-        except xsdata.exceptions.ParserError as e:
-            logging.error(
-                f"Failed to read file with type {obj_type}: {get_energyml_class_in_related_dev_pkg(obj_type)}"
-            )
-            for obj_type_dev in get_energyml_class_in_related_dev_pkg(obj_type):
+            if obj_type is None:
+                obj_type = get_class_from_content_type(get_class_from_json_dict(obj))
+            if json_version == JSON_VERSION.XSDATA:
                 try:
-                    logging.debug(f"Trying with class : {obj_type_dev}")
-                    obj = _read_energyml_json_bytes_as_class(file, obj_type_dev)
-                    logging.debug(f" ==> succeed read with {obj_type_dev}")
-                    return obj
-                except Exception:
-                    pass
+                    result = result + _read_energyml_json_bytes_as_class(obj, obj_type)
+                except xsdata.exceptions.ParserError as e:
+                    logging.error(
+                        f"Failed to read file with type {obj_type}: {get_energyml_class_in_related_dev_pkg(obj_type)}"
+                    )
+                    for obj_type_dev in get_energyml_class_in_related_dev_pkg(obj_type):
+                        try:
+                            logging.debug(f"Trying with class : {obj_type_dev}")
+                            obj = _read_energyml_json_bytes_as_class(obj, obj_type_dev)
+                            logging.debug(f" ==> succeed read with {obj_type_dev}")
+                            result = result + obj
+                        except Exception:
+                            pass
+                    raise e
+            elif json_version == JSON_VERSION.OSDU_OFFICIAL:
+                result = result + read_json_dict(obj)
+        except Exception as e:
+            logging.error(e)
+            logging.error(obj)
             raise e
-    elif json_version == JSON_VERSION.OSDU_OFFICIAL:
-        return read_json_dict(json.loads(file))
+        obj_type = None
+
+    return result
 
 
 def read_energyml_json_io(

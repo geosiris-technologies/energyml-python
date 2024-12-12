@@ -1146,10 +1146,6 @@ def get_object_type_for_file_path_from_class(cls) -> str:
                 return parent_cls.Meta.name
         except AttributeError:
             pass
-    try:
-        return cls.Meta.name  # to work with 3d transformed in 3D and Obj[A-Z] in obj_[A-Z]
-    except AttributeError:
-        pass
 
     return classic_type
 
