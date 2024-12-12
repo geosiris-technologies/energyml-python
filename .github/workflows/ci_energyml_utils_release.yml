@@ -28,7 +28,7 @@ jobs:
       - name: Install poetry
         uses: ./.github/actions/prepare-poetry
         with:
-          python-version: 3.9
+          python-version: 3.10
 
       - name: Build
         run: |
@@ -72,7 +72,7 @@ jobs:
       - name: Install poetry
         uses: ./.github/actions/prepare-poetry
         with:
-          python-version: 3.9
+          python-version: 3.10
 
       - name: Upload to PyPI
         run: |
