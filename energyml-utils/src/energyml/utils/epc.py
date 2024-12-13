@@ -7,6 +7,8 @@ This module contains utilities to read/write EPC files.
 import datetime
 import json
 import logging
+import os
+import random
 import re
 import traceback
 import zipfile
@@ -43,6 +45,7 @@ from .constants import (
 from .data.datasets_io import (
     read_external_dataset_array,
 )
+from .exception import UnparsableFile
 from .introspection import (
     get_class_from_content_type,
     get_obj_type,
@@ -69,7 +72,7 @@ from .serialization import (
     serialize_xml,
     read_energyml_xml_str,
     read_energyml_xml_bytes,
-    read_energyml_json_str,
+    read_energyml_json_str, read_energyml_json_bytes, JSON_VERSION,
 )
 from .workspace import EnergymlWorkspace
 from .xml import is_energyml_content_type
@@ -129,6 +132,71 @@ class Epc(EnergymlWorkspace):
             + f"{len(self.energyml_objects)} energyml objects and {len(self.raw_files)} other files {[f.path for f in self.raw_files]}"
             # + f"\n{[serialize_json(ar) for ar in self.additional_rels]}"
         )
+
+    def add_file(self, obj: Union[List, bytes, BytesIO, str, RawFile]):
+        """
+        Add one ore multiple files to the epc file.
+        For non energyml file, it is better to use the RawFile class.
+        The input can be a single file content, file path, or a list of them
+        :param obj:
+        :return:
+        """
+        if isinstance(obj, list):
+            for o in obj:
+                self.add_file(o)
+        elif isinstance(obj, bytes) or isinstance(obj, BytesIO):
+            try:
+                xml_obj = read_energyml_xml_bytes(obj)
+                self.energyml_objects.append(xml_obj)
+            except:
+                try:
+                    if isinstance(obj, BytesIO):
+                        obj.seek(0)
+                    json_obj = read_energyml_json_bytes(obj, json_version=JSON_VERSION.OSDU_OFFICIAL)
+                    self.add_file(json_obj)
+                except:
+                    # if isinstance(obj, BytesIO):
+                    #     obj.seek(0)
+                    # self.add_file(RawFile(path=f"pleaseRenameThisFile_{str(random.random())}", content=obj))
+                    raise UnparsableFile()
+        elif isinstance(obj, RawFile):
+            self.raw_files.append(obj)
+        elif isinstance(obj, str):
+            # Can be a path or a content
+            if os.path.exists(obj):
+                with open(obj, "rb") as f:
+                    file_content = f.read()
+                    f_name = os.path.basename(obj)
+                    _, f_ext = os.path.splitext(f_name)
+                    if f_ext.lower().endswith(".xml") or f_ext.lower().endswith(".json"):
+                        try:
+                            self.add_file(file_content)
+                        except UnparsableFile:
+                            self.add_file(RawFile(f_name, BytesIO(file_content)))
+                    elif not f_ext.lower().endswith(".rels"):
+                        self.add_file(RawFile(f_name, BytesIO(file_content)))
+                    else:
+                        logging.error(f"Not supported file extension {f_name}")
+            else:
+                try:
+                    xml_obj = read_energyml_xml_str(obj)
+                    self.energyml_objects.append(xml_obj)
+                except:
+                    try:
+                        if isinstance(obj, BytesIO):
+                            obj.seek(0)
+                        json_obj = read_energyml_json_str(obj, json_version=JSON_VERSION.OSDU_OFFICIAL)
+                        self.add_file(json_obj)
+                    except:
+                        if isinstance(obj, BytesIO):
+                            obj.seek(0)
+                        self.add_file(RawFile(path=f"pleaseRenameThisFile_{str(random.random())}.txt", content=obj))
+        elif str(type(obj).__module__).startswith("energyml."):
+            # We should test "energyml.(resqml|witsml|prodml|eml|common)" but I didn't to avoid issues if
+            # another specific package comes in the future
+            self.energyml_objects.append(obj)
+        else:
+            logging.error(f"unsupported type {str(type(obj))}")
 
     # EXPORT functions
 
