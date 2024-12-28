@@ -91,7 +91,11 @@ def is_z_reversed(crs: Optional[Any]) -> bool:
         # resqml >= 22
         vert_axis = search_attribute_matching_name(crs, "VerticalAxis.Direction")
         if len(vert_axis) > 0:
-            reverse_z_values = vert_axis[0].lower() == "down"
+            vert_axis_str = str(vert_axis[0])
+            if "." in vert_axis_str:
+                vert_axis_str = vert_axis_str.split(".")[-1]
+
+            reverse_z_values = vert_axis_str.lower() == "down"
 
     return reverse_z_values
 
