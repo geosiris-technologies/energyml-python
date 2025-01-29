@@ -5,6 +5,7 @@ import re
 from dataclasses import fields
 
 from energyml.eml.v2_3.commonv2 import *
+from energyml.eml.v2_3.commonv2 import AbstractObject
 from energyml.resqml.v2_0_1.resqmlv2 import DoubleHdf5Array
 from energyml.resqml.v2_2.resqmlv2 import (
     TriangulatedSetRepresentation,

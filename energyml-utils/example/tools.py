@@ -212,7 +212,7 @@ def csv_to_dataset():
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv", "-f", type=str, help="Csv file path")
     parser.add_argument("--output", "-o", type=str, help="Output file path")
-    parser.add_argument("--prefix", "-p", type=str, default="", help="Output file path")
+    parser.add_argument("--prefix", "-p", type=str, default="", help="Dataset path prefix")
     parser.add_argument("--csv-delimiter", "-d", type=str, default=",", help="CSV delimiter")
     parser.add_argument(
         "--mapping",
@@ -227,9 +227,14 @@ def csv_to_dataset():
 
     args = parser.parse_args()
 
+    print(args.csv_delimiter)
+    print(args.mapping_line)
+
     mapping = args.mapping_line or args.mapping
     if mapping is not None:
         mapping = json.loads(mapping)
+
+    print(mapping)
 
     output_file_path = args.output
     if output_file_path.lower().endswith(".parquet") or output_file_path.lower().endswith(".pqt"):
