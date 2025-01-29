@@ -57,6 +57,9 @@ class Uri:
             and self.uuid is not None
         )
 
+    def get_qualified_type(self):
+        return f"{self.domain}{self.domain_version}.{self.object_type}"
+
     def __str__(self):
         res = "eml:///"
         if self.dataspace is not None and len(self.dataspace) > 0:

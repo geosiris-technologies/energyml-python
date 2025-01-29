@@ -5,6 +5,7 @@ import re
 from dataclasses import fields
 
 from energyml.eml.v2_3.commonv2 import *
+from energyml.eml.v2_3.commonv2 import AbstractObject
 from energyml.resqml.v2_0_1.resqmlv2 import DoubleHdf5Array
 from energyml.resqml.v2_2.resqmlv2 import (
     TriangulatedSetRepresentation,
@@ -14,8 +15,8 @@ from energyml.resqml.v2_2.resqmlv2 import (
     AbstractColorMap,
 )
 
-from src.energyml.utils.data.hdf import *
-from src.energyml.utils.data.helper import get_projected_uom
+# from src.energyml.utils.data.hdf import *
+from src.energyml.utils.data.helper import get_projected_uom, is_z_reversed
 from src.energyml.utils.epc import *
 from src.energyml.utils.introspection import *
 from src.energyml.utils.manager import *
@@ -27,7 +28,7 @@ from src.energyml.utils.validation import (
     correct_dor,
 )
 from src.energyml.utils.xml import *
-from utils.data.datasets_io import HDF5FileReader
+from src.energyml.utils.data.datasets_io import HDF5FileReader
 
 fi_cit = Citation(
     title="An interpretation",
@@ -375,6 +376,12 @@ def test_local_depth_crs():
         print(e)
 
 
+def test_crs():
+    from energyml.eml.v2_3.commonv2 import LocalEngineeringCompoundCrs
+    crs = random_value_from_class(LocalEngineeringCompoundCrs)
+    print(is_z_reversed(crs))
+
+
 def test_get_projected_uom():
     # Fails because the xsi:type="VerticalCrsEpsgCode" doesn't
     # contain the namespace : xsi:type="eml:VerticalCrsEpsgCode"
@@ -468,4 +475,5 @@ if __name__ == "__main__":
     # test_obj_attribs()
     # test_copy_values()
     # class_field()
-    test_get_projected_uom()
+    # test_get_projected_uom()
+    test_crs()

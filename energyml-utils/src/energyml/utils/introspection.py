@@ -1105,10 +1105,39 @@ def get_qualified_type_from_class(cls: Union[type, Any], print_dev_version=True)
     )
 
 
-def get_object_uri(obj: any, dataspace: Optional[str] = None) -> Uri:
+def get_object_uri(obj: any, dataspace: Optional[str] = None) -> Optional[Uri]:
     """ Returns an ETP URI """
     return parse_uri(
         f"eml:///dataspace('{dataspace or ''}')/{get_qualified_type_from_class(obj)}({get_obj_uuid(obj)})"
+    )
+
+
+def dor_to_uris(dor: Any, dataspace: Optional[str] = None) -> Optional[Uri]:
+    """
+    Transform a DOR into an etp uri
+    """
+    result = None
+    try:
+        value = get_object_attribute_no_verif(dor, "qualified_type")
+        result = parse_qualified_type(value)
+    except Exception as e:
+        print(e)
+        try:
+            value = get_object_attribute_no_verif(dor, "content_type")
+            result = parse_content_type(value)
+        except Exception as e2:
+            print(e2)
+
+    if result is None:
+        return None
+
+    return Uri(
+        dataspace=dataspace,
+        domain=result.group("domain"),
+        domain_version=result.group("domainVersion"),
+        object_type=result.group("type"),
+        uuid=dor.uuid,
+        version=dor.object_version,
     )
 
 

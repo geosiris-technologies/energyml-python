@@ -106,7 +106,7 @@ RGX_ENERGYML_FILE_NAME = (
 
 RGX_XML_HEADER = r"^\s*<\?xml(\s+(encoding\s*=\s*\"(?P<encoding>[^\"]+)\"|version\s*=\s*\"(?P<version>[^\"]+)\"|standalone\s*=\s*\"(?P<standalone>[^\"]+)\"))+"  # pylint: disable=C0301
 
-RGX_IDENTIFIER = f"{RGX_UUID}(.(?P<version>\w+)?)?"
+RGX_IDENTIFIER = rf"{RGX_UUID}(.(?P<version>\w+)?)?"
 
 
 #    __  ______  ____
@@ -225,23 +225,21 @@ class EPCRelsRelationshipType(Enum):
     EXTENDED_CORE_PROPERTIES = "extended-core-properties"
 
     def get_type(self) -> str:
-        match self:
-            case EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES:
-                return "http://schemas.f2i-consulting.com/package/2014/relationships/" + str(self.value)
-            case EPCRelsRelationshipType.CORE_PROPERTIES:
-                return "http://schemas.openxmlformats.org/package/2006/relationships/metadata/" + str(self.value)
-            case (
-                EPCRelsRelationshipType.CHUNKED_PART
-                | EPCRelsRelationshipType.DESTINATION_OBJECT
-                | EPCRelsRelationshipType.SOURCE_OBJECT
-                | EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY
-                | EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML
-                | EPCRelsRelationshipType.EXTERNAL_RESOURCE
-                | EPCRelsRelationshipType.DestinationMedia
-                | EPCRelsRelationshipType.SOURCE_MEDIA
-                | _
-            ):
-                return "http://schemas.energistics.org/package/2012/relationships/" + str(self.value)
+        if self == EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES:
+            return "http://schemas.f2i-consulting.com/package/2014/relationships/" + str(self.value)
+        elif EPCRelsRelationshipType.CORE_PROPERTIES:
+            return "http://schemas.openxmlformats.org/package/2006/relationships/metadata/" + str(self.value)
+        # elif (
+        #          self == EPCRelsRelationshipType.CHUNKED_PART
+        #         or  self == EPCRelsRelationshipType.DESTINATION_OBJECT
+        #         or  self == EPCRelsRelationshipType.SOURCE_OBJECT
+        #         or  self == EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY
+        #         or  self == EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML
+        #         or  self == EPCRelsRelationshipType.EXTERNAL_RESOURCE
+        #         or  self == EPCRelsRelationshipType.DestinationMedia
+        #         or  self == EPCRelsRelationshipType.SOURCE_MEDIA
+        #     ):
+        return "http://schemas.energistics.org/package/2012/relationships/" + str(self.value)
 
 
 @dataclass
@@ -306,6 +304,8 @@ def parse_content_or_qualified_type(cqt: str) -> Optional[re.Match[str]]:
     try:
         parsed = parse_content_type(cqt)
     except:
+        pass
+    if parsed is None:
         try:
             parsed = parse_qualified_type(cqt)
         except:
@@ -335,7 +335,7 @@ def get_domain_version_from_content_or_qualified_type(cqt: str) -> Optional[str]
 
 def split_identifier(identifier: str) -> Tuple[str, Optional[str]]:
     match = re.match(RGX_IDENTIFIER, identifier)
-    return match.group(URI_RGX_GRP_UUID), match.group(URI_RGX_GRP_VERSION),
+    return (match.group(URI_RGX_GRP_UUID), match.group(URI_RGX_GRP_VERSION), )
 
 
 def now(time_zone=datetime.timezone.utc) -> float:
