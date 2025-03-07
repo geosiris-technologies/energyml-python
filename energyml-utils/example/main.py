@@ -378,7 +378,6 @@ def test_local_depth_crs():
 
 def test_crs():
     from energyml.eml.v2_3.commonv2 import LocalEngineeringCompoundCrs
-
     crs = random_value_from_class(LocalEngineeringCompoundCrs)
     print(is_z_reversed(crs))
 
