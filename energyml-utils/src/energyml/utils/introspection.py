@@ -275,6 +275,27 @@ def import_related_module(energyml_module_name: str) -> None:
                     # logging.error(e)
 
 
+def list_function_parameters_with_types(func, is_class_function: bool = False) -> Dict[str, Any]:
+    """Retrieve parameter names and their types from a function
+
+    Args:
+        func (_type_): the function
+        is_class_function (bool, optional): If True, remove the first argumen (self or cls). Defaults to False.
+
+    Returns:
+        _type_: A dict with parameter name as key and their type as value
+    """
+
+    code = func.__code__
+    param_names = code.co_varnames[1 : code.co_argcount]  # Get parameter names
+    annotations = func.__annotations__  # Get type hints
+
+    # Map parameters to their type hints (if available)
+    param_types = {param: annotations.get(param, "Unknown") for param in param_names}
+
+    return param_types
+
+
 def get_class_fields(cls: Union[type, Any]) -> Dict[str, Field]:
     """
     Return all class fields names, mapped to their :class:`Field` value.
@@ -290,7 +311,8 @@ def get_class_fields(cls: Union[type, Any]) -> Dict[str, Field]:
     try:
         return cls.__dataclass_fields__
     except AttributeError:
-        return {}
+        # print(list_function_parameters_with_types(cls.__new__, True))
+        return list_function_parameters_with_types(cls.__new__, True)
 
 
 def get_class_attributes(cls: Union[type, Any]) -> List[str]:
@@ -375,7 +397,10 @@ def get_object_attribute(obj: Any, attr_dot_path: str, force_snake_case=True) ->
     elif isinstance(obj, dict):
         value = obj.get(current_attrib_name, None)
     else:
-        value = getattr(obj, current_attrib_name)
+        try:
+            value = getattr(obj, current_attrib_name)
+        except AttributeError:
+            return None
 
     # if "." in attr_dot_path:
     #     return get_object_attribute(value, attr_dot_path[len(current_attrib_name) + 1 :])
@@ -519,7 +544,7 @@ def get_object_attribute_no_verif(obj: Any, attr_name: str) -> Any:
     elif isinstance(obj, dict):
         return obj[attr_name]
     else:
-        return getattr(obj, attr_name)
+        return getattr(obj, attr_name, None)
 
 
 def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:
@@ -1106,10 +1131,8 @@ def get_qualified_type_from_class(cls: Union[type, Any], print_dev_version=True)
 
 
 def get_object_uri(obj: any, dataspace: Optional[str] = None) -> Optional[Uri]:
-    """ Returns an ETP URI """
-    return parse_uri(
-        f"eml:///dataspace('{dataspace or ''}')/{get_qualified_type_from_class(obj)}({get_obj_uuid(obj)})"
-    )
+    """Returns an ETP URI"""
+    return parse_uri(f"eml:///dataspace('{dataspace or ''}')/{get_qualified_type_from_class(obj)}({get_obj_uuid(obj)})")
 
 
 def dor_to_uris(dor: Any, dataspace: Optional[str] = None) -> Optional[Uri]:
@@ -1414,11 +1437,15 @@ def _random_value_from_class(
                 chosen_type = potential_classes[random.randint(0, len(potential_classes) - 1)]
                 args = {}
                 for k, v in get_class_fields(chosen_type).items():
-                    # logging.debug(f"get_class_fields {k} : {v}")
+                    # logging.debug(f"get_class_fields {k} : {v}, { isinstance(v, type)}, {v}")
                     args[k] = _random_value_from_class(
-                        cls=get_class_from_simple_name(
-                            simple_name=v.type,
-                            energyml_module_context=energyml_module_context,
+                        cls=(
+                            get_class_from_simple_name(
+                                simple_name=getattr(v, "type", v),
+                                energyml_module_context=energyml_module_context,
+                            )
+                            if not isinstance(v, type) and not v.__module__ == "typing"
+                            else v
                         ),
                         energyml_module_context=energyml_module_context,
                         attribute_name=k,
@@ -1427,6 +1454,7 @@ def _random_value_from_class(
 
                 if not isinstance(chosen_type, type):
                     chosen_type = type(chosen_type)
+
                 return chosen_type(**args)
 
     except Exception as e:

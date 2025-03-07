@@ -341,11 +341,18 @@ def _read_json_dict(obj_json: Any, sub_obj: List) -> Any:
                 elif not att.startswith("$"):
                     if att == "_":
                         att = "value"
-                    setattr(
-                        obj,
-                        get_matching_class_attribute_name(obj, att),
-                        _read_json_dict(val, sub_obj),
-                    )
+                    try:
+                        matching = get_matching_class_attribute_name(obj, att)
+                        if matching is not None:
+                            setattr(
+                                obj,
+                                matching,
+                                _read_json_dict(val, sub_obj),
+                            )
+                        else:
+                            logging.error(f"No matching attribute for attribute {att} in {obj}")
+                    except Exception as e:
+                        logging.error(f"Error assign attribute value for attribute {att} in {obj}")
         except Exception as e:
             logging.error(
                 f"Err on {att}",

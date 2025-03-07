@@ -93,6 +93,7 @@ if __H5PY_MODULE_EXISTS__:
         ):
             if isinstance(array, list):
                 array = np.asarray(array)
+            print("writing array", target)
             with h5py.File(target, "a") as f:
                 # print(array.dtype, h5py.string_dtype(), array.dtype == 'O')
                 # print("\t", dtype or (h5py.string_dtype() if array.dtype == '0' else array.dtype))
@@ -175,9 +176,7 @@ else:
 
     @dataclass
     class ParquetFileReader:
-        def read_array(
-            self, source: Union[BytesIO, str], path_in_external_file: Optional[str] = None
-        ) -> None:
+        def read_array(self, source: Union[BytesIO, str], path_in_external_file: Optional[str] = None) -> None:
             raise MissingExtraInstallation(extra_name="parquet")
 
         def get_array_dimension(self, source: Union[BytesIO, str], path_in_external_file: str) -> Optional[List[Any]]:
@@ -254,7 +253,7 @@ class DATFileReader:
                 logging.debug("cst", _cst)
 
                 max_line_number = 0
-                for (_, n, _) in items:
+                for _, n, _ in items:
                     if n > max_line_number:
                         max_line_number = n
 
