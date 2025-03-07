@@ -266,6 +266,7 @@ def generate_data():
         default="energyml.resqml.v2_2.resqmlv2.TriangulatedSetRepresentation",
         help="Object type (e.g. energyml.resqml.v2_2.resqmlv2.TriangulatedSetRepresentation)",
     )
+
     parser.add_argument(
         "--file-format",
         "-ff",

@@ -65,14 +65,16 @@ from .introspection import (
     set_attribute_from_path,
     set_attribute_value,
     get_object_attribute,
-    get_qualified_type_from_class,
+    get_qualified_type_from_class, get_class_fields,
 )
 from .manager import get_class_pkg, get_class_pkg_version
 from .serialization import (
     serialize_xml,
     read_energyml_xml_str,
     read_energyml_xml_bytes,
-    read_energyml_json_str, read_energyml_json_bytes, JSON_VERSION,
+    read_energyml_json_str,
+    read_energyml_json_bytes,
+    JSON_VERSION,
 )
 from .workspace import EnergymlWorkspace
 from .xml import is_energyml_content_type
@@ -429,7 +431,7 @@ class Epc(EnergymlWorkspace):
         return None
 
     def get_object(self, uuid: str, object_version: Optional[str]) -> Optional[Any]:
-        return self.get_object_by_identifier(f"{uuid}.{object_version}")
+        return self.get_object_by_identifier(f"{uuid}.{object_version or ''}")
 
     def get_epc_file_folder(self) -> Optional[str]:
         if self.epc_file_path is not None and len(self.epc_file_path) > 0:
@@ -607,6 +609,9 @@ class Epc(EnergymlWorkspace):
 # /_____/_/ /_/\___/_/   \__, /\__, /_/ /_/ /_/_/  /_/  \__,_/_/ /_/\___/\__/_/\____/_/ /_/____/
 #                       /____//____/
 
+"""
+PropertyKind list: a list of Pre-defined properties
+"""
 __CACHE_PROP_KIND_DICT__ = {}
 
 
@@ -647,7 +652,7 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
             if hasattr(dor, "qualified_type"):
                 set_attribute_from_path(dor, "qualified_type", get_qualified_type_from_class(obj_or_identifier))
             if hasattr(dor, "content_type"):
-                set_attribute_from_path(dor, "qualified_type", get_content_type_from_class(obj_or_identifier))
+                set_attribute_from_path(dor, "content_type", get_content_type_from_class(obj_or_identifier))
 
             set_attribute_from_path(dor, "uuid", get_object_attribute(obj_or_identifier, "uuid"))
             set_attribute_from_path(dor, "object_version", get_object_attribute(obj_or_identifier, "ObjectVersion"))

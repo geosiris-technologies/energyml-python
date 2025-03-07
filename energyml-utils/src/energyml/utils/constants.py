@@ -72,37 +72,29 @@ RGX_CT_TOKEN_VERSION = r"version=" + RGX_DOMAIN_VERSION
 RGX_CT_TOKEN_TYPE = r"type=(?P<type>[\w\_]+)"
 
 RGX_CONTENT_TYPE = (
-        RGX_MIME_TYPE_MEDIA
-        + "/"
-        + "(?P<rawDomain>("
-        + RGX_CT_ENERGYML_DOMAIN
-        + ")|("
-        + RGX_CT_XML_DOMAIN
-        + r")|([\w-]+\.?)+)"
-        + "(;(("
-        + RGX_CT_TOKEN_VERSION
-        + ")|("
-        + RGX_CT_TOKEN_TYPE
-        + ")))*"
+    RGX_MIME_TYPE_MEDIA
+    + "/"
+    + "(?P<rawDomain>("
+    + RGX_CT_ENERGYML_DOMAIN
+    + ")|("
+    + RGX_CT_XML_DOMAIN
+    + r")|([\w-]+\.?)+)"
+    + "(;(("
+    + RGX_CT_TOKEN_VERSION
+    + ")|("
+    + RGX_CT_TOKEN_TYPE
+    + ")))*"
 )
-RGX_QUALIFIED_TYPE = (
-        r"(?P<domain>[a-zA-Z]+)" + RGX_DOMAIN_VERSION_FLAT + r"\.(?P<type>[\w_]+)"
-)
+RGX_QUALIFIED_TYPE = r"(?P<domain>[a-zA-Z]+)" + RGX_DOMAIN_VERSION_FLAT + r"\.(?P<type>[\w_]+)"
 # =========
 
 RGX_SCHEMA_VERSION = (
-        r"(?P<name>[eE]ml|[cC]ommon|[rR]esqml|[wW]itsml|[pP]rodml|[oO]pc)?\s*v?"
-        + RGX_DOMAIN_VERSION
-        + r"\s*$"
+    r"(?P<name>[eE]ml|[cC]ommon|[rR]esqml|[wW]itsml|[pP]rodml|[oO]pc)?\s*v?" + RGX_DOMAIN_VERSION + r"\s*$"
 )
 
 RGX_ENERGYML_FILE_NAME_OLD = r"(?P<type>[\w]+)_" + RGX_UUID_NO_GRP + r"\.xml$"
-RGX_ENERGYML_FILE_NAME_NEW = (
-        RGX_UUID_NO_GRP + r"\.(?P<objectVersion>\d+(\.\d+)*)\.xml$"
-)
-RGX_ENERGYML_FILE_NAME = (
-    rf"^(.*/)?({RGX_ENERGYML_FILE_NAME_OLD})|({RGX_ENERGYML_FILE_NAME_NEW})"
-)
+RGX_ENERGYML_FILE_NAME_NEW = RGX_UUID_NO_GRP + r"\.(?P<objectVersion>\d+(\.\d+)*)\.xml$"
+RGX_ENERGYML_FILE_NAME = rf"^(.*/)?({RGX_ENERGYML_FILE_NAME_OLD})|({RGX_ENERGYML_FILE_NAME_NEW})"
 
 RGX_XML_HEADER = r"^\s*<\?xml(\s+(encoding\s*=\s*\"(?P<encoding>[^\"]+)\"|version\s*=\s*\"(?P<version>[^\"]+)\"|standalone\s*=\s*\"(?P<standalone>[^\"]+)\"))+"  # pylint: disable=C0301
 
@@ -128,47 +120,43 @@ URI_RGX_GRP_COLLECTION_TYPE = "collectionType"
 URI_RGX_GRP_QUERY = "query"
 
 # Patterns
-_URI_RGX_PKG_NAME = "|".join(
-    ENERGYML_NAMESPACES.keys()
-)  # "[a-zA-Z]+\w+" //witsml|resqml|prodml|eml
+_URI_RGX_PKG_NAME = "|".join(ENERGYML_NAMESPACES.keys())  # "[a-zA-Z]+\w+" //witsml|resqml|prodml|eml
 URI_RGX = (
-        r"^eml:\/\/\/(?:dataspace\('(?P<"
-        + URI_RGX_GRP_DATASPACE
-        + r">[^']*?(?:''[^']*?)*)'\)\/?)?((?P<"
-        + URI_RGX_GRP_DOMAIN
-        + r">"
-        + _URI_RGX_PKG_NAME
-        + r")(?P<"
-        + URI_RGX_GRP_DOMAIN_VERSION
-        + r">[1-9]\d)\.(?P<"
-        + URI_RGX_GRP_OBJECT_TYPE
-        + r">\w+)(\((?:(?P<"
-        + URI_RGX_GRP_UUID
-        + r">(uuid=)?"
-        + RGX_UUID_NO_GRP
-        + r")|uuid=(?P<"
-        + URI_RGX_GRP_UUID2
-        + r">"
-        + RGX_UUID_NO_GRP
-        + r"),\s*version='(?P<"
-        + URI_RGX_GRP_VERSION
-        + r">[^']*?(?:''[^']*?)*)')\))?)?(\/(?P<"
-        + URI_RGX_GRP_COLLECTION_DOMAIN
-        + r">"
-        + _URI_RGX_PKG_NAME
-        + r")(?P<"
-        + URI_RGX_GRP_COLLECTION_DOMAIN_VERSION
-        + r">[1-9]\d)\.(?P<"
-        + URI_RGX_GRP_COLLECTION_TYPE
-        + r">\w+))?(?:\?(?P<"
-        + URI_RGX_GRP_QUERY
-        + r">[^#]+))?$"
+    r"^eml:\/\/\/(?:dataspace\('(?P<"
+    + URI_RGX_GRP_DATASPACE
+    + r">[^']*?(?:''[^']*?)*)'\)\/?)?((?P<"
+    + URI_RGX_GRP_DOMAIN
+    + r">"
+    + _URI_RGX_PKG_NAME
+    + r")(?P<"
+    + URI_RGX_GRP_DOMAIN_VERSION
+    + r">[1-9]\d)\.(?P<"
+    + URI_RGX_GRP_OBJECT_TYPE
+    + r">\w+)(\((?:(?P<"
+    + URI_RGX_GRP_UUID
+    + r">(uuid=)?"
+    + RGX_UUID_NO_GRP
+    + r")|uuid=(?P<"
+    + URI_RGX_GRP_UUID2
+    + r">"
+    + RGX_UUID_NO_GRP
+    + r"),\s*version='(?P<"
+    + URI_RGX_GRP_VERSION
+    + r">[^']*?(?:''[^']*?)*)')\))?)?(\/(?P<"
+    + URI_RGX_GRP_COLLECTION_DOMAIN
+    + r">"
+    + _URI_RGX_PKG_NAME
+    + r")(?P<"
+    + URI_RGX_GRP_COLLECTION_DOMAIN_VERSION
+    + r">[1-9]\d)\.(?P<"
+    + URI_RGX_GRP_COLLECTION_TYPE
+    + r">\w+))?(?:\?(?P<"
+    + URI_RGX_GRP_QUERY
+    + r">[^#]+))?$"
 )
 
 # ================================
-RELS_CONTENT_TYPE = (
-    "application/vnd.openxmlformats-package.core-properties+xml"
-)
+RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
 RELS_FOLDER_NAME = "_rels"
 
 primitives = (bool, str, int, float, type(None))
@@ -179,6 +167,7 @@ DOT_PATH = rf"\.*(?P<first>{DOT_PATH_ATTRIBUTE})(?P<next>(\.(?P<last>{DOT_PATH_A
 
 class MimeType(Enum):
     """Some mime types"""
+
     CSV = "text/csv"
     HDF5 = "application/x-hdf5"
     PARQUET = "application/x-parquet"
@@ -199,7 +188,7 @@ class EpcExportVersion(Enum):
 
 
 class EPCRelsRelationshipType(Enum):
-    """ Rels relationship types """
+    """Rels relationship types"""
 
     #: The object in Target is the destination of the relationship.
     DESTINATION_OBJECT = "destinationObject"
@@ -244,9 +233,11 @@ class EPCRelsRelationshipType(Enum):
 
 @dataclass
 class RawFile:
-    """ A class for a non energyml file to be stored in an EPC file """
+    """A class for a non energyml file to be stored in an EPC file"""
+
     path: str = field(default="_")
     content: BytesIO = field(default=None)
+
 
 #     ______                 __  _
 #    / ____/_  ______  _____/ /_(_)___  ____  _____
@@ -335,7 +326,10 @@ def get_domain_version_from_content_or_qualified_type(cqt: str) -> Optional[str]
 
 def split_identifier(identifier: str) -> Tuple[str, Optional[str]]:
     match = re.match(RGX_IDENTIFIER, identifier)
-    return (match.group(URI_RGX_GRP_UUID), match.group(URI_RGX_GRP_VERSION), )
+    return (
+        match.group(URI_RGX_GRP_UUID),
+        match.group(URI_RGX_GRP_VERSION),
+    )
 
 
 def now(time_zone=datetime.timezone.utc) -> float:
@@ -356,12 +350,10 @@ def date_to_epoch(date: str) -> int:
 
 
 def epoch_to_date(
-        epoch_value: int,
+    epoch_value: int,
 ) -> str:
     date = datetime.datetime.fromtimestamp(epoch_value, datetime.timezone.utc)
-    return date.astimezone(datetime.timezone.utc).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
+    return date.astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     # date = datetime.datetime.fromtimestamp(epoch_value, datetime.timezone.utc)
     # return date.astimezone(datetime.timezone(datetime.timedelta(hours=0), "UTC")).strftime('%Y-%m-%dT%H:%M:%SZ')
     # return date.strftime("%Y-%m-%dT%H:%M:%SZ%z")
@@ -379,9 +371,9 @@ def mime_type_to_file_extension(mime_type: str) -> Optional[str]:
     if mime_type is not None:
         mime_type_lw = mime_type.lower()
         if (
-                mime_type_lw == "application/x-parquet"
-                or mime_type_lw == "application/parquet"
-                or mime_type_lw == "application/vnd.apache.parquet"
+            mime_type_lw == "application/x-parquet"
+            or mime_type_lw == "application/parquet"
+            or mime_type_lw == "application/vnd.apache.parquet"
         ):
             return "parquet"
         elif mime_type_lw == "application/x-hdf5":
@@ -419,7 +411,10 @@ def _get_property_kind_dict_path_as_str(file_type: str = "xml") -> str:
     try:
         import energyml.utils.rc as RC
     except:
-        import src.energyml.utils.rc as RC
+        try:
+            import src.energyml.utils.rc as RC
+        except:
+            import utils.rc as RC
     return files(RC).joinpath(f"PropertyKindDictionary_v2.3.{file_type.lower()}").read_text(encoding="utf-8")
 
 
@@ -452,3 +447,5 @@ if __name__ == "__main__":
     print(path_iter(".Citation.Title.Coucou"))
     print(path_iter(".Citation.Ti\\.*.Coucou"))
 
+    print(URI_RGX)
+    print(RGX_UUID_NO_GRP)

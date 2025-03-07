@@ -104,8 +104,8 @@ def tests_0():
     print("==>", get_object_attribute(adict, "a"))
     print("==>", get_object_attribute(tr, "citation.title"))
 
-    print(re.split(r"(?<!\\)\.+", "[Cc]itation.[Tt]it\.*"))
-    print("==>", get_object_attribute_rgx(fi, "[Cc]itation.[Tt]it\.*"))
+    print(re.split(r"(?<!\\)\.+", r"[Cc]itation.[Tt]it\.*"))
+    print("==>", get_object_attribute_rgx(fi, r"[Cc]itation.[Tt]it\.*"))
 
     # print("==>", type(cit), type(Citation))
     # print("==>", type(cit) == type, type(Citation) == type)
@@ -458,6 +458,12 @@ def class_field():
     # print(create_external_part_reference("2.0", "myfile.h5"))
 
 
+def test_dor_conversion():
+
+    print(serialize_json(dor_correct))
+    print(serialize_json(as_dor(dor_correct, "eml20.DataObjectReference")))
+
+
 if __name__ == "__main__":
     # tests_0()
     # tests_content_type()
@@ -476,4 +482,5 @@ if __name__ == "__main__":
     # test_copy_values()
     # class_field()
     # test_get_projected_uom()
-    test_crs()
+    # test_crs()
+    test_dor_conversion()

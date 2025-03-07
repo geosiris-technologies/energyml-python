@@ -1,0 +1,16 @@
+[flake8]
+# Ignore specific error codes (comma-separated list)
+ignore = E501, E722 #, W503, F403
+
+# Max line length (default is 79, can be changed)
+max-line-length = 120
+
+# Set the allowed complexity for functions (default is 10)
+complexity = 15
+
+# Exclude certain files and directories
+exclude = 
+    .git,
+    __pycache__,
+    old_version_files,
+    migrations
