@@ -52,6 +52,7 @@ from .exception import UnparsableFile
 from .introspection import (
     get_class_from_content_type,
     get_obj_type,
+    is_dor,
     search_attribute_matching_type,
     get_obj_version,
     get_obj_uuid,
@@ -667,20 +668,24 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
                     logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
         else:
             print("@as_dor type : ", get_obj_type(obj_or_identifier))
-            if "dataobjectreference" in get_obj_type(obj_or_identifier).lower():
+            if is_dor(obj_or_identifier):
                 print("@as_dor type converting dor")
                 # If it is a dor, we create a dor conversionif hasattr(dor, "qualified_type"):
                 if hasattr(dor, "qualified_type"):
                     if hasattr(obj_or_identifier, "qualified_type"):
-                        dor.qualified_type = obj_or_identifier.qualified_type
+                        dor.qualified_type = get_object_attribute(obj_or_identifier, "qualified_type")
                     elif hasattr(obj_or_identifier, "content_type"):
-                        dor.qualified_type = content_type_to_qualified_type(obj_or_identifier.content_type)
+                        dor.qualified_type = content_type_to_qualified_type(
+                            get_object_attribute(obj_or_identifier, "content_type")
+                        )
 
                 if hasattr(dor, "content_type"):
                     if hasattr(obj_or_identifier, "qualified_type"):
-                        dor.content_type = qualified_type_to_content_type(obj_or_identifier.qualified_type)
+                        dor.content_type = qualified_type_to_content_type(
+                            get_object_attribute(obj_or_identifier, "qualified_type")
+                        )
                     elif hasattr(obj_or_identifier, "content_type"):
-                        dor.content_type = obj_or_identifier.content_type
+                        dor.content_type = get_object_attribute(obj_or_identifier, "content_type")
 
                 set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Title"))
 

@@ -607,6 +607,14 @@ def class_match_rgx(
     return False
 
 
+def is_dor(obj: any) -> bool:
+    return (
+        "dataobjectreference" in get_obj_type(obj).lower()
+        or get_object_attribute(obj, "ContentType") is not None
+        or get_object_attribute(obj, "QualifiedType") is not None
+    )
+
+
 def search_attribute_matching_type_with_path(
     obj: Any,
     type_rgx: str,
