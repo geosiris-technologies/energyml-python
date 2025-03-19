@@ -305,6 +305,23 @@ def parse_content_or_qualified_type(cqt: str) -> Optional[re.Match[str]]:
     return parsed
 
 
+def content_type_to_qualified_type(ct: str):
+    parsed = parse_content_or_qualified_type(ct)
+    return parsed.group("domain") + parsed.group("domainVersion").replace(".", "") + "." + parsed.group("type")
+
+
+def qualified_type_to_content_type(qt: str):
+    parsed = parse_content_or_qualified_type(qt)
+    return (
+        "application/x-"
+        + parsed.group("domain")
+        + "+xml;version="
+        + re.sub(r"(\d)(\d)", r"\1.\2", parsed.group("domainVersion"))
+        + ";type="
+        + parsed.group("type")
+    )
+
+
 def get_domain_version_from_content_or_qualified_type(cqt: str) -> Optional[str]:
     """
     return a version number like "2.2" or "2.0"

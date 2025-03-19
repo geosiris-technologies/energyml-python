@@ -529,7 +529,7 @@ def get_object_attribute_advanced(obj: Any, attr_dot_path: str) -> Any:
         return value
 
 
-def get_object_attribute_no_verif(obj: Any, attr_name: str) -> Any:
+def get_object_attribute_no_verif(obj: Any, attr_name: str, default: Optional[Any] = None) -> Any:
     """
     Return the value of the attribute named after param :param:`attr_name` without verification (may raise an exception
     if it doesn't exists).
@@ -540,11 +540,19 @@ def get_object_attribute_no_verif(obj: Any, attr_name: str) -> Any:
     :return:
     """
     if isinstance(obj, list):
-        return obj[int(attr_name)]
+        if int(attr_name) < len(obj):
+            return obj[int(attr_name)] or default
+        else:
+            raise AttributeError(obj, name=attr_name)
     elif isinstance(obj, dict):
-        return obj[attr_name]
+        if attr_name in obj:
+            return obj.get(attr_name, default)
+        else:
+            raise AttributeError(obj, name=attr_name)
     else:
-        return getattr(obj, attr_name, None)
+        return (
+            getattr(obj, attr_name) or default
+        )  # we did not used the "default" of getattr to keep raising AttributeError
 
 
 def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:

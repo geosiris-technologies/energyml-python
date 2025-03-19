@@ -10,10 +10,19 @@ from src.energyml.utils.constants import get_property_kind_dict_path_as_xml
 from src.energyml.utils.data.datasets_io import CSVFileReader, HDF5FileWriter, ParquetFileWriter, DATFileReader
 from src.energyml.utils.data.mesh import MeshFileFormat, export_multiple_data
 from src.energyml.utils.epc import Epc, gen_energyml_object_path
-from src.energyml.utils.introspection import get_class_from_simple_name, random_value_from_class, \
-    set_attribute_from_path, get_object_attribute, get_qualified_type_from_class, get_content_type_from_class, \
-    get_object_attribute_rgx, get_direct_dor_list, get_obj_uuid, get_class_from_qualified_type, \
-    get_object_attribute_or_create
+from src.energyml.utils.introspection import (
+    get_class_from_simple_name,
+    random_value_from_class,
+    set_attribute_from_path,
+    get_object_attribute,
+    get_qualified_type_from_class,
+    get_content_type_from_class,
+    get_object_attribute_rgx,
+    get_direct_dor_list,
+    get_obj_uuid,
+    get_class_from_qualified_type,
+    get_object_attribute_or_create,
+)
 from src.energyml.utils.serialization import (
     serialize_json,
     JSON_VERSION,
@@ -370,6 +379,7 @@ def xml_to_json():
             json_content = serialize_json(objs, JSON_VERSION.OSDU_OFFICIAL)
     elif args.file.lower().endswith(".epc"):
         epc = Epc.read_file(args.file)
+        # print(epc.energyml_objects)
         json_content = (
             "[\n"
             + ",".join(list(map(lambda o: serialize_json(o, JSON_VERSION.OSDU_OFFICIAL), epc.energyml_objects)))
@@ -377,7 +387,9 @@ def xml_to_json():
         )
 
     with open(output_path, "w") as fout:
-        fout.write(json_content)
+        # print(json_content)
+        if json_content is not None:
+            fout.write(json_content)
 
 
 def json_to_xml():
@@ -401,6 +413,29 @@ def json_to_xml():
             xml_content = serialize_xml(obj)
             with open(f"{dir}/{fname}", "w") as fout:
                 fout.write(xml_content)
+
+
+def json_to_epc():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--file", "-f", type=str, help="Input File")
+    parser.add_argument("--out", "-o", type=str, default=None, help=f"Output EPC file")
+
+    args = parser.parse_args()
+
+    epc = Epc(epc_file_path=args.out)
+    with open(args.file, "rb") as f:
+        f_content = f.read()
+        objs = []
+        try:
+            objs = read_energyml_json_bytes(f_content, JSON_VERSION.OSDU_OFFICIAL)
+        except:
+            objs = read_energyml_json_bytes(f_content, JSON_VERSION.XSDATA)
+
+        dir = pathlib.Path(args.out or args.file).parent.resolve()
+        for obj in objs:
+            epc.energyml_objects.append(obj)
+
+    epc.export_file(args.out)
 
 
 def describe_as_csv():
