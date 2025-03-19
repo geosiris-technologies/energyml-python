@@ -139,13 +139,15 @@ def test_gen_energyml_object_path():
     )
 
 
-def test_as_dor():
+def test_as_dor_object():
     dor_fi = as_dor(fi)
 
     assert dor_fi.title == fi.citation.title
     assert dor_fi.uuid == fi.uuid
     assert dor_fi.qualified_type == get_qualified_type_from_class(fi)
 
+
+def test_as_dor_another_dor():
     dor_dor20 = as_dor(dor_correct20, "eml20.DataObjectReference")
     assert dor_dor20.title == dor_correct20.title
     assert dor_dor20.uuid == fi.uuid
@@ -160,3 +162,21 @@ def test_as_dor():
     assert dor_dor23.title == dor_correct20.title
     assert dor_dor23.uuid == fi.uuid
     assert dor_dor23.qualified_type == get_qualified_type_from_class(fi)
+
+
+def test_as_dor_uri():
+    dor_dor20 = as_dor(
+        "eml:///dataspace('test')/resqml22.TriangulatedSetRepresentation(0a2ba9e1-1018-4bfd-8fec-1c8cef13fa52)",
+        "eml20.DataObjectReference",
+    )
+    assert dor_dor20.title is None
+    assert dor_dor20.uuid == "0a2ba9e1-1018-4bfd-8fec-1c8cef13fa52"
+    assert dor_dor20.content_type == "application/x-resqml+xml;version=2.2;type=TriangulatedSetRepresentation"
+
+    dor_dor23 = as_dor(
+        "eml:///dataspace('test')/resqml22.TriangulatedSetRepresentation(0a2ba9e1-1018-4bfd-8fec-1c8cef13fa52)",
+        "eml23.DataObjectReference",
+    )
+    assert dor_dor23.title is None
+    assert dor_dor23.uuid == "0a2ba9e1-1018-4bfd-8fec-1c8cef13fa52"
+    assert dor_dor23.qualified_type == "resqml22.TriangulatedSetRepresentation"

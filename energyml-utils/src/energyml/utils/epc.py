@@ -29,6 +29,7 @@ from energyml.opc.opc import (
     Keywords1,
     TargetMode,
 )
+from .uri import parse_uri
 from xsdata.formats.dataclass.models.generics import DerivedElement
 
 from .constants import (
@@ -634,25 +635,37 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
     """
     dor = None
     if obj_or_identifier is not None:
-        if isinstance(obj_or_identifier, str):  # is an identifier
-            cls = get_class_from_qualified_type(dor_qualified_type)
-            dor = cls()
-            if len(__CACHE_PROP_KIND_DICT__) == 0:
-                # update the cache to check if it is a
-                update_prop_kind_dict_cache()
-            try:
-                uuid, version = split_identifier(obj_or_identifier)
-                if uuid in __CACHE_PROP_KIND_DICT__:
-                    return as_dor(__CACHE_PROP_KIND_DICT__[uuid])
-                else:
-                    set_attribute_from_path(dor, "uuid", uuid)
-                    set_attribute_from_path(dor, "ObjectVersion", version)
-            except AttributeError:
-                logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
-        else:
-            cls = get_class_from_qualified_type(dor_qualified_type)
-            dor = cls()
+        cls = get_class_from_qualified_type(dor_qualified_type)
+        dor = cls()
+        if isinstance(obj_or_identifier, str):  # is an identifier or uri
+            parsed_uri = parse_uri(obj_or_identifier)
+            if parsed_uri is not None:
+                if hasattr(dor, "qualified_type"):
+                    set_attribute_from_path(dor, "qualified_type", parsed_uri.get_qualified_type())
+                if hasattr(dor, "content_type"):
+                    set_attribute_from_path(
+                        dor, "content_type", qualified_type_to_content_type(parsed_uri.get_qualified_type())
+                    )
+                set_attribute_from_path(dor, "uuid", parsed_uri.uuid)
+                if hasattr(dor, "object_version"):
+                    set_attribute_from_path(dor, "version_string", parsed_uri.version)
+                if hasattr(dor, "version_string"):
+                    set_attribute_from_path(dor, "version_string", parsed_uri.version)
 
+            else:  # identifier
+                if len(__CACHE_PROP_KIND_DICT__) == 0:
+                    # update the cache to check if it is a
+                    update_prop_kind_dict_cache()
+                try:
+                    uuid, version = split_identifier(obj_or_identifier)
+                    if uuid in __CACHE_PROP_KIND_DICT__:
+                        return as_dor(__CACHE_PROP_KIND_DICT__[uuid])
+                    else:
+                        set_attribute_from_path(dor, "uuid", uuid)
+                        set_attribute_from_path(dor, "ObjectVersion", version)
+                except AttributeError:
+                    logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
+        else:
             print("@as_dor type : ", get_obj_type(obj_or_identifier))
             if "dataobjectreference" in get_obj_type(obj_or_identifier).lower():
                 print("@as_dor type converting dor")
@@ -682,9 +695,9 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
             set_attribute_from_path(dor, "uuid", get_obj_uuid(obj_or_identifier))
 
             if hasattr(dor, "object_version"):
-                set_attribute_from_path(dor, "version_string", get_object_attribute(obj_or_identifier, "ObjectVersion"))
+                set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
             if hasattr(dor, "version_string"):
-                set_attribute_from_path(dor, "version_string", get_object_attribute(obj_or_identifier, "ObjectVersion"))
+                set_attribute_from_path(dor, "version_string", get_obj_version(obj_or_identifier))
 
     return dor
 
