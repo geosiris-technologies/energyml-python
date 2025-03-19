@@ -656,7 +656,10 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
             else:  # identifier
                 if len(__CACHE_PROP_KIND_DICT__) == 0:
                     # update the cache to check if it is a
-                    update_prop_kind_dict_cache()
+                    try:
+                        update_prop_kind_dict_cache()
+                    except FileNotFoundError as e:
+                        logging.error(f"Failed to parse propertykind dict {e}")
                 try:
                     uuid, version = split_identifier(obj_or_identifier)
                     if uuid in __CACHE_PROP_KIND_DICT__:
@@ -667,9 +670,7 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
                 except AttributeError:
                     logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
         else:
-            print("@as_dor type : ", get_obj_type(obj_or_identifier))
             if is_dor(obj_or_identifier):
-                print("@as_dor type converting dor")
                 # If it is a dor, we create a dor conversionif hasattr(dor, "qualified_type"):
                 if hasattr(dor, "qualified_type"):
                     if hasattr(obj_or_identifier, "qualified_type"):
