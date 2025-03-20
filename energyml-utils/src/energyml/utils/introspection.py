@@ -7,7 +7,7 @@ import random
 import re
 import sys
 import typing
-from dataclasses import Field
+from dataclasses import Field, field
 from enum import Enum
 from importlib import import_module
 from types import ModuleType
@@ -311,8 +311,18 @@ def get_class_fields(cls: Union[type, Any]) -> Dict[str, Field]:
     try:
         return cls.__dataclass_fields__
     except AttributeError:
-        # print(list_function_parameters_with_types(cls.__new__, True))
-        return list_function_parameters_with_types(cls.__new__, True)
+        try:
+            # print(list_function_parameters_with_types(cls.__new__, True))
+            return list_function_parameters_with_types(cls.__new__, True)
+        except AttributeError as e:
+            # For not working types like proxy type for C++ binding
+            res = {}
+            for a_name, a_type in inspect.getmembers(cls):
+                # print(f"{a_name} => {inspect.getmembers(a_type)}")
+                if not a_name.startswith("_") and not callable(getattr(cls, a_name, None)):
+                    res[a_name] = field()
+
+            return res
 
 
 def get_class_attributes(cls: Union[type, Any]) -> List[str]:
