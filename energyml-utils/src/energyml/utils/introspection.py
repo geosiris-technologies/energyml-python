@@ -368,20 +368,25 @@ def get_matching_class_attribute_name(
                 return name
     else:
         class_fields = get_class_fields(cls)
+        try:
+            # a search with the exact value
+            for name, cf in class_fields.items():
+                if snake_case(name) == snake_case(attribute_name) or (
+                    hasattr(cf, "metadata") and "name" in cf.metadata and cf.metadata["name"] == attribute_name
+                ):
+                    return name
 
-        # a search with the exact value
-        for name, cf in class_fields.items():
-            if snake_case(name) == snake_case(attribute_name) or (
-                "name" in cf.metadata and cf.metadata["name"] == attribute_name
-            ):
-                return name
-
-        # search regex after to avoid shadowing perfect match
-        pattern = re.compile(attribute_name, flags=re_flags)
-        for name, cf in class_fields.items():
-            # logging.error(f"\t->{name} : {attribute_name} {pattern.match(name)} {('name' in cf.metadata and pattern.match(cf.metadata['name']))}")
-            if pattern.match(name) or ("name" in cf.metadata and pattern.match(cf.metadata["name"])):
-                return name
+            # search regex after to avoid shadowing perfect match
+            pattern = re.compile(attribute_name, flags=re_flags)
+            for name, cf in class_fields.items():
+                # logging.error(f"\t->{name} : {attribute_name} {pattern.match(name)} {('name' in cf.metadata and pattern.match(cf.metadata['name']))}")
+                if pattern.match(name) or (
+                    hasattr(cf, "metadata") and "name" in cf.metadata and pattern.match(cf.metadata["name"])
+                ):
+                    return name
+        except Exception as e:
+            logging.error(f"Failed to get attribute {attribute_name} from class {cls}")
+            logging.error(e)
 
     return None
 

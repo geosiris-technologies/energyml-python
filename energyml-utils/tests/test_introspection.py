@@ -22,6 +22,7 @@ from src.energyml.utils.introspection import (
 
 
 def test_is_primitive():
+    assert is_primitive(1)
     assert is_primitive(int)
     assert is_primitive(float)
     assert is_primitive(str)
