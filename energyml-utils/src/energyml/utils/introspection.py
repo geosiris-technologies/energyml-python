@@ -1032,6 +1032,7 @@ def get_obj_version(obj: Any) -> str:
             return get_object_attribute_no_verif(obj, "version_string")
         except Exception:
             logging.error(f"Error with {type(obj)}")
+            return None
             # raise e
 
 
