@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
 import logging
+import numpy as np
 import traceback
 from enum import Enum
 from io import BytesIO
@@ -447,6 +448,9 @@ def _to_json_dict_fn(
     :return: Any
     """
     if obj is None:
+        return None
+    elif isinstance(obj, float) and np.isnan(obj):
+        print("NaN found")
         return None
     elif is_enum(obj):
         return obj.value

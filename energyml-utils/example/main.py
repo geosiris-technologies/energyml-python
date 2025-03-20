@@ -28,7 +28,7 @@ from src.energyml.utils.validation import (
     correct_dor,
 )
 from src.energyml.utils.xml import *
-from src.energyml.utils.data.datasets_io import HDF5FileReader
+from src.energyml.utils.data.datasets_io import HDF5FileReader, get_path_in_external_with_path
 
 fi_cit = Citation(
     title="An interpretation",
@@ -378,6 +378,7 @@ def test_local_depth_crs():
 
 def test_crs():
     from energyml.eml.v2_3.commonv2 import LocalEngineeringCompoundCrs
+
     crs = random_value_from_class(LocalEngineeringCompoundCrs)
     print(is_z_reversed(crs))
 

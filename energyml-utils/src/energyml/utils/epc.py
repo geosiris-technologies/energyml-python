@@ -29,6 +29,7 @@ from energyml.opc.opc import (
     Keywords1,
     TargetMode,
 )
+from .uri import parse_uri
 from xsdata.formats.dataclass.models.generics import DerivedElement
 
 from .constants import (
@@ -39,6 +40,8 @@ from .constants import (
     RawFile,
     EPCRelsRelationshipType,
     MimeType,
+    content_type_to_qualified_type,
+    qualified_type_to_content_type,
     split_identifier,
     get_property_kind_dict_path_as_dict,
 )
@@ -49,6 +52,7 @@ from .exception import UnparsableFile
 from .introspection import (
     get_class_from_content_type,
     get_obj_type,
+    is_dor,
     search_attribute_matching_type,
     get_obj_version,
     get_obj_uuid,
@@ -65,7 +69,8 @@ from .introspection import (
     set_attribute_from_path,
     set_attribute_value,
     get_object_attribute,
-    get_qualified_type_from_class, get_class_fields,
+    get_qualified_type_from_class,
+    get_class_fields,
 )
 from .manager import get_class_pkg, get_class_pkg_version
 from .serialization import (
@@ -631,32 +636,74 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
     """
     dor = None
     if obj_or_identifier is not None:
-        if isinstance(obj_or_identifier, str):  # is an identifier
-            cls = get_class_from_qualified_type(dor_qualified_type)
-            dor = cls()
-            if len(__CACHE_PROP_KIND_DICT__) == 0:
-                # update the cache to check if it is a
-                update_prop_kind_dict_cache()
-            try:
-                uuid, version = split_identifier(obj_or_identifier)
-                if uuid in __CACHE_PROP_KIND_DICT__:
-                    return as_dor(__CACHE_PROP_KIND_DICT__[uuid])
-                else:
-                    set_attribute_from_path(dor, "uuid", uuid)
-                    set_attribute_from_path(dor, "ObjectVersion", version)
-            except AttributeError:
-                logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
-        else:
-            cls = get_class_from_qualified_type(dor_qualified_type)
-            dor = cls()
-            if hasattr(dor, "qualified_type"):
-                set_attribute_from_path(dor, "qualified_type", get_qualified_type_from_class(obj_or_identifier))
-            if hasattr(dor, "content_type"):
-                set_attribute_from_path(dor, "content_type", get_content_type_from_class(obj_or_identifier))
+        cls = get_class_from_qualified_type(dor_qualified_type)
+        dor = cls()
+        if isinstance(obj_or_identifier, str):  # is an identifier or uri
+            parsed_uri = parse_uri(obj_or_identifier)
+            if parsed_uri is not None:
+                if hasattr(dor, "qualified_type"):
+                    set_attribute_from_path(dor, "qualified_type", parsed_uri.get_qualified_type())
+                if hasattr(dor, "content_type"):
+                    set_attribute_from_path(
+                        dor, "content_type", qualified_type_to_content_type(parsed_uri.get_qualified_type())
+                    )
+                set_attribute_from_path(dor, "uuid", parsed_uri.uuid)
+                if hasattr(dor, "object_version"):
+                    set_attribute_from_path(dor, "version_string", parsed_uri.version)
+                if hasattr(dor, "version_string"):
+                    set_attribute_from_path(dor, "version_string", parsed_uri.version)
 
-            set_attribute_from_path(dor, "uuid", get_object_attribute(obj_or_identifier, "uuid"))
-            set_attribute_from_path(dor, "object_version", get_object_attribute(obj_or_identifier, "ObjectVersion"))
-            set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Citation.Title"))
+            else:  # identifier
+                if len(__CACHE_PROP_KIND_DICT__) == 0:
+                    # update the cache to check if it is a
+                    try:
+                        update_prop_kind_dict_cache()
+                    except FileNotFoundError as e:
+                        logging.error(f"Failed to parse propertykind dict {e}")
+                try:
+                    uuid, version = split_identifier(obj_or_identifier)
+                    if uuid in __CACHE_PROP_KIND_DICT__:
+                        return as_dor(__CACHE_PROP_KIND_DICT__[uuid])
+                    else:
+                        set_attribute_from_path(dor, "uuid", uuid)
+                        set_attribute_from_path(dor, "ObjectVersion", version)
+                except AttributeError:
+                    logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
+        else:
+            if is_dor(obj_or_identifier):
+                # If it is a dor, we create a dor conversionif hasattr(dor, "qualified_type"):
+                if hasattr(dor, "qualified_type"):
+                    if hasattr(obj_or_identifier, "qualified_type"):
+                        dor.qualified_type = get_object_attribute(obj_or_identifier, "qualified_type")
+                    elif hasattr(obj_or_identifier, "content_type"):
+                        dor.qualified_type = content_type_to_qualified_type(
+                            get_object_attribute(obj_or_identifier, "content_type")
+                        )
+
+                if hasattr(dor, "content_type"):
+                    if hasattr(obj_or_identifier, "qualified_type"):
+                        dor.content_type = qualified_type_to_content_type(
+                            get_object_attribute(obj_or_identifier, "qualified_type")
+                        )
+                    elif hasattr(obj_or_identifier, "content_type"):
+                        dor.content_type = get_object_attribute(obj_or_identifier, "content_type")
+
+                set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Title"))
+
+            else:
+                if hasattr(dor, "qualified_type"):
+                    set_attribute_from_path(dor, "qualified_type", get_qualified_type_from_class(obj_or_identifier))
+                if hasattr(dor, "content_type"):
+                    set_attribute_from_path(dor, "content_type", get_content_type_from_class(obj_or_identifier))
+
+                set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Citation.Title"))
+
+            set_attribute_from_path(dor, "uuid", get_obj_uuid(obj_or_identifier))
+
+            if hasattr(dor, "object_version"):
+                set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
+            if hasattr(dor, "version_string"):
+                set_attribute_from_path(dor, "version_string", get_obj_version(obj_or_identifier))
 
     return dor
 

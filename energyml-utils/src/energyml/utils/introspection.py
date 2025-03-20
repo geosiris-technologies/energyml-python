@@ -7,7 +7,7 @@ import random
 import re
 import sys
 import typing
-from dataclasses import Field
+from dataclasses import Field, field
 from enum import Enum
 from importlib import import_module
 from types import ModuleType
@@ -311,8 +311,18 @@ def get_class_fields(cls: Union[type, Any]) -> Dict[str, Field]:
     try:
         return cls.__dataclass_fields__
     except AttributeError:
-        # print(list_function_parameters_with_types(cls.__new__, True))
-        return list_function_parameters_with_types(cls.__new__, True)
+        try:
+            # print(list_function_parameters_with_types(cls.__new__, True))
+            return list_function_parameters_with_types(cls.__new__, True)
+        except AttributeError as e:
+            # For not working types like proxy type for C++ binding
+            res = {}
+            for a_name, a_type in inspect.getmembers(cls):
+                # print(f"{a_name} => {inspect.getmembers(a_type)}")
+                if not a_name.startswith("_") and not callable(getattr(cls, a_name, None)):
+                    res[a_name] = field()
+
+            return res
 
 
 def get_class_attributes(cls: Union[type, Any]) -> List[str]:
@@ -529,7 +539,7 @@ def get_object_attribute_advanced(obj: Any, attr_dot_path: str) -> Any:
         return value
 
 
-def get_object_attribute_no_verif(obj: Any, attr_name: str) -> Any:
+def get_object_attribute_no_verif(obj: Any, attr_name: str, default: Optional[Any] = None) -> Any:
     """
     Return the value of the attribute named after param :param:`attr_name` without verification (may raise an exception
     if it doesn't exists).
@@ -540,11 +550,19 @@ def get_object_attribute_no_verif(obj: Any, attr_name: str) -> Any:
     :return:
     """
     if isinstance(obj, list):
-        return obj[int(attr_name)]
+        if int(attr_name) < len(obj):
+            return obj[int(attr_name)] or default
+        else:
+            raise AttributeError(obj, name=attr_name)
     elif isinstance(obj, dict):
-        return obj[attr_name]
+        if attr_name in obj:
+            return obj.get(attr_name, default)
+        else:
+            raise AttributeError(obj, name=attr_name)
     else:
-        return getattr(obj, attr_name, None)
+        return (
+            getattr(obj, attr_name) or default
+        )  # we did not used the "default" of getattr to keep raising AttributeError
 
 
 def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:
@@ -597,6 +615,14 @@ def class_match_rgx(
             if class_match_rgx(base, rgx, super_class_search, re_flags):
                 return True
     return False
+
+
+def is_dor(obj: any) -> bool:
+    return (
+        "dataobjectreference" in get_obj_type(obj).lower()
+        or get_object_attribute(obj, "ContentType") is not None
+        or get_object_attribute(obj, "QualifiedType") is not None
+    )
 
 
 def search_attribute_matching_type_with_path(
@@ -1016,6 +1042,7 @@ def get_obj_version(obj: Any) -> str:
             return get_object_attribute_no_verif(obj, "version_string")
         except Exception:
             logging.error(f"Error with {type(obj)}")
+            return None
             # raise e
 
 
