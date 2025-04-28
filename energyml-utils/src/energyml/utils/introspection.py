@@ -97,6 +97,24 @@ def find_class_in_module(module_name, class_name):
     return None
 
 
+def search_class_in_module_from_partial_name(module_name: str, class_partial_name: str) -> Optional[List[type]]:
+    """
+    Search a class in a module using a partial name.
+    :param module_name: The name of the module to search in.
+    :param class_partial_name: The partial name of the class to search for.
+    :return: A list of classes that match the partial name.
+
+    """
+    try:
+        module = import_module(module_name)
+        classes = get_module_classes_from_name(module_name)
+        matching_classes = [cls for cls_name, cls in classes if class_partial_name.lower() in cls_name.lower()]
+        return matching_classes
+    except ImportError as e:
+        logging.error(f"Module '{module_name}' not found: {e}")
+    return None
+
+
 def get_class_methods(cls: Union[type, Any]) -> List[str]:
     """
     Returns the list of the methods names for a specific class.
@@ -196,24 +214,18 @@ def get_energyml_class_in_related_dev_pkg(cls: type):
     return res
 
 
-def get_class_from_qualified_type(qualified_type: str) -> Optional[type]:
-    return get_class_from_content_type(qualified_type)
-
-
-def get_class_from_content_type(content_type: str) -> Optional[type]:
+def get_module_name_and_type_from_content_or_qualified_type(cqt: str) -> Tuple[str, str]:
     """
-    Return a :class:`type` object matching with the content-type :param:`content_type`.
-    :param content_type:
-    :return:
+    Return a tuple (module_name, type) from a content-type or qualified-type string.
     """
     ct = None
     try:
-        ct = parse_content_type(content_type)
+        ct = parse_content_type(cqt)
     except AttributeError:
         pass
     if ct is None:
         try:
-            ct = parse_qualified_type(content_type)
+            ct = parse_qualified_type(cqt)
         except AttributeError:
             pass
 
@@ -221,19 +233,13 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
     if domain is None:
         # logging.debug(f"\tdomain {domain} xmlDomain {ct.group('xmlDomain')} ")
         domain = "opc"
+
     if domain == "opc":
         xml_domain = ct.group("xmlDomain")
         if "." in xml_domain:
             xml_domain = xml_domain[xml_domain.rindex(".") + 1 :]
-        # Don't know what to do with http://schemas.f2i-consulting.com/package/2014/metadata/extended-core-properties
-        # if "extended" in xml_domain:
-        #     xml_domain = xml_domain.replace("extended", "")
-        #     if xml_domain.startswith("-"):
-        #         xml_domain = xml_domain[1:]
-        #
         opc_type = pascal_case(xml_domain).replace("-", "")
-        # logging.debug("\tenergyml.opc.opc." + opc_type)
-        return get_class_from_name("energyml.opc.opc." + opc_type)
+        return ("energyml.opc.opc", opc_type)
     else:
         domain = ct.group("domain")
         obj_type = ct.group("type")
@@ -246,10 +252,21 @@ def get_class_from_content_type(content_type: str) -> Optional[type]:
         if domain.lower() == "resqml" and version_num.startswith("2_0"):
             version_num = "2_0_1"
 
-        # logging.debug(get_module_name(domain, version_num)
-        #     + "."
-        #     + obj_type)
-        return get_class_from_name(get_module_name(domain, version_num) + "." + obj_type)
+        return (get_module_name(domain, version_num), obj_type)
+
+
+def get_class_from_qualified_type(qualified_type: str) -> Optional[type]:
+    return get_class_from_content_type(qualified_type)
+
+
+def get_class_from_content_type(content_type: str) -> Optional[type]:
+    """
+    Return a :class:`type` object matching with the content-type :param:`content_type`.
+    :param content_type:
+    :return:
+    """
+    module_name, object_type = get_module_name_and_type_from_content_or_qualified_type(content_type)
+    return get_class_from_name(module_name + "." + object_type)
 
 
 def get_module_name(domain: str, domain_version: str):
@@ -1392,11 +1409,14 @@ def random_value_from_class(cls: type):
     if not is_primitive(cls):
         # import_related_module(cls.__module__)
         energyml_module_context = get_related_energyml_modules_name(cls)
-    return _random_value_from_class(
-        cls=cls,
-        energyml_module_context=energyml_module_context,
-        attribute_name=None,
-    )
+    if cls is not None:
+        return _random_value_from_class(
+            cls=cls,
+            energyml_module_context=energyml_module_context,
+            attribute_name=None,
+        )
+    else:
+        return None
 
 
 def _random_value_from_class(

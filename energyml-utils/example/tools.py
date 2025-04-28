@@ -12,7 +12,9 @@ from src.energyml.utils.data.mesh import MeshFileFormat, export_multiple_data
 from src.energyml.utils.epc import Epc, gen_energyml_object_path
 from src.energyml.utils.introspection import (
     get_class_from_simple_name,
+    get_module_name_and_type_from_content_or_qualified_type,
     random_value_from_class,
+    search_class_in_module_from_partial_name,
     set_attribute_from_path,
     get_object_attribute,
     get_qualified_type_from_class,
@@ -293,6 +295,14 @@ def generate_data():
         )
     except NameError:
         obj_class = get_class_from_qualified_type(args.type)
+
+    if obj_class is None:
+        print("Class not found, please check the type name.")
+        print("Possible types are :")
+        module_name, object_type = get_module_name_and_type_from_content_or_qualified_type(args.type)
+        for cn in search_class_in_module_from_partial_name(module_name, object_type):
+            print(f" - {cn.__name__}")
+        return
 
     obj = random_value_from_class(obj_class)
     if args.file_format.lower() == "xml":
