@@ -481,10 +481,8 @@ def get_external_file_path_from_external_path(
 
 def get_external_file_path_possibilities_from_folder(file_raw_path: str, folder_path: str) -> List[str]:
     external_path_respect = file_raw_path
-    external_path_rematch = (
-        f"{folder_path + '/' if folder_path is not None and len(folder_path) else ''}{os.path.basename(file_raw_path)}"
-    )
-    external_path_no_folder = f"{os.path.basename(file_raw_path)}"
+    external_path_rematch = f"{folder_path + '/' if folder_path is not None and len(folder_path) else ''}{os.path.basename(file_raw_path or '')}"
+    external_path_no_folder = f"{os.path.basename(file_raw_path)}" if file_raw_path is not None else ""
 
     return [
         external_path_respect,
@@ -542,7 +540,8 @@ def read_external_dataset_array(
                 break  # stop after the first read success
             except MissingExtraInstallation as mei:
                 raise mei
-            except OSError as e:
+            except Exception as e:
+                logging.debug(f"Failed to read external file {s} for {path_in_obj} with path {path_in_external} : {e}")
                 pass
         if not succeed:
             raise Exception(f"Failed to read external file. Paths tried : {sources}")
