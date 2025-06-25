@@ -52,6 +52,23 @@ except Exception as e:
 # HDF5
 if __H5PY_MODULE_EXISTS__:
 
+    def h5_list_datasets(h5_file_path):
+        """
+        List all datasets in an HDF5 file.
+        :param h5_file_path: Path to the HDF5 file
+        :return: List of dataset names in the HDF5 file
+        """
+        res = []
+        with h5py.File(h5_file_path, "r") as f:
+            # Function to print the names of all datasets
+            def list_datasets(name, obj):
+                if isinstance(obj, h5py.Dataset):  # Check if the object is a dataset
+                    res.append(name)
+
+            # Visit all items in the HDF5 file and apply the list function
+            f.visititems(list_datasets)
+        return res
+
     @dataclass
     class HDF5FileReader(DatasetReader):
         def read_array(self, source: Union[BytesIO, str], path_in_external_file: str) -> Optional[List[Any]]:
@@ -481,10 +498,8 @@ def get_external_file_path_from_external_path(
 
 def get_external_file_path_possibilities_from_folder(file_raw_path: str, folder_path: str) -> List[str]:
     external_path_respect = file_raw_path
-    external_path_rematch = (
-        f"{folder_path + '/' if folder_path is not None and len(folder_path) else ''}{os.path.basename(file_raw_path)}"
-    )
-    external_path_no_folder = f"{os.path.basename(file_raw_path)}"
+    external_path_rematch = f"{folder_path + '/' if folder_path is not None and len(folder_path) else ''}{os.path.basename(file_raw_path or '')}"
+    external_path_no_folder = f"{os.path.basename(file_raw_path)}" if file_raw_path is not None else ""
 
     return [
         external_path_respect,
@@ -542,7 +557,8 @@ def read_external_dataset_array(
                 break  # stop after the first read success
             except MissingExtraInstallation as mei:
                 raise mei
-            except OSError as e:
+            except Exception as e:
+                logging.debug(f"Failed to read external file {s} for {path_in_obj} with path {path_in_external} : {e}")
                 pass
         if not succeed:
             raise Exception(f"Failed to read external file. Paths tried : {sources}")

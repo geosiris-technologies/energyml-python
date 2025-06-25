@@ -7,6 +7,7 @@ from dataclasses import fields
 from energyml.eml.v2_3.commonv2 import *
 from energyml.eml.v2_3.commonv2 import AbstractObject
 from energyml.resqml.v2_0_1.resqmlv2 import DoubleHdf5Array
+from energyml.resqml.v2_0_1.resqmlv2 import TriangulatedSetRepresentation as Tr20
 from energyml.resqml.v2_2.resqmlv2 import (
     TriangulatedSetRepresentation,
     FaultInterpretation,
@@ -484,4 +485,11 @@ if __name__ == "__main__":
     # class_field()
     # test_get_projected_uom()
     # test_crs()
-    test_dor_conversion()
+    # test_dor_conversion()
+    print(get_obj_uri(tr, "coucou"))
+
+    tr201 = Tr20(
+        citation=tr_cit,
+        uuid=gen_uuid(),
+    )
+    print(get_obj_uri(tr201, "coucou"))

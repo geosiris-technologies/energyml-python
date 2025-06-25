@@ -38,6 +38,10 @@ keywords = ["energyml", "resqml", "witsml", "prodml"]
 packages = [
     { include = "energyml", from = "src" },
 ]
+include = [
+    "src/energyml/utils/rc/*.xml",
+    "src/energyml/utils/rc/*.json"
+]
 #exclude = [
 #    "src/energyml/main.py"
 #]

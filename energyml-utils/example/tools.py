@@ -8,11 +8,13 @@ from typing import Optional, List, Dict, Any
 
 from src.energyml.utils.constants import get_property_kind_dict_path_as_xml
 from src.energyml.utils.data.datasets_io import CSVFileReader, HDF5FileWriter, ParquetFileWriter, DATFileReader
-from src.energyml.utils.data.mesh import MeshFileFormat, export_multiple_data
+from src.energyml.utils.data.mesh import MeshFileFormat, export_multiple_data, export_obj, read_mesh_object
 from src.energyml.utils.epc import Epc, gen_energyml_object_path
 from src.energyml.utils.introspection import (
     get_class_from_simple_name,
+    get_module_name_and_type_from_content_or_qualified_type,
     random_value_from_class,
+    search_class_in_module_from_partial_name,
     set_attribute_from_path,
     get_object_attribute,
     get_qualified_type_from_class,
@@ -294,6 +296,14 @@ def generate_data():
     except NameError:
         obj_class = get_class_from_qualified_type(args.type)
 
+    if obj_class is None:
+        print("Class not found, please check the type name.")
+        print("Possible types are :")
+        module_name, object_type = get_module_name_and_type_from_content_or_qualified_type(args.type)
+        for cn in search_class_in_module_from_partial_name(module_name, object_type):
+            print(f" - {cn.__name__}")
+        return
+
     obj = random_value_from_class(obj_class)
     if args.file_format.lower() == "xml":
         print(serialize_xml(obj))
@@ -524,3 +534,26 @@ def describe_as_csv():
             out.write("\n")
 
     print("Finished")
+
+
+# def export_wavefront():
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("--epc", "-f", type=str, help="Epc file path")
+#     parser.add_argument("--output", "-o", type=str, help="Output folder path")
+#     parser.add_argument("--uuid", "-u", type=str, help="The uuids of representations to extract", nargs="+")
+
+#     args = parser.parse_args()
+
+#     epc = Epc.read_file(args.epc)
+#     for uuid in args.uuid:
+#         obj = epc.get_object_by_uuid(uuid)[0]
+
+#         mesh = read_mesh_object(
+#             energyml_object=obj,
+#             workspace=epc,
+#         )
+
+#         if obj is not None:
+#             fname = gen_energyml_object_path(obj)
+#             with open(os.path.join(args.output, fname + ".obj"), "w") as f:
+#                 export_obj(mesh_list=mesh, out=f)  # Assuming the object can be serialized to XML
