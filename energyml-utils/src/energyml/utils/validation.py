@@ -244,15 +244,16 @@ def validate_attribute(value: Any, root_obj: Any, att_field: Field, path: str) -
                     attribute_dot_path=path,
                 )
             )
-    elif isinstance(att_field, str):
-        errs.append(
-            ValidationObjectError(
-                error_type=ErrorType.WARNING,
-                target_obj=root_obj,
-                attribute_dot_path=path,
-                msg=f"Attribute '{att_field}' is a string but got value '{value}'",
-            )
-        )
+    elif is_primitive(att_field) or not hasattr(att_field, "metadata"):
+        return errs
+        # errs.append(
+        #     ValidationObjectError(
+        #         error_type=ErrorType.WARNING,
+        #         target_obj=root_obj,
+        #         attribute_dot_path=path,
+        #         msg=f"Attribute '{att_field}' is a string but got value '{value}'",
+        #     )
+        # )
     elif not is_enum(value):  # sometimes enums values fails the validation
         try:
             min_length = att_field.metadata.get("min_length", None)
@@ -296,20 +297,30 @@ def validate_attribute(value: Any, root_obj: Any, att_field: Field, path: str) -
                             attribute_dot_path=path,
                         )
                     )
+                elif min_occurs > 0 and not isinstance(value, list):
+                    errs.append(
+                        ValidationObjectError(
+                            msg=f"Min occurs was {min_occurs} but found a single value : {value}",
+                            error_type=ErrorType.CRITICAL,
+                            target_obj=root_obj,
+                            attribute_dot_path=path,
+                        )
+                    )
 
             if min_inclusive is not None:
                 potential_err = ValidationObjectError(
-                    msg=f"Min occurs was {min_inclusive} but found {value}",
+                    msg=f"Min inclusive was {min_inclusive} but found {value}",
                     error_type=ErrorType.CRITICAL,
                     target_obj=root_obj,
                     attribute_dot_path=path,
                 )
-                if isinstance(value, list):
-                    for val in value:
-                        if (isinstance(val, str) and len(val) > min_inclusive) or (
-                            (isinstance(val, int) or isinstance(val, float)) and val > min_inclusive
-                        ):
-                            errs.append(potential_err)
+                if not isinstance(value, list):
+                    value = [value]
+                for val in value:
+                    if (isinstance(val, str) and len(val) < min_inclusive) or (
+                        (isinstance(val, int) or isinstance(val, float)) and val < min_inclusive
+                    ):
+                        errs.append(potential_err)
 
             if pattern is not None:
                 if not isinstance(value, list):
@@ -331,6 +342,7 @@ def validate_attribute(value: Any, root_obj: Any, att_field: Field, path: str) -
                         )
         except Exception as e:
             print(f"Error while validating attribute '{att_field}' with value '{value}': {str(e)} for {path}")
+            print(f"att_field : {att_field}, is primitive : {is_primitive(att_field)}")
             errs.append(
                 ValidationObjectError(
                     msg=f"Error while validating attribute '{att_field}' with value '{value}': {str(e)}",
@@ -340,6 +352,9 @@ def validate_attribute(value: Any, root_obj: Any, att_field: Field, path: str) -
                 )
             )
             traceback.print_exc()
+
+            # if isinstance(e, AttributeError):
+
             exit(0)
             return errs
 
