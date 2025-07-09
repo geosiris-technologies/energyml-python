@@ -85,3 +85,12 @@ energyml-prodml2-2 = "^1.12.0"
 - xml_to_json : translate an energyml xml file into json.
 - json_to_xml : translate an energyml json file into an xml file
 - describe_as_csv : create a csv description of an EPC content
+- validate : validate an energyml object or an EPC instance (or a folder containing energyml objects)
+
+
+
+## Validation example : 
+
+```bash
+poetry run validate --input "path/to/your/energyml/object.xml" *> output_logs.json
+```

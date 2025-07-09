@@ -614,8 +614,9 @@ def validate_files():
     epc = Epc()
     epc.energyml_objects = objects
 
-    for err in validate_epc(epc):
-        print(err.toJson())
+    err_json = [err.toJson() for err in validate_epc(epc)]
+
+    print(json.dumps(err_json, indent=4))
 
 
 # def export_wavefront():
