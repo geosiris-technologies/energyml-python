@@ -89,8 +89,31 @@ energyml-prodml2-2 = "^1.12.0"
 
 
 
-## Validation example : 
+## Installation to test poetry scripts : 
 
 ```bash
+poetry install
+```
+
+
+## Validation examples : 
+
+An epc file:
+```bash
+poetry run validate --input "path/to/your/energyml/object.epc" *> output_logs.json
+```
+
+An xml file:
+```bash
 poetry run validate --input "path/to/your/energyml/object.xml" *> output_logs.json
+```
+
+A json file:
+```bash
+poetry run validate --input "path/to/your/energyml/object.json" *> output_logs.json
+```
+
+A folder containing Epc/xml/json files:
+```bash
+poetry run validate --input "path/to/your/folder" *> output_logs.json
 ```
