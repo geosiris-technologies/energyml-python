@@ -6,6 +6,8 @@ import os
 import pathlib
 from typing import Optional, List, Dict, Any
 
+from src.energyml.utils.validation import validate_epc
+
 from src.energyml.utils.constants import get_property_kind_dict_path_as_xml
 from src.energyml.utils.data.datasets_io import CSVFileReader, HDF5FileWriter, ParquetFileWriter, DATFileReader
 from src.energyml.utils.data.mesh import MeshFileFormat, export_multiple_data, export_obj, read_mesh_object
@@ -534,6 +536,86 @@ def describe_as_csv():
             out.write("\n")
 
     print("Finished")
+
+
+def validate_files():
+    parser = argparse.ArgumentParser()
+    # parser.add_argument("--folder", type=str, help="Input folder")
+    parser.add_argument("--file", "-f", type=str, help="Input file (json or xml or epc)")
+
+    args = parser.parse_args()
+
+    objects = []
+
+    if not os.path.exists(args.file):
+        print(f"File {args.file} does not exist.")
+        return
+    elif not os.path.isdir(args.file) and not args.file.lower().endswith((".json", ".xml", ".epc")):
+        print(f"File {args.file} is not a valid input file (should be a folder or a json/xml/epc file).")
+        return
+    elif os.path.isdir(args.file):
+        for filename in os.listdir(args.file):
+            f = os.path.join(args.file, filename)
+            if os.path.isfile(f):
+                if f.endswith(".json"):
+                    with open(f, "rb") as file:
+                        f_content = file.read()
+                        try:
+                            objs = read_energyml_json_bytes(f_content, JSON_VERSION.OSDU_OFFICIAL)
+                            objects.extend(objs)
+                        except Exception as e:
+                            print(f"File {filename} is NOT a valid EnergyML JSON file: {e}")
+                elif f.endswith(".xml"):
+                    with open(f, "rb") as file:
+                        f_content = file.read()
+                        try:
+                            obj = read_energyml_xml_bytes(f_content)
+                            objects.append(obj)
+                        except Exception as e:
+                            print(f"File {filename} is NOT a valid EnergyML XML file: {e}")
+                elif f.endswith(".epc"):
+                    try:
+                        epc = Epc.read_file(f)
+                        if epc is not None:
+                            objects.extend(epc.energyml_objects)
+                        else:
+                            print(f"File {filename} is NOT a valid EnergyML EPC file: Empty EPC")
+                    except Exception as e:
+                        print(f"File {filename} is NOT a valid EnergyML EPC file: {e}")
+    elif os.path.isfile(args.file):
+        f = args.file
+        filename = os.path.basename(f)
+        if f.endswith(".json"):
+            with open(f, "rb") as file:
+                f_content = file.read()
+                try:
+                    objs = read_energyml_json_bytes(f_content, JSON_VERSION.OSDU_OFFICIAL)
+                    objects.extend(objs)
+                except Exception as e:
+                    print(f"File {filename} is NOT a valid EnergyML JSON file: {e}")
+        elif f.endswith(".xml"):
+            with open(f, "rb") as file:
+                f_content = file.read()
+                try:
+                    obj = read_energyml_xml_bytes(f_content)
+                    objects.append(obj)
+                except Exception as e:
+                    print(f"File {filename} is NOT a valid EnergyML XML file: {e}")
+        elif f.endswith(".epc"):
+            try:
+                epc = Epc.read_file(f)
+                if epc is not None:
+                    objects.extend(epc.energyml_objects)
+                else:
+                    print(f"File {filename} is NOT a valid EnergyML EPC file: Empty EPC")
+            except Exception as e:
+                print(f"File {filename} is NOT a valid EnergyML EPC file: {e}")
+
+    epc = Epc()
+    epc.energyml_objects = objects
+
+    for err in validate_epc(epc):
+        print(err.toJson())
 
 
 # def export_wavefront():
