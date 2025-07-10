@@ -40,7 +40,7 @@ This package supports read/write in xml/json the following packages :
 - WITSMl : 2.0, 2.1
 - PRODML : 2.0, 2.2
 
-/!\\ By default, these package are not installed and are published independently.
+/!\\ By default, these packages are not installed and are published independently.
 You can install only the versions you need by adding the following lines in the .toml file : 
 ```toml
 energyml-common2-0 = "^1.12.0"
