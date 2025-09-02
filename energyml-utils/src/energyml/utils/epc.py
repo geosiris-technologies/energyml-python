@@ -627,6 +627,21 @@ def update_prop_kind_dict_cache():
         __CACHE_PROP_KIND_DICT__[prop["Uuid"]] = read_energyml_json_str(json.dumps(prop))[0]
 
 
+def get_property_kind_by_uuid(uuid: str) -> Optional[Any]:
+    """
+    Get a property kind by its uuid.
+    :param uuid: the uuid of the property kind
+    :return: the property kind or None if not found
+    """
+    if len(__CACHE_PROP_KIND_DICT__) == 0:
+        # update the cache to check if it is a
+        try:
+            update_prop_kind_dict_cache()
+        except FileNotFoundError as e:
+            logging.error(f"Failed to parse propertykind dict {e}")
+    return __CACHE_PROP_KIND_DICT__.get(uuid, None)
+
+
 def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectReference"):
     """
     Create an DOR from an object to target the latter.

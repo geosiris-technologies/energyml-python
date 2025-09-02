@@ -486,10 +486,13 @@ if __name__ == "__main__":
     # test_get_projected_uom()
     # test_crs()
     # test_dor_conversion()
-    print(get_obj_uri(tr, "coucou"))
+    # print(get_obj_uri(tr, "coucou"))
 
     tr201 = Tr20(
         citation=tr_cit,
         uuid=gen_uuid(),
     )
-    print(get_obj_uri(tr201, "coucou"))
+    # print(get_obj_uri(tr201, "coucou"))
+
+    print(get_usable_class(tr))
+    print(get_usable_class(tr201))

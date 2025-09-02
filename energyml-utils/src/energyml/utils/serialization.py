@@ -25,6 +25,7 @@ from xsdata.formats.dataclass.serializers.config import SerializerConfig
 
 from .exception import UnknownTypeFromQualifiedType, NotParsableType
 from .introspection import (
+    as_obj_prefixed_class_if_possible,
     get_class_from_name,
     get_energyml_class_in_related_dev_pkg,
     get_class_from_content_type,
@@ -254,6 +255,7 @@ def read_energyml_json_file(
 
 
 def serialize_xml(obj) -> str:
+    obj = as_obj_prefixed_class_if_possible(obj)
     context = XmlContext(
         # element_name_generator=text.camel_case,
         # attribute_name_generator=text.kebab_case
@@ -264,6 +266,7 @@ def serialize_xml(obj) -> str:
 
 
 def serialize_json(obj, json_version: JSON_VERSION = JSON_VERSION.OSDU_OFFICIAL) -> str:
+    obj = as_obj_prefixed_class_if_possible(obj)
     if json_version == JSON_VERSION.XSDATA:
         context = XmlContext(
             # element_name_generator=text.camel_case,
