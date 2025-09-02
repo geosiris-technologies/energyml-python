@@ -1167,6 +1167,45 @@ def get_direct_dor_list(obj: Any) -> List[Any]:
     return search_attribute_matching_type(obj, "DataObjectreference")
 
 
+def get_obj_usable_class(o: Any) -> Optional[type]:
+    """Used only for resqml201 that has classes Obj_TriangulatedSetRepresentation and TriangulatedSetRepresentation for example.
+    This function will return Obj_TriangulatedSetRepresentation class
+    """
+
+    if o is not None:
+        if not isinstance(o, type):
+            o = type(o)
+        if isinstance(o, type):
+            if o.__bases__ is not None:
+                for bc in o.__bases__:
+                    # print(bc)
+                    if bc.__name__.lower() == f"obj{get_obj_type(o).lower()}":
+                        return bc
+        return o if isinstance(o, type) else None
+    return None
+
+
+def as_obj_prefixed_class_if_possible(o: Any) -> Any:
+    """Used only for resqml201 that has classes Obj_TriangulatedSetRepresentation and TriangulatedSetRepresentation for example.
+    This function will return an instance of Obj_TriangulatedSetRepresentation if possible
+    """
+    if o is not None:
+        if not isinstance(o, type):
+            o_type = type(o)
+            if o_type.__bases__ is not None:
+                for bc in o_type.__bases__:
+                    # print(bc)
+                    if bc.__name__.lower() == f"obj{get_obj_type(o_type).lower()}":
+                        try:
+                            return bc(**o.__dict__)
+                        except Exception as e:
+                            logging.error(f"Failed to convert {o} to {bc}")
+                            logging.error(e)
+                            return o
+        return o
+    return None
+
+
 def get_data_object_type(cls: Union[type, Any], print_dev_version=True, nb_max_version_digits=2):
     return get_class_pkg(cls) + "." + get_class_pkg_version(cls, print_dev_version, nb_max_version_digits)
 
@@ -1515,3 +1554,81 @@ def _random_value_from_class(
 
     logging.error(f"@_random_value_from_class Not supported object type generation {cls}")
     return None
+
+
+if __name__ == "__main__":
+
+    from energyml.eml.v2_3.commonv2 import *
+    from energyml.eml.v2_0.commonv2 import Citation as Cit201
+    from energyml.resqml.v2_0_1.resqmlv2 import TriangulatedSetRepresentation as Tr20, ObjTriangulatedSetRepresentation
+    from energyml.resqml.v2_2.resqmlv2 import (
+        TriangulatedSetRepresentation,
+        FaultInterpretation,
+    )
+    from .serialization import *
+
+    fi_cit = Citation(
+        title="An interpretation",
+        originator="Valentin",
+        creation=epoch_to_date(epoch()),
+        editor="test",
+        format="Geosiris",
+        last_update=epoch_to_date(epoch()),
+    )
+
+    fi = FaultInterpretation(
+        citation=fi_cit,
+        uuid=gen_uuid(),
+        object_version="0",
+    )
+
+    tr_cit = Citation(
+        title="--",
+        # title="test title",
+        originator="Valentin",
+        creation=epoch_to_date(epoch()),
+        editor="test",
+        format="Geosiris",
+        last_update=epoch_to_date(epoch()),
+    )
+
+    tr_cit201 = Cit201(
+        title="--",
+        # title="test title",
+        originator="Valentin",
+        # creation=str(epoch_to_date(epoch()))
+        editor="test",
+        format="Geosiris",
+        # last_update=str(epoch_to_date(epoch())),
+    )
+    dor = DataObjectReference(
+        uuid=fi.uuid,
+        title="a DOR title",
+        object_version="0",
+        qualified_type="a wrong qualified type",
+    )
+    tr = TriangulatedSetRepresentation(
+        citation=tr_cit,
+        uuid=gen_uuid(),
+        represented_object=dor,
+    )
+
+    tr201 = Tr20(
+        citation=tr_cit201,
+        uuid=gen_uuid(),
+    )
+    tr201_bis = ObjTriangulatedSetRepresentation(
+        citation=tr_cit201,
+        uuid=gen_uuid(),
+    )
+    # print(get_obj_uri(tr201, "coucou"))
+
+    print(get_obj_usable_class(tr))
+    print(get_obj_usable_class(tr201))
+
+    print(serialize_xml(tr201_bis))
+    print(serialize_xml(tr201))
+    print(serialize_json(tr201))
+    print(serialize_xml(as_obj_prefixed_class_if_possible(tr201)))
+    print("--> ", serialize_json(tr))
+    # print(serialize_xml((get_usable_class(tr201))(tr201)))

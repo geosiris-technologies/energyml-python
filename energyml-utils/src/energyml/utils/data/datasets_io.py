@@ -52,7 +52,7 @@ except Exception as e:
 # HDF5
 if __H5PY_MODULE_EXISTS__:
 
-    def h5_list_datasets(h5_file_path):
+    def h5_list_datasets(h5_file_path: Union[BytesIO, str]) -> List[str]:
         """
         List all datasets in an HDF5 file.
         :param h5_file_path: Path to the HDF5 file
@@ -93,20 +93,23 @@ if __H5PY_MODULE_EXISTS__:
             :param h5_datasets_paths:
             :return:
             """
+            if h5_datasets_paths is None:
+                h5_datasets_paths = h5_list_datasets(input_h5)
             if len(h5_datasets_paths) > 0:
-                with h5py.File(output_h5, "w") as f_dest:
+                with h5py.File(output_h5, "a") as f_dest:
                     with h5py.File(input_h5, "r") as f_src:
                         for dataset in h5_datasets_paths:
                             f_dest.create_dataset(dataset, data=f_src[dataset])
 
     @dataclass
     class HDF5FileWriter:
+
         def write_array(
             self,
             target: Union[str, BytesIO, bytes],
-            array: Union[list, np.array],
+            array: Union[list, np.ndarray],
             path_in_external_file: str,
-            dtype: Optional = None,
+            dtype: Optional[np.dtype] = None,
         ):
             if isinstance(array, list):
                 array = np.asarray(array)
@@ -114,7 +117,7 @@ if __H5PY_MODULE_EXISTS__:
             with h5py.File(target, "a") as f:
                 # print(array.dtype, h5py.string_dtype(), array.dtype == 'O')
                 # print("\t", dtype or (h5py.string_dtype() if array.dtype == '0' else array.dtype))
-                if array.dtype == "O":
+                if isinstance(array, np.ndarray) and array.dtype == "O":
                     array = np.asarray([s.encode() if isinstance(s, str) else s for s in array])
                     np.void(array)
                 dset = f.create_dataset(path_in_external_file, array.shape, dtype or array.dtype)

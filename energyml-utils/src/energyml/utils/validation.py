@@ -133,6 +133,21 @@ def validate_epc(epc: Epc) -> List[ValidationError]:
     return errs
 
 
+def validate_objects(energyml_objects: List[Any]) -> List[ValidationError]:
+    """
+    Verify if all :param:`energyml_objects` are valid.
+    :param energyml_objects:
+    :return:
+    """
+    errs = []
+    for obj in energyml_objects:
+        errs = errs + patterns_validation(obj)
+
+    errs = errs + dor_validation(energyml_objects)
+
+    return errs
+
+
 def dor_validation(energyml_objects: List[Any]) -> List[ValidationError]:
     """
     Verification for DOR. An error is raised if DORs contains wrong information, or if a referenced object is unknown
