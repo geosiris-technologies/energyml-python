@@ -1197,6 +1197,11 @@ def as_obj_prefixed_class_if_possible(o: Any) -> Any:
                     # print(bc)
                     if bc.__name__.lower() == f"obj{get_obj_type(o_type).lower()}":
                         try:
+                            try:
+                                if bc.Meta is not None:
+                                    bc.Meta.namespace = o_type.Meta.namespace  # keep the same namespace
+                            except Exception:
+                                logging.error(f"Failed to set namespace for {bc}")
                             return bc(**o.__dict__)
                         except Exception as e:
                             logging.error(f"Failed to convert {o} to {bc}")
@@ -1554,81 +1559,3 @@ def _random_value_from_class(
 
     logging.error(f"@_random_value_from_class Not supported object type generation {cls}")
     return None
-
-
-if __name__ == "__main__":
-
-    from energyml.eml.v2_3.commonv2 import *
-    from energyml.eml.v2_0.commonv2 import Citation as Cit201
-    from energyml.resqml.v2_0_1.resqmlv2 import TriangulatedSetRepresentation as Tr20, ObjTriangulatedSetRepresentation
-    from energyml.resqml.v2_2.resqmlv2 import (
-        TriangulatedSetRepresentation,
-        FaultInterpretation,
-    )
-    from .serialization import *
-
-    fi_cit = Citation(
-        title="An interpretation",
-        originator="Valentin",
-        creation=epoch_to_date(epoch()),
-        editor="test",
-        format="Geosiris",
-        last_update=epoch_to_date(epoch()),
-    )
-
-    fi = FaultInterpretation(
-        citation=fi_cit,
-        uuid=gen_uuid(),
-        object_version="0",
-    )
-
-    tr_cit = Citation(
-        title="--",
-        # title="test title",
-        originator="Valentin",
-        creation=epoch_to_date(epoch()),
-        editor="test",
-        format="Geosiris",
-        last_update=epoch_to_date(epoch()),
-    )
-
-    tr_cit201 = Cit201(
-        title="--",
-        # title="test title",
-        originator="Valentin",
-        # creation=str(epoch_to_date(epoch()))
-        editor="test",
-        format="Geosiris",
-        # last_update=str(epoch_to_date(epoch())),
-    )
-    dor = DataObjectReference(
-        uuid=fi.uuid,
-        title="a DOR title",
-        object_version="0",
-        qualified_type="a wrong qualified type",
-    )
-    tr = TriangulatedSetRepresentation(
-        citation=tr_cit,
-        uuid=gen_uuid(),
-        represented_object=dor,
-    )
-
-    tr201 = Tr20(
-        citation=tr_cit201,
-        uuid=gen_uuid(),
-    )
-    tr201_bis = ObjTriangulatedSetRepresentation(
-        citation=tr_cit201,
-        uuid=gen_uuid(),
-    )
-    # print(get_obj_uri(tr201, "coucou"))
-
-    print(get_obj_usable_class(tr))
-    print(get_obj_usable_class(tr201))
-
-    print(serialize_xml(tr201_bis))
-    print(serialize_xml(tr201))
-    print(serialize_json(tr201))
-    print(serialize_xml(as_obj_prefixed_class_if_possible(tr201)))
-    print("--> ", serialize_json(tr))
-    # print(serialize_xml((get_usable_class(tr201))(tr201)))

@@ -254,8 +254,8 @@ def read_energyml_json_file(
 # /____/\___/_/  /_/\__,_/_/_/ /___/\__,_/\__/_/\____/_/ /_/
 
 
-def serialize_xml(obj) -> str:
-    obj = as_obj_prefixed_class_if_possible(obj)
+def serialize_xml(obj, check_obj_prefixed_classes: bool = True) -> str:
+    obj = as_obj_prefixed_class_if_possible(obj) if check_obj_prefixed_classes else obj
     context = XmlContext(
         # element_name_generator=text.camel_case,
         # attribute_name_generator=text.kebab_case
@@ -265,8 +265,10 @@ def serialize_xml(obj) -> str:
     return serializer.render(obj, ns_map=ENERGYML_NAMESPACES)
 
 
-def serialize_json(obj, json_version: JSON_VERSION = JSON_VERSION.OSDU_OFFICIAL) -> str:
-    obj = as_obj_prefixed_class_if_possible(obj)
+def serialize_json(
+    obj, json_version: JSON_VERSION = JSON_VERSION.OSDU_OFFICIAL, check_obj_prefixed_classes: bool = True
+) -> str:
+    obj = as_obj_prefixed_class_if_possible(obj) if check_obj_prefixed_classes else obj
     if json_version == JSON_VERSION.XSDATA:
         context = XmlContext(
             # element_name_generator=text.camel_case,

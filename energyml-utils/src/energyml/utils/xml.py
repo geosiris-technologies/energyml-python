@@ -9,7 +9,7 @@ from .constants import *
 
 
 def get_pkg_from_namespace(namespace: str) -> Optional[str]:
-    for (k, v) in ENERGYML_NAMESPACES_PACKAGE.items():
+    for k, v in ENERGYML_NAMESPACES_PACKAGE.items():
         if namespace in v:
             return k
     return None
@@ -22,7 +22,7 @@ def is_energyml_content_type(content_type: str) -> bool:
 
 
 def get_root_namespace(tree: ETREE.Element) -> str:
-    return tree.nsmap[tree.prefix]
+    return tree.nsmap.get(tree.prefix, tree.nsmap.get(None, ""))
 
 
 def get_class_name_from_xml(tree: ETREE.Element) -> str:
@@ -34,11 +34,7 @@ def get_class_name_from_xml(tree: ETREE.Element) -> str:
         if pkg == "opc":
             return "energyml.opc.opc." + get_root_type(tree)
         else:
-            schema_version = (
-                (find_schema_version_in_element(tree) or "")
-                .replace(".", "_")
-                .replace("-", "_")
-            )
+            schema_version = (find_schema_version_in_element(tree) or "").replace(".", "_").replace("-", "_")
             if pkg == "resqml" and schema_version == "2_0":
                 schema_version = "2_0_1"
 
@@ -48,7 +44,7 @@ def get_class_name_from_xml(tree: ETREE.Element) -> str:
                 + ".v"
                 + schema_version
                 + "."
-                + root_namespace[root_namespace.rindex("/") + 1:]
+                + root_namespace[root_namespace.rindex("/") + 1 :]
                 + "."
                 + get_root_type(tree)
             )
@@ -67,11 +63,7 @@ def get_tree(xml_content: Union[bytes, str]) -> ETREE.Element:
     if isinstance(xml_bytes, str):
         # return ETREE.fromstring(xml_content)
         encoding = get_xml_encoding(xml_content)
-        xml_bytes = xml_content.encode(
-            encoding=encoding.strip().lower()
-            if encoding is not None
-            else "utf-8"
-        )
+        xml_bytes = xml_content.encode(encoding=encoding.strip().lower() if encoding is not None else "utf-8")
 
     return ETREE.parse(BytesIO(xml_bytes)).getroot()
 
@@ -84,9 +76,7 @@ def energyml_xpath(tree: ETREE.Element, xpath: str) -> Optional[list]:
         return None
 
 
-def search_element_has_child_xpath(
-    tree: ETREE.Element, child_name: str
-) -> list:
+def search_element_has_child_xpath(tree: ETREE.Element, child_name: str) -> list:
     """
     Search elements that has a child named (xml tag) as 'child_name'.
     Warning : child_name must contain the namespace (see. ENERGYML_NAMESPACES)
