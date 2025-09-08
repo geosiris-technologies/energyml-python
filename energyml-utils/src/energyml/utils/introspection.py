@@ -1463,6 +1463,65 @@ def random_value_from_class(cls: type):
         return None
 
 
+def get_all_possible_instanciable_classes(
+    classes: Union[type, List[Any]], energyml_module_context: List[str]
+) -> List[type]:
+    """
+    List all possible non abstract classes that can be used to instanciate an object of type :param:`classes`.
+    :param classes:
+    :param energyml_module_context:
+    :return:
+    """
+    if not isinstance(classes, list):
+        classes = [classes]
+
+    all_types = []
+    for cls in classes:
+        if not isinstance(cls, type) and cls.__module__ != "typing":
+            all_types = all_types + get_all_possible_instanciable_classes(type(cls), energyml_module_context)
+        elif cls.__module__ == "typing":
+            type_list = list(cls.__args__)
+            if type(None) in type_list:
+                type_list.remove(type(None))  # we don't want to generate none value
+
+            for chosen_type in type_list:
+                all_types = all_types + get_all_possible_instanciable_classes(chosen_type, energyml_module_context)
+        else:
+            potential_classes = [cls] + get_sub_classes(cls)
+            potential_classes = list(filter(lambda _c: not is_abstract(_c), potential_classes))
+            all_types = all_types + potential_classes
+    return all_types
+
+
+def get_all_possible_instanciable_classes_for_attribute(parent_obj: Any, attribute_name: str) -> List[type]:
+    """
+    List all possible non abstract classes that can be used to assign a value to the attribute @attribute_name to the object @parent_obj.
+    """
+    cls = type(parent_obj) if not isinstance(parent_obj, type) else parent_obj
+    if cls is not None and attribute_name is not None:
+        if cls.__module__ == "typing":
+            type_list = list(cls.__args__)
+            if type(None) in type_list:
+                type_list.remove(type(None))  # we don't want to generate none value
+            all_types = []
+            print(type_list)
+            for chosen_type in type_list:
+                all_types = all_types + get_all_possible_instanciable_classes(chosen_type)
+            return all_types
+        else:
+            if attribute_name is not None and len(attribute_name) > 0:
+                ctx = get_related_energyml_modules_name(parent_obj)
+                print(get_class_fields(cls)[attribute_name])
+                print(get_class_fields(cls)[attribute_name].type)
+                sub_cls = get_class_from_simple_name(
+                    simple_name=get_class_fields(cls)[attribute_name].type,
+                    energyml_module_context=ctx,
+                    # energyml_module_context=energyml_module_context,
+                )
+                return get_all_possible_instanciable_classes([sub_cls] + get_sub_classes(sub_cls), ctx)
+    return []
+
+
 def _random_value_from_class(
     cls: Any,
     energyml_module_context: List[str],
@@ -1559,3 +1618,91 @@ def _random_value_from_class(
 
     logging.error(f"@_random_value_from_class Not supported object type generation {cls}")
     return None
+
+
+if __name__ == "__main__":
+    #     # poetry run python -m src.energyml.utils.introspection
+
+    from energyml.eml.v2_3.commonv2 import *
+    from energyml.eml.v2_0.commonv2 import Citation as Cit201
+    from energyml.resqml.v2_0_1.resqmlv2 import TriangulatedSetRepresentation as Tr20, ObjTriangulatedSetRepresentation
+    from energyml.resqml.v2_2.resqmlv2 import (
+        TriangulatedSetRepresentation,
+        FaultInterpretation,
+    )
+    from .serialization import *
+
+    #     # with open(
+    #     #     "C:/Users/Cryptaro/Downloads/test/obj_TriangulatedSetRepresentation_9298c0c3-7418-4c70-8388-e6071c95074e.xml",
+    #     #     "rb",
+    #     # ) as f:
+    #     #     f_content = f.read()
+    #     #     print(read_energyml_xml_bytes(f_content))
+
+    fi_cit = Citation(
+        title="An interpretation",
+        originator="Valentin",
+        creation=epoch_to_date(epoch()),
+        editor="test",
+        format="Geosiris",
+        last_update=epoch_to_date(epoch()),
+    )
+
+    fi = FaultInterpretation(
+        citation=fi_cit,
+        uuid=gen_uuid(),
+        object_version="0",
+    )
+
+    tr_cit = Citation(
+        title="--",
+        # title="test title",
+        originator="Valentin",
+        creation=epoch_to_date(epoch()),
+        editor="test",
+        format="Geosiris",
+        last_update=epoch_to_date(epoch()),
+    )
+
+    #     tr_cit201 = Cit201(
+    #         title="--",
+    #         # title="test title",
+    #         originator="Valentin",
+    #         # creation=str(epoch_to_date(epoch()))
+    #         editor="test",
+    #         format="Geosiris",
+    #         # last_update=str(epoch_to_date(epoch())),
+    #     )
+    dor = DataObjectReference(
+        uuid=fi.uuid,
+        title="a DOR title",
+        object_version="0",
+        qualified_type="a wrong qualified type",
+    )
+    tr = TriangulatedSetRepresentation(
+        citation=tr_cit,
+        uuid=gen_uuid(),
+        represented_object=dor,
+    )
+
+    #     tr201 = Tr20(
+    #         citation=tr_cit201,
+    #         uuid=gen_uuid(),
+    #     )
+    #     tr201_bis = ObjTriangulatedSetRepresentation(
+    #         citation=tr_cit201,
+    #         uuid=gen_uuid(),
+    #     )
+    #     # print(get_obj_uri(tr201, "coucou"))
+
+    #     print(get_obj_usable_class(tr))
+    #     print(get_obj_usable_class(tr201))
+
+    #     print(serialize_xml(tr201_bis, False))
+    #     print(serialize_xml(tr201, False))
+    #     # print(serialize_json(tr201))
+    #     print(serialize_xml(as_obj_prefixed_class_if_possible(tr201)))
+    #     # print("--> ", serialize_json(tr))
+    #     # print(serialize_xml((get_usable_class(tr201))(tr201)))
+    print(get_all_possible_instanciable_classes_for_attribute(tr, "represented_object"))
+    print(get_all_possible_instanciable_classes_for_attribute(tr, "triangle_patch"))
