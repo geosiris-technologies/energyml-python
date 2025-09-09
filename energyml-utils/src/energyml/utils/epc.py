@@ -642,6 +642,30 @@ def get_property_kind_by_uuid(uuid: str) -> Optional[Any]:
     return __CACHE_PROP_KIND_DICT__.get(uuid, None)
 
 
+def get_property_kind_and_parents(uuids: list) -> Dict[str, Any]:
+    """Get PropertyKind objects and their parents from a list of UUIDs.
+
+    Args:
+        uuids (list): List of PropertyKind UUIDs.
+
+    Returns:
+        Dict[str, Any]: A dictionary mapping UUIDs to PropertyKind objects and their parents.
+    """
+    dict_props: Dict[str, Any] = {}
+
+    for prop_uuid in uuids:
+        prop = get_property_kind_by_uuid(prop_uuid)
+        if prop is not None:
+            dict_props[prop_uuid] = prop
+            parent_uuid = get_object_attribute(prop, "parent.uuid")
+            if parent_uuid is not None and parent_uuid not in dict_props:
+                dict_props = get_property_kind_and_parents([parent_uuid]) | dict_props
+        else:
+            logging.warning(f"PropertyKind with UUID {prop_uuid} not found.")
+            continue
+    return dict_props
+
+
 def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectReference"):
     """
     Create an DOR from an object to target the latter.

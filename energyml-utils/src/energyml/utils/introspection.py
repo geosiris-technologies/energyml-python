@@ -991,17 +991,21 @@ def set_attribute_from_path(obj: Any, attribute_path: str, value: Any):
             attrib_class = get_obj_attribute_class(upper, current_attrib_real_name)
             if attrib_class is not None and is_enum(attrib_class):
                 created = True
-                val_snake = snake_case(value)
-                setattr(
-                    upper,
-                    current_attrib_real_name,
-                    list(
-                        filter(
-                            lambda ev: snake_case(ev) == val_snake,
-                            attrib_class._member_names_,
-                        )
-                    )[0],
-                )
+                try:
+                    val_snake = snake_case(value)
+                    setattr(
+                        upper,
+                        current_attrib_real_name,
+                        list(
+                            filter(
+                                lambda ev: snake_case(ev) == val_snake,
+                                attrib_class._member_names_,
+                            )
+                        )[0],
+                    )
+                except (IndexError, TypeError) as e:
+                    setattr(upper, current_attrib_real_name, None)
+                    raise ValueError(f"Value '{value}' not valid for enum {attrib_class}") from e
         if not created:  # If previous test failed, the attribute did not exist in the object, we create it
             if isinstance(upper, dict):
                 upper[current_attrib_name] = value
@@ -1359,18 +1363,9 @@ def get_obj_attribute_class(
                 type_list.remove(type(None))  # we don't want to generate none value
 
             if cls._name == "List":
-                nb_value_for_list = random.randint(2, 3)
                 lst = []
-                for i in range(nb_value_for_list):
-                    chosen_type = type_list[random.randint(0, len(type_list) - 1)]
-                    lst.append(
-                        _random_value_from_class(
-                            chosen_type,
-                            get_related_energyml_modules_name(cls),
-                            attribute_name,
-                            list,
-                        )
-                    )
+                for i in type_list:
+                    lst.append(get_all_possible_instanciable_classes(i, get_related_energyml_modules_name(cls)))
                 return lst
             else:
                 chosen_type = type_list[random.randint(0, len(type_list) - 1)]
