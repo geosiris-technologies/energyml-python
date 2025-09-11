@@ -680,6 +680,7 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
         if isinstance(obj_or_identifier, str):  # is an identifier or uri
             parsed_uri = parse_uri(obj_or_identifier)
             if parsed_uri is not None:
+                print(f"====> parsed uri {parsed_uri} : uuid is {parsed_uri.uuid}")
                 if hasattr(dor, "qualified_type"):
                     set_attribute_from_path(dor, "qualified_type", parsed_uri.get_qualified_type())
                 if hasattr(dor, "content_type"):
@@ -687,10 +688,13 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
                         dor, "content_type", qualified_type_to_content_type(parsed_uri.get_qualified_type())
                     )
                 set_attribute_from_path(dor, "uuid", parsed_uri.uuid)
+                set_attribute_from_path(dor, "uid", parsed_uri.uuid)
                 if hasattr(dor, "object_version"):
-                    set_attribute_from_path(dor, "version_string", parsed_uri.version)
+                    set_attribute_from_path(dor, "object_version", parsed_uri.version)
                 if hasattr(dor, "version_string"):
                     set_attribute_from_path(dor, "version_string", parsed_uri.version)
+                if hasattr(dor, "energistics_uri"):
+                    set_attribute_from_path(dor, "energistics_uri", obj_or_identifier)
 
             else:  # identifier
                 if len(__CACHE_PROP_KIND_DICT__) == 0:
@@ -705,6 +709,7 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
                         return as_dor(__CACHE_PROP_KIND_DICT__[uuid])
                     else:
                         set_attribute_from_path(dor, "uuid", uuid)
+                        set_attribute_from_path(dor, "uid", uuid)
                         set_attribute_from_path(dor, "ObjectVersion", version)
                 except AttributeError:
                     logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
@@ -728,21 +733,42 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
                         dor.content_type = get_object_attribute(obj_or_identifier, "content_type")
 
                 set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Title"))
+                set_attribute_from_path(dor, "uuid", get_obj_uuid(obj_or_identifier))
+                set_attribute_from_path(dor, "uid", get_obj_uuid(obj_or_identifier))
+                if hasattr(dor, "object_version"):
+                    set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
+                if hasattr(dor, "version_string"):
+                    set_attribute_from_path(dor, "version_string", get_obj_version(obj_or_identifier))
 
             else:
-                if hasattr(dor, "qualified_type"):
-                    set_attribute_from_path(dor, "qualified_type", get_qualified_type_from_class(obj_or_identifier))
-                if hasattr(dor, "content_type"):
-                    set_attribute_from_path(dor, "content_type", get_content_type_from_class(obj_or_identifier))
 
-                set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Citation.Title"))
+                # for etp Resource object:
+                if hasattr(obj_or_identifier, "uri"):
+                    dor = as_dor(obj_or_identifier.uri, dor_qualified_type)
+                    if hasattr(obj_or_identifier, "name"):
+                        set_attribute_from_path(dor, "title", getattr(obj_or_identifier, "name"))
+                else:
+                    if hasattr(dor, "qualified_type"):
+                        try:
+                            set_attribute_from_path(
+                                dor, "qualified_type", get_qualified_type_from_class(obj_or_identifier)
+                            )
+                        except Exception as e:
+                            logging.error(f"Failed to set qualified_type for DOR {e}")
+                    if hasattr(dor, "content_type"):
+                        try:
+                            set_attribute_from_path(dor, "content_type", get_content_type_from_class(obj_or_identifier))
+                        except Exception as e:
+                            logging.error(f"Failed to set content_type for DOR {e}")
 
-            set_attribute_from_path(dor, "uuid", get_obj_uuid(obj_or_identifier))
+                    set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Citation.Title"))
 
-            if hasattr(dor, "object_version"):
-                set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
-            if hasattr(dor, "version_string"):
-                set_attribute_from_path(dor, "version_string", get_obj_version(obj_or_identifier))
+                    set_attribute_from_path(dor, "uuid", get_obj_uuid(obj_or_identifier))
+                    set_attribute_from_path(dor, "uid", get_obj_uuid(obj_or_identifier))
+                    if hasattr(dor, "object_version"):
+                        set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
+                    if hasattr(dor, "version_string"):
+                        set_attribute_from_path(dor, "version_string", get_obj_version(obj_or_identifier))
 
     return dor
 

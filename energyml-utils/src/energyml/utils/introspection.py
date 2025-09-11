@@ -1220,11 +1220,13 @@ def get_data_object_type(cls: Union[type, Any], print_dev_version=True, nb_max_v
 
 
 def get_qualified_type_from_class(cls: Union[type, Any], print_dev_version=True):
-    return (
-        get_data_object_type(cls, print_dev_version, 2).replace(".", "")
-        + "."
-        + get_object_type_for_file_path_from_class(cls)
-    )
+    if cls is not None:
+        return (
+            get_data_object_type(cls, print_dev_version, 2).replace(".", "")
+            + "."
+            + get_object_type_for_file_path_from_class(cls)
+        )
+    return None
 
 
 def get_object_uri(obj: any, dataspace: Optional[str] = None) -> Optional[Uri]:
