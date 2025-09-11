@@ -25,20 +25,19 @@ def test_uri_constructor():
 
 
 def test_uri_eq():
-    assert (
-        Uri(
-                dataspace="/folder-name/project-name",
-                domain="resqml",
-                domain_version="20",
-                object_type="obj_HorizonInterpretation",
-                uuid="421a7a05-033a-450d-bcef-051352023578",
-                version="2.0",
-                collection_domain=None,
-                collection_domain_version=None,
-                collection_domain_type=None,
-                query="query",
-            )
-        == Uri.parse("eml:///dataspace('/folder-name/project-name')/resqml20.obj_HorizonInterpretation(uuid=421a7a05-033a-450d-bcef-051352023578,version='2.0')?query")
+    assert Uri(
+        dataspace="/folder-name/project-name",
+        domain="resqml",
+        domain_version="20",
+        object_type="obj_HorizonInterpretation",
+        uuid="421a7a05-033a-450d-bcef-051352023578",
+        version="2.0",
+        collection_domain=None,
+        collection_domain_version=None,
+        collection_domain_type=None,
+        query="query",
+    ) == Uri.parse(
+        "eml:///dataspace('/folder-name/project-name')/resqml20.obj_HorizonInterpretation(uuid=421a7a05-033a-450d-bcef-051352023578,version='2.0')?query"
     )
 
 
@@ -106,3 +105,11 @@ def test_uri_dataspace_data_object_collection_query():
 def test_uri_full():
     uri = "eml:///witsml20.Well(uuid=ec8c3f16-1454-4f36-ae10-27d2a2680cf2,version='1.0')/witsml20.Wellbore?query"
     assert uri == str(parse_uri(uri))
+
+
+def test_uuid():
+    uri = parse_uri(
+        "eml:///witsml20.Well(uuid=ec8c3f16-1454-4f36-ae10-27d2a2680cf2,version='1.0')/witsml20.Wellbore?query"
+    )
+    assert uri.uuid == "ec8c3f16-1454-4f36-ae10-27d2a2680cf2"
+    assert uri.version == "1.0"
