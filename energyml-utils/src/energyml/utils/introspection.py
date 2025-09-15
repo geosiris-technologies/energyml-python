@@ -1243,12 +1243,12 @@ def dor_to_uris(dor: Any, dataspace: Optional[str] = None) -> Optional[Uri]:
         value = get_object_attribute_no_verif(dor, "qualified_type")
         result = parse_qualified_type(value)
     except Exception as e:
-        print(e)
+        logging.error(e)
         try:
             value = get_object_attribute_no_verif(dor, "content_type")
             result = parse_content_type(value)
         except Exception as e2:
-            print(e2)
+            logging.error(e2)
 
     if result is None:
         return None
@@ -1501,15 +1501,14 @@ def get_all_possible_instanciable_classes_for_attribute(parent_obj: Any, attribu
             if type(None) in type_list:
                 type_list.remove(type(None))  # we don't want to generate none value
             all_types = []
-            print(type_list)
             for chosen_type in type_list:
                 all_types = all_types + get_all_possible_instanciable_classes(chosen_type)
             return all_types
         else:
             if attribute_name is not None and len(attribute_name) > 0:
                 ctx = get_related_energyml_modules_name(parent_obj)
-                print(get_class_fields(cls)[attribute_name])
-                print(get_class_fields(cls)[attribute_name].type)
+                # logging.debug(get_class_fields(cls)[attribute_name])
+                # logging.debug(get_class_fields(cls)[attribute_name].type)
                 sub_cls = get_class_from_simple_name(
                     simple_name=get_class_fields(cls)[attribute_name].type,
                     energyml_module_context=ctx,

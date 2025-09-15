@@ -416,7 +416,7 @@ def path_next_attribute(dot_path: str) -> Tuple[Optional[str], Optional[str]]:
 def path_last_attribute(dot_path: str) -> str:
     _m = re.match(DOT_PATH, dot_path)
     if _m is not None:
-        return _m.group("last")
+        return _m.group("last") or _m.group("first")  # if no last, return first
     return None
 
 
