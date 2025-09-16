@@ -435,7 +435,8 @@ def _fill_dict_with_attribs(
                     if ref_value is not None:
                         res["_data"] = to_json_dict_fn(ref_value, f_identifier_to_obj)
                     else:
-                        logging.debug(f"NotFound : {ref_identifier}")
+                        # logging.debug(f"NotFound : {ref_identifier}")
+                        pass
 
 
 def _to_json_dict_fn(

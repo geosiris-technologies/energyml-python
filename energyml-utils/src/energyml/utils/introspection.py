@@ -989,7 +989,10 @@ def set_attribute_from_path(obj: Any, attribute_path: str, value: Any):
         created = False
         if current_attrib_real_name is not None:
             attrib_class = get_obj_attribute_class(upper, current_attrib_real_name)
-            if attrib_class is not None and is_enum(attrib_class):
+            if isinstance(upper, list):
+                upper[int(current_attrib_real_name)] = value
+                created = True
+            elif attrib_class is not None and is_enum(attrib_class):
                 created = True
                 try:
                     val_snake = snake_case(value)
@@ -1009,6 +1012,8 @@ def set_attribute_from_path(obj: Any, attribute_path: str, value: Any):
         if not created:  # If previous test failed, the attribute did not exist in the object, we create it
             if isinstance(upper, dict):
                 upper[current_attrib_name] = value
+            elif isinstance(upper, list):
+                upper[int(current_attrib_name)] = value
             else:
                 setattr(upper, current_attrib_name, value)
 
