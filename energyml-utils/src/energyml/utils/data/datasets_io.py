@@ -7,16 +7,19 @@ This module is a work in progress
 import logging
 import os
 import re
+import numpy as np
 from dataclasses import dataclass
 from io import BytesIO, TextIOWrapper, StringIO, BufferedReader
 from typing import Optional, List, Tuple, Any, Union, TextIO, BinaryIO, Dict
 
-import numpy as np
+from energyml.utils.uri import Uri, parse_uri
 
-from .model import DatasetReader
-from ..constants import EPCRelsRelationshipType, mime_type_to_file_extension
-from ..exception import MissingExtraInstallation
-from ..introspection import (
+from energyml.utils.data.model import DatasetReader
+from energyml.utils.constants import EPCRelsRelationshipType, mime_type_to_file_extension, path_last_attribute
+from energyml.utils.exception import MissingExtraInstallation
+from energyml.utils.introspection import (
+    get_obj_uri,
+    get_obj_uuid,
     search_attribute_matching_name_with_path,
     get_object_attribute,
     search_attribute_matching_name,
@@ -587,3 +590,56 @@ def get_path_in_external_with_path(obj: any) -> List[Tuple[str, Any]]:
     :return: [ (Dot_Path_In_Obj, value), ...]
     """
     return search_attribute_matching_name_with_path(obj, "(PathInHdfFile|PathInExternalFile)")
+
+
+def get_proxy_uri_for_path_in_external(obj: Any, dataspace_name_or_uri: Union[str, Uri]) -> Dict[str, List[Any]]:
+    """
+    Search all PathInHdfFile or PathInExternalFile in the object and return a map of uri to list of path found
+    in the object for this uri.
+    :param obj:
+    :param dataspace_name_or_uri: the dataspace name or uri to search
+    :return: { uri : [ path_in_external1, path_in_external2, ... ], ... }
+    """
+    ds_name = dataspace_name_or_uri
+    ds_uri = dataspace_name_or_uri
+    if isinstance(dataspace_name_or_uri, str):
+        if dataspace_name_or_uri is not None:
+            if not dataspace_name_or_uri.startswith("eml:///"):
+                dataspace_name_or_uri = f"eml:///dataspace('{dataspace_name_or_uri}')"
+        else:
+            dataspace_name_or_uri = "eml://"
+        ds_uri = parse_uri(dataspace_name_or_uri)
+        ds_name = ds_uri.dataspace
+    elif isinstance(dataspace_name_or_uri, Uri):
+        ds_uri = dataspace_name_or_uri
+        ds_name = dataspace_name_or_uri.dataspace
+
+    uri_path_map = {}
+    _piefs = get_path_in_external_with_path(obj)
+    if _piefs is not None and len(_piefs) > 0:
+        logging.info(f"Found {_piefs} datasets in object {get_obj_uuid(obj)}")
+
+        # uri_path_map[uri] = _piefs
+        for item in _piefs:
+            uri = str(get_obj_uri(obj, dataspace=ds_name))
+            if isinstance(item, tuple):
+                logging.info(
+                    f"Item: {item}, type: {type(item)}, len: {len(item) if hasattr(item, '__len__') else 'N/A'}"
+                )
+                # Then unpack
+                path, pief = item
+                logging.info(f"\t test : {path_last_attribute(path)}")
+                if "hdf" in path_last_attribute(path).lower():
+                    dor = get_object_attribute(
+                        obj=obj, attr_dot_path=path[: -len(path_last_attribute(path))] + "hdf_proxy"
+                    )
+                    proxy_uuid = get_object_attribute(obj=dor, attr_dot_path="uuid")
+                    if proxy_uuid is not None:
+                        uri = str(get_obj_uri(dor, dataspace=ds_name))
+
+                if uri not in uri_path_map:
+                    uri_path_map[uri] = []
+                uri_path_map[uri].append(pief)
+    else:
+        logging.debug(f"No datasets found in object {str(get_obj_uri(obj))}")
+    return uri_path_map
