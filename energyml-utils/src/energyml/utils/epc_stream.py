@@ -621,7 +621,7 @@ class EpcStreamReader:
                 raise ValueError("Object must have a valid UUID")
 
             if identifier in self._metadata:
-                raise ValueError(f"Object with identifier {identifier} already exists")
+                raise ValueError(f"Object with identifier {identifier} already exists. use update_object() instead.")
 
             # Generate file path if not provided
             file_path = gen_energyml_object_path(obj, self.export_version)
