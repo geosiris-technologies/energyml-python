@@ -6,13 +6,13 @@ import os
 import pathlib
 from typing import Optional, List, Dict, Any
 
-from src.energyml.utils.validation import validate_epc
+from energyml.utils.validation import validate_epc
 
-from src.energyml.utils.constants import get_property_kind_dict_path_as_xml
-from src.energyml.utils.data.datasets_io import CSVFileReader, HDF5FileWriter, ParquetFileWriter, DATFileReader
-from src.energyml.utils.data.mesh import MeshFileFormat, export_multiple_data, export_obj, read_mesh_object
-from src.energyml.utils.epc import Epc, gen_energyml_object_path
-from src.energyml.utils.introspection import (
+from energyml.utils.constants import get_property_kind_dict_path_as_xml
+from energyml.utils.data.datasets_io import CSVFileReader, HDF5FileWriter, ParquetFileWriter, DATFileReader
+from energyml.utils.data.mesh import MeshFileFormat, export_multiple_data, export_obj, read_mesh_object
+from energyml.utils.epc import Epc, gen_energyml_object_path
+from energyml.utils.introspection import (
     get_class_from_simple_name,
     get_module_name_and_type_from_content_or_qualified_type,
     random_value_from_class,
@@ -27,7 +27,7 @@ from src.energyml.utils.introspection import (
     get_class_from_qualified_type,
     get_object_attribute_or_create,
 )
-from src.energyml.utils.serialization import (
+from energyml.utils.serialization import (
     serialize_json,
     JSON_VERSION,
     serialize_xml,

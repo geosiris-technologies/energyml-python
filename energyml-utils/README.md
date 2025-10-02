@@ -95,25 +95,32 @@ energyml-prodml2-2 = "^1.12.0"
 poetry install
 ```
 
+if you fail to run a script, you may have to add "src" to your PYTHONPATH environment variable. For example, in powershell : 
+
+```powershell
+$env:PYTHONPATH="src"
+```
+
 
 ## Validation examples : 
 
 An epc file:
 ```bash
-poetry run validate --input "path/to/your/energyml/object.epc" *> output_logs.json
+poetry run validate --file "path/to/your/energyml/object.epc" *> output_logs.json
 ```
 
 An xml file:
 ```bash
-poetry run validate --input "path/to/your/energyml/object.xml" *> output_logs.json
+poetry run validate --file "path/to/your/energyml/object.xml" *> output_logs.json
 ```
 
 A json file:
 ```bash
-poetry run validate --input "path/to/your/energyml/object.json" *> output_logs.json
+poetry run validate --file "path/to/your/energyml/object.json" *> output_logs.json
 ```
 
 A folder containing Epc/xml/json files:
 ```bash
-poetry run validate --input "path/to/your/folder" *> output_logs.json
+poetry run validate --file "path/to/your/folder" *> output_logs.json
 ```
+
