@@ -581,7 +581,7 @@ def get_path_in_external(obj) -> List[Any]:
     return [val for path, val in get_path_in_external_with_path(obj=obj)]
 
 
-def get_path_in_external_with_path(obj: any) -> List[Tuple[str, Any]]:
+def get_path_in_external_with_path(obj: Any) -> List[Tuple[str, Any]]:
     """
     See :func:`search_attribute_matching_name_with_path`. Search an attribute with type matching regex
     "(PathInHdfFile|PathInExternalFile)".
@@ -600,6 +600,8 @@ def get_proxy_uri_for_path_in_external(obj: Any, dataspace_name_or_uri: Union[st
     :param dataspace_name_or_uri: the dataspace name or uri to search
     :return: { uri : [ path_in_external1, path_in_external2, ... ], ... }
     """
+    if dataspace_name_or_uri is not None and isinstance(dataspace_name_or_uri, str):
+        dataspace_name_or_uri = dataspace_name_or_uri.strip()
     ds_name = dataspace_name_or_uri
     ds_uri = dataspace_name_or_uri
     if isinstance(dataspace_name_or_uri, str):
@@ -607,8 +609,9 @@ def get_proxy_uri_for_path_in_external(obj: Any, dataspace_name_or_uri: Union[st
             if not dataspace_name_or_uri.startswith("eml:///"):
                 dataspace_name_or_uri = f"eml:///dataspace('{dataspace_name_or_uri}')"
         else:
-            dataspace_name_or_uri = "eml://"
+            dataspace_name_or_uri = "eml:///"
         ds_uri = parse_uri(dataspace_name_or_uri)
+        assert ds_uri is not None, f"Cannot parse dataspace uri {dataspace_name_or_uri}"
         ds_name = ds_uri.dataspace
     elif isinstance(dataspace_name_or_uri, Uri):
         ds_uri = dataspace_name_or_uri

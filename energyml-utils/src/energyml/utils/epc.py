@@ -44,6 +44,7 @@ from .constants import (
     qualified_type_to_content_type,
     split_identifier,
     get_property_kind_dict_path_as_dict,
+    OptimizedRegex,
 )
 from .data.datasets_io import (
     read_external_dataset_array,
@@ -827,7 +828,7 @@ def create_external_part_reference(
     :param uuid:
     :return:
     """
-    version_flat = re.findall(RGX_DOMAIN_VERSION, eml_version)[0][0].replace(".", "").replace("_", "")
+    version_flat = OptimizedRegex.DOMAIN_VERSION.findall(eml_version)[0][0].replace(".", "").replace("_", "")
     obj = create_energyml_object(
         content_or_qualified_type="eml" + version_flat + ".EpcExternalPartReference",
         citation=citation,

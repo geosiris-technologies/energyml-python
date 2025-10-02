@@ -52,7 +52,7 @@ def get_class_name_from_xml(tree: ETREE.Element) -> str:
 
 def get_xml_encoding(xml_content: str) -> Optional[str]:
     try:
-        m = re.search(RGX_XML_HEADER, xml_content)
+        m = OptimizedRegex.XML_HEADER.search(xml_content)
         return m.group("encoding")
     except AttributeError:
         return "utf-8"
@@ -84,19 +84,12 @@ def search_element_has_child_xpath(tree: ETREE.Element, child_name: str) -> list
     return list(x for x in energyml_xpath(tree, f"//{child_name}/.."))
 
 
-def get_uuid(tree: ETREE.Element) -> str:
-    _uuids = tree.xpath("@uuid")
-    if len(_uuids) <= 0:
-        _uuids = tree.xpath("@UUID")
-    if len(_uuids) <= 0:
-        _uuids = tree.xpath("@Uuid")
-    if len(_uuids) <= 0:
-        _uuids = tree.xpath("@uid")
-    if len(_uuids) <= 0:
-        _uuids = tree.xpath("@Uid")
-    if len(_uuids) <= 0:
-        _uuids = tree.xpath("@UID")
-    return _uuids[0]
+def get_uuid(tree: ETREE.Element) -> Optional[str]:
+    for attr in ["@uuid", "@UUID", "@Uuid", "@uid", "@Uid", "@UID"]:
+        _uuids = tree.xpath(attr)
+        if _uuids:
+            return _uuids[0]
+    return None
 
 
 def get_root_type(tree: ETREE.Element) -> str:
