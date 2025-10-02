@@ -614,11 +614,12 @@ class EpcStreamReader:
             # Extract object information
             identifier = get_obj_identifier(obj)
             uuid = identifier.split(".")[0] if identifier else None
-            version = identifier.split(".")[1] if identifier and "." in identifier else None
-            object_type = get_object_type_for_file_path_from_class(obj)
 
             if not uuid:
                 raise ValueError("Object must have a valid UUID")
+
+            version = identifier[len(uuid) + 1 :] if identifier and "." in identifier else None
+            object_type = get_object_type_for_file_path_from_class(obj)
 
             if identifier in self._metadata:
                 raise ValueError(f"Object with identifier {identifier} already exists. use update_object() instead.")
