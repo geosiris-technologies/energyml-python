@@ -53,6 +53,7 @@ from .exception import UnparsableFile
 from .introspection import (
     get_class_from_content_type,
     get_obj_type,
+    get_obj_usable_class,
     is_dor,
     search_attribute_matching_type,
     get_obj_version,
@@ -329,7 +330,7 @@ class Epc(EnergymlWorkspace):
                 Relationship(
                     target=gen_energyml_object_path(target_obj, self.export_version),
                     type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
-                    id=f"_{obj_id}_{get_obj_type(target_obj)}_{get_obj_identifier(target_obj)}",
+                    id=f"_{obj_id}_{get_obj_type(get_obj_usable_class(target_obj))}_{get_obj_identifier(target_obj)}",
                 )
                 for target_obj in target_obj_list
             ]
@@ -346,7 +347,7 @@ class Epc(EnergymlWorkspace):
                         Relationship(
                             target=gen_energyml_object_path(target_obj, self.export_version),
                             type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
-                            id=f"_{obj_id}_{get_obj_type(target_obj)}_{get_obj_identifier(target_obj)}",
+                            id=f"_{obj_id}_{get_obj_type(get_obj_usable_class(target_obj))}_{get_obj_identifier(target_obj)}",
                         )
                     )
                 except Exception:
@@ -892,7 +893,8 @@ def gen_energyml_object_path(
     #     object_version = "0"
 
     if export_version == EpcExportVersion.EXPANDED:
-        return f"namespace_{pkg}{pkg_version.replace('.', '')}/{uuid}{(('/version_' + object_version) if object_version is not None else '')}/{obj_type}_{uuid}.xml"
+        return f"namespace_{pkg}{pkg_version.replace('.', '')}/{(('version_' + object_version + '/') if object_version is not None and len(object_version) > 0 else '')}{obj_type}_{uuid}.xml"
+        # return f"namespace_{pkg}{pkg_version.replace('.', '')}/{uuid}{(('/version_' + object_version) if object_version is not None else '')}/{obj_type}_{uuid}.xml"
     else:
         return obj_type + "_" + uuid + ".xml"
 

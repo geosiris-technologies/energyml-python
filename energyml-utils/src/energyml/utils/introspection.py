@@ -1060,7 +1060,7 @@ def get_obj_uuid(obj: Any) -> str:
     return get_object_attribute_rgx(obj, "[Uu]u?id|UUID")
 
 
-def get_obj_version(obj: Any) -> str:
+def get_obj_version(obj: Any) -> Optional[str]:
     """
     Return the object version (check for "object_version" or "version_string" attribute).
     :param obj:
@@ -1075,6 +1075,18 @@ def get_obj_version(obj: Any) -> str:
             logging.error(f"Error with {type(obj)}")
             return None
             # raise e
+
+
+def get_obj_title(obj: Any) -> Optional[str]:
+    """
+    Return the object title (check for "citation.title" attribute).
+    :param obj:
+    :return:
+    """
+    try:
+        return get_object_attribute_advanced(obj, "citation.title")
+    except AttributeError as e:
+        return None
 
 
 def get_obj_pkg_pkgv_type_uuid_version(

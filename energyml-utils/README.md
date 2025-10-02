@@ -76,6 +76,144 @@ energyml-prodml2-2 = "^1.12.0"
   - The "EnergymlWorkspace" class allows to abstract the access of numerical data like "ExternalArrays". This class can thus be extended to interact with ETP "GetDataArray" request etc...
 - ETP URI support : the "Uri" class allows to parse/write an etp uri.
 
+## EPC Stream Reader
+
+The **EpcStreamReader** provides memory-efficient handling of large EPC files through lazy loading and smart caching. Unlike the standard `Epc` class which loads all objects into memory, the stream reader loads objects on-demand, making it ideal for handling very large EPC files with thousands of objects.
+
+### Key Features
+
+- **Lazy Loading**: Objects are loaded only when accessed, reducing memory footprint
+- **Smart Caching**: LRU (Least Recently Used) cache with configurable size  
+- **Automatic EPC Version Detection**: Supports both CLASSIC and EXPANDED EPC formats
+- **Add/Remove/Update Operations**: Full CRUD operations with automatic file structure maintenance
+- **Context Management**: Automatic resource cleanup with `with` statements
+- **Memory Monitoring**: Track cache efficiency and memory usage statistics
+
+### Basic Usage
+
+```python
+from energyml.utils.epc_stream import EpcStreamReader
+
+# Open EPC file with context manager (recommended)
+with EpcStreamReader('large_file.epc', cache_size=50) as reader:
+    # List all objects without loading them
+    print(f"Total objects: {reader.stats.total_objects}")
+    
+    # Get object by identifier
+    obj: Any = reader.get_object_by_identifier("uuid.version")
+    
+    # Get objects by type
+    features: List[Any] = reader.get_objects_by_type("BoundaryFeature")
+    
+    # Get all objects with same UUID
+    versions: List[Any] = reader.get_object_by_uuid("12345678-1234-1234-1234-123456789abc")
+```
+
+### Adding Objects
+
+```python
+from energyml.utils.epc_stream import EpcStreamReader
+from energyml.utils.constants import gen_uuid
+import energyml.resqml.v2_2.resqmlv2 as resqml
+import energyml.eml.v2_3.commonv2 as eml
+
+# Create a new EnergyML object
+boundary_feature = resqml.BoundaryFeature()
+boundary_feature.uuid = gen_uuid()
+boundary_feature.citation = eml.Citation(title="My Feature")
+
+with EpcStreamReader('my_file.epc') as reader:
+    # Add object - path is automatically generated based on EPC version
+    identifier = reader.add_object(boundary_feature)
+    print(f"Added object with identifier: {identifier}")
+    
+    # Or specify custom path (optional)
+    identifier = reader.add_object(boundary_feature, "custom/path/MyFeature.xml")
+```
+
+### Removing Objects
+
+```python
+with EpcStreamReader('my_file.epc') as reader:
+    # Remove specific version by full identifier
+    success = reader.remove_object("uuid.version")
+    
+    # Remove ALL versions by UUID only
+    success = reader.remove_object("12345678-1234-1234-1234-123456789abc")
+    
+    if success:
+        print("Object(s) removed successfully")
+```
+
+### Updating Objects
+
+```python
+...
+from energyml.utils.introspection import set_attribute_from_path
+
+with EpcStreamReader('my_file.epc') as reader:
+    # Get existing object
+    obj = reader.get_object_by_identifier("uuid.version")
+    
+    # Modify the object
+    set_attribute_from_path(obj, "citation.title", "Updated Title")
+    
+    # Update in EPC file
+    new_identifier = reader.update_object(obj)
+    print(f"Updated object: {new_identifier}")
+```
+
+### Performance Monitoring
+
+```python
+with EpcStreamReader('large_file.epc', cache_size=100) as reader:
+    # Access some objects...
+    for i in range(10):
+        obj = reader.get_object_by_identifier(f"uuid-{i}.1")
+    
+    # Check performance statistics
+    print(f"Cache hit rate: {reader.stats.cache_hit_rate:.1f}%")
+    print(f"Memory efficiency: {reader.stats.memory_efficiency:.1f}%") 
+    print(f"Objects in cache: {reader.stats.loaded_objects}/{reader.stats.total_objects}")
+```
+
+### EPC Version Support
+
+The EpcStreamReader automatically detects and handles both EPC packaging formats:
+
+- **CLASSIC Format**: Flat file structure (e.g., `obj_BoundaryFeature_{uuid}.xml`)
+- **EXPANDED Format**: Namespace structure (e.g., `namespace_resqml201/version_{id}/obj_BoundaryFeature_{uuid}.xml` or `namespace_resqml201/obj_BoundaryFeature_{uuid}.xml`)
+
+```python
+with EpcStreamReader('my_file.epc') as reader:
+    print(f"Detected EPC version: {reader.export_version}")
+    # Objects added will use the same format as the existing EPC file
+```
+
+### Advanced Usage
+
+```python
+# Initialize without preloading metadata for faster startup
+reader = EpcStreamReader('huge_file.epc', preload_metadata=False, cache_size=200)
+
+try:
+    # Manual metadata loading when needed
+    reader._load_metadata()
+    
+    # Get object dependencies
+    deps = reader.get_object_dependencies("uuid.version")
+    
+    # Batch processing with memory monitoring
+    for obj_type in ["BoundaryFeature", "PropertyKind"]:
+        objects = reader.get_objects_by_type(obj_type)
+        print(f"Processing {len(objects)} {obj_type} objects")
+        
+finally:
+    reader.close()  # Manual cleanup if not using context manager
+```
+
+The EpcStreamReader is perfect for applications that need to work with large EPC files efficiently, such as data processing pipelines, web applications, or analysis tools where memory usage is a concern.
+
 
 # Poetry scripts : 
 
