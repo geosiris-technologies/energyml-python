@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field, Field
 from enum import Enum
 import traceback
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from .epc import (
     get_obj_identifier,
@@ -124,13 +124,7 @@ def validate_epc(epc: Epc) -> List[ValidationError]:
     :param epc:
     :return:
     """
-    errs = []
-    for obj in epc.energyml_objects:
-        errs = errs + patterns_validation(obj)
-
-    errs = errs + dor_validation(epc.energyml_objects)
-
-    return errs
+    return validate_objects(epc.energyml_objects)
 
 
 def validate_objects(energyml_objects: List[Any]) -> List[ValidationError]:
@@ -144,6 +138,143 @@ def validate_objects(energyml_objects: List[Any]) -> List[ValidationError]:
         errs = errs + patterns_validation(obj)
 
     errs = errs + dor_validation(energyml_objects)
+    return errs
+
+
+def validate_obj(obj: Any, context: Union[List, Dict[str, Any]]) -> List[ValidationError]:
+    """
+    Verify if the :param:`obj` is valid.
+    :param obj:
+    :param context: a list or dictionary of energyml objects where keys are their identifiers
+    :return:
+    """
+    errs = []
+    errs = errs + patterns_validation(obj)
+    errs = errs + dor_validation_object(obj, context)
+    return errs
+
+
+def dor_validation_object(
+    obj: Any, energyml_objects: Union[List, Dict[str, Any]], dict_obj_uuid: Optional[Dict[str, List[Any]]] = None
+) -> List[ValidationError]:
+    """
+    Verification for DOR in a single object. An error is raised if DORs contains wrong information, or if a referenced object is unknown
+    in the :param:`epc`.
+    :param obj: the object to validate
+    :param energyml_objects: a dictionary of energyml objects where keys are their identifiers
+    :param dict_obj_uuid: (optional) a dictionary where keys are uuids and values are lists of objects with this uuid. If None, it will be computed from :param:`energyml_objects`
+    :return: a list of validation errors
+    """
+    errs = []
+
+    dict_obj_identifier = (
+        energyml_objects
+        if isinstance(energyml_objects, dict)
+        else {get_obj_identifier(obj): obj for obj in energyml_objects}
+    )
+    if dict_obj_uuid is None:
+        dict_obj_uuid = {}
+        for obj in dict_obj_identifier.values():
+            uuid = get_obj_uuid(obj)
+            if uuid not in dict_obj_uuid:
+                dict_obj_uuid[uuid] = []
+            dict_obj_uuid[uuid].append(obj)
+
+    dor_list = search_attribute_matching_type_with_path(obj, "DataObjectReference")
+    for dor_path, dor in dor_list:
+        dor_target_id = get_obj_identifier(dor)
+        dor_uuid = get_obj_uuid(dor)
+        dor_version = get_obj_version(dor)
+        dor_title = get_object_attribute_rgx(dor, "title")
+
+        target_identifier = dict_obj_identifier.get(dor_target_id, None)
+        target_uuid = dict_obj_uuid.get(dor_uuid, None)
+        target_prop = get_property_kind_by_uuid(dor_uuid)
+
+        if target_uuid is None and target_prop is None:
+            errs.append(
+                MissingEntityError(
+                    error_type=ErrorType.CRITICAL,
+                    target_obj=obj,
+                    attribute_dot_path=dor_path,
+                    missing_uuid=dor_uuid,
+                    _msg=f"[DOR ERR] has wrong information. Unknown object with uuid '{dor_uuid}'",
+                )
+            )
+        if target_uuid is not None and target_identifier is None:
+            accessible_version = [get_obj_version(ref_obj) for ref_obj in dict_obj_uuid[dor_uuid]]
+            errs.append(
+                ValidationObjectError(
+                    error_type=ErrorType.CRITICAL,
+                    target_obj=obj,
+                    attribute_dot_path=dor_path,
+                    _msg=f"[DOR ERR] has wrong information. Unknown object version '{dor_version}'. "
+                    f"Version must be one of {accessible_version}",
+                )
+            )
+
+        if target_prop is not None and target_uuid is None:
+            errs.append(
+                ValidationObjectInfo(
+                    error_type=ErrorType.INFO,
+                    target_obj=obj,
+                    attribute_dot_path=dor_path,
+                    _msg=f"[DOR INFO] A referenced property {dor_title}: '{dor_uuid}' is not in your context but has been identified from the official property dictionary. Not providing directly this property could be a problem if you want to upload your data on an ETP server.",
+                )
+            )
+
+        target = target_identifier or target_uuid or target_prop
+        if target is not None:
+            # target = dict_obj_identifier[dor_target_id]
+            target_title = get_object_attribute_rgx(target, "citation.title")
+            target_content_type = get_content_type_from_class(target)
+            target_qualified_type = get_qualified_type_from_class(target)
+            target_version = get_obj_version(target)
+
+            if dor_title != target_title:
+                errs.append(
+                    ValidationObjectError(
+                        error_type=ErrorType.WARNING,
+                        target_obj=obj,
+                        attribute_dot_path=dor_path,
+                        _msg=f"[DOR ERR] has wrong information. Title should be '{target_title}' and not '{dor_title}'",
+                    )
+                )
+
+            if get_matching_class_attribute_name(dor, "content_type") is not None:
+                dor_content_type = get_object_attribute_no_verif(dor, "content_type")
+                if dor_content_type != target_content_type:
+                    errs.append(
+                        ValidationObjectError(
+                            error_type=ErrorType.CRITICAL,
+                            target_obj=obj,
+                            attribute_dot_path=dor_path,
+                            _msg=f"[DOR ERR] has wrong information. ContentType should be '{target_content_type}' and not '{dor_content_type}'",
+                        )
+                    )
+
+            if get_matching_class_attribute_name(dor, "qualified_type") is not None:
+                dor_qualified_type = get_object_attribute_no_verif(dor, "qualified_type")
+                if dor_qualified_type != target_qualified_type:
+                    errs.append(
+                        ValidationObjectError(
+                            error_type=ErrorType.CRITICAL,
+                            target_obj=obj,
+                            attribute_dot_path=dor_path,
+                            _msg=f"[DOR ERR] has wrong information. QualifiedType should be '{target_qualified_type}' and not '{dor_qualified_type}'",
+                        )
+                    )
+
+            if target_version != dor_version:
+                errs.append(
+                    ValidationObjectError(
+                        error_type=ErrorType.WARNING,
+                        target_obj=obj,
+                        attribute_dot_path=dor_path,
+                        _msg=f"[DOR ERR] has wrong information. Unknown object version '{dor_version}'. "
+                        f"Version should be {target_version}",
+                    )
+                )
 
     return errs
 
@@ -168,102 +299,7 @@ def dor_validation(energyml_objects: List[Any]) -> List[ValidationError]:
     # TODO: chercher dans les objets les AbstractObject (en Witsml des sous objet peuvent etre aussi references)
 
     for obj in energyml_objects:
-        dor_list = search_attribute_matching_type_with_path(obj, "DataObjectReference")
-        for dor_path, dor in dor_list:
-            dor_target_id = get_obj_identifier(dor)
-            dor_uuid = get_obj_uuid(dor)
-            dor_version = get_obj_version(dor)
-            dor_title = get_object_attribute_rgx(dor, "title")
-
-            target_identifier = dict_obj_identifier.get(dor_target_id, None)
-            target_uuid = dict_obj_uuid.get(dor_uuid, None)
-            target_prop = get_property_kind_by_uuid(dor_uuid)
-
-            if target_uuid is None and target_prop is None:
-
-                errs.append(
-                    MissingEntityError(
-                        error_type=ErrorType.CRITICAL,
-                        target_obj=obj,
-                        attribute_dot_path=dor_path,
-                        missing_uuid=dor_uuid,
-                        _msg=f"[DOR ERR] has wrong information. Unknown object with uuid '{dor_uuid}'",
-                    )
-                )
-            if target_uuid is not None and target_identifier is None:
-                accessible_version = [get_obj_version(ref_obj) for ref_obj in dict_obj_uuid[dor_uuid]]
-                errs.append(
-                    ValidationObjectError(
-                        error_type=ErrorType.CRITICAL,
-                        target_obj=obj,
-                        attribute_dot_path=dor_path,
-                        _msg=f"[DOR ERR] has wrong information. Unknown object version '{dor_version}'. "
-                        f"Version must be one of {accessible_version}",
-                    )
-                )
-
-            if target_prop is not None and target_uuid is None:
-                errs.append(
-                    ValidationObjectInfo(
-                        error_type=ErrorType.INFO,
-                        target_obj=obj,
-                        attribute_dot_path=dor_path,
-                        _msg=f"[DOR INFO] A referenced property {dor_title}: '{dor_uuid}' is not in your context but has been identified from the official property dictionary. Not providing directly this property could be a problem if you want to upload your data on an ETP server.",
-                    )
-                )
-
-            target = target_identifier or target_uuid or target_prop
-            if target is not None:
-                # target = dict_obj_identifier[dor_target_id]
-                target_title = get_object_attribute_rgx(target, "citation.title")
-                target_content_type = get_content_type_from_class(target)
-                target_qualified_type = get_qualified_type_from_class(target)
-                target_version = get_obj_version(target)
-
-                if dor_title != target_title:
-                    errs.append(
-                        ValidationObjectError(
-                            error_type=ErrorType.WARNING,
-                            target_obj=obj,
-                            attribute_dot_path=dor_path,
-                            _msg=f"[DOR ERR] has wrong information. Title should be '{target_title}' and not '{dor_title}'",
-                        )
-                    )
-
-                if get_matching_class_attribute_name(dor, "content_type") is not None:
-                    dor_content_type = get_object_attribute_no_verif(dor, "content_type")
-                    if dor_content_type != target_content_type:
-                        errs.append(
-                            ValidationObjectError(
-                                error_type=ErrorType.CRITICAL,
-                                target_obj=obj,
-                                attribute_dot_path=dor_path,
-                                _msg=f"[DOR ERR] has wrong information. ContentType should be '{target_content_type}' and not '{dor_content_type}'",
-                            )
-                        )
-
-                if get_matching_class_attribute_name(dor, "qualified_type") is not None:
-                    dor_qualified_type = get_object_attribute_no_verif(dor, "qualified_type")
-                    if dor_qualified_type != target_qualified_type:
-                        errs.append(
-                            ValidationObjectError(
-                                error_type=ErrorType.CRITICAL,
-                                target_obj=obj,
-                                attribute_dot_path=dor_path,
-                                _msg=f"[DOR ERR] has wrong information. QualifiedType should be '{target_qualified_type}' and not '{dor_qualified_type}'",
-                            )
-                        )
-
-                if target_version != dor_version:
-                    errs.append(
-                        ValidationObjectError(
-                            error_type=ErrorType.WARNING,
-                            target_obj=obj,
-                            attribute_dot_path=dor_path,
-                            _msg=f"[DOR ERR] has wrong information. Unknown object version '{dor_version}'. "
-                            f"Version should be {target_version}",
-                        )
-                    )
+        errs = errs + dor_validation_object(obj, dict_obj_identifier, dict_obj_uuid)
 
     return errs
 

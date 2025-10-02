@@ -46,8 +46,12 @@ include = [
 #    "src/energyml/main.py"
 #]
 
-#[tool.pytest.ini_options]
-#pythonpath = [ "src" ]
+[tool.pytest.ini_options]
+pythonpath = [ "src" ]
+testpaths = [ "tests" ]
+python_files = [ "test_*.py", "*_test.py" ]
+python_classes = [ "Test*" ]
+python_functions = [ "test_*" ]
 
 [tool.poetry.extras]
 parquet = ["pyarrow", "numpy", "pandas"]
@@ -61,7 +65,7 @@ h5py = { version = "^3.7.0", optional = false }
 pyarrow = { version = "^14.0.1", optional = false }
 numpy = { version = "^1.16.6", optional = false }
 
-[poetry.group.dev.dependencies]
+[tool.poetry.group.dev.dependencies]
 pandas = { version = "^1.1.0", optional = false }
 coverage = {extras = ["toml"], version = "^6.2"}
 pytest = "^8.1.1"
@@ -82,6 +86,12 @@ energyml-witsml2-0 = "^1.12.0"
 energyml-witsml2-1 = "^1.12.0"
 energyml-prodml2-0 = "^1.12.0"
 energyml-prodml2-2 = "^1.12.0"
+
+mypy = "^0.971"
+bandit = "^1.7.0"
+safety = "^1.10.0"
+memory-profiler = "^0.60.0"
+line-profiler = "^4.0.0"
 
 [tool.coverage.run]
 branch = true

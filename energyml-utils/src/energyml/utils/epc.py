@@ -44,6 +44,7 @@ from .constants import (
     qualified_type_to_content_type,
     split_identifier,
     get_property_kind_dict_path_as_dict,
+    OptimizedRegex,
 )
 from .data.datasets_io import (
     read_external_dataset_array,
@@ -52,6 +53,7 @@ from .exception import UnparsableFile
 from .introspection import (
     get_class_from_content_type,
     get_obj_type,
+    get_obj_usable_class,
     is_dor,
     search_attribute_matching_type,
     get_obj_version,
@@ -328,7 +330,7 @@ class Epc(EnergymlWorkspace):
                 Relationship(
                     target=gen_energyml_object_path(target_obj, self.export_version),
                     type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
-                    id=f"_{obj_id}_{get_obj_type(target_obj)}_{get_obj_identifier(target_obj)}",
+                    id=f"_{obj_id}_{get_obj_type(get_obj_usable_class(target_obj))}_{get_obj_identifier(target_obj)}",
                 )
                 for target_obj in target_obj_list
             ]
@@ -345,7 +347,7 @@ class Epc(EnergymlWorkspace):
                         Relationship(
                             target=gen_energyml_object_path(target_obj, self.export_version),
                             type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
-                            id=f"_{obj_id}_{get_obj_type(target_obj)}_{get_obj_identifier(target_obj)}",
+                            id=f"_{obj_id}_{get_obj_type(get_obj_usable_class(target_obj))}_{get_obj_identifier(target_obj)}",
                         )
                     )
                 except Exception:
@@ -642,6 +644,30 @@ def get_property_kind_by_uuid(uuid: str) -> Optional[Any]:
     return __CACHE_PROP_KIND_DICT__.get(uuid, None)
 
 
+def get_property_kind_and_parents(uuids: list) -> Dict[str, Any]:
+    """Get PropertyKind objects and their parents from a list of UUIDs.
+
+    Args:
+        uuids (list): List of PropertyKind UUIDs.
+
+    Returns:
+        Dict[str, Any]: A dictionary mapping UUIDs to PropertyKind objects and their parents.
+    """
+    dict_props: Dict[str, Any] = {}
+
+    for prop_uuid in uuids:
+        prop = get_property_kind_by_uuid(prop_uuid)
+        if prop is not None:
+            dict_props[prop_uuid] = prop
+            parent_uuid = get_object_attribute(prop, "parent.uuid")
+            if parent_uuid is not None and parent_uuid not in dict_props:
+                dict_props = get_property_kind_and_parents([parent_uuid]) | dict_props
+        else:
+            logging.warning(f"PropertyKind with UUID {prop_uuid} not found.")
+            continue
+    return dict_props
+
+
 def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectReference"):
     """
     Create an DOR from an object to target the latter.
@@ -656,6 +682,7 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
         if isinstance(obj_or_identifier, str):  # is an identifier or uri
             parsed_uri = parse_uri(obj_or_identifier)
             if parsed_uri is not None:
+                print(f"====> parsed uri {parsed_uri} : uuid is {parsed_uri.uuid}")
                 if hasattr(dor, "qualified_type"):
                     set_attribute_from_path(dor, "qualified_type", parsed_uri.get_qualified_type())
                 if hasattr(dor, "content_type"):
@@ -663,10 +690,13 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
                         dor, "content_type", qualified_type_to_content_type(parsed_uri.get_qualified_type())
                     )
                 set_attribute_from_path(dor, "uuid", parsed_uri.uuid)
+                set_attribute_from_path(dor, "uid", parsed_uri.uuid)
                 if hasattr(dor, "object_version"):
-                    set_attribute_from_path(dor, "version_string", parsed_uri.version)
+                    set_attribute_from_path(dor, "object_version", parsed_uri.version)
                 if hasattr(dor, "version_string"):
                     set_attribute_from_path(dor, "version_string", parsed_uri.version)
+                if hasattr(dor, "energistics_uri"):
+                    set_attribute_from_path(dor, "energistics_uri", obj_or_identifier)
 
             else:  # identifier
                 if len(__CACHE_PROP_KIND_DICT__) == 0:
@@ -681,6 +711,7 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
                         return as_dor(__CACHE_PROP_KIND_DICT__[uuid])
                     else:
                         set_attribute_from_path(dor, "uuid", uuid)
+                        set_attribute_from_path(dor, "uid", uuid)
                         set_attribute_from_path(dor, "ObjectVersion", version)
                 except AttributeError:
                     logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
@@ -704,21 +735,42 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
                         dor.content_type = get_object_attribute(obj_or_identifier, "content_type")
 
                 set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Title"))
+                set_attribute_from_path(dor, "uuid", get_obj_uuid(obj_or_identifier))
+                set_attribute_from_path(dor, "uid", get_obj_uuid(obj_or_identifier))
+                if hasattr(dor, "object_version"):
+                    set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
+                if hasattr(dor, "version_string"):
+                    set_attribute_from_path(dor, "version_string", get_obj_version(obj_or_identifier))
 
             else:
-                if hasattr(dor, "qualified_type"):
-                    set_attribute_from_path(dor, "qualified_type", get_qualified_type_from_class(obj_or_identifier))
-                if hasattr(dor, "content_type"):
-                    set_attribute_from_path(dor, "content_type", get_content_type_from_class(obj_or_identifier))
 
-                set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Citation.Title"))
+                # for etp Resource object:
+                if hasattr(obj_or_identifier, "uri"):
+                    dor = as_dor(obj_or_identifier.uri, dor_qualified_type)
+                    if hasattr(obj_or_identifier, "name"):
+                        set_attribute_from_path(dor, "title", getattr(obj_or_identifier, "name"))
+                else:
+                    if hasattr(dor, "qualified_type"):
+                        try:
+                            set_attribute_from_path(
+                                dor, "qualified_type", get_qualified_type_from_class(obj_or_identifier)
+                            )
+                        except Exception as e:
+                            logging.error(f"Failed to set qualified_type for DOR {e}")
+                    if hasattr(dor, "content_type"):
+                        try:
+                            set_attribute_from_path(dor, "content_type", get_content_type_from_class(obj_or_identifier))
+                        except Exception as e:
+                            logging.error(f"Failed to set content_type for DOR {e}")
 
-            set_attribute_from_path(dor, "uuid", get_obj_uuid(obj_or_identifier))
+                    set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Citation.Title"))
 
-            if hasattr(dor, "object_version"):
-                set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
-            if hasattr(dor, "version_string"):
-                set_attribute_from_path(dor, "version_string", get_obj_version(obj_or_identifier))
+                    set_attribute_from_path(dor, "uuid", get_obj_uuid(obj_or_identifier))
+                    set_attribute_from_path(dor, "uid", get_obj_uuid(obj_or_identifier))
+                    if hasattr(dor, "object_version"):
+                        set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
+                    if hasattr(dor, "version_string"):
+                        set_attribute_from_path(dor, "version_string", get_obj_version(obj_or_identifier))
 
     return dor
 
@@ -777,7 +829,7 @@ def create_external_part_reference(
     :param uuid:
     :return:
     """
-    version_flat = re.findall(RGX_DOMAIN_VERSION, eml_version)[0][0].replace(".", "").replace("_", "")
+    version_flat = OptimizedRegex.DOMAIN_VERSION.findall(eml_version)[0][0].replace(".", "").replace("_", "")
     obj = create_energyml_object(
         content_or_qualified_type="eml" + version_flat + ".EpcExternalPartReference",
         citation=citation,
@@ -841,7 +893,8 @@ def gen_energyml_object_path(
     #     object_version = "0"
 
     if export_version == EpcExportVersion.EXPANDED:
-        return f"namespace_{pkg}{pkg_version.replace('.', '')}/{uuid}{(('/version_' + object_version) if object_version is not None else '')}/{obj_type}_{uuid}.xml"
+        return f"namespace_{pkg}{pkg_version.replace('.', '')}/{(('version_' + object_version + '/') if object_version is not None and len(object_version) > 0 else '')}{obj_type}_{uuid}.xml"
+        # return f"namespace_{pkg}{pkg_version.replace('.', '')}/{uuid}{(('/version_' + object_version) if object_version is not None else '')}/{obj_type}_{uuid}.xml"
     else:
         return obj_type + "_" + uuid + ".xml"
 

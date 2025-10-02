@@ -1,9 +1,29 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
-from .constants import *
+from typing import Optional
+from dataclasses import dataclass, field
+import re
+from .constants import (
+    URI_RGX,
+    URI_RGX_GRP_DATASPACE,
+    URI_RGX_GRP_DOMAIN,
+    URI_RGX_GRP_DOMAIN_VERSION,
+    URI_RGX_GRP_OBJECT_TYPE,
+    URI_RGX_GRP_UUID,
+    URI_RGX_GRP_UUID2,
+    URI_RGX_GRP_VERSION,
+    URI_RGX_GRP_COLLECTION_DOMAIN,
+    URI_RGX_GRP_COLLECTION_DOMAIN_VERSION,
+    URI_RGX_GRP_COLLECTION_TYPE,
+    URI_RGX_GRP_QUERY,
+    OptimizedRegex,
+)
 
 
-@dataclass(init=True, eq=True,)
+@dataclass(
+    init=True,
+    eq=True,
+)
 class Uri:
     """
     A class to represent an ETP URI
@@ -22,7 +42,7 @@ class Uri:
 
     @classmethod
     def parse(cls, uri: str):
-        m = re.match(URI_RGX, uri, re.IGNORECASE)
+        m = OptimizedRegex.URI.match(uri)
         if m is not None:
             res = Uri()
             res.dataspace = m.group(URI_RGX_GRP_DATASPACE)
@@ -86,5 +106,5 @@ class Uri:
         return res
 
 
-def parse_uri(uri: str) -> Uri:
+def parse_uri(uri: str) -> Optional[Uri]:
     return Uri.parse(uri)

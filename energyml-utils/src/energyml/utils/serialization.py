@@ -112,7 +112,6 @@ def read_energyml_xml_bytes(file: bytes, obj_type: Optional[type] = None) -> Any
                 except Exception as e:
                     logging.error(traceback.print_stack())
                     pass
-
         # Otherwise
         for obj_type_dev in get_energyml_class_in_related_dev_pkg(obj_type):
             try:
@@ -245,6 +244,21 @@ def read_energyml_json_file(
     with open(file_path, "rb") as f:
         json_content_b = f.read()
     return read_energyml_json_bytes(json_content_b, json_version)
+
+
+def read_energyml_obj(data: Union[str, bytes], format_: str = "xml") -> Any:
+    if isinstance(data, str):
+        if format_ == "xml":
+            return read_energyml_xml_str(data)
+        elif format_ == "json":
+            return read_energyml_json_str(data)
+    elif isinstance(data, bytes):
+        if format_ == "xml":
+            return read_energyml_xml_bytes(data)
+        elif format_ == "json":
+            return read_energyml_json_bytes(data, json_version=JSON_VERSION.OSDU_OFFICIAL)
+    else:
+        raise ValueError("data must be a string or bytes")
 
 
 #    _____           _       ___             __  _
@@ -435,7 +449,8 @@ def _fill_dict_with_attribs(
                     if ref_value is not None:
                         res["_data"] = to_json_dict_fn(ref_value, f_identifier_to_obj)
                     else:
-                        logging.debug(f"NotFound : {ref_identifier}")
+                        # logging.debug(f"NotFound : {ref_identifier}")
+                        pass
 
 
 def _to_json_dict_fn(
