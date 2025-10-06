@@ -1116,7 +1116,6 @@ def get_obj_pkg_pkgv_type_uuid_version(
 
     if ct is not None:
         ct_match = parse_content_type(ct)
-        logging.debug("ct : %S", ct_match)
         if ct_match is not None:
             pkg = ct_match.group("domain")
             pkg_v = ct_match.group("domainVersion")
@@ -1125,7 +1124,6 @@ def get_obj_pkg_pkgv_type_uuid_version(
         try:
             qt = get_object_attribute_no_verif(obj, "qualified_type")
             qt_match = parse_qualified_type(qt)
-            logging.debug("qt : %s %s", qt, obj.__dict__, qt_match)
             if qt_match is not None:
                 pkg = qt_match.group("domain")
                 pkg_v = qt_match.group("domainVersion")

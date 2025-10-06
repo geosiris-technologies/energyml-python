@@ -575,6 +575,7 @@ def read_external_dataset_array(
 def get_path_in_external(obj) -> List[Any]:
     """
     See :func:`get_path_in_external_with_path`. Only the value is returned, not the dot path into the object
+
     :param obj:
     :return:
     """
@@ -596,6 +597,7 @@ def get_proxy_uri_for_path_in_external(obj: Any, dataspace_name_or_uri: Union[st
     """
     Search all PathInHdfFile or PathInExternalFile in the object and return a map of uri to list of path found
     in the object for this uri.
+
     :param obj:
     :param dataspace_name_or_uri: the dataspace name or uri to search
     :return: { uri : [ path_in_external1, path_in_external2, ... ], ... }
@@ -603,7 +605,6 @@ def get_proxy_uri_for_path_in_external(obj: Any, dataspace_name_or_uri: Union[st
     if dataspace_name_or_uri is not None and isinstance(dataspace_name_or_uri, str):
         dataspace_name_or_uri = dataspace_name_or_uri.strip()
     ds_name = dataspace_name_or_uri
-    ds_uri = dataspace_name_or_uri
     if isinstance(dataspace_name_or_uri, str):
         if dataspace_name_or_uri is not None:
             if not dataspace_name_or_uri.startswith("eml:///"):
@@ -614,13 +615,12 @@ def get_proxy_uri_for_path_in_external(obj: Any, dataspace_name_or_uri: Union[st
         assert ds_uri is not None, f"Cannot parse dataspace uri {dataspace_name_or_uri}"
         ds_name = ds_uri.dataspace
     elif isinstance(dataspace_name_or_uri, Uri):
-        ds_uri = dataspace_name_or_uri
         ds_name = dataspace_name_or_uri.dataspace
 
     uri_path_map = {}
     _piefs = get_path_in_external_with_path(obj)
     if _piefs is not None and len(_piefs) > 0:
-        logging.info(f"Found {_piefs} datasets in object {get_obj_uuid(obj)}")
+        # logging.info(f"Found {_piefs} datasets in object {get_obj_uuid(obj)}")
 
         # uri_path_map[uri] = _piefs
         for item in _piefs:
@@ -631,7 +631,7 @@ def get_proxy_uri_for_path_in_external(obj: Any, dataspace_name_or_uri: Union[st
                 )
                 # Then unpack
                 path, pief = item
-                logging.info(f"\t test : {path_last_attribute(path)}")
+                # logging.info(f"\t test : {path_last_attribute(path)}")
                 if "hdf" in path_last_attribute(path).lower():
                     dor = get_object_attribute(
                         obj=obj, attr_dot_path=path[: -len(path_last_attribute(path))] + "hdf_proxy"
