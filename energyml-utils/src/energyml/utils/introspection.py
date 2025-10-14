@@ -1312,6 +1312,12 @@ def get_object_type_for_file_path_from_class(cls) -> str:
                 return parent_cls.Meta.name
         except AttributeError:
             pass
+    if hasattr(cls, "Meta"):
+        try:
+            if cls.Meta.name is not None and len(cls.Meta.name) > 0:
+                return cls.Meta.name
+        except AttributeError:
+            pass
 
     return classic_type
 

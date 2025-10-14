@@ -23,6 +23,7 @@ from src.energyml.utils.introspection import (
     get_obj_pkg_pkgv_type_uuid_version,
     get_obj_uri,
     get_qualified_type_from_class,
+    set_attribute_from_path,
 )
 
 fi_cit = Citation20(
@@ -75,6 +76,12 @@ tr = TriangulatedSetRepresentation(
     citation=tr_cit,
     uuid=gen_uuid(),
     represented_object=dor_correct23,
+)
+tr_versioned = TriangulatedSetRepresentation(
+    citation=tr_cit,
+    uuid=gen_uuid(),
+    represented_object=dor_correct23,
+    object_version="3",
 )
 
 
@@ -135,7 +142,15 @@ def test_gen_energyml_object_path():
     assert gen_energyml_object_path(tr) == f"TriangulatedSetRepresentation_{tr.uuid}.xml"
     assert (
         gen_energyml_object_path(tr, EpcExportVersion.EXPANDED)
-        == f"namespace_resqml22/{tr.uuid}/TriangulatedSetRepresentation_{tr.uuid}.xml"
+        == f"namespace_resqml22/TriangulatedSetRepresentation_{tr.uuid}.xml"
+    )
+
+
+def test_gen_energyml_object_path_versioned():
+    assert gen_energyml_object_path(tr_versioned) == f"TriangulatedSetRepresentation_{tr_versioned.uuid}.xml"
+    assert (
+        gen_energyml_object_path(tr_versioned, EpcExportVersion.EXPANDED)
+        == f"namespace_resqml22/version_{tr_versioned.object_version}/TriangulatedSetRepresentation_{tr_versioned.uuid}.xml"
     )
 
 

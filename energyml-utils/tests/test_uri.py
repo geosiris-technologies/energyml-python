@@ -2,6 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from src.energyml.utils.uri import Uri, parse_uri
+from energyml.utils.introspection import get_obj_uri
+from energyml.resqml.v2_0_1.resqmlv2 import TriangulatedSetRepresentation, ObjTriangulatedSetRepresentation
+
+TR_UUID = "12345678-1234-1234-1234-123456789012"
 
 
 def test_uri_constructor():
@@ -113,3 +117,13 @@ def test_uuid():
     )
     assert uri.uuid == "ec8c3f16-1454-4f36-ae10-27d2a2680cf2"
     assert uri.version == "1.0"
+
+
+def test_resqml201_uri():
+    tr = ObjTriangulatedSetRepresentation(uuid=TR_UUID)
+    uri = get_obj_uri(tr)
+    assert str(uri) == f"eml:///resqml20.obj_TriangulatedSetRepresentation({TR_UUID})"
+
+
+if __name__ == "__main__":
+    print(get_obj_uri(ObjTriangulatedSetRepresentation(uuid=TR_UUID)))
