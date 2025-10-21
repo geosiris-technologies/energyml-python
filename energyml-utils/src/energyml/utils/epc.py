@@ -29,7 +29,8 @@ from energyml.opc.opc import (
     Keywords1,
     TargetMode,
 )
-from .uri import parse_uri
+import numpy as np
+from .uri import Uri, parse_uri
 from xsdata.formats.dataclass.models.generics import DerivedElement
 
 from .constants import (
@@ -47,12 +48,16 @@ from .constants import (
     OptimizedRegex,
 )
 from .data.datasets_io import (
+    HDF5FileReader,
+    HDF5FileWriter,
     read_external_dataset_array,
 )
 from .exception import UnparsableFile
 from .introspection import (
     get_class_from_content_type,
+    get_dor_obj_info,
     get_obj_type,
+    get_obj_uri,
     get_obj_usable_class,
     is_dor,
     search_attribute_matching_type,
@@ -317,6 +322,21 @@ class Epc(EnergymlWorkspace):
 
         return zip_buffer
 
+    def get_obj_rels(self, obj: Any) -> Optional[Relationships]:
+        """
+        Get the Relationships object for a given energyml object
+        :param obj:
+        :return:
+        """
+        rels_path = gen_rels_path(
+            energyml_object=obj,
+            export_version=self.export_version,
+        )
+        all_rels = self.compute_rels()
+        if rels_path in all_rels:
+            return all_rels[rels_path]
+        return None
+
     def compute_rels(self) -> Dict[str, Relationships]:
         """
         Returns a dict containing for each objet, the rels xml file path as key and the RelationShips object as value
@@ -382,7 +402,7 @@ class Epc(EnergymlWorkspace):
 
         return obj_rels
 
-    def rels_to_h5_file(self, obj: any, h5_path: str) -> Relationship:
+    def rels_to_h5_file(self, obj: Any, h5_path: str) -> Relationship:
         """
         Creates in the epc file, a Relation (in the object .rels file) to link a h5 external file.
         Usually this function is used to link an ExternalPartReference to a h5 file.
@@ -395,14 +415,39 @@ class Epc(EnergymlWorkspace):
         if obj_ident not in self.additional_rels:
             self.additional_rels[obj_ident] = []
 
-        rel = Relationship(
-            target=h5_path,
-            type_value=EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type(),
-            id="Hdf5File",
-            target_mode=TargetMode.EXTERNAL.value,
-        )
+        nb_current_file = len(self.get_h5_file_paths(obj))
+
+        rel = create_h5_external_relationship(h5_path=h5_path, current_idx=nb_current_file)
         self.additional_rels[obj_ident].append(rel)
         return rel
+
+    def get_h5_file_paths(self, obj: Any) -> List[str]:
+        """
+        Get all HDF5 file paths referenced in the EPC file (from rels to external resources)
+        :return: list of HDF5 file paths
+        """
+        is_uri = (isinstance(obj, str) and parse_uri(obj) is not None) or isinstance(obj, Uri)
+        if is_uri:
+            obj = self.get_object_by_identifier(obj)
+
+        h5_paths = set()
+
+        if isinstance(obj, str):
+            obj = self.get_object_by_identifier(obj)
+        for rels in self.additional_rels.get(get_obj_identifier(obj), []):
+            if rels.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
+                h5_paths.add(rels.target)
+
+        if len(h5_paths) == 0:
+            # search if an h5 file has the same name than the epc file
+            epc_folder = self.get_epc_file_folder()
+            if epc_folder is not None and self.epc_file_path is not None:
+                epc_file_name = os.path.basename(self.epc_file_path)
+                epc_file_base, _ = os.path.splitext(epc_file_name)
+                possible_h5_path = os.path.join(epc_folder, epc_file_base + ".h5")
+                if os.path.exists(possible_h5_path):
+                    h5_paths.add(possible_h5_path)
+        return list(h5_paths)
 
     # -- Functions inherited from EnergymlWorkspace
 
@@ -426,19 +471,65 @@ class Epc(EnergymlWorkspace):
         """
         return list(filter(lambda o: get_obj_uuid(o) == uuid, self.energyml_objects))
 
-    def get_object_by_identifier(self, identifier: str) -> Optional[Any]:
+    def get_object_by_identifier(self, identifier: Union[str, Uri]) -> Optional[Any]:
         """
         Search an object by its identifier.
-        :param identifier: given by the function :func:`get_obj_identifier`
+        :param identifier: given by the function :func:`get_obj_identifier`, or a URI (or its str representation)
         :return:
         """
+        is_uri = isinstance(identifier, Uri) or parse_uri(identifier) is not None
+        id_str = str(identifier)
         for o in self.energyml_objects:
-            if get_obj_identifier(o) == identifier:
+            if (get_obj_identifier(o) if not is_uri else str(get_obj_uri(o))) == id_str:
                 return o
         return None
 
     def get_object(self, uuid: str, object_version: Optional[str]) -> Optional[Any]:
         return self.get_object_by_identifier(f"{uuid}.{object_version or ''}")
+
+    def add_object(self, obj: Any) -> bool:
+        """
+        Add an energyml object to the EPC stream
+        :param obj:
+        :return:
+        """
+        self.energyml_objects.append(obj)
+        return True
+
+    def remove_object(self, identifier: Union[str, Uri]) -> None:
+        """
+        Remove an energyml object from the EPC stream by its identifier
+        :param identifier:
+        :return:
+        """
+        obj = self.get_object_by_identifier(identifier)
+        if obj is not None:
+            self.energyml_objects.remove(obj)
+
+    def __len__(self) -> int:
+        return len(self.energyml_objects)
+
+    def add_rels_for_object(
+        self,
+        obj: Any,
+        relationships: List[Relationship],
+    ) -> None:
+        """
+        Add relationships to an object in the EPC stream
+        :param obj:
+        :param relationships:
+        :return:
+        """
+
+        if isinstance(obj, str) or isinstance(obj, Uri):
+            obj = self.get_object_by_identifier(obj)
+            obj_ident = get_obj_identifier(obj)
+        else:
+            obj_ident = get_obj_identifier(obj)
+        if obj_ident not in self.additional_rels:
+            self.additional_rels[obj_ident] = []
+
+        self.additional_rels[obj_ident] = self.additional_rels[obj_ident] + relationships
 
     def get_epc_file_folder(self) -> Optional[str]:
         if self.epc_file_path is not None and len(self.epc_file_path) > 0:
@@ -456,6 +547,14 @@ class Epc(EnergymlWorkspace):
         path_in_root: Optional[str] = None,
         use_epc_io_h5: bool = True,
     ) -> List[Any]:
+        """Read an external array from HDF5 files linked to the EPC file.
+        :param energyml_array: the energyml array object (e.g. FloatingPointExternalArray)
+        :param root_obj: the root object containing the energyml_array
+        :param path_in_root: the path in the root object to the energyml_array
+        :param use_epc_io_h5: if True, use also the in-memory HDF5 files stored in epc.h5_io_files
+
+        :return: the array read from the external datasets
+        """
         sources = []
         if self is not None and use_epc_io_h5 and self.h5_io_files is not None and len(self.h5_io_files):
             sources = sources + self.h5_io_files
@@ -467,6 +566,67 @@ class Epc(EnergymlWorkspace):
             additional_sources=sources,
             epc=self,
         )
+
+    def read_array(self, proxy: Union[str, Uri, Any], path_in_external: str) -> Optional[np.ndarray]:
+        obj = proxy
+        if isinstance(proxy, str) or isinstance(proxy, Uri):
+            obj = self.get_object_by_identifier(proxy)
+
+        h5_path = self.get_h5_file_paths(obj)
+        h5_reader = HDF5FileReader()
+
+        if h5_path is None or len(h5_path) == 0:
+            for h5_path in self.external_files_path:
+                try:
+                    return h5_reader.read_array(source=h5_path, path_in_external_file=path_in_external)
+                except Exception as e:
+                    pass
+                    # logging.error(f"Failed to read HDF5 dataset from {h5_path}: {e}")
+        else:
+            for h5p in h5_path:
+                try:
+                    return h5_reader.read_array(source=h5p, path_in_external_file=path_in_external)
+                except Exception as e:
+                    pass
+                    # logging.error(f"Failed to read HDF5 dataset from {h5p}: {e}")
+        return None
+
+    def write_array(
+        self, proxy: Union[str, Uri, Any], path_in_external: str, array: Any, in_memory: bool = False
+    ) -> bool:
+        """
+        Write a dataset in the HDF5 file linked to the proxy object.
+        :param proxy: the object or its identifier
+        :param path_in_external: the path in the external file
+        :param array: the data to write
+        :param in_memory: if True, write in the in-memory HDF5 files (epc.h5_io_files)
+
+        :return: True if successful
+        """
+        obj = proxy
+        if isinstance(proxy, str) or isinstance(proxy, Uri):
+            obj = self.get_object_by_identifier(proxy)
+
+        h5_path = self.get_h5_file_paths(obj)
+        h5_writer = HDF5FileWriter()
+
+        if in_memory or h5_path is None or len(h5_path) == 0:
+            for h5_path in self.external_files_path:
+                try:
+                    h5_writer.write_array(target=h5_path, path_in_external_file=path_in_external, array=array)
+                    return True
+                except Exception as e:
+                    pass
+                    # logging.error(f"Failed to write HDF5 dataset to {h5_path}: {e}")
+
+        for h5p in h5_path:
+            try:
+                h5_writer.write_array(target=h5p, path_in_external_file=path_in_external, array=array)
+                return True
+            except Exception as e:
+                pass
+                # logging.error(f"Failed to write HDF5 dataset to {h5p}: {e}")
+        return False
 
     # Class methods
 
@@ -607,6 +767,18 @@ class Epc(EnergymlWorkspace):
             logging.error(error)
 
         return None
+
+    def dumps_epc_content_and_files_lists(self) -> str:
+        """
+        Dumps the EPC content and files lists for debugging purposes.
+        :return: A string representation of the EPC content and files lists.
+        """
+        content_list = [
+            f"{get_obj_identifier(obj)} ({get_qualified_type_from_class(type(obj))})" for obj in self.energyml_objects
+        ]
+        raw_files_list = [raw_file.path for raw_file in self.raw_files]
+
+        return f"EPC Content:\n" + "\n".join(content_list) + "\n\nRaw Files:\n" + "\n".join(raw_files_list)
 
 
 #     ______                                      __   ____                 __  _
@@ -883,18 +1055,19 @@ def gen_energyml_object_path(
         energyml_object = read_energyml_xml_str(energyml_object)
 
     obj_type = get_object_type_for_file_path_from_class(energyml_object.__class__)
+    # logging.debug("is_dor: ", str(is_dor(energyml_object)), "object type : " + str(obj_type))
 
-    pkg = get_class_pkg(energyml_object)
-    pkg_version = get_class_pkg_version(energyml_object)
-    object_version = get_obj_version(energyml_object)
-    uuid = get_obj_uuid(energyml_object)
-
-    # if object_version is None:
-    #     object_version = "0"
+    if is_dor(energyml_object):
+        uuid, pkg, pkg_version, obj_cls, object_version = get_dor_obj_info(energyml_object)
+        obj_type = get_object_type_for_file_path_from_class(obj_cls)
+    else:
+        pkg = get_class_pkg(energyml_object)
+        pkg_version = get_class_pkg_version(energyml_object)
+        object_version = get_obj_version(energyml_object)
+        uuid = get_obj_uuid(energyml_object)
 
     if export_version == EpcExportVersion.EXPANDED:
         return f"namespace_{pkg}{pkg_version.replace('.', '')}/{(('version_' + object_version + '/') if object_version is not None and len(object_version) > 0 else '')}{obj_type}_{uuid}.xml"
-        # return f"namespace_{pkg}{pkg_version.replace('.', '')}/{uuid}{(('/version_' + object_version) if object_version is not None else '')}/{obj_type}_{uuid}.xml"
     else:
         return obj_type + "_" + uuid + ".xml"
 
@@ -929,6 +1102,9 @@ def gen_rels_path(
         return f"{obj_folder}{RELS_FOLDER_NAME}/{obj_file_name}.rels"
 
 
+# def gen_rels_path_from_dor(dor: Any, export_version: EpcExportVersion = EpcExportVersion.CLASSIC) -> str:
+
+
 def get_epc_content_type_path(
     export_version: EpcExportVersion = EpcExportVersion.CLASSIC,
 ) -> str:
@@ -938,3 +1114,17 @@ def get_epc_content_type_path(
     :return:
     """
     return "[Content_Types].xml"
+
+
+def create_h5_external_relationship(h5_path: str, current_idx: int = 0) -> Relationship:
+    """
+    Create a Relationship object to link an external HDF5 file.
+    :param h5_path:
+    :return:
+    """
+    return Relationship(
+        target=h5_path,
+        type_value=EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type(),
+        id=f"Hdf5File{current_idx + 1 if current_idx > 0 else ''}",
+        target_mode=TargetMode.EXTERNAL,
+    )

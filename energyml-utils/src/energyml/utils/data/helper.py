@@ -375,7 +375,7 @@ def read_constant_array(
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None,
+    sub_indices: Optional[List[int]] = None,
 ) -> List[Any]:
     """
     Read a constant array ( BooleanConstantArray, DoubleConstantArray, FloatingPointConstantArray, IntegerConstantArray ...)

@@ -2,9 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Optional
 from dataclasses import dataclass, field
-import re
 from .constants import (
-    URI_RGX,
     URI_RGX_GRP_DATASPACE,
     URI_RGX_GRP_DOMAIN,
     URI_RGX_GRP_DOMAIN_VERSION,
@@ -80,6 +78,11 @@ class Uri:
     def get_qualified_type(self):
         return f"{self.domain}{self.domain_version}.{self.object_type}"
 
+    def as_identifier(self):
+        if not self.is_object_uri():
+            return None
+        return f"{self.uuid}.{self.version if self.version is not None else ''}"
+
     def __str__(self):
         res = "eml:///"
         if self.dataspace is not None and len(self.dataspace) > 0:
@@ -107,4 +110,6 @@ class Uri:
 
 
 def parse_uri(uri: str) -> Optional[Uri]:
-    return Uri.parse(uri)
+    if uri is None or len(uri) <= 0:
+        return None
+    return Uri.parse(uri.strip())

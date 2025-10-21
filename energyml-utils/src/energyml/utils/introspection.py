@@ -21,8 +21,10 @@ from .constants import (
     snake_case,
     pascal_case,
     path_next_attribute,
+    OptimizedRegex,
 )
 from .manager import (
+    class_has_parent_with_name,
     get_class_pkg,
     get_class_pkg_version,
     RELATED_MODULES,
@@ -30,6 +32,7 @@ from .manager import (
     get_sub_classes,
     get_classes_matching_name,
     dict_energyml_modules,
+    reshape_version_from_regex_match,
 )
 from .uri import Uri, parse_uri
 from .xml import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
@@ -639,9 +642,52 @@ def class_match_rgx(
     return False
 
 
-def is_dor(obj: any) -> bool:
+def get_dor_obj_info(dor: Any) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[type], Optional[str]]:
+    """
+    From a DOR object, return a tuple (uuid, package name, package version, object_type, object_version)
+
+    :param dor: a DataObjectReference object or ContentElement object
+    :return: tuple (uuid, package name, package version, object_type, object_version)
+    1. uuid: the UUID of the object
+    2. package name: the name of the package where the object is defined
+    3. package version: the version of the package where the object is defined
+    4. object_type: the class of the object
+    5. object_version: the version of the object
+
+    Example for a resqml v2.2 TriangulatedSetRepresentation :
+    ('123e4567-e89b-12d3-a456-426614174000', 'resqml', '2.2', <class 'energyml.resqml.v2_2.resqmlv2.TriangulatedSetRepresentation'>, '1.0')
+    """
+    obj_version = None
+    obj_cls = None
+    pkg_version = None
+    pkg = None
+    if hasattr(dor, "content_type"):
+        content_type = get_object_attribute_no_verif(dor, "content_type")
+        if content_type is not None:
+            obj_cls = get_class_from_content_type(content_type)
+    elif hasattr(dor, "qualified_type"):
+        qualified_type = get_object_attribute_no_verif(dor, "qualified_type")
+        if qualified_type is not None:
+            obj_cls = get_class_from_qualified_type(qualified_type)
+
+    obj_version = get_obj_version(dor)
+
+    uuid = get_obj_uuid(dor)
+
+    if obj_cls is not None:
+        p = OptimizedRegex.ENERGYML_MODULE_NAME
+        match = p.search(obj_cls.__module__)
+        if match is not None:
+            pkg_version = reshape_version_from_regex_match(match)
+            pkg = match.group("pkg")
+
+    return uuid, pkg, pkg_version, obj_cls, obj_version
+
+
+def is_dor(obj: Any) -> bool:
     return (
         "dataobjectreference" in get_obj_type(obj).lower()
+        or class_has_parent_with_name(obj, "DataObjectReference")
         or get_object_attribute(obj, "ContentType") is not None
         or get_object_attribute(obj, "QualifiedType") is not None
     )
