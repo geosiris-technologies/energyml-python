@@ -14,9 +14,9 @@ import logging
 import os
 import zipfile
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Iterator, Set, Union, Tuple
+from typing import Dict, List, Optional, Any, Iterator, Union, Tuple
 from weakref import WeakValueDictionary
 
 from energyml.opc.opc import Types, Override, CoreProperties, Relationships, Relationship
@@ -24,13 +24,12 @@ from energyml.utils.data.datasets_io import HDF5FileReader, HDF5FileWriter
 from energyml.utils.uri import Uri, parse_uri
 from energyml.utils.workspace import EnergymlWorkspace
 import numpy as np
-from .constants import EPCRelsRelationshipType, OptimizedRegex, EpcExportVersion, RELS_FOLDER_NAME
+from .constants import EPCRelsRelationshipType, OptimizedRegex, EpcExportVersion
 from .epc import Epc, gen_energyml_object_path, gen_rels_path, get_epc_content_type_path
 from .introspection import (
     get_class_from_content_type,
     get_obj_identifier,
     get_obj_uuid,
-    get_obj_version,
     get_object_type_for_file_path_from_class,
     get_direct_dor_list,
     get_obj_type,
@@ -651,7 +650,7 @@ class EpcStreamReader(EnergymlWorkspace):
                 # TODO: handle different type of files
                 try:
                     return h5_reader.read_array(source=h5p, path_in_external_file=path_in_external)
-                except Exception as e:
+                except Exception:
                     pass
                     # logging.error(f"Failed to read HDF5 dataset from {h5p}: {e}")
 
@@ -1204,10 +1203,10 @@ class EpcStreamReader(EnergymlWorkspace):
             source_zip: Source ZIP file to read existing rels from
             target_zip: Target ZIP file to write updated rels to
         """
-        obj_identifier = metadata.identifier
+        # obj_identifier = metadata.identifier
 
         # 1. The object's own .rels file will be automatically excluded by not copying it
-        obj_rels_path = gen_rels_path(obj, self.export_version)
+        # obj_rels_path = gen_rels_path(obj, self.export_version)
 
         # 2. Update .rels files of objects that were referenced by this object
         # Remove DESTINATION relationships that pointed to our object
@@ -1331,7 +1330,7 @@ class EpcStreamReader(EnergymlWorkspace):
             # Replace original file with updated version
             shutil.move(temp_path, self.epc_file_path)
 
-        except Exception as e:
+        except Exception:
             # Clean up temp file on error
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
@@ -1448,9 +1447,8 @@ class EpcStreamReader(EnergymlWorkspace):
                                             target.startswith("../")
                                             or target.startswith("http")
                                             or target in existing_object_files
-                                            or
-                                            # Also check without leading slash
-                                            target.lstrip("/") in existing_object_files
+                                            or target.lstrip("/")
+                                            in existing_object_files  # Also check without leading slash
                                         ):
                                             valid_relationships.append(rel)
 
@@ -1576,7 +1574,7 @@ class EpcStreamReader(EnergymlWorkspace):
                 if obj is None:
                     continue
 
-                metadata = self._metadata[identifier]
+                # metadata = self._metadata[identifier]
                 obj_rels_path = gen_rels_path(obj, self.export_version)
 
                 # Get all DORs (objects this object references)

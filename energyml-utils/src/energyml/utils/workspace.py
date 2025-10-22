@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Optional, Any, List, Union
+from typing import Optional, Any, Union
 
 from energyml.utils.uri import Uri
 import numpy as np

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from dataclasses import dataclass
 from io import BytesIO
-from typing import Optional, List, Any, Union
+from typing import Optional, List, Union
 
 import numpy as np
 

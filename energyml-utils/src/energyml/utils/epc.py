@@ -36,7 +36,6 @@ from xsdata.formats.dataclass.models.generics import DerivedElement
 from .constants import (
     RELS_CONTENT_TYPE,
     RELS_FOLDER_NAME,
-    RGX_DOMAIN_VERSION,
     EpcExportVersion,
     RawFile,
     EPCRelsRelationshipType,
@@ -77,7 +76,6 @@ from .introspection import (
     set_attribute_value,
     get_object_attribute,
     get_qualified_type_from_class,
-    get_class_fields,
 )
 from .manager import get_class_pkg, get_class_pkg_version
 from .serialization import (
@@ -126,7 +124,7 @@ class Epc(EnergymlWorkspace):
         default_factory=list,
     )
 
-    """ 
+    """
     Additional rels for objects. Key is the object (same than in @energyml_objects) and value is a list of
     RelationShip. This can be used to link an HDF5 to an ExternalPartReference in resqml 2.0.1
     Key is a value returned by @get_obj_identifier
@@ -579,14 +577,14 @@ class Epc(EnergymlWorkspace):
             for h5_path in self.external_files_path:
                 try:
                     return h5_reader.read_array(source=h5_path, path_in_external_file=path_in_external)
-                except Exception as e:
+                except Exception:
                     pass
                     # logging.error(f"Failed to read HDF5 dataset from {h5_path}: {e}")
         else:
             for h5p in h5_path:
                 try:
                     return h5_reader.read_array(source=h5p, path_in_external_file=path_in_external)
-                except Exception as e:
+                except Exception:
                     pass
                     # logging.error(f"Failed to read HDF5 dataset from {h5p}: {e}")
         return None
@@ -615,7 +613,7 @@ class Epc(EnergymlWorkspace):
                 try:
                     h5_writer.write_array(target=h5_path, path_in_external_file=path_in_external, array=array)
                     return True
-                except Exception as e:
+                except Exception:
                     pass
                     # logging.error(f"Failed to write HDF5 dataset to {h5_path}: {e}")
 
@@ -623,7 +621,7 @@ class Epc(EnergymlWorkspace):
             try:
                 h5_writer.write_array(target=h5p, path_in_external_file=path_in_external, array=array)
                 return True
-            except Exception as e:
+            except Exception:
                 pass
                 # logging.error(f"Failed to write HDF5 dataset to {h5p}: {e}")
         return False
@@ -684,7 +682,7 @@ class Epc(EnergymlWorkspace):
                                     ov_obj = ov_obj.value
                                 path_to_obj[ov_path] = ov_obj
                                 obj_list.append(ov_obj)
-                            except Exception as e:
+                            except Exception:
                                 logging.error(traceback.format_exc())
                                 logging.error(
                                     f"Epc.@read_stream failed to parse file {ov_path} for content-type: {ov_ct} => {get_class_from_content_type(ov_ct)}\n\n",
@@ -711,7 +709,7 @@ class Epc(EnergymlWorkspace):
                                             content=BytesIO(epc_file.read(f_info.filename)),
                                         )
                                     )
-                                except IOError as e:
+                                except IOError:
                                     logging.error(traceback.format_exc())
                             elif f_info.filename != "_rels/.rels":  # CoreProperties rels file
                                 # RELS FILES READING START
@@ -778,7 +776,7 @@ class Epc(EnergymlWorkspace):
         ]
         raw_files_list = [raw_file.path for raw_file in self.raw_files]
 
-        return f"EPC Content:\n" + "\n".join(content_list) + "\n\nRaw Files:\n" + "\n".join(raw_files_list)
+        return "EPC Content:\n" + "\n".join(content_list) + "\n\nRaw Files:\n" + "\n".join(raw_files_list)
 
 
 #     ______                                      __   ____                 __  _

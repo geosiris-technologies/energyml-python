@@ -19,7 +19,6 @@ from energyml.utils.constants import EPCRelsRelationshipType, mime_type_to_file_
 from energyml.utils.exception import MissingExtraInstallation
 from energyml.utils.introspection import (
     get_obj_uri,
-    get_obj_uuid,
     search_attribute_matching_name_with_path,
     get_object_attribute,
     search_attribute_matching_name,
@@ -31,7 +30,7 @@ try:
     import h5py
 
     __H5PY_MODULE_EXISTS__ = True
-except Exception as e:
+except Exception:
     h5py = None
     __H5PY_MODULE_EXISTS__ = False
 
@@ -39,18 +38,17 @@ try:
     import csv
 
     __CSV_MODULE_EXISTS__ = True
-except Exception as e:
+except Exception:
     __CSV_MODULE_EXISTS__ = False
 
 try:
     import pandas as pd
     import pyarrow as pa
     import pyarrow.parquet as pq
-    from pandas import DataFrame
 
     # import pyarrow.feather as feather
     __PARQUET_MODULE_EXISTS__ = True
-except Exception as e:
+except Exception:
     __PARQUET_MODULE_EXISTS__ = False
 
 # HDF5
@@ -66,7 +64,7 @@ if __H5PY_MODULE_EXISTS__:
         with h5py.File(h5_file_path, "r") as f:  # type: ignore
             # Function to print the names of all datasets
             def list_datasets(name, obj):
-                if isinstance(obj, h5py.Dataset):  # Check if the object is a dataset
+                if isinstance(obj, h5py.Dataset):  # Check if the object is a dataset  # type: ignore
                     res.append(name)
 
             # Visit all items in the HDF5 file and apply the list function
@@ -74,14 +72,14 @@ if __H5PY_MODULE_EXISTS__:
         return res
 
     @dataclass
-    class HDF5FileReader(DatasetReader):
+    class HDF5FileReader(DatasetReader):  # noqa: F401
         def read_array(self, source: Union[BytesIO, str], path_in_external_file: str) -> Optional[np.ndarray]:
-            with h5py.File(source, "r") as f:
+            with h5py.File(source, "r") as f:  # type: ignore
                 d_group = f[path_in_external_file]
                 return d_group[()]  # type: ignore
 
         def get_array_dimension(self, source: Union[BytesIO, str], path_in_external_file: str) -> Optional[List[int]]:
-            with h5py.File(source, "r") as f:
+            with h5py.File(source, "r") as f:  # type: ignore
                 return list(f[path_in_external_file].shape)
 
         def extract_h5_datasets(
@@ -100,8 +98,8 @@ if __H5PY_MODULE_EXISTS__:
             if h5_datasets_paths is None:
                 h5_datasets_paths = h5_list_datasets(input_h5)
             if len(h5_datasets_paths) > 0:
-                with h5py.File(output_h5, "a") as f_dest:
-                    with h5py.File(input_h5, "r") as f_src:
+                with h5py.File(output_h5, "a") as f_dest:  # type: ignore
+                    with h5py.File(input_h5, "r") as f_src:  # type: ignore
                         for dataset in h5_datasets_paths:
                             f_dest.create_dataset(dataset, data=f_src[dataset])
 
@@ -121,7 +119,7 @@ if __H5PY_MODULE_EXISTS__:
             if dtype is not None and not isinstance(dtype, np.dtype):
                 dtype = np.dtype(dtype)
 
-            with h5py.File(target, "a") as f:
+            with h5py.File(target, "a") as f:  # type: ignore
                 # print(array.dtype, h5py.string_dtype(), array.dtype == 'O')
                 # print("\t", dtype or (h5py.string_dtype() if array.dtype == '0' else array.dtype))
                 if isinstance(array, np.ndarray) and array.dtype == "O":
@@ -247,7 +245,7 @@ class DATFileReader:
             c = source.readline()
             while c.startswith("#"):
                 s_pos = source.tell()
-                comments += c
+                comments += str(c)
                 c = source.readline()
 
             source.seek(s_pos)
@@ -258,8 +256,8 @@ class DATFileReader:
 
             if len(comments) > 0:
                 _delim = re.search(r'Default\s+delimiter:\s*"(?P<delim>[^"])"', comments, re.IGNORECASE)
-                logging.debug("delim", _delim, _delim.group("delim"))
                 if _delim is not None:
+                    logging.debug("delim", _delim, _delim.group("delim"))
                     _delim = _delim.group("delim")
                     logging.debug(_delim, "<==")
                     if len(_delim) > 0:
@@ -303,7 +301,7 @@ class DATFileReader:
                 array = csv.reader(source, delimiter=delimiter, **fmtparams)
                 if path_in_external_file is not None and array is not None:
                     idx = int(path_in_external_file)
-                    return [row[idx] for row in list(filter(lambda l: len(l) > 0, list(array)))]
+                    return [row[idx] for row in list(filter(lambda line: len(line) > 0, list(array)))]
                 else:
                     return list(array)
 
@@ -362,7 +360,7 @@ class CSVFileReader:
                     idx = int(path_in_external_file)
                     # for row in list(array):
                     #     print(len(row))
-                    return [row[idx] for row in list(filter(lambda l: len(l) > 0, list(array)))]
+                    return [row[idx] for row in list(filter(lambda line: len(line) > 0, list(array)))]
                 else:
                     return list(array)
 

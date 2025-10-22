@@ -94,7 +94,7 @@ def find_class_in_module(module_name, class_name):
             try:
                 if cls_name == class_name or cls.Meta.name == class_name:
                     return cls
-            except Exception as e:
+            except Exception:
                 pass
     logging.error(f"Not Found : {module_name}; {class_name}")
     return None
@@ -109,7 +109,8 @@ def search_class_in_module_from_partial_name(module_name: str, class_partial_nam
 
     """
     try:
-        module = import_module(module_name)
+        import_module(module_name)
+        # module = import_module(module_name)
         classes = get_module_classes_from_name(module_name)
         matching_classes = [cls for cls_name, cls in classes if class_partial_name.lower() in cls_name.lower()]
         return matching_classes
@@ -290,7 +291,7 @@ def import_related_module(energyml_module_name: str) -> None:
             for m in related:
                 try:
                     import_module(m)
-                except Exception as e:
+                except Exception:
                     pass
                     # logging.error(e)
 
@@ -334,7 +335,7 @@ def get_class_fields(cls: Union[type, Any]) -> Dict[str, Field]:
         try:
             # print(list_function_parameters_with_types(cls.__new__, True))
             return list_function_parameters_with_types(cls.__new__, True)
-        except AttributeError as e:
+        except AttributeError:
             # For not working types like proxy type for C++ binding
             res = {}
             for a_name, a_type in inspect.getmembers(cls):
@@ -1114,7 +1115,7 @@ def get_obj_version(obj: Any) -> Optional[str]:
     """
     try:
         return get_object_attribute_no_verif(obj, "object_version")
-    except AttributeError as e:
+    except AttributeError:
         try:
             return get_object_attribute_no_verif(obj, "version_string")
         except Exception:
@@ -1131,7 +1132,7 @@ def get_obj_title(obj: Any) -> Optional[str]:
     """
     try:
         return get_object_attribute_advanced(obj, "citation.title")
-    except AttributeError as e:
+    except AttributeError:
         return None
 
 
@@ -1456,7 +1457,7 @@ def get_class_from_simple_name(simple_name: str, energyml_module_context=None) -
         energyml_module_context = []
     try:
         return eval(simple_name)
-    except NameError as e:
+    except NameError:
         for mod in energyml_module_context:
             try:
                 exec(f"from {mod} import *")
@@ -1492,7 +1493,7 @@ def _gen_str_from_attribute_name(attribute_name: Optional[str], _parent_class: O
         elif "mime_type" in attribute_name_lw and (
             "external" in _parent_class.__name__.lower() and "part" in _parent_class.__name__.lower()
         ):
-            return f"application/x-hdf5"
+            return "application/x-hdf5"
         elif "type" in attribute_name_lw:
             if attribute_name_lw.startswith("qualified"):
                 return get_qualified_type_from_class(get_classes_matching_name(_parent_class, "Abstract")[0])
@@ -1681,91 +1682,3 @@ def _random_value_from_class(
 
     logging.error(f"@_random_value_from_class Not supported object type generation {cls}")
     return None
-
-
-if __name__ == "__main__":
-    #     # poetry run python -m src.energyml.utils.introspection
-
-    from energyml.eml.v2_3.commonv2 import *
-    from energyml.eml.v2_0.commonv2 import Citation as Cit201
-    from energyml.resqml.v2_0_1.resqmlv2 import TriangulatedSetRepresentation as Tr20, ObjTriangulatedSetRepresentation
-    from energyml.resqml.v2_2.resqmlv2 import (
-        TriangulatedSetRepresentation,
-        FaultInterpretation,
-    )
-    from .serialization import *
-
-    #     # with open(
-    #     #     "C:/Users/Cryptaro/Downloads/test/obj_TriangulatedSetRepresentation_9298c0c3-7418-4c70-8388-e6071c95074e.xml",
-    #     #     "rb",
-    #     # ) as f:
-    #     #     f_content = f.read()
-    #     #     print(read_energyml_xml_bytes(f_content))
-
-    fi_cit = Citation(
-        title="An interpretation",
-        originator="Valentin",
-        creation=epoch_to_date(epoch()),
-        editor="test",
-        format="Geosiris",
-        last_update=epoch_to_date(epoch()),
-    )
-
-    fi = FaultInterpretation(
-        citation=fi_cit,
-        uuid=gen_uuid(),
-        object_version="0",
-    )
-
-    tr_cit = Citation(
-        title="--",
-        # title="test title",
-        originator="Valentin",
-        creation=epoch_to_date(epoch()),
-        editor="test",
-        format="Geosiris",
-        last_update=epoch_to_date(epoch()),
-    )
-
-    #     tr_cit201 = Cit201(
-    #         title="--",
-    #         # title="test title",
-    #         originator="Valentin",
-    #         # creation=str(epoch_to_date(epoch()))
-    #         editor="test",
-    #         format="Geosiris",
-    #         # last_update=str(epoch_to_date(epoch())),
-    #     )
-    dor = DataObjectReference(
-        uuid=fi.uuid,
-        title="a DOR title",
-        object_version="0",
-        qualified_type="a wrong qualified type",
-    )
-    tr = TriangulatedSetRepresentation(
-        citation=tr_cit,
-        uuid=gen_uuid(),
-        represented_object=dor,
-    )
-
-    #     tr201 = Tr20(
-    #         citation=tr_cit201,
-    #         uuid=gen_uuid(),
-    #     )
-    #     tr201_bis = ObjTriangulatedSetRepresentation(
-    #         citation=tr_cit201,
-    #         uuid=gen_uuid(),
-    #     )
-    #     # print(get_obj_uri(tr201, "coucou"))
-
-    #     print(get_obj_usable_class(tr))
-    #     print(get_obj_usable_class(tr201))
-
-    #     print(serialize_xml(tr201_bis, False))
-    #     print(serialize_xml(tr201, False))
-    #     # print(serialize_json(tr201))
-    #     print(serialize_xml(as_obj_prefixed_class_if_possible(tr201)))
-    #     # print("--> ", serialize_json(tr))
-    #     # print(serialize_xml((get_usable_class(tr201))(tr201)))
-    print(get_all_possible_instanciable_classes_for_attribute(tr, "represented_object"))
-    print(get_all_possible_instanciable_classes_for_attribute(tr, "triangle_patch"))
