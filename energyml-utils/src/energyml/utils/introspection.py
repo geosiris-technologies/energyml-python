@@ -35,7 +35,7 @@ from .manager import (
     reshape_version_from_regex_match,
 )
 from .uri import Uri, parse_uri
-from .xml import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
+from .constants import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
 
 
 def is_enum(cls: Union[type, Any]):
