@@ -1,8 +1,12 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
-import json
+import sys
+from pathlib import Path
 import re
 from dataclasses import fields
+
+src_path = Path(__file__).parent.parent / "src"
+sys.path.insert(0, str(src_path))
 
 from energyml.eml.v2_3.commonv2 import *
 from energyml.eml.v2_3.commonv2 import AbstractObject
@@ -17,19 +21,19 @@ from energyml.resqml.v2_2.resqmlv2 import (
 )
 
 # from src.energyml.utils.data.hdf import *
-from src.energyml.utils.data.helper import get_projected_uom, is_z_reversed
-from src.energyml.utils.epc import *
-from src.energyml.utils.introspection import *
-from src.energyml.utils.manager import *
-from src.energyml.utils.serialization import *
-from src.energyml.utils.validation import (
+from energyml.utils.data.helper import get_projected_uom, is_z_reversed
+from energyml.utils.epc import *
+from energyml.utils.introspection import *
+from energyml.utils.manager import *
+from energyml.utils.serialization import *
+from energyml.utils.validation import (
     patterns_validation,
     dor_validation,
     validate_epc,
     correct_dor,
 )
-from src.energyml.utils.xml import *
-from src.energyml.utils.data.datasets_io import HDF5FileReader, get_path_in_external_with_path
+from energyml.utils.xml import *
+from energyml.utils.data.datasets_io import HDF5FileReader, get_path_in_external_with_path
 
 fi_cit = Citation(
     title="An interpretation",
@@ -494,5 +498,22 @@ if __name__ == "__main__":
     )
     # print(get_obj_uri(tr201, "coucou"))
 
-    print(get_usable_class(tr))
-    print(get_usable_class(tr201))
+    logging.basicConfig(level=logging.DEBUG)
+
+    emi = create_energyml_object("resqml20.ObjEarthModelInterpretation")
+    print(type(emi))
+    print(serialize_xml(emi))
+
+    from energyml.resqml.v2_0_1 import resqmlv2
+
+    emi = resqmlv2.ObjEarthModelInterpretation()
+    print(type(emi))
+    print(serialize_xml(emi))
+
+    emi = read_energyml_xml_file("C:/Users/Cryptaro/Downloads/emi.xml")
+    print(type(emi))
+    print(serialize_xml(emi))
+
+    emi = create_energyml_object("resqml20.EarthModelInterpretation")
+    print(type(emi))
+    print(serialize_xml(emi))

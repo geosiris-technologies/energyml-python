@@ -266,14 +266,19 @@ def read_energyml_obj(data: Union[str, bytes], format_: str = "xml") -> Any:
 
 
 def serialize_xml(obj, check_obj_prefixed_classes: bool = True) -> str:
+    # logging.debug(f"[1] Serializing object of type {type(obj)}")
     obj = as_obj_prefixed_class_if_possible(obj) if check_obj_prefixed_classes else obj
+    # logging.debug(f"[2] Serializing object of type {type(obj)}")
     context = XmlContext(
         # element_name_generator=text.camel_case,
         # attribute_name_generator=text.kebab_case
     )
     serializer_config = SerializerConfig(indent="  ")
     serializer = XmlSerializer(context=context, config=serializer_config)
-    return serializer.render(obj, ns_map=ENERGYML_NAMESPACES)
+    # res = serializer.render(obj)
+    res = serializer.render(obj, ns_map=ENERGYML_NAMESPACES)
+    # logging.debug(f"[3] Serialized XML with meta namespace : {obj.Meta.namespace}: {serialize_json(obj)}")
+    return res
 
 
 def serialize_json(

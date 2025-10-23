@@ -1258,6 +1258,31 @@ def as_obj_prefixed_class_if_possible(o: Any) -> Any:
     if o is not None:
         if not isinstance(o, type):
             o_type = type(o)
+            # logging.info(
+            #     f"Trying to convert object of type {o_type.__module__} -- {o_type.__name__} to obj prefixed class : {o_type.__name__.lower().startswith('obj')}"
+            # )
+            if o_type.__name__.lower().startswith("obj"):
+                # search for sub class with same name but without Obj prefix
+                if hasattr(o_type, "Meta") and not hasattr(o_type.Meta, "namespace"):
+                    try:
+                        sub_name = str(o_type.__name__).replace(o_type.__name__, o_type.__name__[3:])
+                        sub_class_name = f"{o_type.__module__}.{sub_name}"
+                        # logging.info(f"\n\nSearching subclass {sub_class_name} for {o_type}")
+                        sub = get_class_from_name(sub_class_name)
+                        # logging.info(f"Found subclass {sub} for {sub}")
+                        if sub is not None and issubclass(sub, o_type):
+                            try:
+                                try:
+                                    if sub.Meta is not None:
+                                        o_type.Meta.namespace = sub.Meta.namespace  # keep the same namespace
+                                except Exception:
+                                    logging.debug(f"Failed to set namespace for {sub}")
+                            except Exception as e:
+                                # logging.debug(f"Failed to convert {o} to {sub}")
+                                logging.debug(e)
+                    except Exception:
+                        logging.debug(f"Error using Meta class for {o_type}")
+                return o
             if o_type.__bases__ is not None:
                 for bc in o_type.__bases__:
                     # print(bc)
