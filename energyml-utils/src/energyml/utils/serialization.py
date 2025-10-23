@@ -15,10 +15,7 @@ from xsdata.formats.dataclass.context import XmlContext
 from xsdata.formats.dataclass.models.generics import DerivedElement
 from xsdata.formats.dataclass.parsers import XmlParser, JsonParser
 from xsdata.formats.dataclass.parsers.config import ParserConfig
-from xsdata.formats.dataclass.parsers.handlers import (
-    LxmlEventHandler,
-    XmlEventHandler,
-)
+
 from xsdata.formats.dataclass.serializers import JsonSerializer
 from xsdata.formats.dataclass.serializers import XmlSerializer
 from xsdata.formats.dataclass.serializers.config import SerializerConfig
@@ -106,10 +103,10 @@ def read_energyml_xml_bytes(file: bytes, obj_type: Optional[type] = None) -> Any
     except xsdata.exceptions.ParserError as e:
         if len(e.args) > 0:
             if "unknown property" in e.args[0].lower():
-                logging.error(f"Trying reading without fail on unknown attribute/property")
+                logging.error("Trying reading without fail on unknown attribute/property")
                 try:
                     return _read_energyml_xml_bytes_as_class(file, obj_type, False, False)
-                except Exception as e:
+                except Exception:
                     logging.error(traceback.print_stack())
                     pass
         # Otherwise
@@ -269,14 +266,19 @@ def read_energyml_obj(data: Union[str, bytes], format_: str = "xml") -> Any:
 
 
 def serialize_xml(obj, check_obj_prefixed_classes: bool = True) -> str:
+    # logging.debug(f"[1] Serializing object of type {type(obj)}")
     obj = as_obj_prefixed_class_if_possible(obj) if check_obj_prefixed_classes else obj
+    # logging.debug(f"[2] Serializing object of type {type(obj)}")
     context = XmlContext(
         # element_name_generator=text.camel_case,
         # attribute_name_generator=text.kebab_case
     )
     serializer_config = SerializerConfig(indent="  ")
     serializer = XmlSerializer(context=context, config=serializer_config)
-    return serializer.render(obj, ns_map=ENERGYML_NAMESPACES)
+    # res = serializer.render(obj)
+    res = serializer.render(obj, ns_map=ENERGYML_NAMESPACES)
+    # logging.debug(f"[3] Serialized XML with meta namespace : {obj.Meta.namespace}: {serialize_json(obj)}")
+    return res
 
 
 def serialize_json(
@@ -371,7 +373,7 @@ def _read_json_dict(obj_json: Any, sub_obj: List) -> Any:
                             )
                         else:
                             logging.error(f"No matching attribute for attribute {att} in {obj}")
-                    except Exception as e:
+                    except Exception:
                         logging.error(f"Error assign attribute value for attribute {att} in {obj}")
         except Exception as e:
             logging.error(

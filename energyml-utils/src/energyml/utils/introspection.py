@@ -21,8 +21,10 @@ from .constants import (
     snake_case,
     pascal_case,
     path_next_attribute,
+    OptimizedRegex,
 )
 from .manager import (
+    class_has_parent_with_name,
     get_class_pkg,
     get_class_pkg_version,
     RELATED_MODULES,
@@ -30,9 +32,10 @@ from .manager import (
     get_sub_classes,
     get_classes_matching_name,
     dict_energyml_modules,
+    reshape_version_from_regex_match,
 )
 from .uri import Uri, parse_uri
-from .xml import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
+from .constants import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
 
 
 def is_enum(cls: Union[type, Any]):
@@ -91,7 +94,7 @@ def find_class_in_module(module_name, class_name):
             try:
                 if cls_name == class_name or cls.Meta.name == class_name:
                     return cls
-            except Exception as e:
+            except Exception:
                 pass
     logging.error(f"Not Found : {module_name}; {class_name}")
     return None
@@ -106,7 +109,8 @@ def search_class_in_module_from_partial_name(module_name: str, class_partial_nam
 
     """
     try:
-        module = import_module(module_name)
+        import_module(module_name)
+        # module = import_module(module_name)
         classes = get_module_classes_from_name(module_name)
         matching_classes = [cls for cls_name, cls in classes if class_partial_name.lower() in cls_name.lower()]
         return matching_classes
@@ -287,7 +291,7 @@ def import_related_module(energyml_module_name: str) -> None:
             for m in related:
                 try:
                     import_module(m)
-                except Exception as e:
+                except Exception:
                     pass
                     # logging.error(e)
 
@@ -331,7 +335,7 @@ def get_class_fields(cls: Union[type, Any]) -> Dict[str, Field]:
         try:
             # print(list_function_parameters_with_types(cls.__new__, True))
             return list_function_parameters_with_types(cls.__new__, True)
-        except AttributeError as e:
+        except AttributeError:
             # For not working types like proxy type for C++ binding
             res = {}
             for a_name, a_type in inspect.getmembers(cls):
@@ -639,9 +643,52 @@ def class_match_rgx(
     return False
 
 
-def is_dor(obj: any) -> bool:
+def get_dor_obj_info(dor: Any) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[type], Optional[str]]:
+    """
+    From a DOR object, return a tuple (uuid, package name, package version, object_type, object_version)
+
+    :param dor: a DataObjectReference object or ContentElement object
+    :return: tuple (uuid, package name, package version, object_type, object_version)
+    1. uuid: the UUID of the object
+    2. package name: the name of the package where the object is defined
+    3. package version: the version of the package where the object is defined
+    4. object_type: the class of the object
+    5. object_version: the version of the object
+
+    Example for a resqml v2.2 TriangulatedSetRepresentation :
+    ('123e4567-e89b-12d3-a456-426614174000', 'resqml', '2.2', <class 'energyml.resqml.v2_2.resqmlv2.TriangulatedSetRepresentation'>, '1.0')
+    """
+    obj_version = None
+    obj_cls = None
+    pkg_version = None
+    pkg = None
+    if hasattr(dor, "content_type"):
+        content_type = get_object_attribute_no_verif(dor, "content_type")
+        if content_type is not None:
+            obj_cls = get_class_from_content_type(content_type)
+    elif hasattr(dor, "qualified_type"):
+        qualified_type = get_object_attribute_no_verif(dor, "qualified_type")
+        if qualified_type is not None:
+            obj_cls = get_class_from_qualified_type(qualified_type)
+
+    obj_version = get_obj_version(dor)
+
+    uuid = get_obj_uuid(dor)
+
+    if obj_cls is not None:
+        p = OptimizedRegex.ENERGYML_MODULE_NAME
+        match = p.search(obj_cls.__module__)
+        if match is not None:
+            pkg_version = reshape_version_from_regex_match(match)
+            pkg = match.group("pkg")
+
+    return uuid, pkg, pkg_version, obj_cls, obj_version
+
+
+def is_dor(obj: Any) -> bool:
     return (
         "dataobjectreference" in get_obj_type(obj).lower()
+        or class_has_parent_with_name(obj, "DataObjectReference")
         or get_object_attribute(obj, "ContentType") is not None
         or get_object_attribute(obj, "QualifiedType") is not None
     )
@@ -1068,7 +1115,7 @@ def get_obj_version(obj: Any) -> Optional[str]:
     """
     try:
         return get_object_attribute_no_verif(obj, "object_version")
-    except AttributeError as e:
+    except AttributeError:
         try:
             return get_object_attribute_no_verif(obj, "version_string")
         except Exception:
@@ -1085,7 +1132,7 @@ def get_obj_title(obj: Any) -> Optional[str]:
     """
     try:
         return get_object_attribute_advanced(obj, "citation.title")
-    except AttributeError as e:
+    except AttributeError:
         return None
 
 
@@ -1211,6 +1258,31 @@ def as_obj_prefixed_class_if_possible(o: Any) -> Any:
     if o is not None:
         if not isinstance(o, type):
             o_type = type(o)
+            # logging.info(
+            #     f"Trying to convert object of type {o_type.__module__} -- {o_type.__name__} to obj prefixed class : {o_type.__name__.lower().startswith('obj')}"
+            # )
+            if o_type.__name__.lower().startswith("obj"):
+                # search for sub class with same name but without Obj prefix
+                if hasattr(o_type, "Meta") and not hasattr(o_type.Meta, "namespace"):
+                    try:
+                        sub_name = str(o_type.__name__).replace(o_type.__name__, o_type.__name__[3:])
+                        sub_class_name = f"{o_type.__module__}.{sub_name}"
+                        # logging.info(f"\n\nSearching subclass {sub_class_name} for {o_type}")
+                        sub = get_class_from_name(sub_class_name)
+                        # logging.info(f"Found subclass {sub} for {sub}")
+                        if sub is not None and issubclass(sub, o_type):
+                            try:
+                                try:
+                                    if sub.Meta is not None:
+                                        o_type.Meta.namespace = sub.Meta.namespace  # keep the same namespace
+                                except Exception:
+                                    logging.debug(f"Failed to set namespace for {sub}")
+                            except Exception as e:
+                                # logging.debug(f"Failed to convert {o} to {sub}")
+                                logging.debug(e)
+                    except Exception:
+                        logging.debug(f"Error using Meta class for {o_type}")
+                return o
             if o_type.__bases__ is not None:
                 for bc in o_type.__bases__:
                     # print(bc)
@@ -1410,7 +1482,7 @@ def get_class_from_simple_name(simple_name: str, energyml_module_context=None) -
         energyml_module_context = []
     try:
         return eval(simple_name)
-    except NameError as e:
+    except NameError:
         for mod in energyml_module_context:
             try:
                 exec(f"from {mod} import *")
@@ -1446,7 +1518,7 @@ def _gen_str_from_attribute_name(attribute_name: Optional[str], _parent_class: O
         elif "mime_type" in attribute_name_lw and (
             "external" in _parent_class.__name__.lower() and "part" in _parent_class.__name__.lower()
         ):
-            return f"application/x-hdf5"
+            return "application/x-hdf5"
         elif "type" in attribute_name_lw:
             if attribute_name_lw.startswith("qualified"):
                 return get_qualified_type_from_class(get_classes_matching_name(_parent_class, "Abstract")[0])
@@ -1635,91 +1707,3 @@ def _random_value_from_class(
 
     logging.error(f"@_random_value_from_class Not supported object type generation {cls}")
     return None
-
-
-if __name__ == "__main__":
-    #     # poetry run python -m src.energyml.utils.introspection
-
-    from energyml.eml.v2_3.commonv2 import *
-    from energyml.eml.v2_0.commonv2 import Citation as Cit201
-    from energyml.resqml.v2_0_1.resqmlv2 import TriangulatedSetRepresentation as Tr20, ObjTriangulatedSetRepresentation
-    from energyml.resqml.v2_2.resqmlv2 import (
-        TriangulatedSetRepresentation,
-        FaultInterpretation,
-    )
-    from .serialization import *
-
-    #     # with open(
-    #     #     "C:/Users/Cryptaro/Downloads/test/obj_TriangulatedSetRepresentation_9298c0c3-7418-4c70-8388-e6071c95074e.xml",
-    #     #     "rb",
-    #     # ) as f:
-    #     #     f_content = f.read()
-    #     #     print(read_energyml_xml_bytes(f_content))
-
-    fi_cit = Citation(
-        title="An interpretation",
-        originator="Valentin",
-        creation=epoch_to_date(epoch()),
-        editor="test",
-        format="Geosiris",
-        last_update=epoch_to_date(epoch()),
-    )
-
-    fi = FaultInterpretation(
-        citation=fi_cit,
-        uuid=gen_uuid(),
-        object_version="0",
-    )
-
-    tr_cit = Citation(
-        title="--",
-        # title="test title",
-        originator="Valentin",
-        creation=epoch_to_date(epoch()),
-        editor="test",
-        format="Geosiris",
-        last_update=epoch_to_date(epoch()),
-    )
-
-    #     tr_cit201 = Cit201(
-    #         title="--",
-    #         # title="test title",
-    #         originator="Valentin",
-    #         # creation=str(epoch_to_date(epoch()))
-    #         editor="test",
-    #         format="Geosiris",
-    #         # last_update=str(epoch_to_date(epoch())),
-    #     )
-    dor = DataObjectReference(
-        uuid=fi.uuid,
-        title="a DOR title",
-        object_version="0",
-        qualified_type="a wrong qualified type",
-    )
-    tr = TriangulatedSetRepresentation(
-        citation=tr_cit,
-        uuid=gen_uuid(),
-        represented_object=dor,
-    )
-
-    #     tr201 = Tr20(
-    #         citation=tr_cit201,
-    #         uuid=gen_uuid(),
-    #     )
-    #     tr201_bis = ObjTriangulatedSetRepresentation(
-    #         citation=tr_cit201,
-    #         uuid=gen_uuid(),
-    #     )
-    #     # print(get_obj_uri(tr201, "coucou"))
-
-    #     print(get_obj_usable_class(tr))
-    #     print(get_obj_usable_class(tr201))
-
-    #     print(serialize_xml(tr201_bis, False))
-    #     print(serialize_xml(tr201, False))
-    #     # print(serialize_json(tr201))
-    #     print(serialize_xml(as_obj_prefixed_class_if_possible(tr201)))
-    #     # print("--> ", serialize_json(tr))
-    #     # print(serialize_xml((get_usable_class(tr201))(tr201)))
-    print(get_all_possible_instanciable_classes_for_attribute(tr, "represented_object"))
-    print(get_all_possible_instanciable_classes_for_attribute(tr, "triangle_patch"))

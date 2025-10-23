@@ -497,7 +497,7 @@ def read_grid2d_representation(
                 root_obj=energyml_object,
                 workspace=workspace,
             )
-        except ObjectNotFoundNotError as e:
+        except ObjectNotFoundNotError:
             pass
 
         points, indices = gen_surface_grid_geometry(
@@ -588,7 +588,7 @@ def read_triangulated_set_representation(
                 root_obj=energyml_object,
                 workspace=workspace,
             )
-        except ObjectNotFoundNotError as e:
+        except ObjectNotFoundNotError:
             pass
 
         point_list: List[Point] = []
@@ -1068,7 +1068,7 @@ def write_geojson_feature(
         out.write(b"{")  # start geometry
         # "type": f"{geo_type_prefix}{geo_type.name}",
         out.write(f'"type": "{geo_type.name}", '.encode())
-        out.write(f'"coordinates": '.encode())
+        out.write('"coordinates": '.encode())
         mins, maxs = _write_geojson_shape(
             out=out,
             geo_type=geo_type,

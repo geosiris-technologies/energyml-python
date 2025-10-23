@@ -1,6 +1,6 @@
 [flake8]
 # Ignore specific error codes (comma-separated list)
-ignore = E501, E722 #, W503, F403
+ignore = E501, E722, W503, F403, E203, E202
 
 # Max line length (default is 79, can be changed)
 max-line-length = 120
