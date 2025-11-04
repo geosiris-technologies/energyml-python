@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import sys
+import numpy as np
 from dataclasses import dataclass, field
 from enum import Enum
 from io import BytesIO
@@ -21,6 +22,7 @@ from .helper import (
     is_z_reversed,
 )
 from ..epc import Epc, get_obj_identifier, gen_energyml_object_path
+from ..epc_stream import EpcStreamReader
 from ..exception import ObjectNotFoundNotError
 from ..introspection import (
     search_attribute_matching_name,
@@ -593,24 +595,32 @@ def read_triangulated_set_representation(
 
         point_list: List[Point] = []
         for point_path, point_obj in search_attribute_matching_name_with_path(patch, "Geometry.Points"):
-            point_list = point_list + read_array(
+            _array = read_array(
                 energyml_array=point_obj,
                 root_obj=energyml_object,
                 path_in_root=patch_path + "." + point_path,
                 workspace=workspace,
             )
+            if isinstance(_array, np.ndarray):
+                _array = _array.tolist()
+
+            point_list = point_list + _array
 
         triangles_list: List[List[int]] = []
         for (
             triangles_path,
             triangles_obj,
         ) in search_attribute_matching_name_with_path(patch, "Triangles"):
-            triangles_list = triangles_list + read_array(
+            _array = read_array(
                 energyml_array=triangles_obj,
                 root_obj=energyml_object,
                 path_in_root=patch_path + "." + triangles_path,
                 workspace=workspace,
             )
+            if isinstance(_array, np.ndarray):
+                _array = _array.tolist()
+            triangles_list = triangles_list + _array
+
         triangles_list = list(map(lambda tr: [ti - point_offset for ti in tr], triangles_list))
         if sub_indices is not None and len(sub_indices) > 0:
             new_triangles_list = []
@@ -1317,7 +1327,7 @@ def export_multiple_data(
     use_crs_displacement: bool = True,
     logger: Optional[Any] = None,
 ):
-    epc = Epc.read_file(epc_path)
+    epc = EpcStreamReader(epc_path)
 
     # with open(epc_path.replace(".epc", ".h5"), "rb") as fh:
     #     buf = BytesIO(fh.read())

@@ -685,8 +685,7 @@ class Epc(EnergymlWorkspace):
                             except Exception:
                                 logging.error(traceback.format_exc())
                                 logging.error(
-                                    f"Epc.@read_stream failed to parse file {ov_path} for content-type: {ov_ct} => {get_class_from_content_type(ov_ct)}\n\n",
-                                    get_class_from_content_type(ov_ct),
+                                    f"Epc.@read_stream failed to parse file {ov_path} for content-type: {ov_ct} => {str(get_class_from_content_type(ov_ct))}\n\n",
                                 )
                                 try:
                                     logging.debug(epc_file.read(ov_path))

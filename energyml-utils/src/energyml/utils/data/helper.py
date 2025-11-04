@@ -5,6 +5,8 @@ import logging
 import sys
 from typing import Any, Optional, Callable, List, Union
 
+import numpy as np
+
 from .datasets_io import read_external_dataset_array
 from ..constants import flatten_concatenation
 from ..epc import get_obj_identifier
@@ -20,6 +22,7 @@ from ..introspection import (
     get_object_attribute_rgx,
 )
 from ..workspace import EnergymlWorkspace
+from .datasets_io import get_path_in_external_with_path
 
 _ARRAY_NAMES_ = [
     "BooleanArrayFromDiscretePropertyArray",
@@ -292,7 +295,7 @@ def read_external_array(
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlWorkspace] = None,
     sub_indices: List[int] = None,
-) -> List[Any]:
+) -> Union[List[Any], np.ndarray]:
     """
     Read an external array (BooleanExternalArray, BooleanHdf5Array, DoubleHdf5Array, IntegerHdf5Array, StringExternalArray ...)
     :param energyml_array:
@@ -303,11 +306,25 @@ def read_external_array(
     """
     array = None
     if workspace is not None:
-        array = workspace.read_external_array(
-            energyml_array=energyml_array,
+        # array = workspace.read_external_array(
+        #     energyml_array=energyml_array,
+        #     root_obj=root_obj,
+        #     path_in_root=path_in_root,
+        # )
+        crs = get_crs_obj(
+            context_obj=root_obj,
             root_obj=root_obj,
             path_in_root=path_in_root,
+            workspace=workspace,
         )
+        pief_list = get_path_in_external_with_path(obj=energyml_array)
+        # empty array
+        array = None
+        for pief_path_in_obj, pief in pief_list:
+            arr = workspace.read_array(proxy=crs, path_in_external=pief)
+            if arr is not None:
+                array = arr if array is None else np.concatenate((array, arr))
+
     else:
         array = read_external_dataset_array(
             energyml_array=energyml_array,
