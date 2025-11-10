@@ -165,6 +165,9 @@ class EpcStreamReader(EnergymlWorkspace):
 
     def _create_empty_epc(self) -> None:
         """Create an empty EPC file structure."""
+        # Ensure directory exists
+        self.epc_file_path.parent.mkdir(parents=True, exist_ok=True)
+
         with zipfile.ZipFile(self.epc_file_path, "w") as zf:
             # Create [Content_Types].xml
             content_types = Types()

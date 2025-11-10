@@ -8,6 +8,7 @@ import datetime
 import json
 import logging
 import os
+from pathlib import Path
 import random
 import re
 import traceback
@@ -251,6 +252,10 @@ class Epc(EnergymlWorkspace):
         """
         if path is None:
             path = self.epc_file_path
+
+        # Ensure directory exists
+        if path is not None:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
         epc_io = self.export_io()
         with open(path, "wb") as f:
             f.write(epc_io.getbuffer())
