@@ -108,6 +108,7 @@ class EpcStreamReader(EnergymlWorkspace):
         validate_on_load: bool = True,
         preload_metadata: bool = True,
         export_version: EpcExportVersion = EpcExportVersion.CLASSIC,
+        force_h5_path: Optional[str] = None,
     ):
         """
         Initialize the EPC stream reader.
@@ -118,10 +119,12 @@ class EpcStreamReader(EnergymlWorkspace):
             validate_on_load: Whether to validate objects when loading
             preload_metadata: Whether to preload all object metadata
             export_version: EPC packaging version (CLASSIC or EXPANDED)
+            force_h5_path: Optional forced HDF5 file path for external resources. If set, all arrays will be read/written from/to this path.
         """
         self.epc_file_path = Path(epc_file_path)
         self.cache_size = cache_size
         self.validate_on_load = validate_on_load
+        self.force_h5_path = force_h5_path
 
         is_new_file = False
 
@@ -609,6 +612,8 @@ class EpcStreamReader(EnergymlWorkspace):
         :param obj: the object or its identifier/URI
         :return: list of HDF5 file paths
         """
+        if self.force_h5_path is not None:
+            return [self.force_h5_path]
         h5_paths = set()
 
         if isinstance(obj, (str, Uri)):
