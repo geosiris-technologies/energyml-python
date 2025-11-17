@@ -138,6 +138,18 @@ class EpcStreamReader(EnergymlWorkspace):
         if not zipfile.is_zipfile(self.epc_file_path):
             raise ValueError(f"File is not a valid ZIP/EPC file: {epc_file_path}")
 
+        # Check if the ZIP file has the required EPC structure
+        if not is_new_file:
+            try:
+                with zipfile.ZipFile(self.epc_file_path, "r") as zf:
+                    content_types_path = get_epc_content_type_path()
+                    if content_types_path not in zf.namelist():
+                        logging.info(f"EPC file is missing required structure. Initializing empty EPC file.")
+                        self._create_empty_epc()
+                        is_new_file = True
+            except Exception as e:
+                logging.warning(f"Failed to check EPC structure: {e}. Reinitializing.")
+
         # Object metadata storage
         self._metadata: Dict[str, EpcObjectMetadata] = {}  # identifier -> metadata
         self._uuid_index: Dict[str, List[str]] = {}  # uuid -> list of identifiers
