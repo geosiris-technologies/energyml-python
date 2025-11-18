@@ -28,6 +28,7 @@ from .constants import EPCRelsRelationshipType, OptimizedRegex, EpcExportVersion
 from .epc import Epc, gen_energyml_object_path, gen_rels_path, get_epc_content_type_path
 from .introspection import (
     get_class_from_content_type,
+    get_obj_content_type,
     get_obj_identifier,
     get_obj_uuid,
     get_object_type_for_file_path_from_class,
@@ -807,7 +808,7 @@ class EpcStreamReader(EnergymlWorkspace):
             print(f"Generated file path: {file_path} for export version: {self.export_version}")
 
             # Determine content type based on object type
-            content_type = self._get_content_type_for_object_type(object_type)
+            content_type = get_obj_content_type(obj)
 
             # Create metadata
             metadata = EpcObjectMetadata(
@@ -972,19 +973,6 @@ class EpcStreamReader(EnergymlWorkspace):
         except Exception as e:
             logging.error(f"Failed to update object {identifier}: {e}")
             raise RuntimeError(f"Failed to update object in EPC: {e}")
-
-    def _get_content_type_for_object_type(self, object_type: str) -> str:
-        """Get appropriate content type for object type."""
-        # Map common object types to content types
-        content_type_map = {
-            "BoundaryFeature": "application/x-resqml+xml;version=2.2;type=BoundaryFeature",
-            "PropertyKind": "application/x-eml+xml;version=2.3;type=PropertyKind",
-            "LocalDepth3dCrs": "application/x-resqml+xml;version=2.2;type=LocalDepth3dCrs",
-            "PolylineSetRepresentation": "application/x-resqml+xml;version=2.2;type=PolylineSetRepresentation",
-            "PointSetRepresentation": "application/x-resqml+xml;version=2.2;type=PointSetRepresentation",
-        }
-
-        return content_type_map.get(object_type, f"application/x-resqml+xml;version=2.2;type={object_type}")
 
     def add_rels_for_object(self, identifier: Union[str, Uri, Any], relationships: List[Relationship]) -> None:
         """

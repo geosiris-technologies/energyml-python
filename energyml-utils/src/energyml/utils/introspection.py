@@ -18,6 +18,7 @@ from .constants import (
     epoch_to_date,
     epoch,
     gen_uuid,
+    qualified_type_to_content_type,
     snake_case,
     pascal_case,
     path_next_attribute,
@@ -1183,6 +1184,26 @@ def get_obj_pkg_pkgv_type_uuid_version(
         pkg_v = pkg_v.replace(".", "")
 
     return pkg, pkg_v, obj_type, obj_uuid, obj_version
+
+
+def get_obj_qualified_type(obj: Any) -> str:
+    """
+    Generates an objet qualified type as : 'PKG.PKG_VERSION.OBJ_TYPE'
+    :param obj:
+    :return: str
+    """
+    pkg, pkg_v, obj_type, _, _ = get_obj_pkg_pkgv_type_uuid_version(obj)
+    if pkg is None or pkg_v is None or obj_type is None:
+        raise ValueError(f"Cannot get qualified type for object of type {type(obj)}")
+    return f"{pkg}{pkg_v}.{obj_type}"
+
+
+def get_obj_content_type(obj: Any) -> str:
+    qualified_type = get_obj_qualified_type(obj)
+    res = qualified_type_to_content_type(qualified_type)
+    if res is None:
+        raise ValueError(f"Cannot get content type for object of type {type(obj)} from qualified type {qualified_type}")
+    return res
 
 
 def get_obj_identifier(obj: Any) -> str:

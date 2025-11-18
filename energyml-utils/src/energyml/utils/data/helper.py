@@ -321,7 +321,7 @@ def read_external_array(
         # empty array
         array = None
         for pief_path_in_obj, pief in pief_list:
-            arr = workspace.read_array(proxy=crs, path_in_external=pief)
+            arr = workspace.read_array(proxy=crs or root_obj, path_in_external=pief)
             if arr is not None:
                 array = arr if array is None else np.concatenate((array, arr))
 
