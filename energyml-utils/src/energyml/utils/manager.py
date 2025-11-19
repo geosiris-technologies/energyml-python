@@ -4,9 +4,15 @@ import importlib
 import inspect
 import logging
 import pkgutil
-from typing import Union, Any, Dict
+import re
+from typing import Union, Any, Dict, List, Optional
 
-from .constants import *
+from energyml.utils.constants import (
+    ENERGYML_MODULES_NAMES,
+    RELATED_MODULES,
+    RGX_ENERGYML_MODULE_NAME,
+    RGX_PROJECT_VERSION,
+)
 
 
 def get_related_energyml_modules_name(cls: Union[type, Any]) -> List[str]:
@@ -98,6 +104,26 @@ def get_sub_classes(cls: type) -> List[type]:
     return list(dict.fromkeys(sub_classes))
 
 
+def class_has_parent_with_name(
+    cls: type,
+    parent_name_rgx: str,
+    re_flags=re.IGNORECASE,
+) -> bool:
+    """
+    Check if the class :param:`cls` has a parent class matching the regex :param:`parent_name_rgx`.
+    :param cls:
+    :param parent_name_rgx:
+    :param re_flags:
+    :return:
+    """
+    if not isinstance(cls, type):
+        cls = type(cls)
+    for parent in inspect.getmro(cls):
+        if re.match(parent_name_rgx, parent.__name__, re_flags):
+            return True
+    return False
+
+
 def get_classes_matching_name(
     cls: type,
     name_rgx: str,
@@ -181,6 +207,21 @@ def reshape_version(version: str, nb_digit: int) -> str:
     return version
 
 
+def reshape_version_from_regex_match(
+    match: Optional[re.Match], print_dev_version: bool = True, nb_digit: int = 2
+) -> str:
+    """
+    Reshape a version from a regex match object.
+    :param match: A regex match object containing the version information.
+    :param print_dev_version: If True, append 'dev' to the version if applicable.
+    :param nb_digit: The number of digits to keep in the version.
+    :return: The reshaped version string.
+    """
+    return reshape_version(match.group("versionNumber"), nb_digit) + (
+        "dev" + match.group("versionDev") if match.group("versionDev") is not None and print_dev_version else ""
+    )
+
+
 def get_class_pkg_version(cls, print_dev_version: bool = True, nb_max_version_digits: int = 2):
     p = re.compile(RGX_ENERGYML_MODULE_NAME)
     class_module = None
@@ -192,9 +233,7 @@ def get_class_pkg_version(cls, print_dev_version: bool = True, nb_max_version_di
         class_module = type(cls).__module__
 
     match = p.search(class_module)
-    return reshape_version(match.group("versionNumber"), nb_max_version_digits) + (
-        "dev" + match.group("versionDev") if match.group("versionDev") is not None and print_dev_version else ""
-    )
+    return reshape_version_from_regex_match(match, print_dev_version, nb_max_version_digits)
 
 
 # ProtocolDict = DefaultDict[str, MessageDict]

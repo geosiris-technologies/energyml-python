@@ -64,13 +64,14 @@ energyml-opc = "^1.12.0"
 h5py = { version = "^3.7.0", optional = false }
 pyarrow = { version = "^14.0.1", optional = false }
 numpy = { version = "^1.16.6", optional = false }
+flake8 = "^7.3.0"
 
 [tool.poetry.group.dev.dependencies]
 pandas = { version = "^1.1.0", optional = false }
 coverage = {extras = ["toml"], version = "^6.2"}
 pytest = "^8.1.1"
 pytest-cov = "^4.1.0"
-flake8 = "^4.0.0"
+flake8 = "^7.3.0"
 black = "^22.3.0"
 pylint = "^2.7.2"
 click = ">=8.1.3, <=8.1.3" # upper version than 8.0.2 fail with black

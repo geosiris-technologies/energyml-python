@@ -5,6 +5,12 @@ import json
 import os
 import pathlib
 from typing import Optional, List, Dict, Any
+import sys
+from pathlib import Path
+
+# Add src directory to path
+src_path = Path(__file__).parent.parent / "src"
+sys.path.insert(0, str(src_path))
 
 from energyml.utils.validation import validate_epc
 
@@ -359,7 +365,7 @@ def extract_representation_in_3d_file():
         uuid_list=args.uuid,
         output_folder_path=args.output,
         file_format=args.file_format,
-        use_crs_displacement=args.crs,
+        use_crs_displacement=not args.no_crs,
     )
 
 

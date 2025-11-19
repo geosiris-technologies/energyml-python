@@ -307,7 +307,7 @@ def parse_content_type(ct: str) -> Optional[re.Match[str]]:
     """Parse content type using optimized compiled regex"""
     try:
         return OptimizedRegex.CONTENT_TYPE.search(ct)
-    except (TypeError, AttributeError) as e:
+    except (TypeError, AttributeError):
         return None
 
 
@@ -315,7 +315,7 @@ def parse_qualified_type(qt: str) -> Optional[re.Match[str]]:
     """Parse qualified type using optimized compiled regex"""
     try:
         return OptimizedRegex.QUALIFIED_TYPE.search(qt)
-    except (TypeError, AttributeError) as e:
+    except (TypeError, AttributeError):
         return None
 
 
@@ -526,10 +526,11 @@ def _get_property_kind_dict_path_as_str(file_type: str = "xml") -> str:
         try:
             import energyml.utils.rc as RC
         except ImportError:
-            try:
-                import src.energyml.utils.rc as RC
-            except ImportError:
-                import utils.rc as RC
+            # try:
+            import src.energyml.utils.rc as RC
+
+            # except ImportError:
+            # import utils.rc as RC
 
         return files(RC).joinpath(f"PropertyKindDictionary_v2.3.{file_type.lower()}").read_text(encoding="utf-8")
     except (ImportError, FileNotFoundError, AttributeError) as e:

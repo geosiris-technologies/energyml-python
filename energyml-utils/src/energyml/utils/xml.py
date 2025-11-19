@@ -1,11 +1,13 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
+from io import BytesIO
 import logging
-from typing import Any, Union
+from typing import Union, Optional
+import re
 
 from lxml import etree as ETREE  # type: Any
 
-from .constants import *
+from .constants import ENERGYML_NAMESPACES, ENERGYML_NAMESPACES_PACKAGE, OptimizedRegex, parse_content_type
 
 
 def get_pkg_from_namespace(namespace: str) -> Optional[str]:
@@ -25,11 +27,12 @@ def get_root_namespace(tree: ETREE.Element) -> str:
     return tree.nsmap.get(tree.prefix, tree.nsmap.get(None, ""))
 
 
-def get_class_name_from_xml(tree: ETREE.Element) -> str:
+def get_class_name_from_xml(tree: ETREE.Element) -> Optional[str]:
     root_namespace = get_root_namespace(tree)
     pkg = get_pkg_from_namespace(root_namespace)
     if pkg is None:
         logging.error(f"No pkg found for elt {tree}")
+        return None
     else:
         if pkg == "opc":
             return "energyml.opc.opc." + get_root_type(tree)
