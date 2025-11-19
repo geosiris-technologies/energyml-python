@@ -304,13 +304,17 @@ class EpcStreamReader(EnergymlWorkspace):
                 version = None
                 version_patterns = [
                     r'object[Vv]ersion["\']?\s*[:=]\s*["\']([^"\']+)',
-                    r'version["\']?\s*[:=]\s*["\']([^"\']+)',
                 ]
 
                 for pattern in version_patterns:
-                    version_match = OptimizedRegex.SCHEMA_VERSION.search(chunk_str)
+                    import re
+
+                    version_match = re.search(pattern, chunk_str)
                     if version_match:
                         version = version_match.group(1)
+                        # Ensure version is a string
+                        if not isinstance(version, str):
+                            version = str(version)
                         break
 
                 # Extract object type from content type
@@ -769,20 +773,20 @@ class EpcStreamReader(EnergymlWorkspace):
         """Context manager exit with cleanup."""
         self.clear_cache()
 
-    def add_object(self, obj: Any, file_path: Optional[str] = None) -> str:
+    def add_object(self, obj: Any, file_path: Optional[str] = None, replace_if_exists: bool = True) -> str:
         """
         Add a new object to the EPC file and update caches.
 
         Args:
             obj: The EnergyML object to add
-            object_type: The type of the object (e.g., 'BoundaryFeature')
             file_path: Optional custom file path, auto-generated if not provided
+            replace_if_exists: If True, replace the object if it already exists. If False, raise ValueError.
 
         Returns:
             The identifier of the added object
 
         Raises:
-            ValueError: If object is invalid or already exists
+            ValueError: If object is invalid or already exists (when replace_if_exists=False)
             RuntimeError: If file operations fail
         """
         identifier = None
@@ -797,10 +801,21 @@ class EpcStreamReader(EnergymlWorkspace):
                 raise ValueError("Object must have a valid UUID")
 
             version = identifier[len(uuid) + 1 :] if identifier and "." in identifier else None
+            # Ensure version is treated as a string, not an integer
+            if version is not None and not isinstance(version, str):
+                version = str(version)
+
             object_type = get_object_type_for_file_path_from_class(obj)
 
             if identifier in self._metadata:
-                raise ValueError(f"Object with identifier {identifier} already exists. use update_object() instead.")
+                if replace_if_exists:
+                    # Remove the existing object first
+                    logging.info(f"Replacing existing object {identifier}")
+                    self.remove_object(identifier)
+                else:
+                    raise ValueError(
+                        f"Object with identifier {identifier} already exists. Use update_object() or set replace_if_exists=True."
+                    )
 
             # Generate file path if not provided
             file_path = gen_energyml_object_path(obj, self.export_version)
