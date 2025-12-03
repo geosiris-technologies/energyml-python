@@ -292,8 +292,8 @@ def import_related_module(energyml_module_name: str) -> None:
             for m in related:
                 try:
                     import_module(m)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logging.debug(f"Could not import related module {m}: {e}")
                     # logging.error(e)
 
 

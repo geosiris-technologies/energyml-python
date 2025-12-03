@@ -23,7 +23,7 @@ from .helper import (
 )
 from ..epc import Epc, get_obj_identifier, gen_energyml_object_path
 from ..epc_stream import EpcStreamReader
-from ..exception import ObjectNotFoundNotError
+from ..exception import NotSupportedError, ObjectNotFoundNotError
 from ..introspection import (
     search_attribute_matching_name,
     search_attribute_matching_name_with_path,
@@ -145,7 +145,7 @@ def crs_displacement(points: List[Point], crs_obj: Any) -> Tuple[List[Point], Po
     if crs_point_offset != [0, 0, 0]:
         for p in points:
             for xyz in range(len(p)):
-                p[xyz] = p[xyz] + crs_point_offset[xyz]
+                p[xyz] = (p[xyz] + crs_point_offset[xyz]) if p[xyz] is not None else None
             if zincreasing_downward and len(p) >= 3:
                 p[2] = -p[2]
 
@@ -196,6 +196,7 @@ def read_mesh_object(
 
     reader_func = get_mesh_reader_function(array_type_name)
     if reader_func is not None:
+        # logging.info(f"using function {reader_func} to read type {array_type_name}")
         surfaces: List[AbstractMesh] = reader_func(
             energyml_object=energyml_object, workspace=workspace, sub_indices=sub_indices
         )
@@ -204,10 +205,16 @@ def read_mesh_object(
                 crs_displacement(s.point_list, s.crs_object)
         return surfaces
     else:
-        logging.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
-        raise Exception(
-            f"Type {array_type_name} is not supported\n\t{energyml_object}: \n\tfunction read_{snake_case(array_type_name)} not found"
+        # logging.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
+        raise NotSupportedError(
+            f"Type {array_type_name} is not supported\n\tfunction read_{snake_case(array_type_name)} not found"
         )
+
+
+def read_ijk_grid_representation(
+    energyml_object: Any, workspace: EnergymlWorkspace, sub_indices: List[int] = None
+) -> List[Any]:
+    raise NotSupportedError("IJKGrid representation reading is not supported yet.")
 
 
 def read_point_representation(
@@ -659,7 +666,7 @@ def read_sub_representation(
     supporting_rep = workspace.get_object_by_identifier(supporting_rep_identifier)
 
     total_size = 0
-    all_indices = []
+    all_indices = None
     for patch_path, patch_indices in search_attribute_matching_name_with_path(
         obj=energyml_object,
         name_rgx="SubRepresentationPatch.\\d+.ElementIndices.\\d+.Indices",
@@ -690,7 +697,7 @@ def read_sub_representation(
         else:
             total_size = total_size + len(array)
 
-        all_indices = all_indices + array
+        all_indices = all_indices + array if all_indices is not None else array
     meshes = read_mesh_object(
         energyml_object=supporting_rep,
         workspace=workspace,
@@ -1263,7 +1270,8 @@ def export_obj(mesh_list: List[AbstractMesh], out: BytesIO, obj_name: Optional[s
 
     point_offset = 0
     for m in mesh_list:
-        out.write(f"g {m.identifier}\n\n".encode("utf-8"))
+        mesh_id = getattr(m, "identifier", None) or getattr(m, "uuid", "mesh")
+        out.write(f"g {mesh_id}\n\n".encode("utf-8"))
         _export_obj_elt(
             off_point_part=out,
             off_face_part=out,

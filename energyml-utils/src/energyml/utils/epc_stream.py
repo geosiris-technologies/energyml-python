@@ -110,6 +110,7 @@ class EpcStreamReader(EnergymlWorkspace):
         preload_metadata: bool = True,
         export_version: EpcExportVersion = EpcExportVersion.CLASSIC,
         force_h5_path: Optional[str] = None,
+        keep_open: bool = False,
     ):
         """
         Initialize the EPC stream reader.
@@ -121,11 +122,13 @@ class EpcStreamReader(EnergymlWorkspace):
             preload_metadata: Whether to preload all object metadata
             export_version: EPC packaging version (CLASSIC or EXPANDED)
             force_h5_path: Optional forced HDF5 file path for external resources. If set, all arrays will be read/written from/to this path.
+            keep_open: If True, keeps the ZIP file open for better performance with multiple operations. File is closed only when instance is deleted or close() is called.
         """
         self.epc_file_path = Path(epc_file_path)
         self.cache_size = cache_size
         self.validate_on_load = validate_on_load
         self.force_h5_path = force_h5_path
+        self.keep_open = keep_open
 
         is_new_file = False
 
@@ -145,7 +148,7 @@ class EpcStreamReader(EnergymlWorkspace):
                 with zipfile.ZipFile(self.epc_file_path, "r") as zf:
                     content_types_path = get_epc_content_type_path()
                     if content_types_path not in zf.namelist():
-                        logging.info(f"EPC file is missing required structure. Initializing empty EPC file.")
+                        logging.info("EPC file is missing required structure. Initializing empty EPC file.")
                         self._create_empty_epc()
                         is_new_file = True
             except Exception as e:
@@ -166,6 +169,7 @@ class EpcStreamReader(EnergymlWorkspace):
 
         # File handle management
         self._zip_file: Optional[zipfile.ZipFile] = None
+        self._persistent_zip: Optional[zipfile.ZipFile] = None  # Used when keep_open=True
 
         # EPC export version detection
         self.export_version: EpcExportVersion = export_version or EpcExportVersion.CLASSIC  # Default
@@ -178,6 +182,10 @@ class EpcStreamReader(EnergymlWorkspace):
             self._load_metadata()
             # Detect EPC version after loading metadata
             self.export_version = self._detect_epc_version()
+
+        # Open persistent ZIP file if keep_open is enabled
+        if self.keep_open and not is_new_file:
+            self._persistent_zip = zipfile.ZipFile(self.epc_file_path, "r")
 
     def _create_empty_epc(self) -> None:
         """Create an empty EPC file structure."""
@@ -218,14 +226,22 @@ class EpcStreamReader(EnergymlWorkspace):
 
     @contextmanager
     def _get_zip_file(self) -> Iterator[zipfile.ZipFile]:
-        """Context manager for ZIP file access with proper resource management."""
-        zf = None
-        try:
-            zf = zipfile.ZipFile(self.epc_file_path, "r")
-            yield zf
-        finally:
-            if zf is not None:
-                zf.close()
+        """Context manager for ZIP file access with proper resource management.
+
+        If keep_open is True, uses the persistent connection. Otherwise opens a new one.
+        """
+        if self.keep_open and self._persistent_zip is not None:
+            # Use persistent connection, don't close it
+            yield self._persistent_zip
+        else:
+            # Open and close per request
+            zf = None
+            try:
+                zf = zipfile.ZipFile(self.epc_file_path, "r")
+                yield zf
+            finally:
+                if zf is not None:
+                    zf.close()
 
     def _read_content_types(self, zf: zipfile.ZipFile) -> Types:
         """Read and parse [Content_Types].xml file."""
@@ -772,6 +788,43 @@ class EpcStreamReader(EnergymlWorkspace):
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit with cleanup."""
         self.clear_cache()
+        self.close()
+
+    def __del__(self):
+        """Destructor to ensure persistent ZIP file is closed."""
+        try:
+            self.close()
+        except Exception:
+            pass  # Ignore errors during cleanup
+
+    def close(self) -> None:
+        """Close the persistent ZIP file if it's open, recomputing rels first."""
+        # Recompute all relationships before closing to ensure consistency
+        try:
+            self.rebuild_all_rels(clean_first=True)
+        except Exception as e:
+            logging.warning(f"Error rebuilding rels on close: {e}")
+
+        if self._persistent_zip is not None:
+            try:
+                self._persistent_zip.close()
+            except Exception as e:
+                logging.debug(f"Error closing persistent ZIP file: {e}")
+            finally:
+                self._persistent_zip = None
+
+    def _reopen_persistent_zip(self) -> None:
+        """Reopen persistent ZIP file after modifications to reflect changes.
+
+        This is called after any operation that modifies the EPC file to ensure
+        that subsequent reads see the updated content.
+        """
+        if self.keep_open and self._persistent_zip is not None:
+            try:
+                self._persistent_zip.close()
+            except Exception:
+                pass
+            self._persistent_zip = zipfile.ZipFile(self.epc_file_path, "r")
 
     def add_object(self, obj: Any, file_path: Optional[str] = None, replace_if_exists: bool = True) -> str:
         """
@@ -913,7 +966,15 @@ class EpcStreamReader(EnergymlWorkspace):
             raise RuntimeError(f"Failed to remove object from EPC: {e}")
 
     def _remove_single_object(self, identifier: str) -> bool:
-        """Remove a single object by its full identifier."""
+        """
+        Remove a single object by its full identifier.
+        The rels files of other objects referencing this object are NOT updated. You must update them manually (or close the epc, the rels are regenerated on epc close).
+        Args:
+            identifier: The full identifier (uuid.version) of the object to remove
+        Returns:
+            True if the object was successfully removed, False otherwise
+
+        """
         try:
             if identifier not in self._metadata:
                 return False
@@ -1038,6 +1099,7 @@ class EpcStreamReader(EnergymlWorkspace):
                     target_zip,
                 )
             shutil.move(temp_path, self.epc_file_path)
+            self._reopen_persistent_zip()
 
     def _compute_object_rels(self, obj: Any, obj_identifier: str) -> List[Relationship]:
         """
@@ -1304,9 +1366,13 @@ class EpcStreamReader(EnergymlWorkspace):
                     # Update .rels files by merging with existing ones read from source
                     updated_rels_paths = self._update_rels_files(obj, metadata, source_zip, target_zip)
 
-                    # Copy all existing files except [Content_Types].xml and rels we'll update
+                    # Copy all existing files except [Content_Types].xml, the object file, and rels we already updated
                     for item in source_zip.infolist():
-                        if item.filename == get_epc_content_type_path() or item.filename in updated_rels_paths:
+                        if (
+                            item.filename == get_epc_content_type_path()
+                            or item.filename == metadata.file_path
+                            or item.filename in updated_rels_paths
+                        ):
                             continue
                         data = source_zip.read(item.filename)
                         target_zip.writestr(item, data)
@@ -1317,6 +1383,7 @@ class EpcStreamReader(EnergymlWorkspace):
 
             # Replace original file with updated version
             shutil.move(temp_path, self.epc_file_path)
+            self._reopen_persistent_zip()
 
         except Exception as e:
             # Clean up temp file on error
@@ -1352,6 +1419,7 @@ class EpcStreamReader(EnergymlWorkspace):
 
             # Replace original file with updated version
             shutil.move(temp_path, self.epc_file_path)
+            self._reopen_persistent_zip()
 
         except Exception:
             # Clean up temp file on error
@@ -1686,6 +1754,7 @@ class EpcStreamReader(EnergymlWorkspace):
 
             # Replace original file
             shutil.move(temp_path, self.epc_file_path)
+            self._reopen_persistent_zip()
 
             logging.info(
                 f"Rebuilt .rels files: processed {stats['objects_processed']} objects, "

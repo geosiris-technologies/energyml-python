@@ -44,6 +44,7 @@ sample/
 gen*/
 manip*
 *.epc
+*.h5
 *.off
 *.obj
 *.log

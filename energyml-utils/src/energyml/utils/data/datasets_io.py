@@ -145,6 +145,17 @@ else:
         ) -> None:
             raise MissingExtraInstallation(extra_name="hdf5")
 
+    class HDF5FileWriter:
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, bytes],
+            array: Union[list, np.ndarray],
+            path_in_external_file: str,
+            dtype: Optional[np.dtype] = None,
+        ):
+            raise MissingExtraInstallation(extra_name="hdf5")
+
 
 # APACHE PARQUET
 if __PARQUET_MODULE_EXISTS__:
