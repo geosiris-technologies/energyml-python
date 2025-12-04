@@ -587,9 +587,10 @@ def get_object_attribute_no_verif(obj: Any, attr_name: str, default: Optional[An
         else:
             raise AttributeError(obj, name=attr_name)
     else:
-        return (
-            getattr(obj, attr_name) or default
-        )  # we did not used the "default" of getattr to keep raising AttributeError
+        res = getattr(obj, attr_name)
+        if res is None:  # we did not used the "default" of getattr to keep raising AttributeError
+            return default
+        return res
 
 
 def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:

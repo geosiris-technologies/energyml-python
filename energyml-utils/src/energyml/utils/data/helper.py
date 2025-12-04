@@ -86,20 +86,29 @@ def is_z_reversed(crs: Optional[Any]) -> bool:
     """
     reverse_z_values = False
     if crs is not None:
-        # resqml 201
-        zincreasing_downward = search_attribute_matching_name(crs, "ZIncreasingDownward")
-        if len(zincreasing_downward) > 0:
-            reverse_z_values = zincreasing_downward[0]
+        if "VerticalCrs" in type(crs).__name__:
+            vert_axis = search_attribute_matching_name(crs, "Direction")
+            if len(vert_axis) > 0:
+                vert_axis_str = str(vert_axis[0])
+                if "." in vert_axis_str:
+                    vert_axis_str = vert_axis_str.split(".")[-1]
 
-        # resqml >= 22
-        vert_axis = search_attribute_matching_name(crs, "VerticalAxis.Direction")
-        if len(vert_axis) > 0:
-            vert_axis_str = str(vert_axis[0])
-            if "." in vert_axis_str:
-                vert_axis_str = vert_axis_str.split(".")[-1]
+                reverse_z_values = vert_axis_str.lower() == "down"
+        else:
+            # resqml 201
+            zincreasing_downward = search_attribute_matching_name(crs, "ZIncreasingDownward")
+            if len(zincreasing_downward) > 0:
+                reverse_z_values = zincreasing_downward[0]
 
-            reverse_z_values = vert_axis_str.lower() == "down"
+            # resqml >= 22
+            vert_axis = search_attribute_matching_name(crs, "VerticalAxis.Direction")
+            if len(vert_axis) > 0:
+                vert_axis_str = str(vert_axis[0])
+                if "." in vert_axis_str:
+                    vert_axis_str = vert_axis_str.split(".")[-1]
 
+                reverse_z_values = vert_axis_str.lower() == "down"
+    logging.debug(f"is_z_reversed: {reverse_z_values}")
     return reverse_z_values
 
 
@@ -185,15 +194,18 @@ def prod_n_tab(val: Union[float, int, str], tab: List[Union[float, int, str]]):
     """
     if val is None:
         return [None] * len(tab)
-
+    logging.debug(f"Multiplying list by {val}: {tab}")
     # Convert to numpy array for vectorized operations, handling None values
     arr = np.array(tab, dtype=object)
+    logging.debug(f"arr: {arr}")
     # Create mask for non-None values
     mask = arr != None  # noqa: E711
     # Create result array filled with None
     result = np.full(len(tab), None, dtype=object)
+    logging.debug(f"result before multiplication: {result}")
     # Multiply only non-None values
     result[mask] = arr[mask].astype(float) * val
+    logging.debug(f"result after multiplication: {result}")
     return result.tolist()
 
 
@@ -536,19 +548,25 @@ def read_int_double_lattice_array(
     :param sub_indices:
     :return:
     """
-    # start_value = get_object_attribute_no_verif(energyml_array, "start_value")
+    start_value = get_object_attribute_no_verif(energyml_array, "start_value")
     offset = get_object_attribute_no_verif(energyml_array, "offset")
 
-    # result = []
+    result = []
 
-    # if len(offset) == 1:
-    #     pass
-    # elif len(offset) == 2:
-    #     pass
-    # else:
-    raise Exception(f"{type(energyml_array)} read with an offset of length {len(offset)} is not supported")
+    if len(offset) == 1:
+        # 1D lattice array: offset is a single DoubleConstantArray or IntegerConstantArray
+        offset_obj = offset[0]
 
-    # return result
+        # Get the offset value and count from the ConstantArray
+        offset_value = get_object_attribute_no_verif(offset_obj, "value")
+        count = get_object_attribute_no_verif(offset_obj, "count")
+
+        # Generate the 1D array: start_value + i * offset_value for i in range(count)
+        result = [start_value + i * offset_value for i in range(count)]
+    else:
+        raise Exception(f"{type(energyml_array)} read with an offset of length {len(offset)} is not supported")
+
+    return result
 
 
 def read_point3d_zvalue_array(
@@ -736,6 +754,10 @@ def read_point3d_lattice_array(
 
         slowest_size = len(slowest_table)
         fastest_size = len(fastest_table)
+
+        logging.debug(f"slowest vector: {slowest_vec}, spacing: {slowest_spacing}, size: {slowest_size}")
+        logging.debug(f"fastest vector: {fastest_vec}, spacing: {fastest_spacing}, size: {fastest_size}")
+        logging.debug(f"origin: {origin}, zincreasing_downward: {zincreasing_downward}")
 
         if len(crs_sa_count) > 0 and len(crs_fa_count) > 0:
             if (crs_sa_count[0] == fastest_size and crs_fa_count[0] == slowest_size) or (

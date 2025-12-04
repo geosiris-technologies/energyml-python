@@ -18,7 +18,9 @@ def export_all_representation(epc_path: str, output_dir: str, regex_type_filter:
     not_supported_types = set()
     for mdata in epc.list_object_metadata():
         if "Representation" in mdata.object_type and (
-            regex_type_filter is None or re.search(regex_type_filter, mdata.object_type, flags=re.IGNORECASE)
+            regex_type_filter is None
+            or len(regex_type_filter) == 0
+            or re.search(regex_type_filter, mdata.object_type, flags=re.IGNORECASE)
         ):
             logging.info(f"Exporting representation: {mdata.object_type} ({mdata.uuid})")
             energyml_obj = epc.get_object_by_uuid(mdata.uuid)[0]
@@ -56,8 +58,10 @@ if __name__ == "__main__":
     import logging
 
     logging.basicConfig(level=logging.DEBUG)
-    epc_file = "rc/epc/testingPackageCpp.epc"
+    epc_file = "rc/epc/output-val.epc"
+    # epc_file = "rc/epc/testingPackageCpp.epc"
     # epc_file = "rc/epc/Volve_Horizons_and_Faults_Depth_originEQN.epc"
     output_directory = Path("exported_meshes") / Path(epc_file).name.replace(".epc", "_3D_export")
     # export_all_representation(epc_file, output_directory)
-    export_all_representation(epc_file, output_directory, regex_type_filter="Grid2D")
+    # export_all_representation(epc_file, output_directory, regex_type_filter="Wellbore")
+    export_all_representation(epc_file, str(output_directory), regex_type_filter="")
