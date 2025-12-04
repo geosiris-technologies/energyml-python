@@ -36,6 +36,22 @@ _FILE_HEADER: bytes = b"# file exported by energyml-utils python module (Geosiri
 
 Point = list[float]
 
+# ============================
+# TODO :
+
+# obj_GridConnectionSetRepresentation
+# obj_IjkGridRepresentation
+# obj_PlaneSetRepresentation
+# obj_RepresentationSetRepresentation
+# obj_SealedSurfaceFrameworkRepresentation
+# obj_SealedVolumeFrameworkRepresentation
+# obj_SubRepresentation
+# obj_UnstructuredGridRepresentation
+# obj_WellboreMarkerFrameRepresentation
+# obj_WellboreTrajectoryRepresentation
+
+# ============================
+
 
 class MeshFileFormat(Enum):
     OFF = "off"
