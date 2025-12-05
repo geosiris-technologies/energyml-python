@@ -55,6 +55,13 @@ manip*
 
 *.xml
 *.json
+docs/*.md
+
+# DATA
+*.obj
+*.geojson
+*.vtk
+*.stl
 
 
 # WIP
