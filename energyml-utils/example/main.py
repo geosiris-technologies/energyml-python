@@ -1,14 +1,27 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import sys
+import logging
 from pathlib import Path
 import re
 from dataclasses import fields
 
+from energyml.utils.constants import (
+    RGX_CONTENT_TYPE,
+    EpcExportVersion,
+    date_to_epoch,
+    epoch,
+    epoch_to_date,
+    gen_uuid,
+    get_domain_version_from_content_or_qualified_type,
+    parse_content_or_qualified_type,
+    parse_content_type,
+)
+
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
-from energyml.eml.v2_3.commonv2 import *
+from energyml.eml.v2_3.commonv2 import Citation, DataObjectReference, ExistenceKind, Activity
 from energyml.eml.v2_3.commonv2 import AbstractObject
 from energyml.resqml.v2_0_1.resqmlv2 import DoubleHdf5Array
 from energyml.resqml.v2_0_1.resqmlv2 import TriangulatedSetRepresentation as Tr20
@@ -22,17 +35,70 @@ from energyml.resqml.v2_2.resqmlv2 import (
 
 # from src.energyml.utils.data.hdf import *
 from energyml.utils.data.helper import get_projected_uom, is_z_reversed
-from energyml.utils.epc import *
-from energyml.utils.introspection import *
-from energyml.utils.manager import *
-from energyml.utils.serialization import *
+from energyml.utils.epc import (
+    Epc,
+    EPCRelsRelationshipType,
+    as_dor,
+    create_energyml_object,
+    create_external_part_reference,
+    gen_energyml_object_path,
+    get_reverse_dor_list,
+)
+from energyml.utils.introspection import (
+    class_match_rgx,
+    copy_attributes,
+    get_class_attributes,
+    get_class_fields,
+    get_class_from_content_type,
+    get_class_from_name,
+    get_class_from_qualified_type,
+    get_class_methods,
+    get_content_type_from_class,
+    get_obj_pkg_pkgv_type_uuid_version,
+    get_obj_uri,
+    get_object_attribute,
+    get_obj_uuid,
+    get_object_attribute_rgx,
+    get_qualified_type_from_class,
+    is_abstract,
+    is_primitive,
+    random_value_from_class,
+    search_attribute_matching_name,
+    search_attribute_matching_name_with_path,
+    search_attribute_matching_type,
+    search_attribute_matching_type_with_path,
+)
+from energyml.utils.manager import (
+    # create_energyml_object,
+    # create_external_part_reference,
+    dict_energyml_modules,
+    get_class_pkg,
+    get_class_pkg_version,
+    get_classes_matching_name,
+    get_sub_classes,
+    list_energyml_modules,
+)
+from energyml.utils.serialization import (
+    read_energyml_xml_file,
+    read_energyml_xml_str,
+    serialize_json,
+    JSON_VERSION,
+    serialize_xml,
+)
 from energyml.utils.validation import (
     patterns_validation,
     dor_validation,
     validate_epc,
     correct_dor,
 )
-from energyml.utils.xml import *
+from energyml.utils.xml import (
+    find_schema_version_in_element,
+    get_class_name_from_xml,
+    get_root_namespace,
+    get_root_type,
+    get_tree,
+    get_xml_encoding,
+)
 from energyml.utils.data.datasets_io import HDF5FileReader, get_path_in_external_with_path
 
 fi_cit = Citation(

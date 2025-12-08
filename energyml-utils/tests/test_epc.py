@@ -9,13 +9,13 @@ from energyml.eml.v2_3.commonv2 import DataObjectReference
 from energyml.resqml.v2_0_1.resqmlv2 import FaultInterpretation
 from energyml.resqml.v2_2.resqmlv2 import TriangulatedSetRepresentation
 
-from src.energyml.utils.epc import (
+from energyml.utils.epc import (
     as_dor,
     get_obj_identifier,
     gen_energyml_object_path,
     EpcExportVersion,
 )
-from src.energyml.utils.introspection import (
+from energyml.utils.introspection import (
     epoch_to_date,
     epoch,
     gen_uuid,

@@ -21,12 +21,18 @@ from weakref import WeakValueDictionary
 
 from energyml.opc.opc import Types, Override, CoreProperties, Relationships, Relationship
 from energyml.utils.data.datasets_io import HDF5FileReader, HDF5FileWriter
+from energyml.utils.storage_interface import DataArrayMetadata, EnergymlStorageInterface, ResourceMetadata
 from energyml.utils.uri import Uri, parse_uri
-from energyml.utils.workspace import EnergymlWorkspace
 import numpy as np
-from .constants import EPCRelsRelationshipType, OptimizedRegex, EpcExportVersion
-from .epc import Epc, gen_energyml_object_path, gen_rels_path, get_epc_content_type_path
-from .introspection import (
+from energyml.utils.constants import (
+    EPCRelsRelationshipType,
+    OptimizedRegex,
+    EpcExportVersion,
+    content_type_to_qualified_type,
+)
+from energyml.utils.epc import Epc, gen_energyml_object_path, gen_rels_path, get_epc_content_type_path
+
+from energyml.utils.introspection import (
     get_class_from_content_type,
     get_obj_content_type,
     get_obj_identifier,
@@ -36,7 +42,7 @@ from .introspection import (
     get_obj_type,
     get_obj_usable_class,
 )
-from .serialization import read_energyml_xml_bytes, serialize_xml
+from energyml.utils.serialization import read_energyml_xml_bytes, serialize_xml
 from .xml import is_energyml_content_type
 
 
@@ -48,8 +54,8 @@ class EpcObjectMetadata:
     object_type: str
     content_type: str
     file_path: str
-    version: Optional[str] = None
     identifier: Optional[str] = None
+    version: Optional[str] = None
 
     def __post_init__(self):
         if self.identifier is None:
@@ -79,7 +85,7 @@ class EpcStreamingStats:
         return (1 - (self.loaded_objects / self.total_objects)) * 100 if self.total_objects > 0 else 100.0
 
 
-class EpcStreamReader(EnergymlWorkspace):
+class EpcStreamReader(EnergymlStorageInterface):
     """
     Memory-efficient EPC file reader with lazy loading and smart caching.
 
@@ -523,6 +529,9 @@ class EpcStreamReader(EnergymlWorkspace):
 
         return objects
 
+    def get_object(self, identifier: Union[str, Uri]) -> Optional[Any]:
+        return self.get_object_by_identifier(identifier)
+
     def get_objects_by_type(self, object_type: str) -> List[Any]:
         """Get all objects of the specified type."""
         if object_type not in self._type_index:
@@ -554,6 +563,87 @@ class EpcStreamReader(EnergymlWorkspace):
     def get_statistics(self) -> EpcStreamingStats:
         """Get current streaming statistics."""
         return self.stats
+
+    def list_objects(
+        self, dataspace: Optional[str] = None, object_type: Optional[str] = None
+    ) -> List[ResourceMetadata]:
+        """
+        List all objects with metadata (EnergymlStorageInterface method).
+
+        Args:
+            dataspace: Optional dataspace filter (ignored for EPC files)
+            object_type: Optional type filter (qualified type)
+
+        Returns:
+            List of ResourceMetadata for all matching objects
+        """
+
+        results = []
+        metadata_list = self.list_object_metadata(object_type)
+
+        for meta in metadata_list:
+            try:
+                # Load object to get title
+                obj = self.get_object_by_identifier(meta.identifier)
+                title = "Unknown"
+                if obj and hasattr(obj, "citation") and obj.citation:
+                    if hasattr(obj.citation, "title"):
+                        title = obj.citation.title
+
+                # Build URI
+                qualified_type = content_type_to_qualified_type(meta.content_type)
+                if meta.version:
+                    uri = f"eml:///{qualified_type}(uuid={meta.uuid},version='{meta.version}')"
+                else:
+                    uri = f"eml:///{qualified_type}({meta.uuid})"
+
+                resource = ResourceMetadata(
+                    uri=uri,
+                    uuid=meta.uuid,
+                    version=meta.version,
+                    title=title,
+                    object_type=meta.object_type,
+                    content_type=meta.content_type,
+                )
+
+                results.append(resource)
+            except Exception:
+                continue
+
+        return results
+
+    def get_array_metadata(
+        self, proxy: Union[str, Uri, Any], path_in_external: Optional[str] = None
+    ) -> Union[DataArrayMetadata, List[DataArrayMetadata], None]:
+        """
+        Get metadata for data array(s) (EnergymlStorageInterface method).
+
+        Args:
+            proxy: The object identifier/URI or the object itself
+            path_in_external: Optional specific path
+
+        Returns:
+            DataArrayMetadata if path specified, List[DataArrayMetadata] if no path,
+            or None if not found
+        """
+        from energyml.utils.storage_interface import DataArrayMetadata
+
+        try:
+            if path_in_external:
+                array = self.read_array(proxy, path_in_external)
+                if array is not None:
+                    return DataArrayMetadata(
+                        path_in_resource=path_in_external,
+                        array_type=str(array.dtype),
+                        dimensions=list(array.shape),
+                    )
+            else:
+                # Would need to scan all possible paths - not practical
+                return []
+        except Exception:
+            pass
+
+        return None
 
     def preload_objects(self, identifiers: List[str]) -> int:
         """
@@ -826,6 +916,22 @@ class EpcStreamReader(EnergymlWorkspace):
                 pass
             self._persistent_zip = zipfile.ZipFile(self.epc_file_path, "r")
 
+    def put_object(self, obj: Any, dataspace: Optional[str] = None) -> Optional[str]:
+        """
+        Store an energyml object (EnergymlStorageInterface method).
+
+        Args:
+            obj: The energyml object to store
+            dataspace: Optional dataspace name (ignored for EPC files)
+
+        Returns:
+            The identifier of the stored object (UUID.version or UUID), or None on error
+        """
+        try:
+            return self.add_object(obj, replace_if_exists=True)
+        except Exception:
+            return None
+
     def add_object(self, obj: Any, file_path: Optional[str] = None, replace_if_exists: bool = True) -> str:
         """
         Add a new object to the EPC file and update caches.
@@ -919,6 +1025,18 @@ class EpcStreamReader(EnergymlWorkspace):
             if identifier and metadata:
                 self._rollback_add_object(identifier)
             raise RuntimeError(f"Failed to add object to EPC: {e}")
+
+    def delete_object(self, identifier: Union[str, Uri]) -> bool:
+        """
+        Delete an object by its identifier (EnergymlStorageInterface method).
+
+        Args:
+            identifier: Object identifier (UUID or UUID.version) or ETP URI
+
+        Returns:
+            True if successfully deleted, False otherwise
+        """
+        return self.remove_object(identifier)
 
     def remove_object(self, identifier: Union[str, Uri]) -> bool:
         """

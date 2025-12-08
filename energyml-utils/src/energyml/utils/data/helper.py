@@ -23,7 +23,6 @@ from ..introspection import (
     get_object_attribute_rgx,
 )
 
-# from ..workspace import EnergymlWorkspace
 from .datasets_io import get_path_in_external_with_path
 
 _ARRAY_NAMES_ = [
@@ -759,7 +758,7 @@ def read_point3d_lattice_array(
         logging.debug(f"fastest vector: {fastest_vec}, spacing: {fastest_spacing}, size: {fastest_size}")
         logging.debug(f"origin: {origin}, zincreasing_downward: {zincreasing_downward}")
 
-        if len(crs_sa_count) > 0 and len(crs_fa_count) > 0:
+        if crs_sa_count is not None and len(crs_sa_count) > 0 and crs_fa_count is not None and len(crs_fa_count) > 0:
             if (crs_sa_count[0] == fastest_size and crs_fa_count[0] == slowest_size) or (
                 crs_sa_count[0] == fastest_size - 1 and crs_fa_count[0] == slowest_size - 1
             ):

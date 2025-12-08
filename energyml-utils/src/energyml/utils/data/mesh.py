@@ -20,10 +20,10 @@ from .helper import (
     get_crs_origin_offset,
     is_z_reversed,
 )
-from ..epc import Epc, gen_energyml_object_path
-from ..epc_stream import EpcStreamReader
-from ..exception import NotSupportedError, ObjectNotFoundNotError
-from ..introspection import (
+from energyml.utils.epc import gen_energyml_object_path
+from energyml.utils.epc_stream import EpcStreamReader
+from energyml.utils.exception import NotSupportedError, ObjectNotFoundNotError
+from energyml.utils.introspection import (
     get_obj_uri,
     search_attribute_matching_name,
     search_attribute_matching_name_with_path,
@@ -31,7 +31,7 @@ from ..introspection import (
     get_object_attribute,
     get_object_attribute_rgx,
 )
-from energyml.utils.storage_interface import EPCStorage, EPCStreamStorage, EnergymlStorageInterface
+from energyml.utils.storage_interface import EnergymlStorageInterface
 
 
 # Import export functions from new export module for backward compatibility
@@ -212,10 +212,6 @@ def read_mesh_object(
     is used to translate the data with the CRS offsets
     :return:
     """
-    if isinstance(workspace, EpcStreamReader):
-        workspace = EPCStreamStorage(stream_reader=workspace)
-    elif isinstance(workspace, Epc):
-        workspace = EPCStorage(epc=workspace)
 
     if isinstance(energyml_object, list):
         return energyml_object

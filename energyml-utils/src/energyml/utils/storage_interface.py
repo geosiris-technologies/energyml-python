@@ -12,12 +12,8 @@ workflows.
 
 Key Components:
 - EnergymlStorageInterface: Abstract base class defining the storage interface
-- ETPStorage: Implementation for ETP server-based storage (requires py-etp-client)
-- EPCStorage: Implementation for local EPC file-based storage
-- EPCStreamStorage: Implementation for streaming EPC file-based storage
 - ResourceMetadata: Dataclass for object metadata (similar to ETP Resource)
 - DataArrayMetadata: Dataclass for array metadata
-- create_storage: Factory function for creating storage instances
 
 Example Usage:
     ```python
@@ -27,7 +23,7 @@ Example Usage:
     storage = create_storage("my_data.epc")
 
     # Same API for all implementations!
-    obj = storage.get_object("uuid.version")
+    obj = storage.get_object("uuid.version") or storage.get_object("eml:///dataspace('default')/resqml22.TriangulatedSetRepresentation('uuid')")
     metadata_list = storage.list_objects()
     array = storage.read_array(obj, "values/0")
     storage.put_object(new_obj)
@@ -38,23 +34,10 @@ Example Usage:
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Tuple
-import logging
 
+from energyml.utils.uri import Uri
 import numpy as np
-
-from energyml.utils.uri import Uri, parse_uri
-from energyml.utils.introspection import (
-    get_obj_identifier,
-    get_obj_uuid,
-    get_obj_version,
-    get_obj_type,
-    get_content_type_from_class,
-    epoch_to_date,
-    epoch,
-)
-from energyml.utils.constants import content_type_to_qualified_type
 
 
 @dataclass
@@ -119,7 +102,7 @@ class DataArrayMetadata:
     similar to ETP DataArrayMetadata.
     """
 
-    path_in_resource: str
+    path_in_resource: Optional[str]
     """Path to the array within the HDF5 file"""
 
     array_type: str
@@ -143,6 +126,37 @@ class DataArrayMetadata:
     def ndim(self) -> int:
         """Number of dimensions"""
         return len(self.dimensions)
+
+    @classmethod
+    def from_numpy_array(cls, path_in_resource: Optional[str], array: np.ndarray) -> "DataArrayMetadata":
+        """
+        Create DataArrayMetadata from a numpy array.
+
+        Args:
+            path_in_resource: Path to the array within the HDF5 file
+            array: Numpy array
+        Returns:
+            DataArrayMetadata instance
+        """
+        return cls(
+            path_in_resource=path_in_resource,
+            array_type=str(array.dtype),
+            dimensions=list(array.shape),
+        )
+
+    @classmethod
+    def from_list(cls, path_in_resource: Optional[str], data: List[Any]) -> "DataArrayMetadata":
+        """
+        Create DataArrayMetadata from a list.
+
+        Args:
+            path_in_resource: Path to the array within the HDF5 file
+            data: List of data
+        Returns:
+            DataArrayMetadata instance
+        """
+        array = np.array(data)
+        return cls.from_numpy_array(path_in_resource, array)
 
 
 class EnergymlStorageInterface(ABC):
@@ -341,484 +355,8 @@ class EnergymlStorageInterface(ABC):
         self.close()
 
 
-class EPCStorage(EnergymlStorageInterface):
-    """
-    EPC file-based storage implementation.
-
-    This implementation uses an Epc object to interact with energyml data stored in
-    a local EPC file. Arrays are stored in associated HDF5 external files.
-
-    Args:
-        epc: An initialized Epc instance
-    """
-
-    def __init__(self, epc: "Epc"):  # noqa: F821
-        """
-        Initialize EPC storage with an Epc instance.
-
-        Args:
-            epc: An Epc instance
-        """
-        from energyml.utils.epc import Epc
-
-        if not isinstance(epc, Epc):
-            raise TypeError(f"Expected Epc instance, got {type(epc)}")
-
-        self.epc = epc
-        self._closed = False
-
-    def get_object(self, identifier: Union[str, Uri]) -> Optional[Any]:
-        """Retrieve an object by identifier from EPC."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        # Convert URI to identifier if needed
-        if isinstance(identifier, Uri):
-            identifier = f"{identifier.uuid}.{identifier.version}" if identifier.version else identifier.uuid
-        elif isinstance(identifier, str) and identifier.startswith("eml://"):
-            parsed = parse_uri(identifier)
-            identifier = f"{parsed.uuid}.{parsed.version}" if parsed.version else ""
-
-        return self.epc.get_object_by_identifier(identifier)
-
-    def get_object_by_uuid(self, uuid: str) -> List[Any]:
-        """Retrieve all objects with the given UUID."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        result = self.epc.get_object_by_uuid(uuid)
-        return result if isinstance(result, list) else [result] if result else []
-
-    def put_object(self, obj: Any, dataspace: Optional[str] = None) -> Optional[str]:
-        """Store an object in EPC."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        try:
-            # Check if object already exists
-            identifier = get_obj_identifier(obj)
-            existing = self.epc.get_object_by_identifier(identifier)
-
-            if existing:
-                # Update existing object
-                self.epc.energyml_objects.remove(existing)
-
-            # Add new object
-            self.epc.energyml_objects.append(obj)
-            return identifier
-        except Exception as e:
-            logging.error(f"Failed to put object: {e}")
-            return None
-
-    def delete_object(self, identifier: Union[str, Uri]) -> bool:
-        """Delete an object from EPC."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        try:
-            obj = self.get_object(identifier)
-            if obj and obj in self.epc.energyml_objects:
-                self.epc.energyml_objects.remove(obj)
-                return True
-            return False
-        except Exception as e:
-            logging.error(f"Failed to delete object: {e}")
-            return False
-
-    def read_array(self, proxy: Union[str, Uri, Any], path_in_external: str) -> Optional[np.ndarray]:
-        """Read array from HDF5 file associated with EPC."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        # Get object if proxy is identifier
-        if isinstance(proxy, (str, Uri)):
-            proxy = self.get_object(proxy)
-            if proxy is None:
-                return None
-
-        return self.epc.read_array(proxy, path_in_external)
-
-    def write_array(
-        self,
-        proxy: Union[str, Uri, Any],
-        path_in_external: str,
-        array: np.ndarray,
-    ) -> bool:
-        """Write array to HDF5 file associated with EPC."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        # Get object if proxy is identifier
-        if isinstance(proxy, (str, Uri)):
-            proxy = self.get_object(proxy)
-            if proxy is None:
-                return False
-
-        return self.epc.write_array(proxy, path_in_external, array)
-
-    def get_array_metadata(
-        self, proxy: Union[str, Uri, Any], path_in_external: Optional[str] = None
-    ) -> Union[DataArrayMetadata, List[DataArrayMetadata], None]:
-        """Get array metadata (limited support for EPC)."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        # EPC doesn't have native array metadata support
-        # We can try to read the array and infer metadata
-        try:
-            if path_in_external:
-                array = self.read_array(proxy, path_in_external)
-                if array is not None:
-                    return DataArrayMetadata(
-                        path_in_resource=path_in_external,
-                        array_type=str(array.dtype),
-                        dimensions=list(array.shape),
-                    )
-            else:
-                # Would need to scan all possible paths - not practical
-                logging.warning("EPC does not support listing all arrays without specific path")
-                return []
-        except Exception as e:
-            logging.error(f"Failed to get array metadata: {e}")
-
-        return None
-
-    def list_objects(
-        self, dataspace: Optional[str] = None, object_type: Optional[str] = None
-    ) -> List[ResourceMetadata]:
-        """List all objects with metadata."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        results = []
-        for obj in self.epc.energyml_objects:
-            try:
-                uuid = get_obj_uuid(obj)
-                version = get_obj_version(obj)
-                obj_type = get_obj_type(obj)
-                content_type = get_content_type_from_class(obj.__class__)
-
-                # Apply type filter
-                if object_type and obj_type != object_type:
-                    continue
-
-                # Get title from citation
-                title = "Unknown"
-                if hasattr(obj, "citation") and obj.citation:
-                    if hasattr(obj.citation, "title"):
-                        title = obj.citation.title
-
-                # Build URI
-                qualified_type = content_type_to_qualified_type(content_type)
-                if version:
-                    uri = f"eml:///{qualified_type}(uuid={uuid},version='{version}')"
-                else:
-                    uri = f"eml:///{qualified_type}({uuid})"
-
-                metadata = ResourceMetadata(
-                    uri=uri,
-                    uuid=uuid,
-                    version=version,
-                    title=title,
-                    object_type=obj_type,
-                    content_type=content_type,
-                )
-
-                results.append(metadata)
-            except Exception as e:
-                logging.warning(f"Failed to get metadata for object: {e}")
-                continue
-
-        return results
-
-    def close(self) -> None:
-        """Close the EPC storage."""
-        self._closed = True
-
-    def save(self, file_path: Optional[str] = None) -> None:
-        """
-        Save the EPC to disk.
-
-        Args:
-            file_path: Optional path to save to. If None, uses epc.epc_file_path
-        """
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        self.epc.export_file(file_path)
-
-
-class EPCStreamStorage(EnergymlStorageInterface):
-    """
-    Memory-efficient EPC stream-based storage implementation.
-
-    This implementation uses EpcStreamReader for lazy loading and caching,
-    making it ideal for handling very large EPC files with thousands of objects.
-
-    Features:
-    - Lazy loading: Objects loaded only when accessed
-    - Smart caching: LRU cache with configurable size
-    - Memory monitoring: Track memory usage and cache efficiency
-    - Same interface as EPCStorage for seamless switching
-
-    Args:
-        stream_reader: An EpcStreamReader instance
-    """
-
-    def __init__(self, stream_reader: "EpcStreamReader"):  # noqa: F821
-        """
-        Initialize EPC stream storage with an EpcStreamReader instance.
-
-        Args:
-            stream_reader: An EpcStreamReader instance
-        """
-        from energyml.utils.epc_stream import EpcStreamReader
-
-        if not isinstance(stream_reader, EpcStreamReader):
-            raise TypeError(f"Expected EpcStreamReader instance, got {type(stream_reader)}")
-
-        self.stream_reader = stream_reader
-        self._closed = False
-
-    def get_object(self, identifier: Union[str, Uri]) -> Optional[Any]:
-        """Retrieve an object by identifier from EPC stream."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        # Convert URI to identifier if needed
-        if isinstance(identifier, Uri):
-            identifier = f"{identifier.uuid}.{identifier.version or ''}"
-        elif isinstance(identifier, str) and identifier.startswith("eml://"):
-            parsed = parse_uri(identifier)
-            identifier = f"{parsed.uuid}.{parsed.version or ''}"
-
-        return self.stream_reader.get_object_by_identifier(identifier)
-
-    def get_object_by_uuid(self, uuid: str) -> List[Any]:
-        """Retrieve all objects with the given UUID."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        return self.stream_reader.get_object_by_uuid(uuid)
-
-    def put_object(self, obj: Any, dataspace: Optional[str] = None) -> Optional[str]:
-        """Store an object in EPC stream."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        try:
-            return self.stream_reader.add_object(obj, replace_if_exists=True)
-        except Exception as e:
-            logging.error(f"Failed to put object: {e}")
-            return None
-
-    def delete_object(self, identifier: Union[str, Uri]) -> bool:
-        """Delete an object from EPC stream."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        try:
-            return self.stream_reader.remove_object(identifier)
-        except Exception as e:
-            logging.error(f"Failed to delete object: {e}")
-            return False
-
-    def read_array(self, proxy: Union[str, Uri, Any], path_in_external: str) -> Optional[np.ndarray]:
-        """Read array from HDF5 file associated with EPC stream."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
-
-        return self.stream_reader.read_array(proxy, path_in_external)
-
-    def write_array(
-        self,
-        proxy: Union[str, Uri, Any],
-        path_in_external: str,
-        array: np.ndarray,
-    ) -> bool:
-        """Write array to HDF5 file associated with EPC stream."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        return self.stream_reader.write_array(proxy, path_in_external, array)
-
-    def get_array_metadata(
-        self, proxy: Union[str, Uri, Any], path_in_external: Optional[str] = None
-    ) -> Union[DataArrayMetadata, List[DataArrayMetadata], None]:
-        """Get array metadata (limited support for EPC Stream)."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        # EPC Stream doesn't have native array metadata support
-        # We can try to read the array and infer metadata
-        try:
-            if path_in_external:
-                array = self.read_array(proxy, path_in_external)
-                if array is not None:
-                    return DataArrayMetadata(
-                        path_in_resource=path_in_external,
-                        array_type=str(array.dtype),
-                        dimensions=list(array.shape),
-                    )
-            else:
-                # Would need to scan all possible paths - not practical
-                logging.warning("EPC Stream does not support listing all arrays without specific path")
-                return []
-        except Exception as e:
-            logging.error(f"Failed to get array metadata: {e}")
-
-        return None
-
-    def list_objects(
-        self, dataspace: Optional[str] = None, object_type: Optional[str] = None
-    ) -> List[ResourceMetadata]:
-        """List all objects with metadata."""
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        results = []
-        metadata_list = self.stream_reader.list_object_metadata(object_type)
-
-        for meta in metadata_list:
-            try:
-                # Load object to get title
-                # obj = self.stream_reader.get_object_by_identifier(meta.identifier)
-                # title = "Unknown"
-                # if obj and hasattr(obj, "citation") and obj.citation:
-                #     if hasattr(obj.citation, "title"):
-                #         title = obj.citation.title
-
-                # Build URI
-                qualified_type = content_type_to_qualified_type(meta.content_type)
-                if meta.version:
-                    uri = f"eml:///{qualified_type}(uuid={meta.uuid},version='{meta.version}')"
-                else:
-                    uri = f"eml:///{qualified_type}({meta.uuid})"
-
-                resource = ResourceMetadata(
-                    uri=uri,
-                    uuid=meta.uuid,
-                    version=meta.version,
-                    title="",  # we do not fill the title to avoid loading the object
-                    object_type=meta.object_type,
-                    content_type=meta.content_type,
-                )
-
-                results.append(resource)
-            except Exception as e:
-                logging.warning(f"Failed to get metadata for {meta.identifier}: {e}")
-                continue
-
-        return results
-
-    def close(self) -> None:
-        """Close the EPC stream storage."""
-        self._closed = True
-
-    def get_statistics(self) -> Dict[str, Any]:
-        """
-        Get streaming statistics.
-
-        Returns:
-            Dictionary with cache statistics and performance metrics
-        """
-        # if self._closed:
-        # raise RuntimeError("Storage is closed")
-
-        stats = self.stream_reader.get_statistics()
-        return {
-            "total_objects": stats.total_objects,
-            "loaded_objects": stats.loaded_objects,
-            "cache_hits": stats.cache_hits,
-            "cache_misses": stats.cache_misses,
-            "cache_hit_ratio": stats.cache_hit_ratio,
-            "bytes_read": stats.bytes_read,
-        }
-
-
-def create_storage(
-    source: Union[str, Path, "Epc", "EpcStreamReader"],  # noqa: F821
-    stream_mode: bool = False,
-    cache_size: int = 100,
-    **kwargs,
-) -> EnergymlStorageInterface:
-    """
-    Factory function to create an appropriate storage interface from various sources.
-
-    This convenience function automatically determines the correct storage implementation
-    based on the type of source provided.
-
-    Args:
-        source: Can be:
-            - Epc instance: Creates EPCStorage
-            - EpcStreamReader instance: Creates EPCStreamStorage
-            - str/Path (file path): Loads EPC file and creates EPCStorage or EPCStreamStorage
-        stream_mode: If True and source is a file path, creates EPCStreamStorage for memory efficiency
-        cache_size: Cache size for stream mode (default: 100)
-        **kwargs: Additional arguments passed to EpcStreamReader if in stream mode
-
-    Returns:
-        An EnergymlStorageInterface implementation (EPCStorage or EPCStreamStorage)
-
-    Raises:
-        ValueError: If the source type is not supported
-        FileNotFoundError: If file path does not exist
-
-    Example:
-        ```python
-        # From EPC instance
-        from energyml.utils.epc import Epc
-        epc = Epc()
-        storage = create_storage(epc)
-
-        # From EPC stream reader
-        from energyml.utils.epc_stream import EpcStreamReader
-        stream_reader = EpcStreamReader("large_file.epc", cache_size=50)
-        storage = create_storage(stream_reader)
-
-        # From file path (regular mode)
-        storage = create_storage("path/to/file.epc")
-
-        # From file path (streaming mode for large files)
-        storage = create_storage("path/to/large_file.epc", stream_mode=True, cache_size=50)
-        ```
-    """
-    from energyml.utils.epc import Epc
-    from energyml.utils.epc_stream import EpcStreamReader
-
-    if isinstance(source, Epc):
-        return EPCStorage(source)
-
-    elif isinstance(source, EpcStreamReader):
-        return EPCStreamStorage(source)
-
-    elif isinstance(source, (str, Path)):
-        file_path = Path(source)
-        if not file_path.exists():
-            raise FileNotFoundError(f"EPC file not found: {file_path}")
-
-        if stream_mode:
-            # Create streaming reader for memory efficiency
-            stream_reader = EpcStreamReader(file_path, cache_size=cache_size, **kwargs)
-            return EPCStreamStorage(stream_reader)
-        else:
-            # Load full EPC into memory
-            from energyml.utils.epc import read_energyml_epc_file
-
-            epc = read_energyml_epc_file(str(file_path))
-            return EPCStorage(epc)
-
-    else:
-        raise ValueError(
-            f"Unsupported source type: {type(source)}. " "Expected Epc, EpcStreamReader, or file path (str/Path)"
-        )
-
-
 __all__ = [
     "EnergymlStorageInterface",
-    "EPCStorage",
-    "EPCStreamStorage",
     "ResourceMetadata",
     "DataArrayMetadata",
-    "create_storage",
 ]
