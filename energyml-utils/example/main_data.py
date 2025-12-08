@@ -1,6 +1,6 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
-
+import logging
 from energyml.eml.v2_3.commonv2 import (
     JaggedArray,
     AbstractValueArray,
@@ -12,7 +12,6 @@ from energyml.eml.v2_3.commonv2 import (
 from src.energyml.utils.data.helper import (
     get_array_reader_function,
 )
-from src.energyml.utils.data.mesh import *
 from src.energyml.utils.data.mesh import _create_shape, _write_geojson_shape
 from src.energyml.utils.epc import gen_energyml_object_path
 from src.energyml.utils.introspection import (
@@ -28,11 +27,13 @@ from src.energyml.utils.serialization import (
 )
 from src.energyml.utils.validation import validate_epc
 from src.energyml.utils.xml import get_tree
-from utils.data.datasets_io import (
+from src.energyml.utils.data.datasets_io import (
     HDF5FileReader,
     get_path_in_external_with_path,
     get_external_file_path_from_external_path,
 )
+from energyml.utils.epc import Epc
+from src.energyml.utils.data.mesh import *
 
 logger = logging.getLogger(__name__)
 

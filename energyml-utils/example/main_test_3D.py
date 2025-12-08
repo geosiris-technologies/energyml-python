@@ -9,26 +9,30 @@ import traceback
 from energyml.utils.data.export import export_obj, export_stl, export_vtk
 from energyml.utils.data.mesh import read_mesh_object
 from energyml.utils.epc_stream import EpcStreamReader
+from energyml.utils.storage_interface import EPCStreamStorage
+
 from energyml.utils.exception import NotSupportedError
 
 
 def export_all_representation(epc_path: str, output_dir: str, regex_type_filter: str = None):
 
-    epc = EpcStreamReader(epc_path, keep_open=True)
+    _epc = EpcStreamReader(epc_path, keep_open=True)
+    storage = EPCStreamStorage(stream_reader=_epc)
+
     dt = datetime.datetime.now().strftime("%Hh%M_%d-%m-%Y")
     not_supported_types = set()
-    for mdata in epc.list_object_metadata():
+    for mdata in storage.list_objects():
         if "Representation" in mdata.object_type and (
             regex_type_filter is None
             or len(regex_type_filter) == 0
             or re.search(regex_type_filter, mdata.object_type, flags=re.IGNORECASE)
         ):
             logging.info(f"Exporting representation: {mdata.object_type} ({mdata.uuid})")
-            energyml_obj = epc.get_object_by_uuid(mdata.uuid)[0]
+            energyml_obj = storage.get_object_by_uuid(mdata.uuid)[0]
             try:
                 mesh_list = read_mesh_object(
                     energyml_object=energyml_obj,
-                    workspace=epc,
+                    workspace=storage,
                     use_crs_displacement=True,
                 )
 

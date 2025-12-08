@@ -10,7 +10,6 @@ open instead of reopening it for each operation.
 """
 
 import time
-from pathlib import Path
 import sys
 from pathlib import Path
 

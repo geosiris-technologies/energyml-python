@@ -5,13 +5,14 @@ import logging
 import sys
 from typing import Any, Optional, Callable, List, Union
 
+from energyml.utils.storage_interface import EnergymlStorageInterface
 import numpy as np
 
 from .datasets_io import read_external_dataset_array
 from ..constants import flatten_concatenation
-from ..epc import get_obj_identifier
 from ..exception import ObjectNotFoundNotError
 from ..introspection import (
+    get_obj_uri,
     snake_case,
     get_object_attribute_no_verif,
     search_attribute_matching_name_with_path,
@@ -21,7 +22,8 @@ from ..introspection import (
     get_object_attribute,
     get_object_attribute_rgx,
 )
-from ..workspace import EnergymlWorkspace
+
+# from ..workspace import EnergymlWorkspace
 from .datasets_io import get_path_in_external_with_path
 
 _ARRAY_NAMES_ = [
@@ -123,7 +125,7 @@ def get_vertical_epsg_code(crs_object: Any):
     return vertical_epsg_code
 
 
-def get_projected_epsg_code(crs_object: Any, workspace: Optional[EnergymlWorkspace] = None):
+def get_projected_epsg_code(crs_object: Any, workspace: Optional[EnergymlStorageInterface] = None):
     if crs_object is not None:  # LocalDepth3dCRS
         projected_epsg_code = get_object_attribute_rgx(crs_object, "ProjectedCrs.EpsgCode")
         if projected_epsg_code is None:  # LocalEngineering2DCrs
@@ -139,7 +141,7 @@ def get_projected_epsg_code(crs_object: Any, workspace: Optional[EnergymlWorkspa
     return None
 
 
-def get_projected_uom(crs_object: Any, workspace: Optional[EnergymlWorkspace] = None):
+def get_projected_uom(crs_object: Any, workspace: Optional[EnergymlStorageInterface] = None):
     if crs_object is not None:
         projected_epsg_uom = get_object_attribute_rgx(crs_object, "ProjectedUom")
         if projected_epsg_uom is None:
@@ -153,7 +155,7 @@ def get_projected_uom(crs_object: Any, workspace: Optional[EnergymlWorkspace] = 
     return None
 
 
-def get_crs_origin_offset(crs_obj: Any) -> List[float]:
+def get_crs_origin_offset(crs_obj: Any) -> List[float | int]:
     """
     Return a list [X,Y,Z] corresponding to the crs Offset [XOffset/OriginProjectedCoordinate1, ... ] depending on the
     crs energyml version.
@@ -172,12 +174,12 @@ def get_crs_origin_offset(crs_obj: Any) -> List[float]:
     if tmp_offset_z is None:
         tmp_offset_z = get_object_attribute_rgx(crs_obj, "OriginProjectedCoordinate3")
 
-    crs_point_offset = [0, 0, 0]
+    crs_point_offset = [0.0, 0.0, 0.0]
     try:
         crs_point_offset = [
-            float(tmp_offset_x) if tmp_offset_x is not None else 0,
-            float(tmp_offset_y) if tmp_offset_y is not None else 0,
-            float(tmp_offset_z) if tmp_offset_z is not None else 0,
+            float(tmp_offset_x) if tmp_offset_x is not None else 0.0,
+            float(tmp_offset_y) if tmp_offset_y is not None else 0.0,
+            float(tmp_offset_z) if tmp_offset_z is not None else 0.0,
         ]
     except Exception as e:
         logging.info(f"ERR reading crs offset {e}")
@@ -251,7 +253,7 @@ def get_crs_obj(
     context_obj: Any,
     path_in_root: Optional[str] = None,
     root_obj: Optional[Any] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
 ) -> Optional[Any]:
     """
     Search for the CRS object related to :param:`context_obj` into the :param:`workspace`
@@ -267,12 +269,12 @@ def get_crs_obj(
         crs_list = search_attribute_matching_name(context_obj, r"\.*Crs", search_in_sub_obj=True, deep_search=False)
         if crs_list is not None and len(crs_list) > 0:
             # logging.debug(crs_list[0])
-            crs = workspace.get_object_by_identifier(get_obj_identifier(crs_list[0]))
+            crs = workspace.get_object(get_obj_uri(crs_list[0]))
             if crs is None:
                 crs = workspace.get_object_by_uuid(get_obj_uuid(crs_list[0]))
             if crs is None:
                 logging.error(f"CRS {crs_list[0]} not found (or not read correctly)")
-                raise ObjectNotFoundNotError(get_obj_identifier(crs_list[0]))
+                raise ObjectNotFoundNotError(get_obj_uri(crs_list[0]))
             if crs is not None:
                 return crs
 
@@ -338,9 +340,9 @@ def read_external_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: Optional[List[int]] = None,
-) -> Union[List[Any], np.ndarray]:
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
+) -> Optional[Union[List[Any], np.ndarray]]:
     """
     Read an external array (BooleanExternalArray, BooleanHdf5Array, DoubleHdf5Array, IntegerHdf5Array, StringExternalArray ...)
     :param energyml_array:
@@ -380,7 +382,7 @@ def read_external_array(
     if sub_indices is not None and len(sub_indices) > 0:
         if isinstance(array, np.ndarray):
             array = array[sub_indices]
-        else:
+        elif isinstance(array, list):
             # Fallback for non-numpy arrays
             array = [array[idx] for idx in sub_indices]
 
@@ -403,8 +405,8 @@ def read_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: Optional[List[int]] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> Union[List[Any], np.ndarray]:
     """
     Read an array and return a list. The array is read depending on its type. see. :py:func:`energyml.utils.data.helper.get_supported_array`
@@ -439,8 +441,8 @@ def read_constant_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: Optional[List[int]] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[Any]:
     """
     Read a constant array ( BooleanConstantArray, DoubleConstantArray, FloatingPointConstantArray, IntegerConstantArray ...)
@@ -469,8 +471,8 @@ def read_xml_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: Optional[List[int]] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> Union[List[Any], np.ndarray]:
     """
     Read a xml array ( BooleanXmlArray, FloatingPointXmlArray, IntegerXmlArray, StringXmlArray ...)
@@ -497,8 +499,8 @@ def read_jagged_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: Optional[List[int]] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[Any]:
     """
     Read a jagged array
@@ -512,13 +514,13 @@ def read_jagged_array(
     elements = read_array(
         energyml_array=get_object_attribute_no_verif(energyml_array, "elements"),
         root_obj=root_obj,
-        path_in_root=path_in_root + ".elements",
+        path_in_root=(path_in_root or "") + ".elements",
         workspace=workspace,
     )
     cumulative_length = read_array(
         energyml_array=read_array(get_object_attribute_no_verif(energyml_array, "cumulative_length")),
         root_obj=root_obj,
-        path_in_root=path_in_root + ".cumulative_length",
+        path_in_root=(path_in_root or "") + ".cumulative_length",
         workspace=workspace,
     )
 
@@ -536,8 +538,8 @@ def read_int_double_lattice_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: Optional[List[int]] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ):
     """
     Read DoubleLatticeArray or IntegerLatticeArray.
@@ -573,8 +575,8 @@ def read_point3d_zvalue_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: Optional[List[int]] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ):
     """
     Read a Point3D2ValueArray
@@ -589,7 +591,7 @@ def read_point3d_zvalue_array(
     sup_geom_array = read_array(
         energyml_array=supporting_geometry,
         root_obj=root_obj,
-        path_in_root=path_in_root + ".SupportingGeometry",
+        path_in_root=(path_in_root or "") + ".SupportingGeometry",
         workspace=workspace,
         sub_indices=sub_indices,
     )
@@ -599,7 +601,7 @@ def read_point3d_zvalue_array(
         read_array(
             energyml_array=zvalues,
             root_obj=root_obj,
-            path_in_root=path_in_root + ".ZValues",
+            path_in_root=(path_in_root or "") + ".ZValues",
             workspace=workspace,
             sub_indices=sub_indices,
         )
@@ -633,8 +635,8 @@ def read_point3d_from_representation_lattice_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: Optional[List[int]] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ):
     """
     Read a Point3DFromRepresentationLatticeArray.
@@ -648,11 +650,9 @@ def read_point3d_from_representation_lattice_array(
     :param sub_indices:
     :return:
     """
-    supporting_rep_identifier = get_obj_identifier(
-        get_object_attribute_no_verif(energyml_array, "supporting_representation")
-    )
+    supporting_rep_identifier = get_obj_uri(get_object_attribute_no_verif(energyml_array, "supporting_representation"))
     # logging.debug(f"energyml_array : {energyml_array}\n\t{supporting_rep_identifier}")
-    supporting_rep = workspace.get_object_by_identifier(supporting_rep_identifier)
+    supporting_rep = workspace.get_object(supporting_rep_identifier) if workspace is not None else None
 
     # TODO chercher un pattern \.*patch\.*.[d]+ pour trouver le numero du patch dans le path_in_root puis lire le patch
     # logging.debug(f"path_in_root {path_in_root}")
@@ -676,8 +676,8 @@ def read_grid2d_patch(
     patch: Any,
     grid2d: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: Optional[List[int]] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> Union[List, np.ndarray]:
     points_path, points_obj = search_attribute_matching_name_with_path(patch, "Geometry.Points")[0]
 
@@ -694,8 +694,8 @@ def read_point3d_lattice_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: Optional[List[int]] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List:
     """
     Read a Point3DLatticeArray.
@@ -721,14 +721,14 @@ def read_point3d_lattice_array(
             obj=energyml_array,
             name_rgx="slowestAxisCount",
             root_obj=root_obj,
-            current_path=path_in_root,
+            current_path=path_in_root or "",
         )
 
         crs_fa_count = search_attribute_in_upper_matching_name(
             obj=energyml_array,
             name_rgx="fastestAxisCount",
             root_obj=root_obj,
-            current_path=path_in_root,
+            current_path=path_in_root or "",
         )
 
         crs = None
@@ -852,6 +852,6 @@ def read_point3d_lattice_array(
 #         energyml_array: Any,
 #         root_obj: Optional[Any] = None,
 #         path_in_root: Optional[str] = None,
-#         workspace: Optional[EnergymlWorkspace] = None
+#         workspace: Optional[EnergymlStorageInterface] = None
 # ):
 #     logging.debug(energyml_array)

@@ -369,30 +369,30 @@ class EPCStorage(EnergymlStorageInterface):
 
     def get_object(self, identifier: Union[str, Uri]) -> Optional[Any]:
         """Retrieve an object by identifier from EPC."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         # Convert URI to identifier if needed
         if isinstance(identifier, Uri):
             identifier = f"{identifier.uuid}.{identifier.version}" if identifier.version else identifier.uuid
         elif isinstance(identifier, str) and identifier.startswith("eml://"):
             parsed = parse_uri(identifier)
-            identifier = f"{parsed.uuid}.{parsed.version}" if parsed.version else parsed.uuid
+            identifier = f"{parsed.uuid}.{parsed.version}" if parsed.version else ""
 
         return self.epc.get_object_by_identifier(identifier)
 
     def get_object_by_uuid(self, uuid: str) -> List[Any]:
         """Retrieve all objects with the given UUID."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         result = self.epc.get_object_by_uuid(uuid)
         return result if isinstance(result, list) else [result] if result else []
 
     def put_object(self, obj: Any, dataspace: Optional[str] = None) -> Optional[str]:
         """Store an object in EPC."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         try:
             # Check if object already exists
@@ -412,8 +412,8 @@ class EPCStorage(EnergymlStorageInterface):
 
     def delete_object(self, identifier: Union[str, Uri]) -> bool:
         """Delete an object from EPC."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         try:
             obj = self.get_object(identifier)
@@ -427,8 +427,8 @@ class EPCStorage(EnergymlStorageInterface):
 
     def read_array(self, proxy: Union[str, Uri, Any], path_in_external: str) -> Optional[np.ndarray]:
         """Read array from HDF5 file associated with EPC."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         # Get object if proxy is identifier
         if isinstance(proxy, (str, Uri)):
@@ -445,8 +445,8 @@ class EPCStorage(EnergymlStorageInterface):
         array: np.ndarray,
     ) -> bool:
         """Write array to HDF5 file associated with EPC."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         # Get object if proxy is identifier
         if isinstance(proxy, (str, Uri)):
@@ -460,8 +460,8 @@ class EPCStorage(EnergymlStorageInterface):
         self, proxy: Union[str, Uri, Any], path_in_external: Optional[str] = None
     ) -> Union[DataArrayMetadata, List[DataArrayMetadata], None]:
         """Get array metadata (limited support for EPC)."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         # EPC doesn't have native array metadata support
         # We can try to read the array and infer metadata
@@ -487,8 +487,8 @@ class EPCStorage(EnergymlStorageInterface):
         self, dataspace: Optional[str] = None, object_type: Optional[str] = None
     ) -> List[ResourceMetadata]:
         """List all objects with metadata."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         results = []
         for obj in self.epc.energyml_objects:
@@ -509,9 +509,11 @@ class EPCStorage(EnergymlStorageInterface):
                         title = obj.citation.title
 
                 # Build URI
-                uri = f"eml:///{uuid}"
+                qualified_type = content_type_to_qualified_type(content_type)
                 if version:
-                    uri += f".{version}"
+                    uri = f"eml:///{qualified_type}(uuid={uuid},version='{version}')"
+                else:
+                    uri = f"eml:///{qualified_type}({uuid})"
 
                 metadata = ResourceMetadata(
                     uri=uri,
@@ -540,8 +542,8 @@ class EPCStorage(EnergymlStorageInterface):
         Args:
             file_path: Optional path to save to. If None, uses epc.epc_file_path
         """
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         self.epc.export_file(file_path)
 
@@ -580,29 +582,29 @@ class EPCStreamStorage(EnergymlStorageInterface):
 
     def get_object(self, identifier: Union[str, Uri]) -> Optional[Any]:
         """Retrieve an object by identifier from EPC stream."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         # Convert URI to identifier if needed
         if isinstance(identifier, Uri):
-            identifier = f"{identifier.uuid}.{identifier.version}" if identifier.version else identifier.uuid
+            identifier = f"{identifier.uuid}.{identifier.version or ''}"
         elif isinstance(identifier, str) and identifier.startswith("eml://"):
             parsed = parse_uri(identifier)
-            identifier = f"{parsed.uuid}.{parsed.version}" if parsed.version else parsed.uuid
+            identifier = f"{parsed.uuid}.{parsed.version or ''}"
 
         return self.stream_reader.get_object_by_identifier(identifier)
 
     def get_object_by_uuid(self, uuid: str) -> List[Any]:
         """Retrieve all objects with the given UUID."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         return self.stream_reader.get_object_by_uuid(uuid)
 
     def put_object(self, obj: Any, dataspace: Optional[str] = None) -> Optional[str]:
         """Store an object in EPC stream."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         try:
             return self.stream_reader.add_object(obj, replace_if_exists=True)
@@ -612,8 +614,8 @@ class EPCStreamStorage(EnergymlStorageInterface):
 
     def delete_object(self, identifier: Union[str, Uri]) -> bool:
         """Delete an object from EPC stream."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         try:
             return self.stream_reader.remove_object(identifier)
@@ -635,8 +637,8 @@ class EPCStreamStorage(EnergymlStorageInterface):
         array: np.ndarray,
     ) -> bool:
         """Write array to HDF5 file associated with EPC stream."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         return self.stream_reader.write_array(proxy, path_in_external, array)
 
@@ -644,8 +646,8 @@ class EPCStreamStorage(EnergymlStorageInterface):
         self, proxy: Union[str, Uri, Any], path_in_external: Optional[str] = None
     ) -> Union[DataArrayMetadata, List[DataArrayMetadata], None]:
         """Get array metadata (limited support for EPC Stream)."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         # EPC Stream doesn't have native array metadata support
         # We can try to read the array and infer metadata
@@ -671,8 +673,8 @@ class EPCStreamStorage(EnergymlStorageInterface):
         self, dataspace: Optional[str] = None, object_type: Optional[str] = None
     ) -> List[ResourceMetadata]:
         """List all objects with metadata."""
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         results = []
         metadata_list = self.stream_reader.list_object_metadata(object_type)
@@ -680,22 +682,24 @@ class EPCStreamStorage(EnergymlStorageInterface):
         for meta in metadata_list:
             try:
                 # Load object to get title
-                obj = self.stream_reader.get_object_by_identifier(meta.identifier)
-                title = "Unknown"
-                if obj and hasattr(obj, "citation") and obj.citation:
-                    if hasattr(obj.citation, "title"):
-                        title = obj.citation.title
+                # obj = self.stream_reader.get_object_by_identifier(meta.identifier)
+                # title = "Unknown"
+                # if obj and hasattr(obj, "citation") and obj.citation:
+                #     if hasattr(obj.citation, "title"):
+                #         title = obj.citation.title
 
                 # Build URI
-                uri = f"eml:///{meta.uuid}"
+                qualified_type = content_type_to_qualified_type(meta.content_type)
                 if meta.version:
-                    uri += f".{meta.version}"
+                    uri = f"eml:///{qualified_type}(uuid={meta.uuid},version='{meta.version}')"
+                else:
+                    uri = f"eml:///{qualified_type}({meta.uuid})"
 
                 resource = ResourceMetadata(
                     uri=uri,
                     uuid=meta.uuid,
                     version=meta.version,
-                    title=title,
+                    title="",  # we do not fill the title to avoid loading the object
                     object_type=meta.object_type,
                     content_type=meta.content_type,
                 )
@@ -718,8 +722,8 @@ class EPCStreamStorage(EnergymlStorageInterface):
         Returns:
             Dictionary with cache statistics and performance metrics
         """
-        if self._closed:
-            raise RuntimeError("Storage is closed")
+        # if self._closed:
+        # raise RuntimeError("Storage is closed")
 
         stats = self.stream_reader.get_statistics()
         return {
