@@ -283,6 +283,10 @@ def get_module_name(domain: str, domain_version: str):
     return f"energyml.{domain}.{domain_version}.{ns[ns.rindex('/') + 1:]}"
 
 
+# Track modules that failed to import to avoid duplicate logging
+_FAILED_IMPORT_MODULES = set()
+
+
 def import_related_module(energyml_module_name: str) -> None:
     """
     Import related modules for a specific energyml module. (See. :const:`RELATED_MODULES`)
@@ -295,7 +299,10 @@ def import_related_module(energyml_module_name: str) -> None:
                 try:
                     import_module(m)
                 except Exception as e:
-                    logging.debug(f"Could not import related module {m}: {e}")
+                    # Only log once per unique module
+                    if m not in _FAILED_IMPORT_MODULES:
+                        _FAILED_IMPORT_MODULES.add(m)
+                        logging.debug(f"Could not import related module {m}: {e}")
                     # logging.error(e)
 
 
