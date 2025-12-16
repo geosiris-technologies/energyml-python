@@ -23,6 +23,7 @@ from energyml.opc.opc import Types, Override, CoreProperties, Relationships, Rel
 from energyml.utils.data.datasets_io import HDF5FileReader, HDF5FileWriter
 from energyml.utils.storage_interface import DataArrayMetadata, EnergymlStorageInterface, ResourceMetadata
 from energyml.utils.uri import Uri, parse_uri
+import h5py
 import numpy as np
 from energyml.utils.constants import (
     EPCRelsRelationshipType,
@@ -136,6 +137,7 @@ class EpcStreamReader(EnergymlStorageInterface):
         self.cache_size = cache_size
         self.validate_on_load = validate_on_load
         self.force_h5_path = force_h5_path
+        self.cache_opened_h5 = None
         self.keep_open = keep_open
         self.force_title_load = force_title_load
 
@@ -769,12 +771,19 @@ class EpcStreamReader(EnergymlStorageInterface):
         :return: the dataset as a numpy array
         """
         # Resolve proxy to object
-        if isinstance(proxy, (str, Uri)):
-            obj = self.get_object_by_identifier(proxy)
-        else:
-            obj = proxy
 
-        h5_path = self.get_h5_file_paths(obj)
+        h5_path = []
+        if self.force_h5_path is not None:
+            if self.cache_opened_h5 is None:
+                self.cache_opened_h5 = h5py.File(self.force_h5_path, "a")
+            h5_path = [self.cache_opened_h5]
+        else:
+            if isinstance(proxy, (str, Uri)):
+                obj = self.get_object_by_identifier(proxy)
+            else:
+                obj = proxy
+
+            h5_path = self.get_h5_file_paths(obj)
 
         h5_reader = HDF5FileReader()
 
@@ -798,13 +807,18 @@ class EpcStreamReader(EnergymlStorageInterface):
 
         return: True if successful
         """
-        # Resolve proxy to object
-        if isinstance(proxy, (str, Uri)):
-            obj = self.get_object_by_identifier(proxy)
+        h5_path = []
+        if self.force_h5_path is not None:
+            if self.cache_opened_h5 is None:
+                self.cache_opened_h5 = h5py.File(self.force_h5_path, "a")
+            h5_path = [self.cache_opened_h5]
         else:
-            obj = proxy
+            if isinstance(proxy, (str, Uri)):
+                obj = self.get_object_by_identifier(proxy)
+            else:
+                obj = proxy
 
-        h5_path = self.get_h5_file_paths(obj)
+            h5_path = self.get_h5_file_paths(obj)
 
         h5_writer = HDF5FileWriter()
 
@@ -883,11 +897,23 @@ class EpcStreamReader(EnergymlStorageInterface):
         """Context manager exit with cleanup."""
         self.clear_cache()
         self.close()
+        if self.cache_opened_h5 is not None:
+            try:
+                self.cache_opened_h5.close()
+            except Exception:
+                pass
+            self.cache_opened_h5 = None
 
     def __del__(self):
         """Destructor to ensure persistent ZIP file is closed."""
         try:
             self.close()
+            if self.cache_opened_h5 is not None:
+                try:
+                    self.cache_opened_h5.close()
+                except Exception:
+                    pass
+                self.cache_opened_h5 = None
         except Exception:
             pass  # Ignore errors during cleanup
 
