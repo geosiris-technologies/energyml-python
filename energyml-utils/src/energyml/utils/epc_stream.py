@@ -117,6 +117,7 @@ class EpcStreamReader(EnergymlStorageInterface):
         export_version: EpcExportVersion = EpcExportVersion.CLASSIC,
         force_h5_path: Optional[str] = None,
         keep_open: bool = False,
+        force_title_load: bool = False,
     ):
         """
         Initialize the EPC stream reader.
@@ -129,12 +130,14 @@ class EpcStreamReader(EnergymlStorageInterface):
             export_version: EPC packaging version (CLASSIC or EXPANDED)
             force_h5_path: Optional forced HDF5 file path for external resources. If set, all arrays will be read/written from/to this path.
             keep_open: If True, keeps the ZIP file open for better performance with multiple operations. File is closed only when instance is deleted or close() is called.
+            force_title_load: If True, forces loading object titles when listing objects (may impact performance)
         """
         self.epc_file_path = Path(epc_file_path)
         self.cache_size = cache_size
         self.validate_on_load = validate_on_load
         self.force_h5_path = force_h5_path
         self.keep_open = keep_open
+        self.force_title_load = force_title_load
 
         is_new_file = False
 
@@ -584,11 +587,12 @@ class EpcStreamReader(EnergymlStorageInterface):
         for meta in metadata_list:
             try:
                 # Load object to get title
-                obj = self.get_object_by_identifier(meta.identifier)
-                title = "Unknown"
-                if obj and hasattr(obj, "citation") and obj.citation:
-                    if hasattr(obj.citation, "title"):
-                        title = obj.citation.title
+                title = ""
+                if self.force_title_load:
+                    obj = self.get_object_by_identifier(meta.identifier)
+                    if obj and hasattr(obj, "citation") and obj.citation:
+                        if hasattr(obj.citation, "title"):
+                            title = obj.citation.title
 
                 # Build URI
                 qualified_type = content_type_to_qualified_type(meta.content_type)

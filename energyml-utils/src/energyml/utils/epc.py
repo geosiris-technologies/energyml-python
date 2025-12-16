@@ -125,6 +125,8 @@ class Epc(EnergymlStorageInterface):
         default_factory=list,
     )
 
+    force_h5_path: Optional[str] = field(default=None)
+
     """
     Additional rels for objects. Key is the object (same than in @energyml_objects) and value is a list of
     RelationShip. This can be used to link an HDF5 to an ExternalPartReference in resqml 2.0.1
@@ -429,6 +431,10 @@ class Epc(EnergymlStorageInterface):
         Get all HDF5 file paths referenced in the EPC file (from rels to external resources)
         :return: list of HDF5 file paths
         """
+
+        if self.force_h5_path is not None:
+            return [self.force_h5_path]
+
         is_uri = (isinstance(obj, str) and parse_uri(obj) is not None) or isinstance(obj, Uri)
         if is_uri:
             obj = self.get_object_by_identifier(obj)
