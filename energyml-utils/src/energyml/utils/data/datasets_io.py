@@ -61,12 +61,14 @@ if __H5PY_MODULE_EXISTS__:
         :return: List of dataset names in the HDF5 file
         """
         res = []
-        
+
         # Check if it's already an opened h5py.File
         if isinstance(h5_file_path, h5py.File):  # type: ignore
+
             def list_datasets(name, obj):
                 if isinstance(obj, h5py.Dataset):  # type: ignore
                     res.append(name)
+
             h5_file_path.visititems(list_datasets)
         else:
             with h5py.File(h5_file_path, "r") as f:  # type: ignore
@@ -81,7 +83,9 @@ if __H5PY_MODULE_EXISTS__:
 
     @dataclass
     class HDF5FileReader(DatasetReader):  # noqa: F401
-        def read_array(self, source: Union[BytesIO, str, "h5py.File"], path_in_external_file: str) -> Optional[np.ndarray]:
+        def read_array(
+            self, source: Union[BytesIO, str, "h5py.File"], path_in_external_file: str
+        ) -> Optional[np.ndarray]:
             # Check if it's already an opened h5py.File
             if isinstance(source, h5py.File):  # type: ignore
                 d_group = source[path_in_external_file]
@@ -91,7 +95,9 @@ if __H5PY_MODULE_EXISTS__:
                     d_group = f[path_in_external_file]
                     return d_group[()]  # type: ignore
 
-        def get_array_dimension(self, source: Union[BytesIO, str, "h5py.File"], path_in_external_file: str) -> Optional[List[int]]:
+        def get_array_dimension(
+            self, source: Union[BytesIO, str, "h5py.File"], path_in_external_file: str
+        ) -> Optional[List[int]]:
             # Check if it's already an opened h5py.File
             if isinstance(source, h5py.File):  # type: ignore
                 return list(source[path_in_external_file].shape)
@@ -118,12 +124,12 @@ if __H5PY_MODULE_EXISTS__:
                 # Handle output file
                 should_close_dest = not isinstance(output_h5, h5py.File)  # type: ignore
                 f_dest = output_h5 if isinstance(output_h5, h5py.File) else h5py.File(output_h5, "a")  # type: ignore
-                
+
                 try:
                     # Handle input file
                     should_close_src = not isinstance(input_h5, h5py.File)  # type: ignore
                     f_src = input_h5 if isinstance(input_h5, h5py.File) else h5py.File(input_h5, "r")  # type: ignore
-                    
+
                     try:
                         for dataset in h5_datasets_paths:
                             f_dest.create_dataset(dataset, data=f_src[dataset])
@@ -173,7 +179,9 @@ else:
         def read_array(self, source: Union[BytesIO, str, Any], path_in_external_file: str) -> Optional[np.ndarray]:
             raise MissingExtraInstallation(extra_name="hdf5")
 
-        def get_array_dimension(self, source: Union[BytesIO, str, Any], path_in_external_file: str) -> Optional[np.ndarray]:
+        def get_array_dimension(
+            self, source: Union[BytesIO, str, Any], path_in_external_file: str
+        ) -> Optional[np.ndarray]:
             raise MissingExtraInstallation(extra_name="hdf5")
 
         def extract_h5_datasets(
