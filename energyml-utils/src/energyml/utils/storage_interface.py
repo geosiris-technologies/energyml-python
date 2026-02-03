@@ -37,6 +37,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, Tuple
 
 from energyml.utils.uri import Uri
+from energyml.opc.opc import Relationship
 import numpy as np
 
 
@@ -293,6 +294,18 @@ class EnergymlStorageInterface(ABC):
 
         Returns:
             List of ResourceMetadata for all matching objects
+        """
+        pass
+
+    @abstractmethod
+    def get_obj_rels(self, obj: Union[str, Uri, Any]) -> List[Relationship]:
+        """Get relationships for an object.
+
+        Args:
+            obj: The object identifier/URI or the object itself
+
+        Returns:
+            List of Relationship objects
         """
         pass
 
