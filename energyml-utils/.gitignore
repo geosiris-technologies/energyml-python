@@ -67,3 +67,4 @@ docs/*.md
 # WIP
 src/energyml/utils/wip*
 scripts
+rc/camunda

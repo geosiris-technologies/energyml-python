@@ -590,7 +590,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             try:
                 # Load object to get title
                 title = ""
-                if self.force_title_load:
+                if self.force_title_load and meta.identifier:
                     obj = self.get_object_by_identifier(meta.identifier)
                     if obj and hasattr(obj, "citation") and obj.citation:
                         if hasattr(obj.citation, "title"):
@@ -686,6 +686,42 @@ class EpcStreamReader(EnergymlStorageInterface):
 
         return self._core_props
 
+    def _gen_rels_path_from_metadata(self, metadata: EpcObjectMetadata) -> str:
+        """
+        Generate rels path from object metadata without loading the object.
+        
+        Args:
+            metadata: Object metadata containing file path information
+            
+        Returns:
+            Path to the rels file for this object
+        """
+        obj_path = metadata.file_path
+        # Extract folder and filename from the object path
+        if "/" in obj_path:
+            obj_folder = obj_path[: obj_path.rindex("/") + 1]
+            obj_file_name = obj_path[obj_path.rindex("/") + 1 :]
+        else:
+            obj_folder = ""
+            obj_file_name = obj_path
+        
+        return f"{obj_folder}_rels/{obj_file_name}.rels"
+    
+    def _gen_rels_path_from_identifier(self, identifier: str) -> Optional[str]:
+        """
+        Generate rels path from object identifier without loading the object.
+        
+        Args:
+            identifier: Object identifier (uuid.version)
+            
+        Returns:
+            Path to the rels file, or None if metadata not found
+        """
+        metadata = self._metadata.get(identifier)
+        if metadata is None:
+            return None
+        return self._gen_rels_path_from_metadata(metadata)
+
     def to_epc(self, load_all: bool = False) -> Epc:
         """
         Convert to standard Epc instance.
@@ -714,43 +750,101 @@ class EpcStreamReader(EnergymlStorageInterface):
     def get_obj_rels(self, obj: Union[str, Uri, Any]) -> List[Relationship]:
         """
         Get all relationships for a given object.
+        Merges relationships from the EPC file with in-memory additional relationships.
+        
+        Optimized to avoid loading the object when identifier/URI is provided.
+
         :param obj: the object or its identifier/URI
         :return: list of Relationship objects
         """
         rels = []
+        obj_identifier = None
+        rels_path = None
 
-        # read rels from EPC file
+        # Get identifier without loading the object
         if isinstance(obj, (str, Uri)):
-            obj = self.get_object_by_identifier(obj)
-        with zipfile.ZipFile(self.epc_file_path, "r") as zf:
+            # Convert URI to identifier if needed
+            if isinstance(obj, Uri) or parse_uri(obj) is not None:
+                uri = parse_uri(obj) if isinstance(obj, str) else obj
+                assert uri is not None and uri.uuid is not None
+                obj_identifier = uri.uuid + "." + (uri.version or "")
+            else:
+                obj_identifier = obj
+            
+            # Generate rels path from metadata without loading the object
+            rels_path = self._gen_rels_path_from_identifier(obj_identifier)
+        else:
+            # We have the actual object
+            obj_identifier = get_obj_identifier(obj)
             rels_path = gen_rels_path(obj, self.export_version)
-            try:
-                rels_data = zf.read(rels_path)
-                self.stats.bytes_read += len(rels_data)
-                relationships = read_energyml_xml_bytes(rels_data, Relationships)
-                rels.extend(relationships.relationship)
-            except KeyError:
-                # No rels file found for this object
-                pass
+
+        # Read rels from EPC file using efficient context manager
+        if rels_path is not None:
+            with self._get_zip_file() as zf:
+                try:
+                    rels_data = zf.read(rels_path)
+                    self.stats.bytes_read += len(rels_data)
+                    relationships = read_energyml_xml_bytes(rels_data, Relationships)
+                    rels.extend(relationships.relationship)
+                except KeyError:
+                    # No rels file found for this object
+                    pass
+
+        # Merge with in-memory additional relationships
+        if obj_identifier and obj_identifier in self.additional_rels:
+            rels.extend(self.additional_rels[obj_identifier])
 
         return rels
 
     def get_h5_file_paths(self, obj: Union[str, Uri, Any]) -> List[str]:
         """
-        Get all HDF5 file paths referenced in the EPC file (from rels to external resources)
+        Get all HDF5 file paths referenced in the EPC file (from rels to external resources).
+        Optimized to avoid loading the object when identifier/URI is provided.
+        
         :param obj: the object or its identifier/URI
         :return: list of HDF5 file paths
         """
         if self.force_h5_path is not None:
             return [self.force_h5_path]
         h5_paths = set()
-
+        
+        obj_identifier = None
+        rels_path = None
+        
+        # Get identifier and rels path without loading the object
         if isinstance(obj, (str, Uri)):
-            obj = self.get_object_by_identifier(obj)
+            # Convert URI to identifier if needed
+            if isinstance(obj, Uri) or parse_uri(obj) is not None:
+                uri = parse_uri(obj) if isinstance(obj, str) else obj
+                assert uri is not None and uri.uuid is not None
+                obj_identifier = uri.uuid + "." + (uri.version or "")
+            else:
+                obj_identifier = obj
+            
+            # Generate rels path from metadata without loading the object
+            rels_path = self._gen_rels_path_from_identifier(obj_identifier)
+        else:
+            # We have the actual object
+            obj_identifier = get_obj_identifier(obj)
+            rels_path = gen_rels_path(obj, self.export_version)
 
-        for rels in self.additional_rels.get(get_obj_identifier(obj), []):
+        # Check in-memory additional rels first
+        for rels in self.additional_rels.get(obj_identifier, []):
             if rels.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
                 h5_paths.add(rels.target)
+
+        # Also check rels from the EPC file
+        if rels_path is not None:
+            with self._get_zip_file() as zf:
+                try:
+                    rels_data = zf.read(rels_path)
+                    self.stats.bytes_read += len(rels_data)
+                    relationships = read_energyml_xml_bytes(rels_data, Relationships)
+                    for rel in relationships.relationship:
+                        if rel.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
+                            h5_paths.add(rel.target)
+                except KeyError:
+                    pass
 
         if len(h5_paths) == 0:
             # search if an h5 file has the same name than the epc file
@@ -867,7 +961,7 @@ class EpcStreamReader(EnergymlStorageInterface):
 
         return results
 
-    def get_object_dependencies(self, identifier: str) -> List[str]:
+    def get_object_dependencies(self, identifier: Union[str, Uri]) -> List[str]:
         """
         Get list of object identifiers that this object depends on.
 
@@ -1198,26 +1292,28 @@ class EpcStreamReader(EnergymlStorageInterface):
             logging.error(f"Failed to update object {identifier}: {e}")
             raise RuntimeError(f"Failed to update object in EPC: {e}")
 
-    def add_rels_for_object(self, identifier: Union[str, Uri, Any], relationships: List[Relationship]) -> None:
+    def add_rels_for_object(
+        self, identifier: Union[str, Uri, Any], relationships: List[Relationship], write_immediately: bool = False
+    ) -> None:
         """
         Add additional relationships for a specific object.
+
+        Relationships are stored in memory and can be written immediately or deferred
+        until write_pending_rels() is called, or when the EPC is closed.
 
         Args:
             identifier: The identifier of the object, can be str, Uri, or the object itself
             relationships: List of Relationship objects to add
+            write_immediately: If True, writes pending rels to disk immediately after adding.
+                             If False (default), rels are kept in memory for batching.
         """
         is_uri = isinstance(identifier, Uri) or (isinstance(identifier, str) and parse_uri(identifier) is not None)
-        object_instance = None
         if is_uri:
             uri = parse_uri(identifier) if isinstance(identifier, str) else identifier
             assert uri is not None and uri.uuid is not None
             identifier = uri.uuid + "." + (uri.version or "")
-            object_instance = self.get_object_by_identifier(identifier)
         elif not isinstance(identifier, str):
             identifier = get_obj_identifier(identifier)
-            object_instance = self.get_object_by_identifier(identifier)
-        else:
-            object_instance = identifier
 
         assert isinstance(identifier, str)
 
@@ -1225,29 +1321,111 @@ class EpcStreamReader(EnergymlStorageInterface):
             self.additional_rels[identifier] = []
 
         self.additional_rels[identifier].extend(relationships)
-        if len(self.additional_rels[identifier]) > 0:
-            # Create temporary file for updated EPC
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".epc") as temp_file:
-                temp_path = temp_file.name
-            # Update the .rels file for this object by updating the rels file in the EPC
-            with (
-                zipfile.ZipFile(self.epc_file_path, "r") as source_zip,
-                zipfile.ZipFile(temp_path, "a") as target_zip,
-            ):
-                # copy all files except the rels file to be updated
-                for item in source_zip.infolist():
-                    if item.filename != gen_rels_path(object_instance, self.export_version):
-                        buffer = source_zip.read(item.filename)
-                        target_zip.writestr(item, buffer)
+        logging.debug(f"Added {len(relationships)} relationships for object {identifier} (in-memory)")
 
-                self._update_existing_rels_files(
-                    Relationships(relationship=relationships),
-                    gen_rels_path(object_instance, self.export_version),
-                    source_zip,
-                    target_zip,
-                )
+        if write_immediately:
+            self.write_pending_rels()
+
+    def write_pending_rels(self) -> int:
+        """
+        Write all pending in-memory relationships to the EPC file efficiently.
+
+        This method reads existing rels, merges them in memory with pending rels,
+        then rewrites only the affected rels files in a single ZIP update.
+
+        Returns:
+            Number of rels files updated
+        """
+        if not self.additional_rels:
+            logging.debug("No pending relationships to write")
+            return 0
+
+        updated_count = 0
+        
+        # Step 1: Read existing rels and merge with pending rels in memory
+        merged_rels: Dict[str, Relationships] = {}  # rels_path -> merged Relationships
+        
+        with self._get_zip_file() as zf:
+            for obj_identifier, new_relationships in self.additional_rels.items():
+                # Generate rels path from metadata without loading the object
+                rels_path = self._gen_rels_path_from_identifier(obj_identifier)
+                if rels_path is None:
+                    logging.warning(f"Could not generate rels path for {obj_identifier}")
+                    continue
+                
+                # Read existing rels from ZIP
+                existing_relationships = []
+                try:
+                    if rels_path in zf.namelist():
+                        rels_data = zf.read(rels_path)
+                        existing_rels = read_energyml_xml_bytes(rels_data, Relationships)
+                        if existing_rels and existing_rels.relationship:
+                            existing_relationships = list(existing_rels.relationship)
+                except Exception as e:
+                    logging.debug(f"Could not read existing rels for {rels_path}: {e}")
+                
+                # Merge new relationships, avoiding duplicates
+                for new_rel in new_relationships:
+                    # Check if relationship already exists
+                    rel_exists = any(
+                        r.target == new_rel.target and r.type_value == new_rel.type_value 
+                        for r in existing_relationships
+                    )
+                    
+                    if not rel_exists:
+                        # Ensure unique ID
+                        cpt = 0
+                        new_rel_id = new_rel.id
+                        while any(r.id == new_rel_id for r in existing_relationships):
+                            new_rel_id = f"{new_rel.id}_{cpt}"
+                            cpt += 1
+                        if new_rel_id != new_rel.id:
+                            new_rel.id = new_rel_id
+                        
+                        existing_relationships.append(new_rel)
+                
+                # Store merged result
+                if existing_relationships:
+                    merged_rels[rels_path] = Relationships(relationship=existing_relationships)
+        
+        # Step 2: Write updated rels back to ZIP (create temp, copy all, replace)
+        if not merged_rels:
+            return 0
+            
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".epc") as temp_file:
+            temp_path = temp_file.name
+
+        try:
+            # Copy entire ZIP, replacing only the updated rels files
+            with self._get_zip_file() as source_zf:
+                with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zf:
+                    # Copy all files except the rels we're updating
+                    for item in source_zf.infolist():
+                        if item.filename not in merged_rels:
+                            buffer = source_zf.read(item.filename)
+                            target_zf.writestr(item, buffer)
+                    
+                    # Write updated rels files
+                    for rels_path, relationships in merged_rels.items():
+                        rels_xml = serialize_xml(relationships)
+                        target_zf.writestr(rels_path, rels_xml)
+                        updated_count += 1
+
+            # Replace original with updated ZIP
             shutil.move(temp_path, self.epc_file_path)
             self._reopen_persistent_zip()
+
+            # Clear pending rels after successful write
+            self.additional_rels.clear()
+
+            logging.info(f"Wrote {updated_count} rels files to EPC")
+            return updated_count
+
+        except Exception as e:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            logging.error(f"Failed to write pending rels: {e}")
+            raise
 
     def _compute_object_rels(self, obj: Any, obj_identifier: str) -> List[Relationship]:
         """
@@ -1269,11 +1447,18 @@ class EpcStreamReader(EnergymlStorageInterface):
         for dor in direct_dors:
             try:
                 target_identifier = get_obj_identifier(dor)
-                target_rels_path = gen_rels_path(dor, self.export_version)
+                
+                # Get target file path from metadata without processing DOR
+                # The relationship target should be the object's file path, not its rels path
+                if target_identifier in self._metadata:
+                    target_path = self._metadata[target_identifier].file_path
+                else:
+                    # Fall back to generating path from DOR if metadata not found
+                    target_path = gen_energyml_object_path(dor, self.export_version)
 
                 # Create SOURCE relationship (this object -> target object)
                 rel = Relationship(
-                    target=target_rels_path,
+                    target=target_path,
                     type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
                     id=f"_{obj_identifier}_{get_obj_type(get_obj_usable_class(dor))}_{target_identifier}",
                 )
@@ -1313,266 +1498,257 @@ class EpcStreamReader(EnergymlStorageInterface):
 
         return referencing_objects
 
-    def _update_existing_rels_files(
-        self, rels: Relationships, rel_path: str, source_zip: zipfile.ZipFile, target_zip: zipfile.ZipFile
-    ) -> None:
-        """Merge new relationships with existing .rels, reading from source and writing to target ZIP.
+    def _merge_rels(
+        self, new_rels: List[Relationship], existing_rels: List[Relationship]
+    ) -> List[Relationship]:
+        """Merge new relationships with existing ones, avoiding duplicates and ensuring unique IDs.
 
         Args:
-            rels: New Relationships to add
-            rel_path: Path to the .rels file
-            source_zip: ZIP to read existing rels from
-            target_zip: ZIP to write updated rels to
-        """
-        # print("@ Updating rels file:", rel_path)
-        existing_relationships = []
-        try:
-            if rel_path in source_zip.namelist():
-                rels_data = source_zip.read(rel_path)
-                existing_rels = read_energyml_xml_bytes(rels_data, Relationships)
-                if existing_rels and existing_rels.relationship:
-                    existing_relationships = list(existing_rels.relationship)
-        except Exception as e:
-            logging.debug(f"Could not read existing rels for {rel_path}: {e}")
+            new_rels: New relationships to add
+            existing_rels: Existing relationships
 
-        for new_rel in rels.relationship:
+        Returns:
+            Merged list of relationships
+        """
+        merged = list(existing_rels)
+        
+        for new_rel in new_rels:
+            # Check if relationship already exists
             rel_exists = any(
-                r.target == new_rel.target and r.type_value == new_rel.type_value for r in existing_relationships
+                r.target == new_rel.target and r.type_value == new_rel.type_value for r in merged
             )
-            cpt = 0
-            new_rel_id = new_rel.id
-            while any(r.id == new_rel_id for r in existing_relationships):
-                new_rel_id = f"{new_rel.id}_{cpt}"
-                cpt += 1
-            if new_rel_id != new_rel.id:
-                new_rel.id = new_rel_id
+            
             if not rel_exists:
-                existing_relationships.append(new_rel)
-
-        if existing_relationships:
-            updated_rels = Relationships(relationship=existing_relationships)
-            updated_rels_xml = serialize_xml(updated_rels)
-            target_zip.writestr(rel_path, updated_rels_xml)
-
-    def _update_rels_files(
-        self,
-        obj: Any,
-        metadata: EpcObjectMetadata,
-        source_zip: zipfile.ZipFile,
-        target_zip: zipfile.ZipFile,
-    ) -> List[str]:
-        """
-        Update all necessary .rels files when adding/updating an object.
-
-        This includes:
-        1. The object's own .rels file (for objects it references)
-        2. The .rels files of objects that now reference this object (DESTINATION relationships)
-
-        Args:
-            obj: The object being added/updated
-            metadata: Metadata for the object
-            source_zip: Source ZIP file to read existing rels from
-            target_zip: Target ZIP file to write updated rels to
-
-        returns:
-            List of updated .rels file paths
-        """
-        obj_identifier = metadata.identifier
-        updated_rels_paths = []
-        if not obj_identifier:
-            logging.warning("Object identifier is None, skipping rels update")
-            return updated_rels_paths
-
-        # 1. Create/update the object's own .rels file
-        obj_rels_path = gen_rels_path(obj, self.export_version)
-        obj_relationships = self._compute_object_rels(obj, obj_identifier)
-
-        if obj_relationships:
-            self._update_existing_rels_files(
-                Relationships(relationship=obj_relationships), obj_rels_path, source_zip, target_zip
-            )
-            updated_rels_paths.append(obj_rels_path)
-
-        # 2. Update .rels files of objects referenced by this object
-        # These objects need DESTINATION relationships pointing to our object
-        direct_dors = get_direct_dor_list(obj)
-
-        logging.debug(f"Updating rels for object {obj_identifier}, found {len(direct_dors)} direct DORs")
-
-        for dor in direct_dors:
-            try:
-                target_rels_path = gen_rels_path(dor, self.export_version)
-                target_identifier = get_obj_identifier(dor)
-
-                # Add DESTINATION relationship from target to our object
-                dest_rel = Relationship(
-                    target=metadata.file_path,
-                    type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
-                    id=f"_{target_identifier}_{get_obj_type(get_obj_usable_class(obj))}_{obj_identifier}",
-                )
-
-                self._update_existing_rels_files(
-                    Relationships(relationship=[dest_rel]), target_rels_path, source_zip, target_zip
-                )
-                updated_rels_paths.append(target_rels_path)
-
-            except Exception as e:
-                logging.warning(f"Failed to update rels for referenced object: {e}")
-        return updated_rels_paths
-
-    def _remove_rels_files(
-        self, obj: Any, metadata: EpcObjectMetadata, source_zip: zipfile.ZipFile, target_zip: zipfile.ZipFile
-    ) -> None:
-        """
-        Remove/update .rels files when removing an object.
-
-        This includes:
-        1. Removing the object's own .rels file
-        2. Removing DESTINATION relationships from objects that this object referenced
-
-        Args:
-            obj: The object being removed
-            metadata: Metadata for the object
-            source_zip: Source ZIP file to read existing rels from
-            target_zip: Target ZIP file to write updated rels to
-        """
-        # obj_identifier = metadata.identifier
-
-        # 1. The object's own .rels file will be automatically excluded by not copying it
-        # obj_rels_path = gen_rels_path(obj, self.export_version)
-
-        # 2. Update .rels files of objects that were referenced by this object
-        # Remove DESTINATION relationships that pointed to our object
-        direct_dors = get_direct_dor_list(obj)
-
-        for dor in direct_dors:
-            try:
-                target_identifier = get_obj_identifier(dor)
-
-                # Check if target object exists
-                if target_identifier not in self._metadata:
-                    continue
-
-                target_obj = self.get_object_by_identifier(target_identifier)
-                if target_obj is None:
-                    continue
-
-                target_rels_path = gen_rels_path(target_obj, self.export_version)
-
-                # Read existing rels for the target object
-                existing_relationships = []
-                try:
-                    if target_rels_path in source_zip.namelist():
-                        rels_data = source_zip.read(target_rels_path)
-                        existing_rels = read_energyml_xml_bytes(rels_data, Relationships)
-                        if existing_rels and existing_rels.relationship:
-                            existing_relationships = list(existing_rels.relationship)
-                except Exception as e:
-                    logging.debug(f"Could not read existing rels for {target_identifier}: {e}")
-
-                # Remove DESTINATION relationship that pointed to our object
-                updated_relationships = [
-                    r
-                    for r in existing_relationships
-                    if not (
-                        r.target == metadata.file_path
-                        and r.type_value == EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
-                    )
-                ]
-
-                # Write updated rels file (or skip if no relationships left)
-                if updated_relationships:
-                    updated_rels = Relationships(relationship=updated_relationships)
-                    updated_rels_xml = serialize_xml(updated_rels)
-                    target_zip.writestr(target_rels_path, updated_rels_xml)
-
-            except Exception as e:
-                logging.warning(f"Failed to update rels for referenced object during removal: {e}")
+                # Ensure unique ID
+                cpt = 0
+                new_rel_id = new_rel.id
+                while any(r.id == new_rel_id for r in merged):
+                    new_rel_id = f"{new_rel.id}_{cpt}"
+                    cpt += 1
+                if new_rel_id != new_rel.id:
+                    new_rel.id = new_rel_id
+                
+                merged.append(new_rel)
+        
+        return merged
 
     def _add_object_to_file(self, obj: Any, metadata: EpcObjectMetadata) -> None:
-        """Add object to the EPC file by safely rewriting the ZIP archive.
+        """Add object to the EPC file efficiently.
 
-        The method creates a temporary ZIP archive, copies all entries except
-        the ones to be updated (content types and relevant .rels), then writes
-        the new object, merges and writes updated .rels files and the
-        updated [Content_Types].xml before replacing the original file. This
-        avoids issues with append mode creating overlapped entries.
+        Reads existing rels, computes updates in memory, then writes everything
+        in a single ZIP operation.
         """
         xml_content = serialize_xml(obj)
-
-        # Create temporary file for updated EPC
+        obj_identifier = metadata.identifier
+        assert obj_identifier is not None, "Object identifier must not be None"
+        
+        # Step 1: Compute which rels files need to be updated and prepare their content
+        rels_updates: Dict[str, str] = {}  # rels_path -> XML content
+        
+        with self._get_zip_file() as zf:
+            # 1a. Object's own .rels file
+            obj_rels_path = gen_rels_path(obj, self.export_version)
+            obj_relationships = self._compute_object_rels(obj, obj_identifier)
+            
+            if obj_relationships:
+                # Read existing rels
+                existing_rels = []
+                try:
+                    if obj_rels_path in zf.namelist():
+                        rels_data = zf.read(obj_rels_path)
+                        existing_rels_obj = read_energyml_xml_bytes(rels_data, Relationships)
+                        if existing_rels_obj and existing_rels_obj.relationship:
+                            existing_rels = list(existing_rels_obj.relationship)
+                except Exception:
+                    pass
+                
+                # Merge and serialize
+                merged_rels = self._merge_rels(obj_relationships, existing_rels)
+                if merged_rels:
+                    rels_updates[obj_rels_path] = serialize_xml(Relationships(relationship=merged_rels))
+            
+            # 1b. Update rels of referenced objects (DESTINATION relationships)
+            direct_dors = get_direct_dor_list(obj)
+            for dor in direct_dors:
+                try:
+                    target_identifier = get_obj_identifier(dor)
+                    
+                    # Generate rels path from metadata without processing DOR
+                    target_rels_path = self._gen_rels_path_from_identifier(target_identifier)
+                    if target_rels_path is None:
+                        # Fall back to generating from DOR if metadata not found
+                        target_rels_path = gen_rels_path(dor, self.export_version)
+                    
+                    # Create DESTINATION relationship
+                    dest_rel = Relationship(
+                        target=metadata.file_path,
+                        type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
+                        id=f"_{target_identifier}_{get_obj_type(get_obj_usable_class(obj))}_{obj_identifier}",
+                    )
+                    
+                    # Read existing rels
+                    existing_rels = []
+                    try:
+                        if target_rels_path in zf.namelist():
+                            rels_data = zf.read(target_rels_path)
+                            existing_rels_obj = read_energyml_xml_bytes(rels_data, Relationships)
+                            if existing_rels_obj and existing_rels_obj.relationship:
+                                existing_rels = list(existing_rels_obj.relationship)
+                    except Exception:
+                        pass
+                    
+                    # Merge and serialize
+                    merged_rels = self._merge_rels([dest_rel], existing_rels)
+                    if merged_rels:
+                        rels_updates[target_rels_path] = serialize_xml(Relationships(relationship=merged_rels))
+                        
+                except Exception as e:
+                    logging.warning(f"Failed to prepare rels update for referenced object: {e}")
+            
+            # 1c. Update [Content_Types].xml
+            content_types_xml = self._update_content_types_xml(zf, metadata, add=True)
+        
+        # Step 2: Write everything to new ZIP
         with tempfile.NamedTemporaryFile(delete=False, suffix=".epc") as temp_file:
             temp_path = temp_file.name
-
+        
         try:
-            with zipfile.ZipFile(self.epc_file_path, "r") as source_zip:
-                with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zip:
-
-                    # Add new object file
-                    target_zip.writestr(metadata.file_path, xml_content)
-
-                    # Update .rels files by merging with existing ones read from source
-                    updated_rels_paths = self._update_rels_files(obj, metadata, source_zip, target_zip)
-
-                    # Copy all existing files except [Content_Types].xml, the object file, and rels we already updated
-                    for item in source_zip.infolist():
-                        if (
-                            item.filename == get_epc_content_type_path()
-                            or item.filename == metadata.file_path
-                            or item.filename in updated_rels_paths
-                        ):
-                            continue
-                        data = source_zip.read(item.filename)
-                        target_zip.writestr(item, data)
-
-                    # Update [Content_Types].xml
-                    updated_content_types = self._update_content_types_xml(source_zip, metadata, add=True)
-                    target_zip.writestr(get_epc_content_type_path(), updated_content_types)
-
-            # Replace original file with updated version
+            with self._get_zip_file() as source_zf:
+                with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zf:
+                    # Write new object
+                    target_zf.writestr(metadata.file_path, xml_content)
+                    
+                    # Write updated [Content_Types].xml
+                    target_zf.writestr(get_epc_content_type_path(), content_types_xml)
+                    
+                    # Write updated rels files
+                    for rels_path, rels_xml in rels_updates.items():
+                        target_zf.writestr(rels_path, rels_xml)
+                    
+                    # Copy all other files
+                    files_to_skip = {get_epc_content_type_path(), metadata.file_path}
+                    files_to_skip.update(rels_updates.keys())
+                    
+                    for item in source_zf.infolist():
+                        if item.filename not in files_to_skip:
+                            buffer = source_zf.read(item.filename)
+                            target_zf.writestr(item, buffer)
+            
+            # Replace original
             shutil.move(temp_path, self.epc_file_path)
             self._reopen_persistent_zip()
-
+            
         except Exception as e:
-            # Clean up temp file on error
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
             logging.error(f"Failed to add object to EPC file: {e}")
             raise
 
     def _remove_object_from_file(self, metadata: EpcObjectMetadata) -> None:
-        """Remove object from the EPC file by updating the ZIP archive.
+        """Remove object from the EPC file efficiently.
 
-        Note: This does NOT remove .rels files. Use clean_rels() to remove orphaned relationships.
+        Reads existing rels, computes updates in memory, then writes everything
+        in a single ZIP operation. Note: This does NOT remove .rels files.
+        Use clean_rels() to remove orphaned relationships.
         """
-
-        # Create temporary file for updated EPC
+        # Load object first (needed to process its DORs)
+        if metadata.identifier is None:
+            logging.error("Cannot remove object with None identifier")
+            raise ValueError("Object identifier must not be None")
+        
+        obj = self.get_object_by_identifier(metadata.identifier)
+        if obj is None:
+            logging.warning(f"Object {metadata.identifier} not found, cannot remove rels")
+            # Still proceed with removal even if object can't be loaded
+        
+        # Step 1: Compute rels updates (remove DESTINATION relationships from referenced objects)
+        rels_updates: Dict[str, str] = {}  # rels_path -> XML content
+        
+        if obj is not None:
+            with self._get_zip_file() as zf:
+                direct_dors = get_direct_dor_list(obj)
+                
+                for dor in direct_dors:
+                    try:
+                        target_identifier = get_obj_identifier(dor)
+                        if target_identifier not in self._metadata:
+                            continue
+                        
+                        # Use metadata to generate rels path without loading the object
+                        target_rels_path = self._gen_rels_path_from_identifier(target_identifier)
+                        if target_rels_path is None:
+                            continue
+                        
+                        # Read existing rels
+                        existing_relationships = []
+                        try:
+                            if target_rels_path in zf.namelist():
+                                rels_data = zf.read(target_rels_path)
+                                existing_rels = read_energyml_xml_bytes(rels_data, Relationships)
+                                if existing_rels and existing_rels.relationship:
+                                    existing_relationships = list(existing_rels.relationship)
+                        except Exception as e:
+                            logging.debug(f"Could not read existing rels for {target_identifier}: {e}")
+                        
+                        # Remove DESTINATION relationship that pointed to our object
+                        updated_relationships = [
+                            r for r in existing_relationships
+                            if not (
+                                r.target == metadata.file_path
+                                and r.type_value == EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
+                            )
+                        ]
+                        
+                        # Only update if relationships remain
+                        if updated_relationships:
+                            rels_updates[target_rels_path] = serialize_xml(
+                                Relationships(relationship=updated_relationships)
+                            )
+                    
+                    except Exception as e:
+                        logging.warning(f"Failed to update rels for referenced object during removal: {e}")
+                
+                # Update [Content_Types].xml
+                content_types_xml = self._update_content_types_xml(zf, metadata, add=False)
+        else:
+            # If we couldn't load the object, still update content types
+            with self._get_zip_file() as zf:
+                content_types_xml = self._update_content_types_xml(zf, metadata, add=False)
+        
+        # Step 2: Write everything to new ZIP
         with tempfile.NamedTemporaryFile(delete=False, suffix=".epc") as temp_file:
             temp_path = temp_file.name
-
+        
         try:
-            # Copy existing EPC to temp file, excluding the object to remove
-            with zipfile.ZipFile(self.epc_file_path, "r") as source_zip:
-                with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zip:
-                    # Copy all existing files except the one to remove and [Content_Types].xml
-                    # We keep .rels files as-is (they will be cleaned by clean_rels() if needed)
-                    for item in source_zip.infolist():
-                        if item.filename not in [metadata.file_path, get_epc_content_type_path()]:
-                            data = source_zip.read(item.filename)
-                            target_zip.writestr(item, data)
-
-                    # Update [Content_Types].xml
-                    updated_content_types = self._update_content_types_xml(source_zip, metadata, add=False)
-                    target_zip.writestr(get_epc_content_type_path(), updated_content_types)
-
-            # Replace original file with updated version
+            with self._get_zip_file() as source_zf:
+                with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zf:
+                    # Write updated [Content_Types].xml
+                    target_zf.writestr(get_epc_content_type_path(), content_types_xml)
+                    
+                    # Write updated rels files
+                    for rels_path, rels_xml in rels_updates.items():
+                        target_zf.writestr(rels_path, rels_xml)
+                    
+                    # Copy all files except removed object, its rels, and files we're updating
+                    obj_rels_path = self._gen_rels_path_from_metadata(metadata)
+                    files_to_skip = {get_epc_content_type_path(), metadata.file_path}
+                    if obj_rels_path:
+                        files_to_skip.add(obj_rels_path)
+                    files_to_skip.update(rels_updates.keys())
+                    
+                    for item in source_zf.infolist():
+                        if item.filename not in files_to_skip:
+                            buffer = source_zf.read(item.filename)
+                            target_zf.writestr(item, buffer)
+            
+            # Replace original
             shutil.move(temp_path, self.epc_file_path)
             self._reopen_persistent_zip()
-
-        except Exception:
-            # Clean up temp file on error
+            
+        except Exception as e:
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
+            logging.error(f"Failed to remove object from EPC file: {e}")
             raise
 
     def _update_content_types_xml(
@@ -1657,7 +1833,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             temp_path = temp_file.name
 
         try:
-            with zipfile.ZipFile(self.epc_file_path, "r") as source_zip:
+            with self._get_zip_file() as source_zip:
                 with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zip:
                     # Get all existing object file paths for validation
                     existing_object_files = {metadata.file_path for metadata in self._metadata.values()}
@@ -1814,7 +1990,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                     continue
 
                 # metadata = self._metadata[identifier]
-                obj_rels_path = gen_rels_path(obj, self.export_version)
+                obj_rels_path = self._gen_rels_path_from_identifier(identifier)
 
                 # Get all DORs (objects this object references)
                 dors = get_direct_dor_list(obj)
@@ -1840,7 +2016,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                         except Exception as e:
                             logging.debug(f"Failed to create SOURCE relationship: {e}")
 
-                    if relationships:
+                    if relationships and obj_rels_path:
                         if obj_rels_path not in rels_files:
                             rels_files[obj_rels_path] = Relationships(relationship=[])
                         rels_files[obj_rels_path].relationship.extend(relationships)
@@ -1851,12 +2027,14 @@ class EpcStreamReader(EnergymlStorageInterface):
         # Add DESTINATION relationships
         for target_identifier, source_list in reverse_references.items():
             try:
-                target_obj = self.get_object_by_identifier(target_identifier)
-                if target_obj is None:
+                if target_identifier not in self._metadata:
                     continue
 
                 target_metadata = self._metadata[target_identifier]
-                target_rels_path = gen_rels_path(target_obj, self.export_version)
+                target_rels_path = self._gen_rels_path_from_identifier(target_identifier)
+                
+                if not target_rels_path:
+                    continue
 
                 # Create DESTINATION relationships for each object that references this one
                 for source_identifier, source_obj in source_list:
@@ -1887,7 +2065,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             temp_path = temp_file.name
 
         try:
-            with zipfile.ZipFile(self.epc_file_path, "r") as source_zip:
+            with self._get_zip_file() as source_zip:
                 with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zip:
                     # Copy all non-.rels files
                     for item in source_zip.infolist():
@@ -1933,7 +2111,7 @@ class EpcStreamReader(EnergymlStorageInterface):
         content_list = []
         file_list = []
 
-        with zipfile.ZipFile(self.epc_file_path, "r") as zf:
+        with self._get_zip_file() as zf:
             file_list = zf.namelist()
 
             for item in zf.infolist():
