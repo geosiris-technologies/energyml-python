@@ -16,7 +16,7 @@ import zipfile
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Iterator, Union, Tuple
+from typing import Dict, List, Optional, Any, Iterator, Union, Tuple, TypedDict
 from weakref import WeakValueDictionary
 
 from energyml.opc.opc import Types, Override, CoreProperties, Relationships, Relationship
@@ -105,6 +105,116 @@ class EpcStreamingStats:
     def memory_efficiency(self) -> float:
         """Calculate memory efficiency percentage."""
         return (1 - (self.loaded_objects / self.total_objects)) * 100 if self.total_objects > 0 else 100.0
+
+
+# ===========================================================================================
+# PARALLEL PROCESSING WORKER FUNCTIONS
+# ===========================================================================================
+
+# Configuration constants for parallel processing
+_MIN_OBJECTS_PER_WORKER = 10  # Minimum objects to justify spawning a worker
+_WORKER_POOL_SIZE_RATIO = 10  # Number of objects per worker process
+
+
+class _WorkerResult(TypedDict):
+    """Type definition for parallel worker function return value."""
+
+    identifier: str
+    object_type: str
+    source_rels: List[Dict[str, str]]
+    dor_targets: List[Tuple[str, str]]
+
+
+def _process_object_for_rels_worker(args: Tuple[str, str, Dict[str, EpcObjectMetadata]]) -> Optional[_WorkerResult]:
+    """
+    Worker function for parallel relationship processing (runs in separate process).
+
+    This function is executed in a separate process to compute SOURCE relationships
+    for a single object. It bypasses Python's GIL for CPU-intensive XML parsing.
+
+    Performance characteristics:
+    - Each worker process opens its own ZIP file handle
+    - XML parsing happens independently on separate CPU cores
+    - Results are serialized back to the main process via pickle
+
+    Args:
+        args: Tuple containing:
+            - identifier: Object UUID/identifier to process
+            - epc_file_path: Absolute path to the EPC file
+            - metadata_dict: Dictionary of all object metadata (for validation)
+
+    Returns:
+        Dictionary conforming to _WorkerResult TypedDict, or None if processing fails.
+    """
+    identifier, epc_file_path, metadata_dict = args
+
+    try:
+        # Open ZIP file in this worker process
+        import zipfile
+        from energyml.utils.serialization import read_energyml_xml_bytes
+        from energyml.utils.introspection import (
+            get_direct_dor_list,
+            get_obj_identifier,
+            get_obj_type,
+            get_obj_usable_class,
+        )
+        from energyml.utils.constants import EPCRelsRelationshipType
+        from energyml.utils.introspection import get_class_from_content_type
+
+        metadata = metadata_dict.get(identifier)
+        if not metadata:
+            return None
+
+        # Load object from ZIP
+        with zipfile.ZipFile(epc_file_path, "r") as zf:
+            obj_data = zf.read(metadata.file_path)
+            obj_class = get_class_from_content_type(metadata.content_type)
+            obj = read_energyml_xml_bytes(obj_data, obj_class)
+
+        # Extract object type (cached to avoid reloading in Phase 3)
+        obj_type = get_obj_type(get_obj_usable_class(obj))
+
+        # Get all Data Object References (DORs) from this object
+        data_object_references = get_direct_dor_list(obj)
+
+        # Build SOURCE relationships and track referenced objects
+        source_rels = []
+        dor_targets = []  # Track (target_id, target_type) for reverse references
+
+        for dor in data_object_references:
+            try:
+                target_identifier = get_obj_identifier(dor)
+                if target_identifier not in metadata_dict:
+                    continue
+
+                target_metadata = metadata_dict[target_identifier]
+
+                # Extract target type (needed for relationship ID)
+                target_type = get_obj_type(get_obj_usable_class(dor))
+                dor_targets.append((target_identifier, target_type))
+
+                # Serialize relationship as dict (Relationship objects aren't picklable)
+                rel_dict = {
+                    "target": target_metadata.file_path,
+                    "type_value": EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
+                    "id": f"_{identifier}_{target_type}_{target_identifier}",
+                }
+                source_rels.append(rel_dict)
+
+            except Exception as e:
+                # Don't fail entire object processing for one bad DOR
+                logging.debug(f"Skipping invalid DOR in {identifier}: {e}")
+
+        return {
+            "identifier": identifier,
+            "object_type": obj_type,
+            "source_rels": source_rels,
+            "dor_targets": dor_targets,
+        }
+
+    except Exception as e:
+        logging.warning(f"Worker failed to process {identifier}: {e}")
+        return None
 
 
 # ===========================================================================================
@@ -480,12 +590,12 @@ class _MetadataManager:
         self, source_zip: zipfile.ZipFile, metadata: EpcObjectMetadata, add: bool = True
     ) -> str:
         """Update [Content_Types].xml to add or remove object entry.
-        
+
         Args:
             source_zip: Open ZIP file to read from
             metadata: Object metadata
             add: If True, add entry; if False, remove entry
-            
+
         Returns:
             Updated [Content_Types].xml as string
         """
@@ -962,6 +1072,8 @@ class EpcStreamReader(EnergymlStorageInterface):
         keep_open: bool = False,
         force_title_load: bool = False,
         rels_update_mode: RelsUpdateMode = RelsUpdateMode.UPDATE_ON_CLOSE,
+        enable_parallel_rels: bool = False,
+        parallel_worker_ratio: int = 10,
     ):
         """
         Initialize the EPC stream reader.
@@ -976,9 +1088,13 @@ class EpcStreamReader(EnergymlStorageInterface):
             keep_open: If True, keeps the ZIP file open for better performance with multiple operations. File is closed only when instance is deleted or close() is called.
             force_title_load: If True, forces loading object titles when listing objects (may impact performance)
             rels_update_mode: Mode for updating relationships (UPDATE_AT_MODIFICATION, UPDATE_ON_CLOSE, or MANUAL)
+            enable_parallel_rels: If True, uses parallel processing for rebuild_all_rels() operations (faster for large EPCs)
+            parallel_worker_ratio: Number of objects per worker process (default: 10). Lower values = more workers. Only used when enable_parallel_rels=True.
         """
         # Public attributes
         self.epc_file_path = Path(epc_file_path)
+        self.enable_parallel_rels = enable_parallel_rels
+        self.parallel_worker_ratio = parallel_worker_ratio
         self.cache_size = cache_size
         self.validate_on_load = validate_on_load
         self.force_h5_path = force_h5_path
@@ -2284,7 +2400,7 @@ class EpcStreamReader(EnergymlStorageInterface):
 
     def _compute_object_rels(self, obj: Any, obj_identifier: str) -> List[Relationship]:
         """Compute relationships for a given object (SOURCE relationships).
-        
+
         Delegates to _rels_mgr.compute_object_rels()
         """
         return self._rels_mgr.compute_object_rels(obj, obj_identifier)
@@ -2520,7 +2636,7 @@ class EpcStreamReader(EnergymlStorageInterface):
         self, source_zip: zipfile.ZipFile, metadata: EpcObjectMetadata, add: bool = True
     ) -> str:
         """Update [Content_Types].xml to add or remove object entry.
-        
+
         Delegates to _metadata_mgr.update_content_types_xml()
         """
         return self._metadata_mgr.update_content_types_xml(source_zip, metadata, add)
@@ -2667,6 +2783,33 @@ class EpcStreamReader(EnergymlStorageInterface):
             raise RuntimeError(f"Failed to clean .rels files: {e}")
 
     def rebuild_all_rels(self, clean_first: bool = True) -> Dict[str, int]:
+        """
+        Rebuild all .rels files from scratch by analyzing all objects and their references.
+
+        This method:
+        1. Optionally cleans existing .rels files first
+        2. Loads each object temporarily
+        3. Analyzes its Data Object References (DORs)
+        4. Creates/updates .rels files with proper SOURCE and DESTINATION relationships
+
+        Args:
+            clean_first: If True, remove all existing .rels files before rebuilding
+
+        Returns:
+            Dictionary with statistics:
+            - 'objects_processed': Number of objects analyzed
+            - 'rels_files_created': Number of .rels files created
+            - 'source_relationships': Number of SOURCE relationships created
+            - 'destination_relationships': Number of DESTINATION relationships created
+            - 'parallel_mode': True if parallel processing was used (optional key)
+            - 'execution_time': Execution time in seconds (optional key)
+        """
+        if self.enable_parallel_rels:
+            return self._rebuild_all_rels_parallel(clean_first)
+        else:
+            return self._rebuild_all_rels_sequential(clean_first)
+
+    def _rebuild_all_rels_sequential(self, clean_first: bool = True) -> Dict[str, int]:
         """
         Rebuild all .rels files from scratch by analyzing all objects and their references.
 
@@ -2878,6 +3021,218 @@ class EpcStreamReader(EnergymlStorageInterface):
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
             raise RuntimeError(f"Failed to rebuild .rels files: {e}")
+
+    def _rebuild_all_rels_parallel(self, clean_first: bool = True) -> Dict[str, int]:
+        """
+        Parallel implementation of rebuild_all_rels using multiprocessing.
+
+        Strategy:
+        1. Use multiprocessing.Pool to process objects in parallel
+        2. Each worker loads an object and computes its SOURCE relationships
+        3. Main process aggregates results and builds DESTINATION relationships
+        4. Sequential write phase (ZIP writing must be sequential)
+
+        This bypasses Python's GIL for CPU-intensive XML parsing and provides
+        significant speedup for large EPCs (tested with 80+ objects).
+        """
+        import tempfile
+        import shutil
+        import time
+        from multiprocessing import Pool, cpu_count
+
+        start_time = time.time()
+
+        stats = {
+            "objects_processed": 0,
+            "rels_files_created": 0,
+            "source_relationships": 0,
+            "destination_relationships": 0,
+            "parallel_mode": True,
+        }
+
+        num_objects = len(self._metadata)
+        logging.info(f"Starting PARALLEL rebuild of all .rels files for {num_objects} objects...")
+
+        # Prepare work items for parallel processing
+        # Pass metadata as dict (serializable) instead of keeping references
+        metadata_dict = {k: v for k, v in self._metadata.items()}
+        work_items = [(identifier, str(self.epc_file_path), metadata_dict) for identifier in self._metadata]
+
+        # Determine optimal number of workers based on available CPUs and workload
+        # Don't spawn more workers than CPUs; use user-configurable ratio for workload per worker
+        worker_ratio = self.parallel_worker_ratio if hasattr(self, "parallel_worker_ratio") else _WORKER_POOL_SIZE_RATIO
+        num_workers = min(cpu_count(), max(1, num_objects // worker_ratio))
+        logging.info(f"Using {num_workers} worker processes for {num_objects} objects (ratio: {worker_ratio})")
+
+        # ============================================================================
+        # PHASE 1: PARALLEL - Compute SOURCE relationships across worker processes
+        # ============================================================================
+        results = []
+        with Pool(processes=num_workers) as pool:
+            results = pool.map(_process_object_for_rels_worker, work_items)
+
+        # ============================================================================
+        # PHASE 2: SEQUENTIAL - Aggregate worker results
+        # ============================================================================
+        # Build data structures for subsequent phases:
+        # - reverse_references: Map target objects to their sources (for DESTINATION rels)
+        # - rels_files: Accumulate all relationships by file path
+        # - object_types: Cache object types to eliminate redundant loads in Phase 3
+        reverse_references: Dict[str, List[Tuple[str, str]]] = {}
+        rels_files: Dict[str, Relationships] = {}
+        object_types: Dict[str, str] = {}
+
+        for result in results:
+            if result is None:
+                continue
+
+            identifier = result["identifier"]
+            obj_type = result["object_type"]
+            source_rels = result["source_rels"]
+            dor_targets = result["dor_targets"]
+
+            # Cache object type
+            object_types[identifier] = obj_type
+
+            stats["objects_processed"] += 1
+
+            # Convert dicts back to Relationship objects
+            if source_rels:
+                obj_rels_path = self._gen_rels_path_from_identifier(identifier)
+                if obj_rels_path:
+                    relationships = []
+                    for rel_dict in source_rels:
+                        rel = Relationship(
+                            target=rel_dict["target"],
+                            type_value=rel_dict["type_value"],
+                            id=rel_dict["id"],
+                        )
+                        relationships.append(rel)
+                        stats["source_relationships"] += 1
+
+                    if obj_rels_path not in rels_files:
+                        rels_files[obj_rels_path] = Relationships(relationship=[])
+                    rels_files[obj_rels_path].relationship.extend(relationships)
+
+            # Build reverse reference map for DESTINATION relationships
+            # dor_targets now contains (target_id, target_type) tuples
+            for target_identifier, target_type in dor_targets:
+                if target_identifier not in reverse_references:
+                    reverse_references[target_identifier] = []
+                reverse_references[target_identifier].append((identifier, obj_type))
+
+        # ============================================================================
+        # PHASE 3: SEQUENTIAL - Create DESTINATION relationships (zero object loading!)
+        # ============================================================================
+        # Use cached object types from Phase 2 to build DESTINATION relationships
+        # without reloading any objects. This optimization is critical for performance.
+        for target_identifier, source_list in reverse_references.items():
+            try:
+                if target_identifier not in self._metadata:
+                    continue
+
+                target_rels_path = self._gen_rels_path_from_identifier(target_identifier)
+
+                if not target_rels_path:
+                    continue
+
+                # Use cached object types instead of loading objects!
+                for source_identifier, source_type in source_list:
+                    try:
+                        source_metadata = self._metadata[source_identifier]
+
+                        # No object loading needed - we have all the type info from Phase 2!
+                        rel = Relationship(
+                            target=source_metadata.file_path,
+                            type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
+                            id=f"_{target_identifier}_{source_type}_{source_identifier}",
+                        )
+
+                        if target_rels_path not in rels_files:
+                            rels_files[target_rels_path] = Relationships(relationship=[])
+                        rels_files[target_rels_path].relationship.append(rel)
+                        stats["destination_relationships"] += 1
+
+                    except Exception as e:
+                        logging.debug(f"Failed to create DESTINATION relationship: {e}")
+
+            except Exception as e:
+                logging.warning(f"Failed to create DESTINATION rels for {target_identifier}: {e}")
+
+        stats["rels_files_created"] = len(rels_files)
+
+        # ============================================================================
+        # PHASE 4: SEQUENTIAL - Preserve non-object relationships
+        # ============================================================================
+        # Preserve EXTERNAL_RESOURCE and other non-standard relationship types
+        with self._get_zip_file() as zf:
+            for filename in zf.namelist():
+                if not filename.endswith(".rels"):
+                    continue
+
+                try:
+                    rels_data = zf.read(filename)
+                    existing_rels_obj = read_energyml_xml_bytes(rels_data, Relationships)
+                    if existing_rels_obj and existing_rels_obj.relationship:
+                        preserved_rels = [
+                            r
+                            for r in existing_rels_obj.relationship
+                            if r.type_value
+                            not in (
+                                EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
+                                EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
+                            )
+                        ]
+                        if preserved_rels:
+                            if filename in rels_files:
+                                rels_files[filename].relationship = preserved_rels + rels_files[filename].relationship
+                            else:
+                                rels_files[filename] = Relationships(relationship=preserved_rels)
+                except Exception as e:
+                    logging.debug(f"Could not preserve existing rels from {filename}: {e}")
+
+        # ============================================================================
+        # PHASE 5: SEQUENTIAL - Write all relationships to ZIP file
+        # ============================================================================
+        # ZIP file writing must be sequential (file format limitation)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".epc") as temp_file:
+            temp_path = temp_file.name
+
+        try:
+            with self._get_zip_file() as source_zip:
+                with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zip:
+                    # Copy all non-.rels files
+                    for item in source_zip.infolist():
+                        if not (item.filename.endswith(".rels") and clean_first):
+                            data = source_zip.read(item.filename)
+                            target_zip.writestr(item, data)
+
+                    # Write new .rels files
+                    for rels_path, rels_obj in rels_files.items():
+                        rels_xml = serialize_xml(rels_obj)
+                        target_zip.writestr(rels_path, rels_xml)
+
+            # Replace original file
+            shutil.move(temp_path, self.epc_file_path)
+            self._reopen_persistent_zip()
+
+            execution_time = time.time() - start_time
+            stats["execution_time"] = execution_time
+
+            logging.info(
+                f"Rebuilt .rels files (PARALLEL): processed {stats['objects_processed']} objects, "
+                f"created {stats['rels_files_created']} .rels files, "
+                f"added {stats['source_relationships']} SOURCE and "
+                f"{stats['destination_relationships']} DESTINATION relationships "
+                f"in {execution_time:.2f}s using {num_workers} workers"
+            )
+
+            return stats
+
+        except Exception as e:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            raise RuntimeError(f"Failed to rebuild .rels files (parallel): {e}")
 
     def __repr__(self) -> str:
         """String representation."""
