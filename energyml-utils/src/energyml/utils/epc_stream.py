@@ -107,6 +107,818 @@ class EpcStreamingStats:
         return (1 - (self.loaded_objects / self.total_objects)) * 100 if self.total_objects > 0 else 100.0
 
 
+# ===========================================================================================
+# HELPER CLASSES FOR REFACTORED ARCHITECTURE
+# ===========================================================================================
+
+
+class _ZipFileAccessor:
+    """
+    Internal helper class for managing ZIP file access with proper resource management.
+
+    This class handles:
+    - Persistent ZIP connections when keep_open=True
+    - On-demand connections when keep_open=False
+    - Proper cleanup and resource management
+    - Connection pooling for better performance
+    """
+
+    def __init__(self, epc_file_path: Path, keep_open: bool = False):
+        """
+        Initialize the ZIP file accessor.
+
+        Args:
+            epc_file_path: Path to the EPC file
+            keep_open: If True, maintains a persistent connection
+        """
+        self.epc_file_path = epc_file_path
+        self.keep_open = keep_open
+        self._persistent_zip: Optional[zipfile.ZipFile] = None
+
+    def open_persistent_connection(self) -> None:
+        """Open a persistent ZIP connection if keep_open is enabled."""
+        if self.keep_open and self._persistent_zip is None:
+            self._persistent_zip = zipfile.ZipFile(self.epc_file_path, "r")
+
+    @contextmanager
+    def get_zip_file(self) -> Iterator[zipfile.ZipFile]:
+        """
+        Context manager for ZIP file access with proper resource management.
+
+        If keep_open is True, uses the persistent connection. Otherwise opens a new one.
+        """
+        if self.keep_open and self._persistent_zip is not None:
+            # Use persistent connection, don't close it
+            yield self._persistent_zip
+        else:
+            # Open and close per request
+            zf = None
+            try:
+                zf = zipfile.ZipFile(self.epc_file_path, "r")
+                yield zf
+            finally:
+                if zf is not None:
+                    zf.close()
+
+    def reopen_persistent_zip(self) -> None:
+        """Reopen persistent ZIP file after modifications to reflect changes."""
+        if self.keep_open and self._persistent_zip is not None:
+            try:
+                self._persistent_zip.close()
+            except Exception:
+                pass
+            self._persistent_zip = zipfile.ZipFile(self.epc_file_path, "r")
+
+    def close(self) -> None:
+        """Close the persistent ZIP file if it's open."""
+        if self._persistent_zip is not None:
+            try:
+                self._persistent_zip.close()
+            except Exception as e:
+                logging.debug(f"Error closing persistent ZIP file: {e}")
+            finally:
+                self._persistent_zip = None
+
+
+class _MetadataManager:
+    """
+    Internal helper class for managing object metadata, indexing, and queries.
+
+    This class handles:
+    - Loading metadata from [Content_Types].xml
+    - Maintaining UUID and type indexes
+    - Fast metadata queries without loading objects
+    - Version detection
+    """
+
+    def __init__(self, zip_accessor: _ZipFileAccessor, stats: EpcStreamingStats):
+        """
+        Initialize the metadata manager.
+
+        Args:
+            zip_accessor: ZIP file accessor for reading from EPC
+            stats: Statistics tracker
+        """
+        self.zip_accessor = zip_accessor
+        self.stats = stats
+
+        # Object metadata storage
+        self._metadata: Dict[str, EpcObjectMetadata] = {}  # identifier -> metadata
+        self._uuid_index: Dict[str, List[str]] = {}  # uuid -> list of identifiers
+        self._type_index: Dict[str, List[str]] = {}  # object_type -> list of identifiers
+        self._core_props: Optional[CoreProperties] = None
+        self._core_props_path: Optional[str] = None
+
+    def load_metadata(self) -> None:
+        """Load object metadata from [Content_Types].xml without loading actual objects."""
+        try:
+            with self.zip_accessor.get_zip_file() as zf:
+                # Read content types
+                content_types = self._read_content_types(zf)
+
+                # Process each override entry
+                for override in content_types.override:
+                    if override.content_type and override.part_name:
+                        if is_energyml_content_type(override.content_type):
+                            self._process_energyml_object_metadata(zf, override)
+                        elif self._is_core_properties(override.content_type):
+                            self._process_core_properties_metadata(override)
+
+                self.stats.total_objects = len(self._metadata)
+
+        except Exception as e:
+            logging.error(f"Failed to load metadata from EPC file: {e}")
+            raise
+
+    def _read_content_types(self, zf: zipfile.ZipFile) -> Types:
+        """Read and parse [Content_Types].xml file."""
+        content_types_path = get_epc_content_type_path()
+
+        try:
+            content_data = zf.read(content_types_path)
+            self.stats.bytes_read += len(content_data)
+            return read_energyml_xml_bytes(content_data, Types)
+        except KeyError:
+            # Try case-insensitive search
+            for name in zf.namelist():
+                if name.lower() == content_types_path.lower():
+                    content_data = zf.read(name)
+                    self.stats.bytes_read += len(content_data)
+                    return read_energyml_xml_bytes(content_data, Types)
+            raise FileNotFoundError("No [Content_Types].xml found in EPC file")
+
+    def _process_energyml_object_metadata(self, zf: zipfile.ZipFile, override: Override) -> None:
+        """Process metadata for an EnergyML object without loading it."""
+        if not override.part_name or not override.content_type:
+            return
+
+        file_path = override.part_name.lstrip("/")
+        content_type = override.content_type
+
+        try:
+            # Quick peek to extract UUID and version without full parsing
+            uuid, version, obj_type = self._extract_object_info_fast(zf, file_path, content_type)
+
+            if uuid:  # Only process if we successfully extracted UUID
+                metadata = EpcObjectMetadata(
+                    uuid=uuid, object_type=obj_type, content_type=content_type, file_path=file_path, version=version
+                )
+
+                # Store in indexes
+                identifier = metadata.identifier
+                if identifier:
+                    self._metadata[identifier] = metadata
+
+                    # Update UUID index
+                    if uuid not in self._uuid_index:
+                        self._uuid_index[uuid] = []
+                    self._uuid_index[uuid].append(identifier)
+
+                    # Update type index
+                    if obj_type not in self._type_index:
+                        self._type_index[obj_type] = []
+                    self._type_index[obj_type].append(identifier)
+
+        except Exception as e:
+            logging.warning(f"Failed to process metadata for {file_path}: {e}")
+
+    def _extract_object_info_fast(
+        self, zf: zipfile.ZipFile, file_path: str, content_type: str
+    ) -> Tuple[Optional[str], Optional[str], str]:
+        """Fast extraction of UUID and version from XML without full parsing."""
+        try:
+            # Read only the beginning of the file for UUID extraction
+            with zf.open(file_path) as f:
+                # Read first chunk (usually sufficient for root element)
+                chunk = f.read(2048)  # 2KB should be enough for root element
+                self.stats.bytes_read += len(chunk)
+
+                chunk_str = chunk.decode("utf-8", errors="ignore")
+
+                # Extract UUID using optimized regex
+                uuid_match = OptimizedRegex.UUID_NO_GRP.search(chunk_str)
+                uuid = uuid_match.group(0) if uuid_match else None
+
+                # Extract version if present
+                version = None
+                version_patterns = [
+                    r'object[Vv]ersion["\']?\s*[:=]\s*["\']([^"\']+)',
+                ]
+
+                for pattern in version_patterns:
+                    import re
+
+                    version_match = re.search(pattern, chunk_str)
+                    if version_match:
+                        version = version_match.group(1)
+                        # Ensure version is a string
+                        if not isinstance(version, str):
+                            version = str(version)
+                        break
+
+                # Extract object type from content type
+                obj_type = self._extract_object_type_from_content_type(content_type)
+
+                return uuid, version, obj_type
+
+        except Exception as e:
+            logging.debug(f"Fast extraction failed for {file_path}: {e}")
+            return None, None, "Unknown"
+
+    def _extract_object_type_from_content_type(self, content_type: str) -> str:
+        """Extract object type from content type string."""
+        try:
+            match = OptimizedRegex.CONTENT_TYPE.search(content_type)
+            if match:
+                return match.group("type")
+        except (AttributeError, KeyError):
+            pass
+        return "Unknown"
+
+    def _is_core_properties(self, content_type: str) -> bool:
+        """Check if content type is CoreProperties."""
+        return content_type == "application/vnd.openxmlformats-package.core-properties+xml"
+
+    def _process_core_properties_metadata(self, override: Override) -> None:
+        """Process core properties metadata."""
+        if override.part_name:
+            self._core_props_path = override.part_name.lstrip("/")
+
+    def get_metadata(self, identifier: str) -> Optional[EpcObjectMetadata]:
+        """Get metadata for an object by identifier."""
+        return self._metadata.get(identifier)
+
+    def get_by_uuid(self, uuid: str) -> List[str]:
+        """Get all identifiers for objects with the given UUID."""
+        return self._uuid_index.get(uuid, [])
+
+    def get_by_type(self, object_type: str) -> List[str]:
+        """Get all identifiers for objects of the given type."""
+        return self._type_index.get(object_type, [])
+
+    def list_metadata(self, object_type: Optional[str] = None) -> List[EpcObjectMetadata]:
+        """List metadata for all objects, optionally filtered by type."""
+        if object_type is None:
+            return list(self._metadata.values())
+        return [self._metadata[identifier] for identifier in self._type_index.get(object_type, [])]
+
+    def add_metadata(self, metadata: EpcObjectMetadata) -> None:
+        """Add metadata for a new object."""
+        identifier = metadata.identifier
+        if identifier:
+            self._metadata[identifier] = metadata
+
+            # Update UUID index
+            if metadata.uuid not in self._uuid_index:
+                self._uuid_index[metadata.uuid] = []
+            self._uuid_index[metadata.uuid].append(identifier)
+
+            # Update type index
+            if metadata.object_type not in self._type_index:
+                self._type_index[metadata.object_type] = []
+            self._type_index[metadata.object_type].append(identifier)
+
+            self.stats.total_objects += 1
+
+    def remove_metadata(self, identifier: str) -> Optional[EpcObjectMetadata]:
+        """Remove metadata for an object. Returns the removed metadata."""
+        metadata = self._metadata.pop(identifier, None)
+        if metadata:
+            # Update UUID index
+            if metadata.uuid in self._uuid_index:
+                self._uuid_index[metadata.uuid].remove(identifier)
+                if not self._uuid_index[metadata.uuid]:
+                    del self._uuid_index[metadata.uuid]
+
+            # Update type index
+            if metadata.object_type in self._type_index:
+                self._type_index[metadata.object_type].remove(identifier)
+                if not self._type_index[metadata.object_type]:
+                    del self._type_index[metadata.object_type]
+
+            self.stats.total_objects -= 1
+
+        return metadata
+
+    def contains(self, identifier: str) -> bool:
+        """Check if an object with the given identifier exists."""
+        return identifier in self._metadata
+
+    def __len__(self) -> int:
+        """Return total number of objects."""
+        return len(self._metadata)
+
+    def __iter__(self) -> Iterator[str]:
+        """Iterate over object identifiers."""
+        return iter(self._metadata.keys())
+
+    def gen_rels_path_from_metadata(self, metadata: EpcObjectMetadata) -> str:
+        """Generate rels path from object metadata without loading the object."""
+        obj_path = metadata.file_path
+        # Extract folder and filename from the object path
+        if "/" in obj_path:
+            obj_folder = obj_path[: obj_path.rindex("/") + 1]
+            obj_file_name = obj_path[obj_path.rindex("/") + 1 :]
+        else:
+            obj_folder = ""
+            obj_file_name = obj_path
+
+        return f"{obj_folder}_rels/{obj_file_name}.rels"
+
+    def gen_rels_path_from_identifier(self, identifier: str) -> Optional[str]:
+        """Generate rels path from object identifier without loading the object."""
+        metadata = self._metadata.get(identifier)
+        if metadata is None:
+            return None
+        return self.gen_rels_path_from_metadata(metadata)
+
+    def get_core_properties(self) -> Optional[CoreProperties]:
+        """Get core properties (loaded lazily)."""
+        if self._core_props is None and self._core_props_path:
+            try:
+                with self.zip_accessor.get_zip_file() as zf:
+                    core_data = zf.read(self._core_props_path)
+                    self.stats.bytes_read += len(core_data)
+                    self._core_props = read_energyml_xml_bytes(core_data, CoreProperties)
+            except Exception as e:
+                logging.error(f"Failed to load core properties: {e}")
+
+        return self._core_props
+
+    def detect_epc_version(self) -> EpcExportVersion:
+        """Detect EPC packaging version based on file structure."""
+        try:
+            with self.zip_accessor.get_zip_file() as zf:
+                file_list = zf.namelist()
+
+                # Look for patterns that indicate EXPANDED version
+                for file_path in file_list:
+                    # Skip metadata files
+                    if (
+                        file_path.startswith("[Content_Types]")
+                        or file_path.startswith("_rels/")
+                        or file_path.endswith(".rels")
+                    ):
+                        continue
+
+                    # Check for namespace_ prefix pattern
+                    if file_path.startswith("namespace_"):
+                        path_parts = file_path.split("/")
+                        if len(path_parts) >= 2:
+                            logging.info(f"Detected EXPANDED EPC version based on path: {file_path}")
+                            return EpcExportVersion.EXPANDED
+
+                # If no EXPANDED patterns found, assume CLASSIC
+                logging.info("Detected CLASSIC EPC version")
+                return EpcExportVersion.CLASSIC
+
+        except Exception as e:
+            logging.warning(f"Failed to detect EPC version, defaulting to CLASSIC: {e}")
+            return EpcExportVersion.CLASSIC
+
+    def update_content_types_xml(
+        self, source_zip: zipfile.ZipFile, metadata: EpcObjectMetadata, add: bool = True
+    ) -> str:
+        """Update [Content_Types].xml to add or remove object entry.
+        
+        Args:
+            source_zip: Open ZIP file to read from
+            metadata: Object metadata
+            add: If True, add entry; if False, remove entry
+            
+        Returns:
+            Updated [Content_Types].xml as string
+        """
+        # Read existing content types
+        content_types = self._read_content_types(source_zip)
+
+        if add:
+            # Add new override entry
+            new_override = Override()
+            new_override.part_name = f"/{metadata.file_path}"
+            new_override.content_type = metadata.content_type
+            content_types.override.append(new_override)
+        else:
+            # Remove override entry
+            content_types.override = [
+                override for override in content_types.override if override.part_name != f"/{metadata.file_path}"
+            ]
+
+        # Serialize back to XML
+        return serialize_xml(content_types)
+
+
+class _RelationshipManager:
+    """
+    Internal helper class for managing relationships between objects.
+
+    This class handles:
+    - Reading relationships from .rels files
+    - Writing relationship updates
+    - Supporting 3 update modes (UPDATE_AT_MODIFICATION, UPDATE_ON_CLOSE, MANUAL)
+    - Preserving EXTERNAL_RESOURCE relationships
+    - Rebuilding all relationships
+    """
+
+    def __init__(
+        self,
+        zip_accessor: _ZipFileAccessor,
+        metadata_manager: _MetadataManager,
+        stats: EpcStreamingStats,
+        export_version: EpcExportVersion,
+        rels_update_mode: RelsUpdateMode,
+    ):
+        """
+        Initialize the relationship manager.
+
+        Args:
+            zip_accessor: ZIP file accessor for reading/writing
+            metadata_manager: Metadata manager for object lookups
+            stats: Statistics tracker
+            export_version: EPC export version
+            rels_update_mode: Relationship update mode
+        """
+        self.zip_accessor = zip_accessor
+        self.metadata_manager = metadata_manager
+        self.stats = stats
+        self.export_version = export_version
+        self.rels_update_mode = rels_update_mode
+
+        # Additional rels management (for user-added relationships)
+        self.additional_rels: Dict[str, List[Relationship]] = {}
+
+    def get_obj_rels(self, obj_identifier: str, rels_path: Optional[str] = None) -> List[Relationship]:
+        """
+        Get all relationships for a given object.
+        Merges relationships from the EPC file with in-memory additional relationships.
+        """
+        rels = []
+
+        # Read rels from EPC file
+        if rels_path is None:
+            rels_path = self.metadata_manager.gen_rels_path_from_identifier(obj_identifier)
+
+        if rels_path is not None:
+            with self.zip_accessor.get_zip_file() as zf:
+                try:
+                    rels_data = zf.read(rels_path)
+                    self.stats.bytes_read += len(rels_data)
+                    relationships = read_energyml_xml_bytes(rels_data, Relationships)
+                    rels.extend(relationships.relationship)
+                except KeyError:
+                    # No rels file found for this object
+                    pass
+
+        # Merge with in-memory additional relationships
+        if obj_identifier in self.additional_rels:
+            rels.extend(self.additional_rels[obj_identifier])
+
+        return rels
+
+    def update_rels_for_new_object(self, obj: Any, obj_identifier: str) -> None:
+        """Update relationships when a new object is added (UPDATE_AT_MODIFICATION mode)."""
+        metadata = self.metadata_manager.get_metadata(obj_identifier)
+        if not metadata:
+            logging.warning(f"Metadata not found for {obj_identifier}")
+            return
+
+        # Get all objects this new object references
+        direct_dors = get_direct_dor_list(obj)
+
+        # Build SOURCE relationships for this object
+        source_relationships = []
+        dest_updates: Dict[str, Relationship] = {}
+
+        for dor in direct_dors:
+            try:
+                target_identifier = get_obj_identifier(dor)
+                if not self.metadata_manager.contains(target_identifier):
+                    continue
+
+                target_metadata = self.metadata_manager.get_metadata(target_identifier)
+                if not target_metadata:
+                    continue
+
+                # Create SOURCE relationship
+                source_rel = Relationship(
+                    target=target_metadata.file_path,
+                    type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
+                    id=f"_{obj_identifier}_{get_obj_type(get_obj_usable_class(dor))}_{target_identifier}",
+                )
+                source_relationships.append(source_rel)
+
+                # Create DESTINATION relationship
+                dest_rel = Relationship(
+                    target=metadata.file_path,
+                    type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
+                    id=f"_{target_identifier}_{get_obj_type(get_obj_usable_class(obj))}_{obj_identifier}",
+                )
+                dest_updates[target_identifier] = dest_rel
+
+            except Exception as e:
+                logging.warning(f"Failed to create relationship for DOR: {e}")
+
+        # Write updates
+        self.write_rels_updates(obj_identifier, source_relationships, dest_updates)
+
+    def update_rels_for_modified_object(self, obj: Any, obj_identifier: str, old_dors: List[Any]) -> None:
+        """Update relationships when an object is modified (UPDATE_AT_MODIFICATION mode)."""
+        metadata = self.metadata_manager.get_metadata(obj_identifier)
+        if not metadata:
+            logging.warning(f"Metadata not found for {obj_identifier}")
+            return
+
+        # Get new DORs
+        new_dors = get_direct_dor_list(obj)
+
+        # Convert to sets of identifiers for comparison
+        old_dor_ids = {
+            get_obj_identifier(dor) for dor in old_dors if self.metadata_manager.contains(get_obj_identifier(dor))
+        }
+        new_dor_ids = {
+            get_obj_identifier(dor) for dor in new_dors if self.metadata_manager.contains(get_obj_identifier(dor))
+        }
+
+        # Find added and removed references
+        added_dor_ids = new_dor_ids - old_dor_ids
+        removed_dor_ids = old_dor_ids - new_dor_ids
+
+        # Build new SOURCE relationships
+        source_relationships = []
+        dest_updates: Dict[str, Relationship] = {}
+
+        # Create relationships for all new DORs
+        for dor in new_dors:
+            target_identifier = get_obj_identifier(dor)
+            if not self.metadata_manager.contains(target_identifier):
+                continue
+
+            target_metadata = self.metadata_manager.get_metadata(target_identifier)
+            if not target_metadata:
+                continue
+
+            # SOURCE relationship
+            source_rel = Relationship(
+                target=target_metadata.file_path,
+                type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
+                id=f"_{obj_identifier}_{get_obj_type(get_obj_usable_class(dor))}_{target_identifier}",
+            )
+            source_relationships.append(source_rel)
+
+            # DESTINATION relationship (for added DORs only)
+            if target_identifier in added_dor_ids:
+                dest_rel = Relationship(
+                    target=metadata.file_path,
+                    type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
+                    id=f"_{target_identifier}_{get_obj_type(get_obj_usable_class(obj))}_{obj_identifier}",
+                )
+                dest_updates[target_identifier] = dest_rel
+
+        # For removed DORs, remove DESTINATION relationships
+        removals: Dict[str, str] = {}
+        for removed_id in removed_dor_ids:
+            removals[removed_id] = f"_{removed_id}_.*_{obj_identifier}"
+
+        # Write updates
+        self.write_rels_updates(obj_identifier, source_relationships, dest_updates, removals)
+
+    def update_rels_for_removed_object(self, obj_identifier: str, obj: Optional[Any] = None) -> None:
+        """Update relationships when an object is removed (UPDATE_AT_MODIFICATION mode)."""
+        if obj is None:
+            # Object must be provided for removal
+            logging.warning(f"Cannot update rels for removed object {obj_identifier}: object not provided")
+            return
+
+        # Get all objects this object references
+        direct_dors = get_direct_dor_list(obj)
+
+        # Build removal patterns for DESTINATION relationships
+        removals: Dict[str, str] = {}
+        for dor in direct_dors:
+            try:
+                target_identifier = get_obj_identifier(dor)
+                if not self.metadata_manager.contains(target_identifier):
+                    continue
+
+                removals[target_identifier] = f"_{target_identifier}_.*_{obj_identifier}"
+
+            except Exception as e:
+                logging.warning(f"Failed to process DOR for removal: {e}")
+
+        # Write updates
+        self.write_rels_updates(obj_identifier, [], {}, removals, delete_source_rels=True)
+
+    def write_rels_updates(
+        self,
+        source_identifier: str,
+        source_relationships: List[Relationship],
+        dest_updates: Dict[str, Relationship],
+        removals: Optional[Dict[str, str]] = None,
+        delete_source_rels: bool = False,
+    ) -> None:
+        """Write relationship updates to the EPC file efficiently."""
+        import re
+
+        removals = removals or {}
+        rels_updates: Dict[str, str] = {}
+        files_to_delete: List[str] = []
+
+        with self.zip_accessor.get_zip_file() as zf:
+            # 1. Handle source object's rels file
+            if not delete_source_rels:
+                source_rels_path = self.metadata_manager.gen_rels_path_from_identifier(source_identifier)
+                if source_rels_path:
+                    # Read existing rels (excluding SOURCE_OBJECT type)
+                    existing_rels = []
+                    try:
+                        if source_rels_path in zf.namelist():
+                            rels_data = zf.read(source_rels_path)
+                            existing_rels_obj = read_energyml_xml_bytes(rels_data, Relationships)
+                            if existing_rels_obj and existing_rels_obj.relationship:
+                                # Keep only non-SOURCE relationships
+                                existing_rels = [
+                                    r
+                                    for r in existing_rels_obj.relationship
+                                    if r.type_value != EPCRelsRelationshipType.SOURCE_OBJECT.get_type()
+                                ]
+                    except Exception:
+                        pass
+
+                    # Combine with new SOURCE relationships
+                    all_rels = existing_rels + source_relationships
+                    if all_rels:
+                        rels_updates[source_rels_path] = serialize_xml(Relationships(relationship=all_rels))
+                    elif source_rels_path in zf.namelist() and not all_rels:
+                        files_to_delete.append(source_rels_path)
+            else:
+                # Mark source rels file for deletion
+                source_rels_path = self.metadata_manager.gen_rels_path_from_identifier(source_identifier)
+                if source_rels_path:
+                    files_to_delete.append(source_rels_path)
+
+            # 2. Handle destination updates
+            for target_identifier, dest_rel in dest_updates.items():
+                target_rels_path = self.metadata_manager.gen_rels_path_from_identifier(target_identifier)
+                if not target_rels_path:
+                    continue
+
+                # Read existing rels
+                existing_rels = []
+                try:
+                    if target_rels_path in zf.namelist():
+                        rels_data = zf.read(target_rels_path)
+                        existing_rels_obj = read_energyml_xml_bytes(rels_data, Relationships)
+                        if existing_rels_obj and existing_rels_obj.relationship:
+                            existing_rels = list(existing_rels_obj.relationship)
+                except Exception:
+                    pass
+
+                # Add new DESTINATION relationship if not already present
+                rel_exists = any(
+                    r.target == dest_rel.target and r.type_value == dest_rel.type_value for r in existing_rels
+                )
+
+                if not rel_exists:
+                    existing_rels.append(dest_rel)
+                    rels_updates[target_rels_path] = serialize_xml(Relationships(relationship=existing_rels))
+
+            # 3. Handle removals
+            for target_identifier, pattern in removals.items():
+                target_rels_path = self.metadata_manager.gen_rels_path_from_identifier(target_identifier)
+                if not target_rels_path:
+                    continue
+
+                # Read existing rels
+                existing_rels = []
+                try:
+                    if target_rels_path in zf.namelist():
+                        rels_data = zf.read(target_rels_path)
+                        existing_rels_obj = read_energyml_xml_bytes(rels_data, Relationships)
+                        if existing_rels_obj and existing_rels_obj.relationship:
+                            existing_rels = list(existing_rels_obj.relationship)
+                except Exception:
+                    pass
+
+                # Filter out relationships matching the pattern
+                regex = re.compile(pattern)
+                filtered_rels = [r for r in existing_rels if not (r.id and regex.match(r.id))]
+
+                if len(filtered_rels) != len(existing_rels):
+                    if filtered_rels:
+                        rels_updates[target_rels_path] = serialize_xml(Relationships(relationship=filtered_rels))
+                    else:
+                        files_to_delete.append(target_rels_path)
+
+        # Write updates to EPC file
+        if rels_updates or files_to_delete:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".epc") as temp_file:
+                temp_path = temp_file.name
+
+            try:
+                with self.zip_accessor.get_zip_file() as source_zf:
+                    with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zf:
+                        # Copy all files except those to delete or update
+                        files_to_skip = set(files_to_delete)
+                        for item in source_zf.infolist():
+                            if item.filename not in files_to_skip and item.filename not in rels_updates:
+                                data = source_zf.read(item.filename)
+                                target_zf.writestr(item, data)
+
+                        # Write updated rels files
+                        for rels_path, rels_xml in rels_updates.items():
+                            target_zf.writestr(rels_path, rels_xml)
+
+                # Replace original
+                shutil.move(temp_path, self.zip_accessor.epc_file_path)
+                self.zip_accessor.reopen_persistent_zip()
+
+            except Exception as e:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                logging.error(f"Failed to write rels updates: {e}")
+                raise
+
+    def compute_object_rels(self, obj: Any, obj_identifier: str) -> List[Relationship]:
+        """
+        Compute relationships for a given object (SOURCE relationships).
+        This object references other objects through DORs.
+
+        Args:
+            obj: The EnergyML object
+            obj_identifier: The identifier of the object
+
+        Returns:
+            List of Relationship objects for this object's .rels file
+        """
+        rels = []
+
+        # Get all DORs (Data Object References) in this object
+        direct_dors = get_direct_dor_list(obj)
+
+        for dor in direct_dors:
+            try:
+                target_identifier = get_obj_identifier(dor)
+
+                # Get target file path from metadata without processing DOR
+                # The relationship target should be the object's file path, not its rels path
+                if self.metadata_manager.contains(target_identifier):
+                    target_metadata = self.metadata_manager.get_metadata(target_identifier)
+                    if target_metadata:
+                        target_path = target_metadata.file_path
+                    else:
+                        target_path = gen_energyml_object_path(dor, self.export_version)
+                else:
+                    # Fall back to generating path from DOR if metadata not found
+                    target_path = gen_energyml_object_path(dor, self.export_version)
+
+                # Create SOURCE relationship (this object -> target object)
+                rel = Relationship(
+                    target=target_path,
+                    type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
+                    id=f"_{obj_identifier}_{get_obj_type(get_obj_usable_class(dor))}_{target_identifier}",
+                )
+                rels.append(rel)
+            except Exception as e:
+                logging.warning(f"Failed to create relationship for DOR in {obj_identifier}: {e}")
+
+        return rels
+
+    def merge_rels(self, new_rels: List[Relationship], existing_rels: List[Relationship]) -> List[Relationship]:
+        """Merge new relationships with existing ones, avoiding duplicates and ensuring unique IDs.
+
+        Args:
+            new_rels: New relationships to add
+            existing_rels: Existing relationships
+
+        Returns:
+            Merged list of relationships
+        """
+        merged = list(existing_rels)
+
+        for new_rel in new_rels:
+            # Check if relationship already exists
+            rel_exists = any(r.target == new_rel.target and r.type_value == new_rel.type_value for r in merged)
+
+            if not rel_exists:
+                # Ensure unique ID
+                cpt = 0
+                new_rel_id = new_rel.id
+                while any(r.id == new_rel_id for r in merged):
+                    new_rel_id = f"{new_rel.id}_{cpt}"
+                    cpt += 1
+                if new_rel_id != new_rel.id:
+                    new_rel.id = new_rel_id
+
+                merged.append(new_rel)
+
+        return merged
+
+
+# ===========================================================================================
+# MAIN CLASS (REFACTORED TO USE HELPER CLASSES)
+# ===========================================================================================
+
+
 class EpcStreamReader(EnergymlStorageInterface):
     """
     Memory-efficient EPC file reader with lazy loading and smart caching.
@@ -165,6 +977,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             force_title_load: If True, forces loading object titles when listing objects (may impact performance)
             rels_update_mode: Mode for updating relationships (UPDATE_AT_MODIFICATION, UPDATE_ON_CLOSE, or MANUAL)
         """
+        # Public attributes
         self.epc_file_path = Path(epc_file_path)
         self.cache_size = cache_size
         self.validate_on_load = validate_on_load
@@ -173,6 +986,12 @@ class EpcStreamReader(EnergymlStorageInterface):
         self.keep_open = keep_open
         self.force_title_load = force_title_load
         self.rels_update_mode = rels_update_mode
+        self.export_version: EpcExportVersion = export_version or EpcExportVersion.CLASSIC
+        self.stats = EpcStreamingStats()
+
+        # Caching system using weak references
+        self._object_cache: WeakValueDictionary = WeakValueDictionary()
+        self._access_order: List[str] = []  # LRU tracking
 
         is_new_file = False
 
@@ -181,7 +1000,6 @@ class EpcStreamReader(EnergymlStorageInterface):
             logging.info(f"EPC file not found: {epc_file_path}. Creating a new empty EPC file.")
             self._create_empty_epc()
             is_new_file = True
-            # raise FileNotFoundError(f"EPC file not found: {epc_file_path}")
 
         if not zipfile.is_zipfile(self.epc_file_path):
             raise ValueError(f"File is not a valid ZIP/EPC file: {epc_file_path}")
@@ -198,38 +1016,31 @@ class EpcStreamReader(EnergymlStorageInterface):
             except Exception as e:
                 logging.warning(f"Failed to check EPC structure: {e}. Reinitializing.")
 
-        # Object metadata storage
-        self._metadata: Dict[str, EpcObjectMetadata] = {}  # identifier -> metadata
-        self._uuid_index: Dict[str, List[str]] = {}  # uuid -> list of identifiers
-        self._type_index: Dict[str, List[str]] = {}  # object_type -> list of identifiers
-
-        # Caching system using weak references
-        self._object_cache: WeakValueDictionary = WeakValueDictionary()
-        self._access_order: List[str] = []  # LRU tracking
-
-        # Core properties and stats
-        self._core_props: Optional[CoreProperties] = None
-        self.stats = EpcStreamingStats()
-
-        # File handle management
-        self._zip_file: Optional[zipfile.ZipFile] = None
-        self._persistent_zip: Optional[zipfile.ZipFile] = None  # Used when keep_open=True
-
-        # EPC export version detection
-        self.export_version: EpcExportVersion = export_version or EpcExportVersion.CLASSIC  # Default
-
-        # Additional rels management
-        self.additional_rels: Dict[str, List[Relationship]] = {}
+        # Initialize helper classes (internal architecture)
+        self._zip_accessor = _ZipFileAccessor(self.epc_file_path, keep_open=keep_open)
+        self._metadata_mgr = _MetadataManager(self._zip_accessor, self.stats)
+        self._rels_mgr = _RelationshipManager(
+            self._zip_accessor, self._metadata_mgr, self.stats, self.export_version, rels_update_mode
+        )
 
         # Initialize by loading metadata
         if not is_new_file and preload_metadata:
-            self._load_metadata()
+            self._metadata_mgr.load_metadata()
             # Detect EPC version after loading metadata
-            self.export_version = self._detect_epc_version()
+            self.export_version = self._metadata_mgr.detect_epc_version()
+            # Update relationship manager's export version
+            self._rels_mgr.export_version = self.export_version
 
-        # Open persistent ZIP file if keep_open is enabled
-        if self.keep_open and not is_new_file:
-            self._persistent_zip = zipfile.ZipFile(self.epc_file_path, "r")
+        # Open persistent ZIP connection if keep_open is enabled
+        if keep_open and not is_new_file:
+            self._zip_accessor.open_persistent_connection()
+
+        # Backward compatibility: expose internal structures as properties
+        # This allows existing code to access _metadata, _uuid_index, etc.
+        self._metadata = self._metadata_mgr._metadata
+        self._uuid_index = self._metadata_mgr._uuid_index
+        self._type_index = self._metadata_mgr._type_index
+        self.additional_rels = self._rels_mgr.additional_rels
 
     def _create_empty_epc(self) -> None:
         """Create an empty EPC file structure."""
@@ -249,24 +1060,55 @@ class EpcStreamReader(EnergymlStorageInterface):
 
     def _load_metadata(self) -> None:
         """Load object metadata from [Content_Types].xml without loading actual objects."""
-        try:
-            with self._get_zip_file() as zf:
-                # Read content types
-                content_types = self._read_content_types(zf)
+        # Delegate to metadata manager
+        self._metadata_mgr.load_metadata()
 
-                # Process each override entry
-                for override in content_types.override:
-                    if override.content_type and override.part_name:
-                        if is_energyml_content_type(override.content_type):
-                            self._process_energyml_object_metadata(zf, override)
-                        elif self._is_core_properties(override.content_type):
-                            self._process_core_properties_metadata(override)
+    def _read_content_types(self, zf: zipfile.ZipFile) -> Types:
+        """Read and parse [Content_Types].xml file."""
+        # Delegate to metadata manager
+        return self._metadata_mgr._read_content_types(zf)
 
-                self.stats.total_objects = len(self._metadata)
+    def _process_energyml_object_metadata(self, zf: zipfile.ZipFile, override: Override) -> None:
+        """Process metadata for an EnergyML object without loading it."""
+        # Delegate to metadata manager
+        self._metadata_mgr._process_energyml_object_metadata(zf, override)
 
-        except Exception as e:
-            logging.error(f"Failed to load metadata from EPC file: {e}")
-            raise
+    def _extract_object_info_fast(
+        self, zf: zipfile.ZipFile, file_path: str, content_type: str
+    ) -> Tuple[Optional[str], Optional[str], str]:
+        """Fast extraction of UUID and version from XML without full parsing."""
+        # Delegate to metadata manager
+        return self._metadata_mgr._extract_object_info_fast(zf, file_path, content_type)
+
+    def _extract_object_type_from_content_type(self, content_type: str) -> str:
+        """Extract object type from content type string."""
+        # Delegate to metadata manager
+        return self._metadata_mgr._extract_object_type_from_content_type(content_type)
+
+    def _is_core_properties(self, content_type: str) -> bool:
+        """Check if content type is CoreProperties."""
+        # Delegate to metadata manager
+        return self._metadata_mgr._is_core_properties(content_type)
+
+    def _process_core_properties_metadata(self, override: Override) -> None:
+        """Process core properties metadata."""
+        # Delegate to metadata manager
+        self._metadata_mgr._process_core_properties_metadata(override)
+
+    def _detect_epc_version(self) -> EpcExportVersion:
+        """Detect EPC packaging version based on file structure."""
+        # Delegate to metadata manager
+        return self._metadata_mgr.detect_epc_version()
+
+    def _gen_rels_path_from_metadata(self, metadata: EpcObjectMetadata) -> str:
+        """Generate rels path from object metadata without loading the object."""
+        # Delegate to metadata manager
+        return self._metadata_mgr.gen_rels_path_from_metadata(metadata)
+
+    def _gen_rels_path_from_identifier(self, identifier: str) -> Optional[str]:
+        """Generate rels path from object identifier without loading the object."""
+        # Delegate to metadata manager
+        return self._metadata_mgr.gen_rels_path_from_identifier(identifier)
 
     @contextmanager
     def _get_zip_file(self) -> Iterator[zipfile.ZipFile]:
@@ -274,178 +1116,9 @@ class EpcStreamReader(EnergymlStorageInterface):
 
         If keep_open is True, uses the persistent connection. Otherwise opens a new one.
         """
-        if self.keep_open and self._persistent_zip is not None:
-            # Use persistent connection, don't close it
-            yield self._persistent_zip
-        else:
-            # Open and close per request
-            zf = None
-            try:
-                zf = zipfile.ZipFile(self.epc_file_path, "r")
-                yield zf
-            finally:
-                if zf is not None:
-                    zf.close()
-
-    def _read_content_types(self, zf: zipfile.ZipFile) -> Types:
-        """Read and parse [Content_Types].xml file."""
-        content_types_path = get_epc_content_type_path()
-
-        try:
-            content_data = zf.read(content_types_path)
-            self.stats.bytes_read += len(content_data)
-            return read_energyml_xml_bytes(content_data, Types)
-        except KeyError:
-            # Try case-insensitive search
-            for name in zf.namelist():
-                if name.lower() == content_types_path.lower():
-                    content_data = zf.read(name)
-                    self.stats.bytes_read += len(content_data)
-                    return read_energyml_xml_bytes(content_data, Types)
-            raise FileNotFoundError("No [Content_Types].xml found in EPC file")
-
-    def _process_energyml_object_metadata(self, zf: zipfile.ZipFile, override: Override) -> None:
-        """Process metadata for an EnergyML object without loading it."""
-        if not override.part_name or not override.content_type:
-            return
-
-        file_path = override.part_name.lstrip("/")
-        content_type = override.content_type
-
-        try:
-            # Quick peek to extract UUID and version without full parsing
-            uuid, version, obj_type = self._extract_object_info_fast(zf, file_path, content_type)
-
-            if uuid:  # Only process if we successfully extracted UUID
-                metadata = EpcObjectMetadata(
-                    uuid=uuid, object_type=obj_type, content_type=content_type, file_path=file_path, version=version
-                )
-
-                # Store in indexes
-                identifier = metadata.identifier
-                if identifier:
-                    self._metadata[identifier] = metadata
-
-                    # Update UUID index
-                    if uuid not in self._uuid_index:
-                        self._uuid_index[uuid] = []
-                    self._uuid_index[uuid].append(identifier)
-
-                    # Update type index
-                    if obj_type not in self._type_index:
-                        self._type_index[obj_type] = []
-                    self._type_index[obj_type].append(identifier)
-
-        except Exception as e:
-            logging.warning(f"Failed to process metadata for {file_path}: {e}")
-
-    def _extract_object_info_fast(
-        self, zf: zipfile.ZipFile, file_path: str, content_type: str
-    ) -> Tuple[Optional[str], Optional[str], str]:
-        """
-        Fast extraction of UUID and version from XML without full parsing.
-
-        Uses optimized regex patterns for performance.
-        """
-        try:
-            # Read only the beginning of the file for UUID extraction
-            with zf.open(file_path) as f:
-                # Read first chunk (usually sufficient for root element)
-                chunk = f.read(2048)  # 2KB should be enough for root element
-                self.stats.bytes_read += len(chunk)
-
-                chunk_str = chunk.decode("utf-8", errors="ignore")
-
-                # Extract UUID using optimized regex
-                uuid_match = OptimizedRegex.UUID_NO_GRP.search(chunk_str)
-                uuid = uuid_match.group(0) if uuid_match else None
-
-                # Extract version if present
-                version = None
-                version_patterns = [
-                    r'object[Vv]ersion["\']?\s*[:=]\s*["\']([^"\']+)',
-                ]
-
-                for pattern in version_patterns:
-                    import re
-
-                    version_match = re.search(pattern, chunk_str)
-                    if version_match:
-                        version = version_match.group(1)
-                        # Ensure version is a string
-                        if not isinstance(version, str):
-                            version = str(version)
-                        break
-
-                # Extract object type from content type
-                obj_type = self._extract_object_type_from_content_type(content_type)
-
-                return uuid, version, obj_type
-
-        except Exception as e:
-            logging.debug(f"Fast extraction failed for {file_path}: {e}")
-            return None, None, "Unknown"
-
-    def _extract_object_type_from_content_type(self, content_type: str) -> str:
-        """Extract object type from content type string."""
-        try:
-            match = OptimizedRegex.CONTENT_TYPE.search(content_type)
-            if match:
-                return match.group("type")
-        except (AttributeError, KeyError):
-            pass
-        return "Unknown"
-
-    def _is_core_properties(self, content_type: str) -> bool:
-        """Check if content type is CoreProperties."""
-        return content_type == "application/vnd.openxmlformats-package.core-properties+xml"
-
-    def _process_core_properties_metadata(self, override: Override) -> None:
-        """Process core properties metadata."""
-        # Store core properties path for lazy loading
-        if override.part_name:
-            self._core_props_path = override.part_name.lstrip("/")
-
-    def _detect_epc_version(self) -> EpcExportVersion:
-        """
-        Detect EPC packaging version based on file structure.
-
-        CLASSIC version uses simple flat structure: obj_Type_UUID.xml
-        EXPANDED version uses namespace structure: namespace_pkg/UUID/version_X/Type_UUID.xml
-
-        Returns:
-            EpcExportVersion: The detected version (CLASSIC or EXPANDED)
-        """
-        try:
-            with self._get_zip_file() as zf:
-                file_list = zf.namelist()
-
-                # Look for patterns that indicate EXPANDED version
-                # EXPANDED uses paths like: namespace_resqml22/UUID/version_X/Type_UUID.xml
-                for file_path in file_list:
-                    # Skip metadata files
-                    if (
-                        file_path.startswith("[Content_Types]")
-                        or file_path.startswith("_rels/")
-                        or file_path.endswith(".rels")
-                    ):
-                        continue
-
-                    # Check for namespace_ prefix pattern
-                    if file_path.startswith("namespace_"):
-                        # Further validate it's the EXPANDED structure
-                        path_parts = file_path.split("/")
-                        if len(path_parts) >= 2:  # namespace_pkg/filename or namespace_pkg/version_x/filename
-                            logging.info(f"Detected EXPANDED EPC version based on path: {file_path}")
-                            return EpcExportVersion.EXPANDED
-
-                # If no EXPANDED patterns found, assume CLASSIC
-                logging.info("Detected CLASSIC EPC version")
-                return EpcExportVersion.CLASSIC
-
-        except Exception as e:
-            logging.warning(f"Failed to detect EPC version, defaulting to CLASSIC: {e}")
-            return EpcExportVersion.CLASSIC
+        # Delegate to the ZIP accessor helper class
+        with self._zip_accessor.get_zip_file() as zf:
+            yield zf
 
     def get_object_by_identifier(self, identifier: Union[str, Uri]) -> Optional[Any]:
         """
@@ -708,16 +1381,8 @@ class EpcStreamReader(EnergymlStorageInterface):
 
     def get_core_properties(self) -> Optional[CoreProperties]:
         """Get core properties (loaded lazily)."""
-        if self._core_props is None and hasattr(self, "_core_props_path"):
-            try:
-                with self._get_zip_file() as zf:
-                    core_data = zf.read(self._core_props_path)
-                    self.stats.bytes_read += len(core_data)
-                    self._core_props = read_energyml_xml_bytes(core_data, CoreProperties)
-            except Exception as e:
-                logging.error(f"Failed to load core properties: {e}")
-
-        return self._core_props
+        # Delegate to metadata manager
+        return self._metadata_mgr.get_core_properties()
 
     def _gen_rels_path_from_metadata(self, metadata: EpcObjectMetadata) -> str:
         """
@@ -756,158 +1421,19 @@ class EpcStreamReader(EnergymlStorageInterface):
         return self._gen_rels_path_from_metadata(metadata)
 
     def _update_rels_for_new_object(self, obj: Any, obj_identifier: str) -> None:
-        """
-        Update relationships when a new object is added (UPDATE_AT_MODIFICATION mode).
-
-        Creates the object's rels file and updates destination objects' rels files.
-
-        Args:
-            obj: The newly added object
-            obj_identifier: The identifier of the new object
-        """
-        metadata = self._metadata.get(obj_identifier)
-        if not metadata:
-            logging.warning(f"Metadata not found for {obj_identifier}")
-            return
-
-        # Get all objects this new object references
-        direct_dors = get_direct_dor_list(obj)
-
-        # Build SOURCE relationships for this object
-        source_relationships = []
-        dest_updates: Dict[str, Relationship] = {}  # target_identifier -> DESTINATION relationship
-
-        for dor in direct_dors:
-            try:
-                target_identifier = get_obj_identifier(dor)
-                if target_identifier not in self._metadata:
-                    continue
-
-                target_metadata = self._metadata[target_identifier]
-
-                # Create SOURCE relationship (this object -> target)
-                source_rel = Relationship(
-                    target=target_metadata.file_path,
-                    type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
-                    id=f"_{obj_identifier}_{get_obj_type(get_obj_usable_class(dor))}_{target_identifier}",
-                )
-                source_relationships.append(source_rel)
-
-                # Create DESTINATION relationship (target -> this object)
-                dest_rel = Relationship(
-                    target=metadata.file_path,
-                    type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
-                    id=f"_{target_identifier}_{get_obj_type(get_obj_usable_class(obj))}_{obj_identifier}",
-                )
-                dest_updates[target_identifier] = dest_rel
-
-            except Exception as e:
-                logging.warning(f"Failed to create relationship for DOR: {e}")
-
-        # Write the new object's rels file and update destination rels
-        self._write_rels_updates(obj_identifier, source_relationships, dest_updates)
+        """Update relationships when a new object is added (UPDATE_AT_MODIFICATION mode)."""
+        # Delegate to relationship manager
+        self._rels_mgr.update_rels_for_new_object(obj, obj_identifier)
 
     def _update_rels_for_modified_object(self, obj: Any, obj_identifier: str, old_dors: List[Any]) -> None:
-        """
-        Update relationships when an object is modified (UPDATE_AT_MODIFICATION mode).
-
-        Compares old and new DORs, updates the object's rels file and affected destination rels.
-
-        Args:
-            obj: The modified object
-            obj_identifier: The identifier of the modified object
-            old_dors: List of DORs from the previous version of the object
-        """
-        metadata = self._metadata.get(obj_identifier)
-        if not metadata:
-            logging.warning(f"Metadata not found for {obj_identifier}")
-            return
-
-        # Get new DORs
-        new_dors = get_direct_dor_list(obj)
-
-        # Convert to sets of identifiers for comparison
-        old_dor_ids = {get_obj_identifier(dor) for dor in old_dors if get_obj_identifier(dor) in self._metadata}
-        new_dor_ids = {get_obj_identifier(dor) for dor in new_dors if get_obj_identifier(dor) in self._metadata}
-
-        # Find added and removed references
-        added_dor_ids = new_dor_ids - old_dor_ids
-        removed_dor_ids = old_dor_ids - new_dor_ids
-
-        # Build new SOURCE relationships (only for new DORs)
-        source_relationships = []
-        dest_updates: Dict[str, Relationship] = {}
-
-        # Create relationships for all new DORs
-        for dor in new_dors:
-            target_identifier = get_obj_identifier(dor)
-            if target_identifier not in self._metadata:
-                continue
-
-            target_metadata = self._metadata[target_identifier]
-
-            # SOURCE relationship
-            source_rel = Relationship(
-                target=target_metadata.file_path,
-                type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
-                id=f"_{obj_identifier}_{get_obj_type(get_obj_usable_class(dor))}_{target_identifier}",
-            )
-            source_relationships.append(source_rel)
-
-            # DESTINATION relationship (for added DORs only)
-            if target_identifier in added_dor_ids:
-                dest_rel = Relationship(
-                    target=metadata.file_path,
-                    type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
-                    id=f"_{target_identifier}_{get_obj_type(get_obj_usable_class(obj))}_{obj_identifier}",
-                )
-                dest_updates[target_identifier] = dest_rel
-
-        # For removed DORs, we need to remove DESTINATION relationships
-        removals: Dict[str, str] = {}  # target_identifier -> relationship_id_pattern
-        for removed_id in removed_dor_ids:
-            removals[removed_id] = f"_{removed_id}_.*_{obj_identifier}"
-
-        # Write updates
-        self._write_rels_updates(obj_identifier, source_relationships, dest_updates, removals)
+        """Update relationships when an object is modified (UPDATE_AT_MODIFICATION mode)."""
+        # Delegate to relationship manager
+        self._rels_mgr.update_rels_for_modified_object(obj, obj_identifier, old_dors)
 
     def _update_rels_for_removed_object(self, obj_identifier: str, obj: Optional[Any] = None) -> None:
-        """
-        Update relationships when an object is removed (UPDATE_AT_MODIFICATION mode).
-
-        Removes the object's rels file and removes references from destination objects' rels.
-
-        Args:
-            obj_identifier: The identifier of the removed object
-            obj: The object being removed (if available)
-        """
-        # Load object if not provided
-        if obj is None:
-            obj = self.get_object_by_identifier(obj_identifier)
-
-        if obj is None:
-            logging.warning(f"Cannot update rels for removed object {obj_identifier}: object not found")
-            return
-
-        # Get all objects this object references
-        direct_dors = get_direct_dor_list(obj)
-
-        # Build removal patterns for DESTINATION relationships in referenced objects
-        removals: Dict[str, str] = {}  # target_identifier -> relationship_id_pattern
-        for dor in direct_dors:
-            try:
-                target_identifier = get_obj_identifier(dor)
-                if target_identifier not in self._metadata:
-                    continue
-
-                # Pattern to match DESTINATION relationships pointing to the removed object
-                removals[target_identifier] = f"_{target_identifier}_.*_{obj_identifier}"
-
-            except Exception as e:
-                logging.warning(f"Failed to process DOR for removal: {e}")
-
-        # Write updates (no source relationships, no dest updates, only removals)
-        self._write_rels_updates(obj_identifier, [], {}, removals, delete_source_rels=True)
+        """Update relationships when an object is removed (UPDATE_AT_MODIFICATION mode)."""
+        # Delegate to relationship manager
+        self._rels_mgr.update_rels_for_removed_object(obj_identifier, obj)
 
     def _write_rels_updates(
         self,
@@ -917,140 +1443,16 @@ class EpcStreamReader(EnergymlStorageInterface):
         removals: Optional[Dict[str, str]] = None,
         delete_source_rels: bool = False,
     ) -> None:
-        """
-        Write relationship updates to the EPC file efficiently.
+        """Write relationship updates to the EPC file efficiently."""
+        # Delegate to relationship manager
+        self._rels_mgr.write_rels_updates(
+            source_identifier, source_relationships, dest_updates, removals, delete_source_rels
+        )
 
-        Args:
-            source_identifier: Identifier of the source object
-            source_relationships: List of SOURCE relationships for the source object
-            dest_updates: Dict mapping target_identifier to DESTINATION relationship to add
-            removals: Dict mapping target_identifier to regex pattern for relationships to remove
-            delete_source_rels: If True, delete the source object's rels file entirely
-        """
-        import re
-
-        removals = removals or {}
-        rels_updates: Dict[str, str] = {}  # rels_path -> XML content
-        files_to_delete: List[str] = []
-
-        with self._get_zip_file() as zf:
-            # 1. Handle source object's rels file
-            if not delete_source_rels:
-                source_rels_path = self._gen_rels_path_from_identifier(source_identifier)
-                if source_rels_path:
-                    # Read existing rels (excluding SOURCE_OBJECT type, we're replacing them)
-                    existing_rels = []
-                    try:
-                        if source_rels_path in zf.namelist():
-                            rels_data = zf.read(source_rels_path)
-                            existing_rels_obj = read_energyml_xml_bytes(rels_data, Relationships)
-                            if existing_rels_obj and existing_rels_obj.relationship:
-                                # Keep only non-SOURCE relationships (e.g., EXTERNAL_RESOURCE)
-                                existing_rels = [
-                                    r
-                                    for r in existing_rels_obj.relationship
-                                    if r.type_value != EPCRelsRelationshipType.SOURCE_OBJECT.get_type()
-                                ]
-                    except Exception:
-                        pass
-
-                    # Combine with new SOURCE relationships
-                    all_rels = existing_rels + source_relationships
-                    if all_rels:
-                        # Write rels file if there are any relationships (SOURCE or other types)
-                        rels_updates[source_rels_path] = serialize_xml(Relationships(relationship=all_rels))
-                    elif source_rels_path in zf.namelist() and not all_rels:
-                        # If file exists but no relationships remain, mark for deletion
-                        files_to_delete.append(source_rels_path)
-            else:
-                # Mark source rels file for deletion
-                source_rels_path = self._gen_rels_path_from_identifier(source_identifier)
-                if source_rels_path:
-                    files_to_delete.append(source_rels_path)
-
-            # 2. Handle destination updates
-            for target_identifier, dest_rel in dest_updates.items():
-                target_rels_path = self._gen_rels_path_from_identifier(target_identifier)
-                if not target_rels_path:
-                    continue
-
-                # Read existing rels
-                existing_rels = []
-                try:
-                    if target_rels_path in zf.namelist():
-                        rels_data = zf.read(target_rels_path)
-                        existing_rels_obj = read_energyml_xml_bytes(rels_data, Relationships)
-                        if existing_rels_obj and existing_rels_obj.relationship:
-                            existing_rels = list(existing_rels_obj.relationship)
-                except Exception:
-                    pass
-
-                # Add new DESTINATION relationship if not already present
-                rel_exists = any(
-                    r.target == dest_rel.target and r.type_value == dest_rel.type_value for r in existing_rels
-                )
-
-                if not rel_exists:
-                    existing_rels.append(dest_rel)
-                    rels_updates[target_rels_path] = serialize_xml(Relationships(relationship=existing_rels))
-
-            # 3. Handle removals
-            for target_identifier, pattern in removals.items():
-                target_rels_path = self._gen_rels_path_from_identifier(target_identifier)
-                if not target_rels_path:
-                    continue
-
-                # Read existing rels
-                existing_rels = []
-                try:
-                    if target_rels_path in zf.namelist():
-                        rels_data = zf.read(target_rels_path)
-                        existing_rels_obj = read_energyml_xml_bytes(rels_data, Relationships)
-                        if existing_rels_obj and existing_rels_obj.relationship:
-                            existing_rels = list(existing_rels_obj.relationship)
-                except Exception:
-                    pass
-
-                # Filter out relationships matching the pattern
-                regex = re.compile(pattern)
-                filtered_rels = [r for r in existing_rels if not (r.id and regex.match(r.id))]
-
-                if len(filtered_rels) != len(existing_rels):
-                    # Something was removed
-                    if filtered_rels:
-                        rels_updates[target_rels_path] = serialize_xml(Relationships(relationship=filtered_rels))
-                    else:
-                        # No relationships left, mark for deletion
-                        files_to_delete.append(target_rels_path)
-
-        # Write updates to EPC file
-        if rels_updates or files_to_delete:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".epc") as temp_file:
-                temp_path = temp_file.name
-
-            try:
-                with self._get_zip_file() as source_zf:
-                    with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zf:
-                        # Copy all files except those to delete or update
-                        files_to_skip = set(files_to_delete)
-                        for item in source_zf.infolist():
-                            if item.filename not in files_to_skip and item.filename not in rels_updates:
-                                buffer = source_zf.read(item.filename)
-                                target_zf.writestr(item, buffer)
-
-                        # Write updated rels files
-                        for rels_path, rels_xml in rels_updates.items():
-                            target_zf.writestr(rels_path, rels_xml)
-
-                # Replace original
-                shutil.move(temp_path, self.epc_file_path)
-                self._reopen_persistent_zip()
-
-            except Exception as e:
-                if os.path.exists(temp_path):
-                    os.unlink(temp_path)
-                logging.error(f"Failed to write rels updates: {e}")
-                raise
+    def _reopen_persistent_zip(self) -> None:
+        """Reopen persistent ZIP file after modifications to reflect changes."""
+        # Delegate to ZIP accessor
+        self._zip_accessor.reopen_persistent_zip()
 
     def to_epc(self, load_all: bool = False) -> Epc:
         """
@@ -1088,11 +1490,25 @@ class EpcStreamReader(EnergymlStorageInterface):
             Changing from MANUAL or UPDATE_ON_CLOSE to UPDATE_AT_MODIFICATION
             may require calling rebuild_all_rels() first to ensure consistency.
         """
+
+    def set_rels_update_mode(self, mode: RelsUpdateMode) -> None:
+        """
+        Change the relationship update mode.
+
+        Args:
+            mode: The new RelsUpdateMode to use
+
+        Note:
+            Changing from MANUAL or UPDATE_ON_CLOSE to UPDATE_AT_MODIFICATION
+            may require calling rebuild_all_rels() first to ensure consistency.
+        """
         if not isinstance(mode, RelsUpdateMode):
             raise ValueError(f"mode must be a RelsUpdateMode enum value, got {type(mode)}")
 
         old_mode = self.rels_update_mode
         self.rels_update_mode = mode
+        # Also update the relationship manager
+        self._rels_mgr.rels_update_mode = mode
 
         logging.info(f"Changed relationship update mode from {old_mode.value} to {mode.value}")
 
@@ -1115,11 +1531,10 @@ class EpcStreamReader(EnergymlStorageInterface):
         :param obj: the object or its identifier/URI
         :return: list of Relationship objects
         """
-        rels = []
+        # Get identifier without loading the object
         obj_identifier = None
         rels_path = None
 
-        # Get identifier without loading the object
         if isinstance(obj, (str, Uri)):
             # Convert URI to identifier if needed
             if isinstance(obj, Uri) or parse_uri(obj) is not None:
@@ -1136,23 +1551,8 @@ class EpcStreamReader(EnergymlStorageInterface):
             obj_identifier = get_obj_identifier(obj)
             rels_path = gen_rels_path(obj, self.export_version)
 
-        # Read rels from EPC file using efficient context manager
-        if rels_path is not None:
-            with self._get_zip_file() as zf:
-                try:
-                    rels_data = zf.read(rels_path)
-                    self.stats.bytes_read += len(rels_data)
-                    relationships = read_energyml_xml_bytes(rels_data, Relationships)
-                    rels.extend(relationships.relationship)
-                except KeyError:
-                    # No rels file found for this object
-                    pass
-
-        # Merge with in-memory additional relationships
-        if obj_identifier and obj_identifier in self.additional_rels:
-            rels.extend(self.additional_rels[obj_identifier])
-
-        return rels
+        # Delegate to relationship manager
+        return self._rels_mgr.get_obj_rels(obj_identifier, rels_path)
 
     def get_h5_file_paths(self, obj: Union[str, Uri, Any]) -> List[str]:
         """
@@ -1379,26 +1779,8 @@ class EpcStreamReader(EnergymlStorageInterface):
             except Exception as e:
                 logging.warning(f"Error rebuilding rels on close: {e}")
 
-        if self._persistent_zip is not None:
-            try:
-                self._persistent_zip.close()
-            except Exception as e:
-                logging.debug(f"Error closing persistent ZIP file: {e}")
-            finally:
-                self._persistent_zip = None
-
-    def _reopen_persistent_zip(self) -> None:
-        """Reopen persistent ZIP file after modifications to reflect changes.
-
-        This is called after any operation that modifies the EPC file to ensure
-        that subsequent reads see the updated content.
-        """
-        if self.keep_open and self._persistent_zip is not None:
-            try:
-                self._persistent_zip.close()
-            except Exception:
-                pass
-            self._persistent_zip = zipfile.ZipFile(self.epc_file_path, "r")
+        # Delegate to ZIP accessor
+        self._zip_accessor.close()
 
     def put_object(self, obj: Any, dataspace: Optional[str] = None) -> Optional[str]:
         """
@@ -1901,105 +2283,18 @@ class EpcStreamReader(EnergymlStorageInterface):
             raise
 
     def _compute_object_rels(self, obj: Any, obj_identifier: str) -> List[Relationship]:
+        """Compute relationships for a given object (SOURCE relationships).
+        
+        Delegates to _rels_mgr.compute_object_rels()
         """
-        Compute relationships for a given object (SOURCE relationships).
-        This object references other objects through DORs.
-
-        Args:
-            obj: The EnergyML object
-            obj_identifier: The identifier of the object
-
-        Returns:
-            List of Relationship objects for this object's .rels file
-        """
-        rels = []
-
-        # Get all DORs (Data Object References) in this object
-        direct_dors = get_direct_dor_list(obj)
-
-        for dor in direct_dors:
-            try:
-                target_identifier = get_obj_identifier(dor)
-
-                # Get target file path from metadata without processing DOR
-                # The relationship target should be the object's file path, not its rels path
-                if target_identifier in self._metadata:
-                    target_path = self._metadata[target_identifier].file_path
-                else:
-                    # Fall back to generating path from DOR if metadata not found
-                    target_path = gen_energyml_object_path(dor, self.export_version)
-
-                # Create SOURCE relationship (this object -> target object)
-                rel = Relationship(
-                    target=target_path,
-                    type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
-                    id=f"_{obj_identifier}_{get_obj_type(get_obj_usable_class(dor))}_{target_identifier}",
-                )
-                rels.append(rel)
-            except Exception as e:
-                logging.warning(f"Failed to create relationship for DOR in {obj_identifier}: {e}")
-
-        return rels
-
-    def _get_objects_referencing(self, target_identifier: str) -> List[Tuple[str, Any]]:
-        """
-        Find all objects that reference the target object.
-
-        Args:
-            target_identifier: The identifier of the target object
-
-        Returns:
-            List of tuples (identifier, object) of objects that reference the target
-        """
-        referencing_objects = []
-
-        # We need to check all objects in the EPC to find those that reference our target
-        for identifier in self._metadata:
-            # Load the object to check its DORs
-            obj = self.get_object_by_identifier(identifier)
-            if obj is not None:
-                # Check if this object references our target
-                direct_dors = get_direct_dor_list(obj)
-                for dor in direct_dors:
-                    try:
-                        dor_identifier = get_obj_identifier(dor)
-                        if dor_identifier == target_identifier:
-                            referencing_objects.append((identifier, obj))
-                            break  # Found a reference, no need to check other DORs in this object
-                    except Exception:
-                        continue
-
-        return referencing_objects
+        return self._rels_mgr.compute_object_rels(obj, obj_identifier)
 
     def _merge_rels(self, new_rels: List[Relationship], existing_rels: List[Relationship]) -> List[Relationship]:
         """Merge new relationships with existing ones, avoiding duplicates and ensuring unique IDs.
 
-        Args:
-            new_rels: New relationships to add
-            existing_rels: Existing relationships
-
-        Returns:
-            Merged list of relationships
+        Delegates to _rels_mgr.merge_rels()
         """
-        merged = list(existing_rels)
-
-        for new_rel in new_rels:
-            # Check if relationship already exists
-            rel_exists = any(r.target == new_rel.target and r.type_value == new_rel.type_value for r in merged)
-
-            if not rel_exists:
-                # Ensure unique ID
-                cpt = 0
-                new_rel_id = new_rel.id
-                while any(r.id == new_rel_id for r in merged):
-                    new_rel_id = f"{new_rel.id}_{cpt}"
-                    cpt += 1
-                if new_rel_id != new_rel.id:
-                    new_rel.id = new_rel_id
-
-                merged.append(new_rel)
-
-        return merged
+        return self._rels_mgr.merge_rels(new_rels, existing_rels)
 
     def _add_object_to_file(self, obj: Any, metadata: EpcObjectMetadata) -> None:
         """Add object to the EPC file efficiently.
@@ -2224,26 +2519,11 @@ class EpcStreamReader(EnergymlStorageInterface):
     def _update_content_types_xml(
         self, source_zip: zipfile.ZipFile, metadata: EpcObjectMetadata, add: bool = True
     ) -> str:
-        """Update [Content_Types].xml to add or remove object entry."""
-        # Read existing content types
-        content_types = self._read_content_types(source_zip)
-
-        if add:
-            # Add new override entry
-            new_override = Override()
-            new_override.part_name = f"/{metadata.file_path}"
-            new_override.content_type = metadata.content_type
-            content_types.override.append(new_override)
-        else:
-            # Remove override entry
-            content_types.override = [
-                override for override in content_types.override if override.part_name != f"/{metadata.file_path}"
-            ]
-
-        # Serialize back to XML
-        from .serialization import serialize_xml
-
-        return serialize_xml(content_types)
+        """Update [Content_Types].xml to add or remove object entry.
+        
+        Delegates to _metadata_mgr.update_content_types_xml()
+        """
+        return self._metadata_mgr.update_content_types_xml(source_zip, metadata, add)
 
     def _rollback_add_object(self, identifier: Optional[str]) -> None:
         """Rollback changes made during failed add_object operation."""
