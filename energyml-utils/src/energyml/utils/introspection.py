@@ -1111,7 +1111,7 @@ def copy_attributes(
         p_list = search_attribute_matching_name_with_path(
             obj=obj_out,
             name_rgx=k_in,
-            re_flags=re.IGNORECASE if ignore_case else re.NOFLAG,
+            re_flags=re.IGNORECASE if ignore_case else 0,  # re.NOFLAG only available in Python 3.11+
             deep_search=False,
             search_in_sub_obj=False,
         )
