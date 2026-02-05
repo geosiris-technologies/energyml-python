@@ -427,7 +427,10 @@ def epoch(time_zone=datetime.timezone.utc) -> int:
 def date_to_epoch(date: str) -> int:
     """Convert energyml date string to epoch timestamp"""
     try:
-        return int(datetime.datetime.fromisoformat(date).timestamp())
+        # Python 3.10 doesn't support 'Z' suffix in fromisoformat()
+        # Replace 'Z' with '+00:00' for compatibility
+        date_normalized = date.replace("Z", "+00:00") if date.endswith("Z") else date
+        return int(datetime.datetime.fromisoformat(date_normalized).timestamp())
     except (ValueError, TypeError):
         raise ValueError(f"Invalid date format: {date}")
 

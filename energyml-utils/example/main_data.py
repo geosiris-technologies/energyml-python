@@ -1,6 +1,7 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
-
+import logging
+from io import BytesIO
 from energyml.eml.v2_3.commonv2 import (
     JaggedArray,
     AbstractValueArray,
@@ -8,16 +9,27 @@ from energyml.eml.v2_3.commonv2 import (
     StringXmlArray,
     IntegerXmlArray,
 )
+from energyml.utils.data.export import export_obj
 
 from src.energyml.utils.data.helper import (
     get_array_reader_function,
+    read_array,
 )
-from src.energyml.utils.data.mesh import *
-from src.energyml.utils.data.mesh import _create_shape, _write_geojson_shape
+from src.energyml.utils.data.mesh import (
+    GeoJsonGeometryType,
+    MeshFileFormat,
+    _create_shape,
+    _write_geojson_shape,
+    export_multiple_data,
+    export_off,
+    read_mesh_object,
+)
 from src.energyml.utils.epc import gen_energyml_object_path
 from src.energyml.utils.introspection import (
+    get_object_attribute,
     is_abstract,
     get_obj_uuid,
+    search_attribute_matching_name_with_path,
 )
 from src.energyml.utils.manager import get_sub_classes
 from src.energyml.utils.serialization import (
@@ -28,10 +40,16 @@ from src.energyml.utils.serialization import (
 )
 from src.energyml.utils.validation import validate_epc
 from src.energyml.utils.xml import get_tree
-from utils.data.datasets_io import (
+from src.energyml.utils.data.datasets_io import (
     HDF5FileReader,
     get_path_in_external_with_path,
     get_external_file_path_from_external_path,
+)
+from energyml.utils.epc import Epc
+from src.energyml.utils.data.mesh import (
+    read_polyline_representation,
+    read_point_representation,
+    read_grid2d_representation,
 )
 
 logger = logging.getLogger(__name__)
@@ -607,7 +625,7 @@ def test_simple_geojson():
             ),
         )
 
-        print(f"\n+++++++++++++++++++++++++\n")
+        print("\n+++++++++++++++++++++++++\n")
 
 
 def test_simple_geojson_io():

@@ -291,7 +291,7 @@ def generate_data():
         "-ff",
         type=str,
         default="json",
-        help=f"Type of the output files (one of : ['json', 'xml']). Default is 'json'",
+        help="Type of the output files (one of : ['json', 'xml']). Default is 'json'",
     )
 
     args = parser.parse_args()
@@ -413,7 +413,7 @@ def xml_to_json():
 def json_to_xml():
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", "-f", type=str, help="Input File")
-    parser.add_argument("--out", "-o", type=str, default=None, help=f"Output file")
+    parser.add_argument("--out", "-o", type=str, default=None, help="Output file")
 
     args = parser.parse_args()
 
@@ -436,7 +436,7 @@ def json_to_xml():
 def json_to_epc():
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", "-f", type=str, help="Input File")
-    parser.add_argument("--out", "-o", type=str, default=None, help=f"Output EPC file")
+    parser.add_argument("--out", "-o", type=str, default=None, help="Output EPC file")
 
     args = parser.parse_args()
 

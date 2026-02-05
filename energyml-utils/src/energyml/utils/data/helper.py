@@ -5,13 +5,14 @@ import logging
 import sys
 from typing import Any, Optional, Callable, List, Union
 
+from energyml.utils.storage_interface import EnergymlStorageInterface
 import numpy as np
 
 from .datasets_io import read_external_dataset_array
 from ..constants import flatten_concatenation
-from ..epc import get_obj_identifier
 from ..exception import ObjectNotFoundNotError
 from ..introspection import (
+    get_obj_uri,
     snake_case,
     get_object_attribute_no_verif,
     search_attribute_matching_name_with_path,
@@ -21,7 +22,7 @@ from ..introspection import (
     get_object_attribute,
     get_object_attribute_rgx,
 )
-from ..workspace import EnergymlWorkspace
+
 from .datasets_io import get_path_in_external_with_path
 
 _ARRAY_NAMES_ = [
@@ -86,20 +87,29 @@ def is_z_reversed(crs: Optional[Any]) -> bool:
     """
     reverse_z_values = False
     if crs is not None:
-        # resqml 201
-        zincreasing_downward = search_attribute_matching_name(crs, "ZIncreasingDownward")
-        if len(zincreasing_downward) > 0:
-            reverse_z_values = zincreasing_downward[0]
+        if "VerticalCrs" in type(crs).__name__:
+            vert_axis = search_attribute_matching_name(crs, "Direction")
+            if len(vert_axis) > 0:
+                vert_axis_str = str(vert_axis[0])
+                if "." in vert_axis_str:
+                    vert_axis_str = vert_axis_str.split(".")[-1]
 
-        # resqml >= 22
-        vert_axis = search_attribute_matching_name(crs, "VerticalAxis.Direction")
-        if len(vert_axis) > 0:
-            vert_axis_str = str(vert_axis[0])
-            if "." in vert_axis_str:
-                vert_axis_str = vert_axis_str.split(".")[-1]
+                reverse_z_values = vert_axis_str.lower() == "down"
+        else:
+            # resqml 201
+            zincreasing_downward = search_attribute_matching_name(crs, "ZIncreasingDownward")
+            if len(zincreasing_downward) > 0:
+                reverse_z_values = zincreasing_downward[0]
 
-            reverse_z_values = vert_axis_str.lower() == "down"
+            # resqml >= 22
+            vert_axis = search_attribute_matching_name(crs, "VerticalAxis.Direction")
+            if len(vert_axis) > 0:
+                vert_axis_str = str(vert_axis[0])
+                if "." in vert_axis_str:
+                    vert_axis_str = vert_axis_str.split(".")[-1]
 
+                reverse_z_values = vert_axis_str.lower() == "down"
+    logging.debug(f"is_z_reversed: {reverse_z_values}")
     return reverse_z_values
 
 
@@ -114,7 +124,7 @@ def get_vertical_epsg_code(crs_object: Any):
     return vertical_epsg_code
 
 
-def get_projected_epsg_code(crs_object: Any, workspace: Optional[EnergymlWorkspace] = None):
+def get_projected_epsg_code(crs_object: Any, workspace: Optional[EnergymlStorageInterface] = None):
     if crs_object is not None:  # LocalDepth3dCRS
         projected_epsg_code = get_object_attribute_rgx(crs_object, "ProjectedCrs.EpsgCode")
         if projected_epsg_code is None:  # LocalEngineering2DCrs
@@ -130,7 +140,7 @@ def get_projected_epsg_code(crs_object: Any, workspace: Optional[EnergymlWorkspa
     return None
 
 
-def get_projected_uom(crs_object: Any, workspace: Optional[EnergymlWorkspace] = None):
+def get_projected_uom(crs_object: Any, workspace: Optional[EnergymlStorageInterface] = None):
     if crs_object is not None:
         projected_epsg_uom = get_object_attribute_rgx(crs_object, "ProjectedUom")
         if projected_epsg_uom is None:
@@ -144,7 +154,7 @@ def get_projected_uom(crs_object: Any, workspace: Optional[EnergymlWorkspace] = 
     return None
 
 
-def get_crs_origin_offset(crs_obj: Any) -> List[float]:
+def get_crs_origin_offset(crs_obj: Any) -> List[float | int]:
     """
     Return a list [X,Y,Z] corresponding to the crs Offset [XOffset/OriginProjectedCoordinate1, ... ] depending on the
     crs energyml version.
@@ -163,12 +173,12 @@ def get_crs_origin_offset(crs_obj: Any) -> List[float]:
     if tmp_offset_z is None:
         tmp_offset_z = get_object_attribute_rgx(crs_obj, "OriginProjectedCoordinate3")
 
-    crs_point_offset = [0, 0, 0]
+    crs_point_offset = [0.0, 0.0, 0.0]
     try:
         crs_point_offset = [
-            float(tmp_offset_x) if tmp_offset_x is not None else 0,
-            float(tmp_offset_y) if tmp_offset_y is not None else 0,
-            float(tmp_offset_z) if tmp_offset_z is not None else 0,
+            float(tmp_offset_x) if tmp_offset_x is not None else 0.0,
+            float(tmp_offset_y) if tmp_offset_y is not None else 0.0,
+            float(tmp_offset_z) if tmp_offset_z is not None else 0.0,
         ]
     except Exception as e:
         logging.info(f"ERR reading crs offset {e}")
@@ -183,30 +193,66 @@ def prod_n_tab(val: Union[float, int, str], tab: List[Union[float, int, str]]):
     :param tab:
     :return:
     """
-    return list(map(lambda x: x * val, tab))
+    if val is None:
+        return [None] * len(tab)
+    logging.debug(f"Multiplying list by {val}: {tab}")
+    # Convert to numpy array for vectorized operations, handling None values
+    arr = np.array(tab, dtype=object)
+    logging.debug(f"arr: {arr}")
+    # Create mask for non-None values
+    mask = arr != None  # noqa: E711
+    # Create result array filled with None
+    result = np.full(len(tab), None, dtype=object)
+    logging.debug(f"result before multiplication: {result}")
+    # Multiply only non-None values
+    result[mask] = arr[mask].astype(float) * val
+    logging.debug(f"result after multiplication: {result}")
+    return result.tolist()
 
 
 def sum_lists(l1: List, l2: List):
     """
-    Sums 2 lists values.
+    Sums 2 lists values, preserving None values.
 
     Example:
         [1,1,1] and [2,2,3,6] gives : [3,3,4,6]
+        [1,None,3] and [2,2,3] gives : [3,None,6]
 
     :param l1:
     :param l2:
     :return:
     """
-    return [l1[i] + l2[i] for i in range(min(len(l1), len(l2)))] + max(l1, l2, key=len)[
-        min(len(l1), len(l2)) :  # noqa: E203
-    ]
+    min_len = min(len(l1), len(l2))
+
+    # Convert to numpy arrays for vectorized operations
+    arr1 = np.array(l1[:min_len], dtype=object)
+    arr2 = np.array(l2[:min_len], dtype=object)
+
+    # Create result array
+    result = np.full(min_len, None, dtype=object)
+
+    # Find indices where both values are not None
+    mask = (arr1 != None) & (arr2 != None)  # noqa: E711
+
+    # Sum only where both are not None
+    if np.any(mask):
+        result[mask] = arr1[mask].astype(float) + arr2[mask].astype(float)
+
+    # Convert back to list and append remaining elements from longer list
+    result_list = result.tolist()
+    if len(l1) > min_len:
+        result_list.extend(l1[min_len:])
+    elif len(l2) > min_len:
+        result_list.extend(l2[min_len:])
+
+    return result_list
 
 
 def get_crs_obj(
     context_obj: Any,
     path_in_root: Optional[str] = None,
     root_obj: Optional[Any] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
 ) -> Optional[Any]:
     """
     Search for the CRS object related to :param:`context_obj` into the :param:`workspace`
@@ -222,12 +268,12 @@ def get_crs_obj(
         crs_list = search_attribute_matching_name(context_obj, r"\.*Crs", search_in_sub_obj=True, deep_search=False)
         if crs_list is not None and len(crs_list) > 0:
             # logging.debug(crs_list[0])
-            crs = workspace.get_object_by_identifier(get_obj_identifier(crs_list[0]))
+            crs = workspace.get_object(get_obj_uri(crs_list[0]))
             if crs is None:
                 crs = workspace.get_object_by_uuid(get_obj_uuid(crs_list[0]))
             if crs is None:
                 logging.error(f"CRS {crs_list[0]} not found (or not read correctly)")
-                raise ObjectNotFoundNotError(get_obj_identifier(crs_list[0]))
+                raise ObjectNotFoundNotError(get_obj_uri(crs_list[0]))
             if crs is not None:
                 return crs
 
@@ -293,9 +339,9 @@ def read_external_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None,
-) -> Union[List[Any], np.ndarray]:
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
+) -> Optional[Union[List[Any], np.ndarray]]:
     """
     Read an external array (BooleanExternalArray, BooleanHdf5Array, DoubleHdf5Array, IntegerHdf5Array, StringExternalArray ...)
     :param energyml_array:
@@ -333,10 +379,11 @@ def read_external_array(
         )
 
     if sub_indices is not None and len(sub_indices) > 0:
-        res = []
-        for idx in sub_indices:
-            res.append(array[idx])
-        array = res
+        if isinstance(array, np.ndarray):
+            array = array[sub_indices]
+        elif isinstance(array, list):
+            # Fallback for non-numpy arrays
+            array = [array[idx] for idx in sub_indices]
 
     return array
 
@@ -357,9 +404,9 @@ def read_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None,
-) -> List[Any]:
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
+) -> Union[List[Any], np.ndarray]:
     """
     Read an array and return a list. The array is read depending on its type. see. :py:func:`energyml.utils.data.helper.get_supported_array`
     :param energyml_array:
@@ -393,8 +440,8 @@ def read_constant_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: Optional[List[int]] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[Any]:
     """
     Read a constant array ( BooleanConstantArray, DoubleConstantArray, FloatingPointConstantArray, IntegerConstantArray ...)
@@ -423,9 +470,9 @@ def read_xml_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None,
-) -> List[Any]:
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
+) -> Union[List[Any], np.ndarray]:
     """
     Read a xml array ( BooleanXmlArray, FloatingPointXmlArray, IntegerXmlArray, StringXmlArray ...)
     :param energyml_array:
@@ -439,10 +486,11 @@ def read_xml_array(
     # count = get_object_attribute_no_verif(energyml_array, "count_per_value")
 
     if sub_indices is not None and len(sub_indices) > 0:
-        res = []
-        for idx in sub_indices:
-            res.append(values[idx])
-        values = res
+        if isinstance(values, np.ndarray):
+            values = values[sub_indices]
+        elif isinstance(values, list):
+            # Use list comprehension for efficiency
+            values = [values[idx] for idx in sub_indices]
     return values
 
 
@@ -450,8 +498,8 @@ def read_jagged_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[Any]:
     """
     Read a jagged array
@@ -465,27 +513,23 @@ def read_jagged_array(
     elements = read_array(
         energyml_array=get_object_attribute_no_verif(energyml_array, "elements"),
         root_obj=root_obj,
-        path_in_root=path_in_root + ".elements",
+        path_in_root=(path_in_root or "") + ".elements",
         workspace=workspace,
     )
     cumulative_length = read_array(
         energyml_array=read_array(get_object_attribute_no_verif(energyml_array, "cumulative_length")),
         root_obj=root_obj,
-        path_in_root=path_in_root + ".cumulative_length",
+        path_in_root=(path_in_root or "") + ".cumulative_length",
         workspace=workspace,
     )
 
-    array = []
-    previous = 0
-    for cl in cumulative_length:
-        array.append(elements[previous:cl])
-        previous = cl
+    # Use list comprehension for better performance
+    array = [
+        elements[cumulative_length[i - 1] if i > 0 else 0 : cumulative_length[i]] for i in range(len(cumulative_length))
+    ]
 
     if sub_indices is not None and len(sub_indices) > 0:
-        res = []
-        for idx in sub_indices:
-            res.append(array[idx])
-        array = res
+        array = [array[idx] for idx in sub_indices]
     return array
 
 
@@ -493,8 +537,8 @@ def read_int_double_lattice_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ):
     """
     Read DoubleLatticeArray or IntegerLatticeArray.
@@ -505,27 +549,33 @@ def read_int_double_lattice_array(
     :param sub_indices:
     :return:
     """
-    # start_value = get_object_attribute_no_verif(energyml_array, "start_value")
+    start_value = get_object_attribute_no_verif(energyml_array, "start_value")
     offset = get_object_attribute_no_verif(energyml_array, "offset")
 
-    # result = []
+    result = []
 
-    # if len(offset) == 1:
-    #     pass
-    # elif len(offset) == 2:
-    #     pass
-    # else:
-    raise Exception(f"{type(energyml_array)} read with an offset of length {len(offset)} is not supported")
+    if len(offset) == 1:
+        # 1D lattice array: offset is a single DoubleConstantArray or IntegerConstantArray
+        offset_obj = offset[0]
 
-    # return result
+        # Get the offset value and count from the ConstantArray
+        offset_value = get_object_attribute_no_verif(offset_obj, "value")
+        count = get_object_attribute_no_verif(offset_obj, "count")
+
+        # Generate the 1D array: start_value + i * offset_value for i in range(count)
+        result = [start_value + i * offset_value for i in range(count)]
+    else:
+        raise Exception(f"{type(energyml_array)} read with an offset of length {len(offset)} is not supported")
+
+    return result
 
 
 def read_point3d_zvalue_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ):
     """
     Read a Point3D2ValueArray
@@ -540,7 +590,7 @@ def read_point3d_zvalue_array(
     sup_geom_array = read_array(
         energyml_array=supporting_geometry,
         root_obj=root_obj,
-        path_in_root=path_in_root + ".SupportingGeometry",
+        path_in_root=(path_in_root or "") + ".SupportingGeometry",
         workspace=workspace,
         sub_indices=sub_indices,
     )
@@ -550,21 +600,32 @@ def read_point3d_zvalue_array(
         read_array(
             energyml_array=zvalues,
             root_obj=root_obj,
-            path_in_root=path_in_root + ".ZValues",
+            path_in_root=(path_in_root or "") + ".ZValues",
             workspace=workspace,
             sub_indices=sub_indices,
         )
     )
 
-    count = 0
+    # Use NumPy for vectorized operation if possible
+    error_logged = False
 
-    for i in range(len(sup_geom_array)):
-        try:
-            sup_geom_array[i][2] = zvalues_array[i]
-        except Exception as e:
-            if count == 0:
-                logging.error(e, f": {i} is out of bound of {len(zvalues_array)}")
-                count = count + 1
+    if isinstance(sup_geom_array, np.ndarray) and isinstance(zvalues_array, np.ndarray):
+        # Vectorized assignment for NumPy arrays
+        min_len = min(len(sup_geom_array), len(zvalues_array))
+        if min_len < len(sup_geom_array):
+            logging.warning(
+                f"Z-values array ({len(zvalues_array)}) is shorter than geometry array ({len(sup_geom_array)}), only updating first {min_len} values"
+            )
+        sup_geom_array[:min_len, 2] = zvalues_array[:min_len]
+    else:
+        # Fallback for list-based arrays
+        for i in range(len(sup_geom_array)):
+            try:
+                sup_geom_array[i][2] = zvalues_array[i]
+            except (IndexError, TypeError) as e:
+                if not error_logged:
+                    logging.error(f"{type(e).__name__}: index {i} is out of bound of {len(zvalues_array)}")
+                    error_logged = True
 
     return sup_geom_array
 
@@ -573,8 +634,8 @@ def read_point3d_from_representation_lattice_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ):
     """
     Read a Point3DFromRepresentationLatticeArray.
@@ -588,11 +649,9 @@ def read_point3d_from_representation_lattice_array(
     :param sub_indices:
     :return:
     """
-    supporting_rep_identifier = get_obj_identifier(
-        get_object_attribute_no_verif(energyml_array, "supporting_representation")
-    )
+    supporting_rep_identifier = get_obj_uri(get_object_attribute_no_verif(energyml_array, "supporting_representation"))
     # logging.debug(f"energyml_array : {energyml_array}\n\t{supporting_rep_identifier}")
-    supporting_rep = workspace.get_object_by_identifier(supporting_rep_identifier)
+    supporting_rep = workspace.get_object(supporting_rep_identifier) if workspace is not None else None
 
     # TODO chercher un pattern \.*patch\.*.[d]+ pour trouver le numero du patch dans le path_in_root puis lire le patch
     # logging.debug(f"path_in_root {path_in_root}")
@@ -616,15 +675,15 @@ def read_grid2d_patch(
     patch: Any,
     grid2d: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None,
-) -> List:
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
+) -> Union[List, np.ndarray]:
     points_path, points_obj = search_attribute_matching_name_with_path(patch, "Geometry.Points")[0]
 
     return read_array(
         energyml_array=points_obj,
         root_obj=grid2d,
-        path_in_root=path_in_root + "." + points_path,
+        path_in_root=path_in_root + "." + points_path if path_in_root else points_path,
         workspace=workspace,
         sub_indices=sub_indices,
     )
@@ -634,8 +693,8 @@ def read_point3d_lattice_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
     path_in_root: Optional[str] = None,
-    workspace: Optional[EnergymlWorkspace] = None,
-    sub_indices: List[int] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List:
     """
     Read a Point3DLatticeArray.
@@ -661,14 +720,14 @@ def read_point3d_lattice_array(
             obj=energyml_array,
             name_rgx="slowestAxisCount",
             root_obj=root_obj,
-            current_path=path_in_root,
+            current_path=path_in_root or "",
         )
 
         crs_fa_count = search_attribute_in_upper_matching_name(
             obj=energyml_array,
             name_rgx="fastestAxisCount",
             root_obj=root_obj,
-            current_path=path_in_root,
+            current_path=path_in_root or "",
         )
 
         crs = None
@@ -695,7 +754,11 @@ def read_point3d_lattice_array(
         slowest_size = len(slowest_table)
         fastest_size = len(fastest_table)
 
-        if len(crs_sa_count) > 0 and len(crs_fa_count) > 0:
+        logging.debug(f"slowest vector: {slowest_vec}, spacing: {slowest_spacing}, size: {slowest_size}")
+        logging.debug(f"fastest vector: {fastest_vec}, spacing: {fastest_spacing}, size: {fastest_size}")
+        logging.debug(f"origin: {origin}, zincreasing_downward: {zincreasing_downward}")
+
+        if crs_sa_count is not None and len(crs_sa_count) > 0 and crs_fa_count is not None and len(crs_fa_count) > 0:
             if (crs_sa_count[0] == fastest_size and crs_fa_count[0] == slowest_size) or (
                 crs_sa_count[0] == fastest_size - 1 and crs_fa_count[0] == slowest_size - 1
             ):
@@ -712,40 +775,74 @@ def read_point3d_lattice_array(
                 slowest_size = crs_sa_count[0]
                 fastest_size = crs_fa_count[0]
 
-        for i in range(slowest_size):
-            for j in range(fastest_size):
-                previous_value = origin
-                # to avoid a sum of the parts of the array at each iteration, I take the previous value in the same line
-                # number i and add the fastest_table[j] value
+        # Vectorized approach using NumPy for massive performance improvement
+        try:
+            # Convert tables to NumPy arrays
+            origin_arr = np.array(origin, dtype=float)
+            slowest_arr = np.array(slowest_table, dtype=float)  # shape: (slowest_size, 3)
+            fastest_arr = np.array(fastest_table, dtype=float)  # shape: (fastest_size, 3)
 
-                if j > 0:
-                    if i > 0:
-                        line_idx = i * fastest_size  # numero de ligne
-                        previous_value = result[line_idx + j - 1]
-                    else:
-                        previous_value = result[j - 1]
-                    if zincreasing_downward:
-                        result.append(sum_lists(previous_value, slowest_table[i - 1]))
-                    else:
-                        result.append(sum_lists(previous_value, fastest_table[j - 1]))
-                else:
-                    if i > 0:
-                        prev_line_idx = (i - 1) * fastest_size  # numero de ligne precedent
-                        previous_value = result[prev_line_idx]
-                        if zincreasing_downward:
-                            result.append(sum_lists(previous_value, fastest_table[j - 1]))
+            # Compute cumulative sums
+            slowest_cumsum = np.cumsum(slowest_arr, axis=0)  # cumulative offset along slowest axis
+            fastest_cumsum = np.cumsum(fastest_arr, axis=0)  # cumulative offset along fastest axis
+
+            # Create meshgrid indices
+            i_indices, j_indices = np.meshgrid(np.arange(slowest_size), np.arange(fastest_size), indexing="ij")
+
+            # Initialize result array
+            result_arr = np.zeros((slowest_size, fastest_size, 3), dtype=float)
+            result_arr[:, :, :] = origin_arr  # broadcast origin to all positions
+
+            # Add offsets based on zincreasing_downward
+            if zincreasing_downward:
+                # Add slowest offsets where i > 0
+                result_arr[1:, :, :] += slowest_cumsum[:-1, np.newaxis, :]
+                # Add fastest offsets where j > 0
+                result_arr[:, 1:, :] += fastest_cumsum[np.newaxis, :-1, :]
+            else:
+                # Add fastest offsets where j > 0
+                result_arr[:, 1:, :] += fastest_cumsum[np.newaxis, :-1, :]
+                # Add slowest offsets where i > 0
+                result_arr[1:, :, :] += slowest_cumsum[:-1, np.newaxis, :]
+
+            # Flatten to list of points
+            result = result_arr.reshape(-1, 3).tolist()
+
+        except (ValueError, TypeError) as e:
+            # Fallback to original implementation if NumPy conversion fails
+            logging.warning(f"NumPy vectorization failed ({e}), falling back to iterative approach")
+            for i in range(slowest_size):
+                for j in range(fastest_size):
+                    previous_value = origin
+
+                    if j > 0:
+                        if i > 0:
+                            line_idx = i * fastest_size
+                            previous_value = result[line_idx + j - 1]
                         else:
+                            previous_value = result[j - 1]
+                        if zincreasing_downward:
                             result.append(sum_lists(previous_value, slowest_table[i - 1]))
+                        else:
+                            result.append(sum_lists(previous_value, fastest_table[j - 1]))
                     else:
-                        result.append(previous_value)
+                        if i > 0:
+                            prev_line_idx = (i - 1) * fastest_size
+                            previous_value = result[prev_line_idx]
+                            if zincreasing_downward:
+                                result.append(sum_lists(previous_value, fastest_table[j - 1]))
+                            else:
+                                result.append(sum_lists(previous_value, slowest_table[i - 1]))
+                        else:
+                            result.append(previous_value)
     else:
         raise Exception(f"{type(energyml_array)} read with an offset of length {len(offset)} is not supported")
 
     if sub_indices is not None and len(sub_indices) > 0:
-        res = []
-        for idx in sub_indices:
-            res.append(result[idx])
-        result = res
+        if isinstance(result, np.ndarray):
+            result = result[sub_indices].tolist()
+        else:
+            result = [result[idx] for idx in sub_indices]
 
     return result
 
@@ -754,6 +851,6 @@ def read_point3d_lattice_array(
 #         energyml_array: Any,
 #         root_obj: Optional[Any] = None,
 #         path_in_root: Optional[str] = None,
-#         workspace: Optional[EnergymlWorkspace] = None
+#         workspace: Optional[EnergymlStorageInterface] = None
 # ):
 #     logging.debug(energyml_array)

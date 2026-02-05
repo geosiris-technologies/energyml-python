@@ -1,7 +1,7 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 
-from src.energyml.utils.uri import Uri, parse_uri
+from energyml.utils.uri import Uri, parse_uri
 from energyml.utils.introspection import get_obj_uri
 from energyml.resqml.v2_0_1.resqmlv2 import TriangulatedSetRepresentation, ObjTriangulatedSetRepresentation
 

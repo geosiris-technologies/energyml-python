@@ -16,24 +16,46 @@ from typing import List, Optional, Any, Callable, Dict, Union, Tuple
 from .helper import (
     read_array,
     read_grid2d_patch,
-    EnergymlWorkspace,
     get_crs_obj,
     get_crs_origin_offset,
     is_z_reversed,
 )
-from ..epc import Epc, get_obj_identifier, gen_energyml_object_path
-from ..epc_stream import EpcStreamReader
-from ..exception import ObjectNotFoundNotError
-from ..introspection import (
+from energyml.utils.epc import gen_energyml_object_path
+from energyml.utils.epc_stream import EpcStreamReader
+from energyml.utils.exception import NotSupportedError, ObjectNotFoundNotError
+from energyml.utils.introspection import (
+    get_obj_uri,
     search_attribute_matching_name,
     search_attribute_matching_name_with_path,
     snake_case,
     get_object_attribute,
+    get_object_attribute_rgx,
 )
+from energyml.utils.storage_interface import EnergymlStorageInterface
+
+
+# Import export functions from new export module for backward compatibility
+from .export import export_obj as _export_obj_new
 
 _FILE_HEADER: bytes = b"# file exported by energyml-utils python module (Geosiris)\n"
 
 Point = list[float]
+
+# ============================
+# TODO :
+
+# obj_GridConnectionSetRepresentation
+# obj_IjkGridRepresentation
+# obj_PlaneSetRepresentation
+# obj_RepresentationSetRepresentation
+# obj_SealedSurfaceFrameworkRepresentation
+# obj_SealedVolumeFrameworkRepresentation
+# obj_SubRepresentation
+# obj_UnstructuredGridRepresentation
+# obj_WellboreMarkerFrameRepresentation
+# obj_WellboreTrajectoryRepresentation
+
+# ============================
 
 
 class MeshFileFormat(Enum):
@@ -77,12 +99,12 @@ class AbstractMesh:
 
     crs_object: Any = field(default=None)
 
-    point_list: List[Point] = field(
+    point_list: Union[List[Point], np.ndarray] = field(
         default_factory=list,
     )
 
     identifier: str = field(
-        default=None,
+        default="",
     )
 
     def get_nb_edges(self) -> int:
@@ -91,7 +113,7 @@ class AbstractMesh:
     def get_nb_faces(self) -> int:
         return 0
 
-    def get_indices(self) -> List[List[int]]:
+    def get_indices(self) -> Union[List[List[int]], np.ndarray]:
         return []
 
 
@@ -102,7 +124,7 @@ class PointSetMesh(AbstractMesh):
 
 @dataclass
 class PolylineSetMesh(AbstractMesh):
-    line_indices: List[List[int]] = field(
+    line_indices: Union[List[List[int]], np.ndarray] = field(
         default_factory=list,
     )
 
@@ -112,13 +134,13 @@ class PolylineSetMesh(AbstractMesh):
     def get_nb_faces(self) -> int:
         return 0
 
-    def get_indices(self) -> List[List[int]]:
+    def get_indices(self) -> Union[List[List[int]], np.ndarray]:
         return self.line_indices
 
 
 @dataclass
 class SurfaceMesh(AbstractMesh):
-    faces_indices: List[List[int]] = field(
+    faces_indices: Union[List[List[int]], np.ndarray] = field(
         default_factory=list,
     )
 
@@ -128,7 +150,7 @@ class SurfaceMesh(AbstractMesh):
     def get_nb_faces(self) -> int:
         return len(self.faces_indices)
 
-    def get_indices(self) -> List[List[int]]:
+    def get_indices(self) -> Union[List[List[int]], np.ndarray]:
         return self.faces_indices
 
 
@@ -145,7 +167,7 @@ def crs_displacement(points: List[Point], crs_obj: Any) -> Tuple[List[Point], Po
     if crs_point_offset != [0, 0, 0]:
         for p in points:
             for xyz in range(len(p)):
-                p[xyz] = p[xyz] + crs_point_offset[xyz]
+                p[xyz] = (p[xyz] + crs_point_offset[xyz]) if p[xyz] is not None else None
             if zincreasing_downward and len(p) >= 3:
                 p[2] = -p[2]
 
@@ -178,9 +200,9 @@ def _mesh_name_mapping(array_type_name: str) -> str:
 
 def read_mesh_object(
     energyml_object: Any,
-    workspace: Optional[EnergymlWorkspace] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
     use_crs_displacement: bool = False,
-    sub_indices: List[int] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[AbstractMesh]:
     """
     Read and "meshable" object. If :param:`energyml_object` is not supported, an exception will be raised.
@@ -190,28 +212,44 @@ def read_mesh_object(
     is used to translate the data with the CRS offsets
     :return:
     """
+
     if isinstance(energyml_object, list):
         return energyml_object
     array_type_name = _mesh_name_mapping(type(energyml_object).__name__)
 
     reader_func = get_mesh_reader_function(array_type_name)
     if reader_func is not None:
+        # logging.info(f"using function {reader_func} to read type {array_type_name}")
         surfaces: List[AbstractMesh] = reader_func(
             energyml_object=energyml_object, workspace=workspace, sub_indices=sub_indices
         )
-        if use_crs_displacement:
+        if (
+            use_crs_displacement and "wellbore" not in array_type_name.lower()
+        ):  # WellboreFrameRep has allready the displacement applied
+            # TODO: the displacement should be done in each reader function to manage specific cases
             for s in surfaces:
+                print("CRS : ", s.crs_object.uuid if s.crs_object is not None else "None")
                 crs_displacement(s.point_list, s.crs_object)
         return surfaces
     else:
-        logging.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
-        raise Exception(
-            f"Type {array_type_name} is not supported\n\t{energyml_object}: \n\tfunction read_{snake_case(array_type_name)} not found"
+        # logging.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
+        raise NotSupportedError(
+            f"Type {array_type_name} is not supported\n\tfunction read_{snake_case(array_type_name)} not found"
         )
 
 
+def read_ijk_grid_representation(
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
+) -> List[Any]:
+    raise NotSupportedError("IJKGrid representation reading is not supported yet.")
+
+
 def read_point_representation(
-    energyml_object: Any, workspace: EnergymlWorkspace, sub_indices: List[int] = None
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[PointSetMesh]:
     # pt_geoms = search_attribute_matching_type(point_set, "AbstractGeometry")
 
@@ -273,7 +311,9 @@ def read_point_representation(
 
 
 def read_polyline_representation(
-    energyml_object: Any, workspace: EnergymlWorkspace, sub_indices: List[int] = None
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[PolylineSetMesh]:
     # pt_geoms = search_attribute_matching_type(point_set, "AbstractGeometry")
 
@@ -364,7 +404,7 @@ def read_polyline_representation(
         if len(points) > 0:
             meshes.append(
                 PolylineSetMesh(
-                    identifier=f"{get_obj_identifier(energyml_object)}_patch{patch_idx}",
+                    identifier=f"{get_obj_uri(energyml_object)}_patch{patch_idx}",
                     energyml_object=energyml_object,
                     crs_object=crs,
                     point_list=points,
@@ -381,9 +421,9 @@ def gen_surface_grid_geometry(
     energyml_object: Any,
     patch: Any,
     patch_path: Any,
-    workspace: Optional[EnergymlWorkspace] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
     keep_holes=False,
-    sub_indices: List[int] = None,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
     offset: int = 0,
 ):
     points = read_grid2d_patch(
@@ -392,6 +432,8 @@ def gen_surface_grid_geometry(
         path_in_root=patch_path,
         workspace=workspace,
     )
+    logging.debug(f"Total points read: {len(points)}")
+    logging.debug(f"Sample points: {points[0:5]}")
 
     fa_count = search_attribute_matching_name(patch, "FastestAxisCount")
     if fa_count is None:
@@ -430,7 +472,7 @@ def gen_surface_grid_geometry(
         sa_count = sa_count + 1
         fa_count = fa_count + 1
 
-    # logging.debug(f"sa_count {sa_count} fa_count {fa_count} : {sa_count*fa_count} - {len(points)} ")
+    logging.debug(f"sa_count {sa_count} fa_count {fa_count} : {sa_count * fa_count} - {len(points)} ")
 
     for sa in range(sa_count - 1):
         for fa in range(fa_count - 1):
@@ -478,7 +520,10 @@ def gen_surface_grid_geometry(
 
 
 def read_grid2d_representation(
-    energyml_object: Any, workspace: Optional[EnergymlWorkspace] = None, keep_holes=False, sub_indices: List[int] = None
+    energyml_object: Any,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    keep_holes=False,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[SurfaceMesh]:
     # h5_reader = HDF5FileReader()
     meshes = []
@@ -516,7 +561,7 @@ def read_grid2d_representation(
 
         meshes.append(
             SurfaceMesh(
-                identifier=f"{get_obj_identifier(energyml_object)}_patch{patch_idx}",
+                identifier=f"{get_obj_uri(energyml_object)}_patch{patch_idx}",
                 energyml_object=energyml_object,
                 crs_object=crs,
                 point_list=points,
@@ -555,7 +600,7 @@ def read_grid2d_representation(
         )
         meshes.append(
             SurfaceMesh(
-                identifier=f"{get_obj_identifier(energyml_object)}_patch{patch_idx}",
+                identifier=f"{get_obj_uri(energyml_object)}_patch{patch_idx}",
                 energyml_object=energyml_object,
                 crs_object=crs,
                 point_list=points,
@@ -568,8 +613,8 @@ def read_grid2d_representation(
 
 def read_triangulated_set_representation(
     energyml_object: Any,
-    workspace: EnergymlWorkspace,
-    sub_indices: List[int] = None,
+    workspace: EnergymlStorageInterface,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[SurfaceMesh]:
     meshes = []
 
@@ -634,7 +679,7 @@ def read_triangulated_set_representation(
             total_size = total_size + len(triangles_list)
         meshes.append(
             SurfaceMesh(
-                identifier=f"{get_obj_identifier(energyml_object)}_patch{patch_idx}",
+                identifier=f"{get_obj_uri(energyml_object)}_patch{patch_idx}",
                 energyml_object=energyml_object,
                 crs_object=crs,
                 point_list=point_list,
@@ -647,19 +692,167 @@ def read_triangulated_set_representation(
     return meshes
 
 
+def read_wellbore_frame_representation(
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
+) -> List[PolylineSetMesh]:
+    """
+    Read a WellboreFrameRepresentation and construct a polyline mesh from the trajectory.
+
+    :param energyml_object: The WellboreFrameRepresentation object
+    :param workspace: The EnergymlStorageInterface to access related objects
+    :param sub_indices: Optional list of indices to filter specific nodes
+    :return: List containing a single PolylineSetMesh representing the wellbore
+    """
+    meshes = []
+
+    try:
+        # Read measured depths (NodeMd)
+        md_array = []
+        try:
+            node_md_path, node_md_obj = search_attribute_matching_name_with_path(energyml_object, "NodeMd")[0]
+            md_array = read_array(
+                energyml_array=node_md_obj,
+                root_obj=energyml_object,
+                path_in_root=node_md_path,
+                workspace=workspace,
+            )
+            if not isinstance(md_array, list):
+                md_array = md_array.tolist() if hasattr(md_array, "tolist") else list(md_array)
+        except (IndexError, AttributeError) as e:
+            logging.warning(f"Could not read NodeMd from wellbore frame: {e}")
+            return meshes
+
+        # Get trajectory reference
+        trajectory_dor = search_attribute_matching_name(obj=energyml_object, name_rgx="Trajectory")[0]
+        trajectory_identifier = get_obj_uri(trajectory_dor)
+        trajectory_obj = workspace.get_object(trajectory_identifier)
+
+        if trajectory_obj is None:
+            logging.error(f"Trajectory {trajectory_identifier} not found")
+            return meshes
+
+        # CRS
+        crs = None
+
+        # Get reference point (wellhead location) - try different attribute paths for different versions
+        head_x, head_y, head_z = 0.0, 0.0, 0.0
+        z_is_up = True  # Default assumption
+
+        try:
+            # Try to get MdDatum (RESQML 2.0.1) or MdInterval.Datum (RESQML 2.2+)
+            md_datum_dor = None
+            try:
+                md_datum_dor = search_attribute_matching_name(obj=trajectory_obj, name_rgx=r"MdDatum")[0]
+            except IndexError:
+                try:
+                    md_datum_dor = search_attribute_matching_name(obj=trajectory_obj, name_rgx=r"MdInterval.Datum")[0]
+                except IndexError:
+                    pass
+
+            if md_datum_dor is not None:
+                md_datum_identifier = get_obj_uri(md_datum_dor)
+                md_datum_obj = workspace.get_object(md_datum_identifier)
+
+                if md_datum_obj is not None:
+                    # Try to get coordinates from ReferencePointInACrs
+                    try:
+                        head_x = get_object_attribute_rgx(md_datum_obj, r"HorizontalCoordinates.Coordinate1") or 0.0
+                        head_y = get_object_attribute_rgx(md_datum_obj, r"HorizontalCoordinates.Coordinate2") or 0.0
+                        head_z = get_object_attribute_rgx(md_datum_obj, "VerticalCoordinate") or 0.0
+
+                        # Get vertical CRS to determine z direction
+                        try:
+                            vcrs_dor = search_attribute_matching_name(obj=md_datum_obj, name_rgx="VerticalCrs")[0]
+                            vcrs_identifier = get_obj_uri(vcrs_dor)
+                            vcrs_obj = workspace.get_object(vcrs_identifier)
+
+                            if vcrs_obj is not None:
+                                z_is_up = not is_z_reversed(vcrs_obj)
+                        except (IndexError, AttributeError):
+                            pass
+                    except AttributeError:
+                        pass
+                # Get CRS from trajectory geometry if available
+                try:
+                    geometry_paths = search_attribute_matching_name_with_path(md_datum_obj, r"VerticalCrs")
+                    if len(geometry_paths) > 0:
+                        crs_dor_path, crs_dor = geometry_paths[0]
+                        crs_identifier = get_obj_uri(crs_dor)
+                        crs = workspace.get_object(crs_identifier)
+                except Exception as e:
+                    logging.debug(f"Could not get CRS from trajectory: {e}")
+        except Exception as e:
+            logging.debug(f"Could not get reference point from trajectory: {e}")
+
+        # Build wellbore path points - simple vertical projection from measured depths
+        # Note: This is a simplified representation. For accurate 3D trajectory,
+        # you would need to interpolate along the trajectory's control points.
+        points = []
+        line_indices = []
+
+        for i, md in enumerate(md_array):
+            # Create point at (head_x, head_y, head_z +/- md)
+            # Apply z direction based on CRS
+            z_offset = md if z_is_up else -md
+            points.append([head_x, head_y, head_z + z_offset])
+
+            # Connect consecutive points
+            if i > 0:
+                line_indices.append([i - 1, i])
+
+        # Apply sub_indices filter if provided
+        if sub_indices is not None and len(sub_indices) > 0:
+            filtered_points = []
+            filtered_indices = []
+            index_map = {}
+
+            for new_idx, old_idx in enumerate(sub_indices):
+                if 0 <= old_idx < len(points):
+                    filtered_points.append(points[old_idx])
+                    index_map[old_idx] = new_idx
+
+            for line in line_indices:
+                if line[0] in index_map and line[1] in index_map:
+                    filtered_indices.append([index_map[line[0]], index_map[line[1]]])
+
+            points = filtered_points
+            line_indices = filtered_indices
+
+        if len(points) > 0:
+            meshes.append(
+                PolylineSetMesh(
+                    identifier=f"{get_obj_uri(energyml_object)}_wellbore",
+                    energyml_object=energyml_object,
+                    crs_object=crs,
+                    point_list=points,
+                    line_indices=line_indices,
+                )
+            )
+
+    except Exception as e:
+        logging.error(f"Failed to read wellbore frame representation: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+    return meshes
+
+
 def read_sub_representation(
     energyml_object: Any,
-    workspace: EnergymlWorkspace,
-    sub_indices: List[int] = None,
+    workspace: EnergymlStorageInterface,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[AbstractMesh]:
     supporting_rep_dor = search_attribute_matching_name(
         obj=energyml_object, name_rgx=r"(SupportingRepresentation|RepresentedObject)"
     )[0]
-    supporting_rep_identifier = get_obj_identifier(supporting_rep_dor)
-    supporting_rep = workspace.get_object_by_identifier(supporting_rep_identifier)
+    supporting_rep_identifier = get_obj_uri(supporting_rep_dor)
+    supporting_rep = workspace.get_object(supporting_rep_identifier)
 
     total_size = 0
-    all_indices = []
+    all_indices = None
     for patch_path, patch_indices in search_attribute_matching_name_with_path(
         obj=energyml_object,
         name_rgx="SubRepresentationPatch.\\d+.ElementIndices.\\d+.Indices",
@@ -690,7 +883,7 @@ def read_sub_representation(
         else:
             total_size = total_size + len(array)
 
-        all_indices = all_indices + array
+        all_indices = all_indices + array if all_indices is not None else array
     meshes = read_mesh_object(
         energyml_object=supporting_rep,
         workspace=workspace,
@@ -698,7 +891,7 @@ def read_sub_representation(
     )
 
     for m in meshes:
-        m.identifier = f"sub representation {get_obj_identifier(energyml_object)} of {m.identifier}"
+        m.identifier = f"sub representation {get_obj_uri(energyml_object)} of {m.identifier}"
 
     return meshes
 
@@ -1250,31 +1443,17 @@ def export_obj(mesh_list: List[AbstractMesh], out: BytesIO, obj_name: Optional[s
     """
     Export an :class:`AbstractMesh` into obj format.
 
+    This function is maintained for backward compatibility and delegates to the
+    export module. For new code, consider importing from energyml.utils.data.export.
+
     Each AbstractMesh from the list :param:`mesh_list` will be placed into its own group.
     :param mesh_list:
     :param out:
     :param obj_name:
     :return:
     """
-    out.write("# Generated by energyml-utils a Geosiris python module\n\n".encode("utf-8"))
-
-    if obj_name is not None:
-        out.write(f"o {obj_name}\n\n".encode("utf-8"))
-
-    point_offset = 0
-    for m in mesh_list:
-        out.write(f"g {m.identifier}\n\n".encode("utf-8"))
-        _export_obj_elt(
-            off_point_part=out,
-            off_face_part=out,
-            points=m.point_list,
-            indices=m.get_indices(),
-            point_offset=point_offset,
-            colors=[],
-            elt_letter="l" if isinstance(m, PolylineSetMesh) else "f",
-        )
-        point_offset = point_offset + len(m.point_list)
-        out.write("\n".encode("utf-8"))
+    # Delegate to the new export module
+    _export_obj_new(mesh_list, out, obj_name)
 
 
 def _export_obj_elt(

@@ -30,6 +30,7 @@ from energyml.opc.opc import (
     Keywords1,
     TargetMode,
 )
+from energyml.utils.storage_interface import DataArrayMetadata, EnergymlStorageInterface, ResourceMetadata
 import numpy as np
 from .uri import Uri, parse_uri
 from xsdata.formats.dataclass.models.generics import DerivedElement
@@ -87,12 +88,11 @@ from .serialization import (
     read_energyml_json_bytes,
     JSON_VERSION,
 )
-from .workspace import EnergymlWorkspace
 from .xml import is_energyml_content_type
 
 
 @dataclass
-class Epc(EnergymlWorkspace):
+class Epc(EnergymlStorageInterface):
     """
     A class that represent an EPC file content
     """
@@ -124,6 +124,8 @@ class Epc(EnergymlWorkspace):
     h5_io_files: List[BytesIO] = field(
         default_factory=list,
     )
+
+    force_h5_path: Optional[str] = field(default=None)
 
     """
     Additional rels for objects. Key is the object (same than in @energyml_objects) and value is a list of
@@ -429,6 +431,10 @@ class Epc(EnergymlWorkspace):
         Get all HDF5 file paths referenced in the EPC file (from rels to external resources)
         :return: list of HDF5 file paths
         """
+
+        if self.force_h5_path is not None:
+            return [self.force_h5_path]
+
         is_uri = (isinstance(obj, str) and parse_uri(obj) is not None) or isinstance(obj, Uri)
         if is_uri:
             obj = self.get_object_by_identifier(obj)
@@ -451,8 +457,6 @@ class Epc(EnergymlWorkspace):
                 if os.path.exists(possible_h5_path):
                     h5_paths.add(possible_h5_path)
         return list(h5_paths)
-
-    # -- Functions inherited from EnergymlWorkspace
 
     def get_object_as_dor(self, identifier: str, dor_qualified_type) -> Optional[Any]:
         """
@@ -487,8 +491,8 @@ class Epc(EnergymlWorkspace):
                 return o
         return None
 
-    def get_object(self, uuid: str, object_version: Optional[str]) -> Optional[Any]:
-        return self.get_object_by_identifier(f"{uuid}.{object_version or ''}")
+    def get_object(self, identifier: Union[str, Uri]) -> Optional[Any]:
+        return self.get_object_by_identifier(identifier)
 
     def add_object(self, obj: Any) -> bool:
         """
@@ -634,11 +638,12 @@ class Epc(EnergymlWorkspace):
     # Class methods
 
     @classmethod
-    def read_file(cls, epc_file_path: str):
+    def read_file(cls, epc_file_path: str) -> "Epc":
         with open(epc_file_path, "rb") as f:
             epc = cls.read_stream(BytesIO(f.read()))
             epc.epc_file_path = epc_file_path
             return epc
+        raise IOError(f"Failed to open EPC file {epc_file_path}")
 
     @classmethod
     def read_stream(cls, epc_file_io: BytesIO):  # returns an Epc instance
@@ -770,6 +775,45 @@ class Epc(EnergymlWorkspace):
 
         return None
 
+    def list_objects(self, dataspace: str | None = None, object_type: str | None = None) -> List[ResourceMetadata]:
+        result = []
+        for obj in self.energyml_objects:
+            if (dataspace is None or get_obj_type(get_obj_usable_class(obj)) == dataspace) and (
+                object_type is None or get_qualified_type_from_class(type(obj)) == object_type
+            ):
+                res_meta = ResourceMetadata(
+                    uri=str(get_obj_uri(obj)),
+                    uuid=get_obj_uuid(obj),
+                    title=get_object_attribute(obj, "citation.title") or "",
+                    object_type=type(obj).__name__,
+                    version=get_obj_version(obj),
+                    content_type=get_content_type_from_class(type(obj)) or "",
+                )
+                result.append(res_meta)
+        return result
+
+    def put_object(self, obj: Any, dataspace: str | None = None) -> str | None:
+        if self.add_object(obj):
+            return str(get_obj_uri(obj))
+        return None
+
+    def delete_object(self, identifier: Union[str, Any]) -> bool:
+        obj = self.get_object_by_identifier(identifier)
+        if obj is not None:
+            self.remove_object(identifier)
+            return True
+        return False
+
+    def get_array_metadata(
+        self, proxy: str | Uri | Any, path_in_external: str | None = None
+    ) -> DataArrayMetadata | List[DataArrayMetadata] | None:
+        array = self.read_array(proxy=proxy, path_in_external=path_in_external)
+        if array is not None:
+            if isinstance(array, np.ndarray):
+                return DataArrayMetadata.from_numpy_array(path_in_resource=path_in_external, array=array)
+            elif isinstance(array, list):
+                return DataArrayMetadata.from_list(path_in_resource=path_in_external, data=array)
+
     def dumps_epc_content_and_files_lists(self) -> str:
         """
         Dumps the EPC content and files lists for debugging purposes.
@@ -781,6 +825,13 @@ class Epc(EnergymlWorkspace):
         raw_files_list = [raw_file.path for raw_file in self.raw_files]
 
         return "EPC Content:\n" + "\n".join(content_list) + "\n\nRaw Files:\n" + "\n".join(raw_files_list)
+
+    def close(self) -> None:
+        """
+        Close the EPC file and release any resources.
+        :return:
+        """
+        pass
 
 
 #     ______                                      __   ____                 __  _

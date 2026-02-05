@@ -233,6 +233,8 @@ def get_module_name_and_type_from_content_or_qualified_type(cqt: str) -> Tuple[s
             ct = parse_qualified_type(cqt)
         except AttributeError:
             pass
+    if ct is None:
+        raise ValueError(f"Cannot parse content-type or qualified-type: {cqt}")
 
     domain = ct.group("domain")
     if domain is None:
@@ -281,6 +283,10 @@ def get_module_name(domain: str, domain_version: str):
     return f"energyml.{domain}.{domain_version}.{ns[ns.rindex('/') + 1:]}"
 
 
+# Track modules that failed to import to avoid duplicate logging
+_FAILED_IMPORT_MODULES = set()
+
+
 def import_related_module(energyml_module_name: str) -> None:
     """
     Import related modules for a specific energyml module. (See. :const:`RELATED_MODULES`)
@@ -292,8 +298,11 @@ def import_related_module(energyml_module_name: str) -> None:
             for m in related:
                 try:
                     import_module(m)
-                except Exception:
-                    pass
+                except Exception as e:
+                    # Only log once per unique module
+                    if m not in _FAILED_IMPORT_MODULES:
+                        _FAILED_IMPORT_MODULES.add(m)
+                        logging.debug(f"Could not import related module {m}: {e}")
                     # logging.error(e)
 
 
@@ -425,6 +434,10 @@ def get_object_attribute(obj: Any, attr_dot_path: str, force_snake_case=True) ->
     """
     current_attrib_name, path_next = path_next_attribute(attr_dot_path)
 
+    if current_attrib_name is None:
+        logging.error(f"Attribute path '{attr_dot_path}' is invalid.")
+        return None
+
     if force_snake_case:
         current_attrib_name = snake_case(current_attrib_name)
 
@@ -517,6 +530,10 @@ def get_object_attribute_or_create(
     """
     current_attrib_name, path_next = path_next_attribute(attr_dot_path)
 
+    if current_attrib_name is None:
+        logging.error(f"Attribute path '{attr_dot_path}' is invalid.")
+        return None
+
     if force_snake_case:
         current_attrib_name = snake_case(current_attrib_name)
 
@@ -551,6 +568,10 @@ def get_object_attribute_advanced(obj: Any, attr_dot_path: str) -> Any:
         current_attrib_name = attr_dot_path.split(".")[0]
 
     current_attrib_name = get_matching_class_attribute_name(obj, current_attrib_name)
+
+    if current_attrib_name is None:
+        logging.error(f"Attribute path '{attr_dot_path}' is invalid.")
+        return None
 
     value = None
     if isinstance(obj, list):
@@ -587,9 +608,10 @@ def get_object_attribute_no_verif(obj: Any, attr_name: str, default: Optional[An
         else:
             raise AttributeError(obj, name=attr_name)
     else:
-        return (
-            getattr(obj, attr_name) or default
-        )  # we did not used the "default" of getattr to keep raising AttributeError
+        res = getattr(obj, attr_name)
+        if res is None:  # we did not used the "default" of getattr to keep raising AttributeError
+            return default
+        return res
 
 
 def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:
@@ -870,6 +892,9 @@ def search_attribute_matching_name_with_path(
     #     current_match = attrib_list[0]
     #     next_match = ".".join(attrib_list[1:])
     current_match, next_match = path_next_attribute(name_rgx)
+    if current_match is None:
+        logging.error(f"Attribute name regex '{name_rgx}' is invalid.")
+        return []
     res = []
 
     if current_path is None:
@@ -997,7 +1022,7 @@ def set_attribute_from_dict(obj: Any, values: Dict) -> None:
             set_attribute_from_path(obj=obj, attribute_path=k, value=v)
 
 
-def set_attribute_from_path(obj: Any, attribute_path: str, value: Any):
+def set_attribute_from_path(obj: Any, attribute_path: str, value: Any) -> None:
     """
     Changes the value of a (sub)attribute.
     Example :
@@ -1023,6 +1048,11 @@ def set_attribute_from_path(obj: Any, attribute_path: str, value: Any):
     """
     upper = obj
     current_attrib_name, path_next = path_next_attribute(attribute_path)
+
+    if current_attrib_name is None:
+        logging.error(f"Attribute path '{attribute_path}' is invalid.")
+        return
+
     if path_next is not None:
         set_attribute_from_path(
             get_object_attribute(
@@ -1066,12 +1096,12 @@ def set_attribute_from_path(obj: Any, attribute_path: str, value: Any):
                 setattr(upper, current_attrib_name, value)
 
 
-def set_attribute_value(obj: any, attribute_name_rgx, value: Any):
+def set_attribute_value(obj: any, attribute_name_rgx, value: Any) -> None:
     copy_attributes(obj_in={attribute_name_rgx: value}, obj_out=obj, ignore_case=True)
 
 
 def copy_attributes(
-    obj_in: any,
+    obj_in: Any,
     obj_out: Any,
     only_existing_attributes: bool = True,
     ignore_case: bool = True,
@@ -1081,7 +1111,7 @@ def copy_attributes(
         p_list = search_attribute_matching_name_with_path(
             obj=obj_out,
             name_rgx=k_in,
-            re_flags=re.IGNORECASE if ignore_case else 0,
+            re_flags=re.IGNORECASE if ignore_case else 0,  # re.NOFLAG only available in Python 3.11+
             deep_search=False,
             search_in_sub_obj=False,
         )
@@ -1337,7 +1367,7 @@ def get_qualified_type_from_class(cls: Union[type, Any], print_dev_version=True)
     return None
 
 
-def get_object_uri(obj: any, dataspace: Optional[str] = None) -> Optional[Uri]:
+def get_object_uri(obj: Any, dataspace: Optional[str] = None) -> Optional[Uri]:
     """Returns an ETP URI"""
     return parse_uri(f"eml:///dataspace('{dataspace or ''}')/{get_qualified_type_from_class(obj)}({get_obj_uuid(obj)})")
 
@@ -1522,6 +1552,12 @@ def _gen_str_from_attribute_name(attribute_name: Optional[str], _parent_class: O
     :param _parent_class:
     :return:
     """
+    if attribute_name is None:
+        return (
+            "A random str ("
+            + str(random_value_from_class(int))
+            + ") @_gen_str_from_attribute_name attribute 'attribute_name' was None"
+        )
     attribute_name_lw = attribute_name.lower()
     if attribute_name is not None:
         if attribute_name_lw == "uuid" or attribute_name_lw == "uid":

@@ -44,6 +44,7 @@ sample/
 gen*/
 manip*
 *.epc
+*.h5
 *.off
 *.obj
 *.log
@@ -54,8 +55,16 @@ manip*
 
 *.xml
 *.json
+docs/*.md
+
+# DATA
+*.obj
+*.geojson
+*.vtk
+*.stl
 
 
 # WIP
 src/energyml/utils/wip*
 scripts
+rc/camunda

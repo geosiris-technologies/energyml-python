@@ -39,3 +39,10 @@ class NotParsableType(Exception):
 class UnparsableFile(Exception):
     def __init__(self, t: Optional[str] = None):
         super().__init__("File is not parsable for an EPC file. Please use RawFile class for non energyml files.")
+
+
+class NotSupportedError(Exception):
+    """Exception for not supported features"""
+
+    def __init__(self, msg):
+        super().__init__(msg)

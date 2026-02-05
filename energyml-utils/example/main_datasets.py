@@ -1,15 +1,15 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
-from src.energyml.utils.data.datasets_io import (
+from energyml.utils.data.datasets_io import (
     ParquetFileReader,
     ParquetFileWriter,
     CSVFileReader,
     CSVFileWriter,
     read_dataset,
 )
-from utils.data.helper import read_array
-from utils.introspection import search_attribute_matching_name_with_path
-from utils.serialization import read_energyml_xml_file
+from energyml.utils.data.helper import read_array
+from energyml.utils.introspection import search_attribute_matching_name_with_path
+from energyml.utils.serialization import read_energyml_xml_file
 
 
 def local_parquet():

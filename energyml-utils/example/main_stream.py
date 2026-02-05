@@ -24,11 +24,12 @@ from energyml.utils.epc import (
 from energyml.utils.serialization import serialize_json
 
 
+from energyml.resqml.v2_2.resqmlv2 import TriangulatedSetRepresentation, ContactElement
+from energyml.eml.v2_3.commonv2 import DataObjectReference
+
+
 def test_epc_stream_main():
     logging.basicConfig(level=logging.DEBUG)
-
-    from energyml.resqml.v2_2.resqmlv2 import TriangulatedSetRepresentation, ContactElement
-    from energyml.eml.v2_3.commonv2 import DataObjectReference
 
     # Use the test EPC file
     test_epc = "wip/my_stream_file.epc"
@@ -114,9 +115,6 @@ def test_epc_stream_main():
 
 def test_epc_im_main():
     logging.basicConfig(level=logging.DEBUG)
-
-    from energyml.resqml.v2_2.resqmlv2 import TriangulatedSetRepresentation, ContactElement
-    from energyml.eml.v2_3.commonv2 import DataObjectReference
 
     # Use the test EPC file
     test_epc = "wip/my_stream_file.epc"

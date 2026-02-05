@@ -179,7 +179,7 @@ def get_class_pkg(cls):
     try:
         p = re.compile(RGX_ENERGYML_MODULE_NAME)
         match = p.search(cls.__module__)
-        return match.group("pkg")
+        return match.group("pkg")  # type: ignore
     except AttributeError as e:
         logging.error(f"Exception to get class package for '{cls}'")
         raise e
@@ -217,6 +217,8 @@ def reshape_version_from_regex_match(
     :param nb_digit: The number of digits to keep in the version.
     :return: The reshaped version string.
     """
+    if match is None:
+        return ""
     return reshape_version(match.group("versionNumber"), nb_digit) + (
         "dev" + match.group("versionDev") if match.group("versionDev") is not None and print_dev_version else ""
     )

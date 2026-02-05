@@ -54,61 +54,98 @@ except Exception:
 # HDF5
 if __H5PY_MODULE_EXISTS__:
 
-    def h5_list_datasets(h5_file_path: Union[BytesIO, str]) -> List[str]:
+    def h5_list_datasets(h5_file_path: Union[BytesIO, str, "h5py.File"]) -> List[str]:
         """
         List all datasets in an HDF5 file.
-        :param h5_file_path: Path to the HDF5 file
+        :param h5_file_path: Path to the HDF5 file, BytesIO object, or an already opened h5py.File
         :return: List of dataset names in the HDF5 file
         """
         res = []
-        with h5py.File(h5_file_path, "r") as f:  # type: ignore
-            # Function to print the names of all datasets
+
+        # Check if it's already an opened h5py.File
+        if isinstance(h5_file_path, h5py.File):  # type: ignore
+
             def list_datasets(name, obj):
-                if isinstance(obj, h5py.Dataset):  # Check if the object is a dataset  # type: ignore
+                if isinstance(obj, h5py.Dataset):  # type: ignore
                     res.append(name)
 
-            # Visit all items in the HDF5 file and apply the list function
-            f.visititems(list_datasets)
+            h5_file_path.visititems(list_datasets)
+        else:
+            with h5py.File(h5_file_path, "r") as f:  # type: ignore
+                # Function to print the names of all datasets
+                def list_datasets(name, obj):
+                    if isinstance(obj, h5py.Dataset):  # Check if the object is a dataset  # type: ignore
+                        res.append(name)
+
+                # Visit all items in the HDF5 file and apply the list function
+                f.visititems(list_datasets)
         return res
 
     @dataclass
     class HDF5FileReader(DatasetReader):  # noqa: F401
-        def read_array(self, source: Union[BytesIO, str], path_in_external_file: str) -> Optional[np.ndarray]:
-            with h5py.File(source, "r") as f:  # type: ignore
-                d_group = f[path_in_external_file]
+        def read_array(
+            self, source: Union[BytesIO, str, "h5py.File"], path_in_external_file: str
+        ) -> Optional[np.ndarray]:
+            # Check if it's already an opened h5py.File
+            if isinstance(source, h5py.File):  # type: ignore
+                d_group = source[path_in_external_file]
                 return d_group[()]  # type: ignore
+            else:
+                with h5py.File(source, "r") as f:  # type: ignore
+                    d_group = f[path_in_external_file]
+                    return d_group[()]  # type: ignore
 
-        def get_array_dimension(self, source: Union[BytesIO, str], path_in_external_file: str) -> Optional[List[int]]:
-            with h5py.File(source, "r") as f:  # type: ignore
-                return list(f[path_in_external_file].shape)
+        def get_array_dimension(
+            self, source: Union[BytesIO, str, "h5py.File"], path_in_external_file: str
+        ) -> Optional[List[int]]:
+            # Check if it's already an opened h5py.File
+            if isinstance(source, h5py.File):  # type: ignore
+                return list(source[path_in_external_file].shape)
+            else:
+                with h5py.File(source, "r") as f:  # type: ignore
+                    return list(f[path_in_external_file].shape)
 
         def extract_h5_datasets(
             self,
-            input_h5: Union[BytesIO, str],
-            output_h5: Union[BytesIO, str],
+            input_h5: Union[BytesIO, str, "h5py.File"],
+            output_h5: Union[BytesIO, str, "h5py.File"],
             h5_datasets_paths: List[str],
         ) -> None:
             """
             Copy all dataset from :param input_h5 matching with paths in :param h5_datasets_paths into the :param output
-            :param input_h5:
-            :param output_h5:
+            :param input_h5: Path to HDF5 file, BytesIO, or already opened h5py.File
+            :param output_h5: Path to HDF5 file, BytesIO, or already opened h5py.File
             :param h5_datasets_paths:
             :return:
             """
             if h5_datasets_paths is None:
                 h5_datasets_paths = h5_list_datasets(input_h5)
             if len(h5_datasets_paths) > 0:
-                with h5py.File(output_h5, "a") as f_dest:  # type: ignore
-                    with h5py.File(input_h5, "r") as f_src:  # type: ignore
+                # Handle output file
+                should_close_dest = not isinstance(output_h5, h5py.File)  # type: ignore
+                f_dest = output_h5 if isinstance(output_h5, h5py.File) else h5py.File(output_h5, "a")  # type: ignore
+
+                try:
+                    # Handle input file
+                    should_close_src = not isinstance(input_h5, h5py.File)  # type: ignore
+                    f_src = input_h5 if isinstance(input_h5, h5py.File) else h5py.File(input_h5, "r")  # type: ignore
+
+                    try:
                         for dataset in h5_datasets_paths:
                             f_dest.create_dataset(dataset, data=f_src[dataset])
+                    finally:
+                        if should_close_src:
+                            f_src.close()
+                finally:
+                    if should_close_dest:
+                        f_dest.close()
 
     @dataclass
     class HDF5FileWriter:
 
         def write_array(
             self,
-            target: Union[str, BytesIO, bytes],
+            target: Union[str, BytesIO, bytes, "h5py.File"],
             array: Union[list, np.ndarray],
             path_in_external_file: str,
             dtype: Optional[np.dtype] = None,
@@ -119,30 +156,51 @@ if __H5PY_MODULE_EXISTS__:
             if dtype is not None and not isinstance(dtype, np.dtype):
                 dtype = np.dtype(dtype)
 
-            with h5py.File(target, "a") as f:  # type: ignore
-                # print(array.dtype, h5py.string_dtype(), array.dtype == 'O')
-                # print("\t", dtype or (h5py.string_dtype() if array.dtype == '0' else array.dtype))
+            # Check if it's already an opened h5py.File
+            if isinstance(target, h5py.File):  # type: ignore
                 if isinstance(array, np.ndarray) and array.dtype == "O":
                     array = np.asarray([s.encode() if isinstance(s, str) else s for s in array])
                     np.void(array)
-                dset = f.create_dataset(path_in_external_file, array.shape, dtype or array.dtype)
+                dset = target.create_dataset(path_in_external_file, array.shape, dtype or array.dtype)
                 dset[()] = array
+            else:
+                with h5py.File(target, "a") as f:  # type: ignore
+                    # print(array.dtype, h5py.string_dtype(), array.dtype == 'O')
+                    # print("\t", dtype or (h5py.string_dtype() if array.dtype == '0' else array.dtype))
+                    if isinstance(array, np.ndarray) and array.dtype == "O":
+                        array = np.asarray([s.encode() if isinstance(s, str) else s for s in array])
+                        np.void(array)
+                    dset = f.create_dataset(path_in_external_file, array.shape, dtype or array.dtype)
+                    dset[()] = array
 
 else:
 
     class HDF5FileReader:
-        def read_array(self, source: Union[BytesIO, str], path_in_external_file: str) -> Optional[np.ndarray]:
+        def read_array(self, source: Union[BytesIO, str, Any], path_in_external_file: str) -> Optional[np.ndarray]:
             raise MissingExtraInstallation(extra_name="hdf5")
 
-        def get_array_dimension(self, source: Union[BytesIO, str], path_in_external_file: str) -> Optional[np.ndarray]:
+        def get_array_dimension(
+            self, source: Union[BytesIO, str, Any], path_in_external_file: str
+        ) -> Optional[np.ndarray]:
             raise MissingExtraInstallation(extra_name="hdf5")
 
         def extract_h5_datasets(
             self,
-            input_h5: Union[BytesIO, str],
-            output_h5: Union[BytesIO, str],
+            input_h5: Union[BytesIO, str, Any],
+            output_h5: Union[BytesIO, str, Any],
             h5_datasets_paths: List[str],
         ) -> None:
+            raise MissingExtraInstallation(extra_name="hdf5")
+
+    class HDF5FileWriter:
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, bytes, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: str,
+            dtype: Optional[np.dtype] = None,
+        ):
             raise MissingExtraInstallation(extra_name="hdf5")
 
 
