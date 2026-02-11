@@ -62,6 +62,10 @@ docs/*.md
 *.geojson
 *.vtk
 *.stl
+rc/specs
+rc/**/*.epc
+rc/**/*.h5
+rc/**/*.hdf5
 
 
 # WIP

@@ -93,6 +93,42 @@ class ResourceMetadata:
             return f"{self.uuid}.{self.version}"
         return self.uuid
 
+    def __str__(self):
+        return f"{'[' + self.title + '] ' if self.title else ''}{self.uri}"
+
+
+def create_resource_metadata_from_uri(
+    uri: Uri,
+    title: Optional[str] = None,
+    last_changed: Optional[datetime] = None,
+    custom_data: Optional[Dict[str, Any]] = None,
+    source_count: Optional[int] = None,
+    target_count: Optional[int] = None,
+) -> ResourceMetadata:
+    """
+    Create ResourceMetadata from an ETP URI.
+
+    Args:
+        uri: ETP URI (e.g., 'eml:///dataspace('default')/resqml22.TriangulatedSetRepresentation('uuid.version')')
+    Returns:
+        ResourceMetadata instance with fields extracted from the URI
+    """
+    if not uri.is_object_uri():
+        raise ValueError("URI must be an object URI to create ResourceMetadata")
+    return ResourceMetadata(
+        uri=str(uri),
+        uuid=uri.uuid or "",
+        title=title or "",
+        object_type=uri.object_type or "",
+        content_type=uri.get_content_type(),
+        version=uri.version,
+        dataspace=uri.dataspace,
+        custom_data=custom_data or {},
+        source_count=source_count,
+        target_count=target_count,
+        last_changed=last_changed,
+    )
+
 
 @dataclass
 class DataArrayMetadata:

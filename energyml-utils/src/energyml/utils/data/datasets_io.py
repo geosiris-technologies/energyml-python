@@ -580,7 +580,6 @@ def read_dataset(
     mimetype: Optional[str] = "application/x-hdf5",
 ) -> Any:
     mimetype = (mimetype or "").lower()
-    file_reader = HDF5FileReader()  # default is hdf5
     if "parquet" in mimetype or (
         isinstance(source, str) and (source.lower().endswith(".parquet") or source.lower().endswith(".pqt"))
     ):
@@ -589,6 +588,8 @@ def read_dataset(
         isinstance(source, str) and (source.lower().endswith(".csv") or source.lower().endswith(".dat"))
     ):
         file_reader = CSVFileReader()
+    else:
+        file_reader = HDF5FileReader()  # default is hdf5
     return file_reader.read_array(source, path_in_external_file)
 
 

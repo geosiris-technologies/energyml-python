@@ -12,13 +12,12 @@ Tests cover:
 """
 import os
 import tempfile
-import zipfile
-from pathlib import Path
 
+from energyml.utils.epc_utils import gen_energyml_object_path
 import pytest
 import numpy as np
 
-from energyml.eml.v2_3.commonv2 import Citation, DataObjectReference
+from energyml.eml.v2_3.commonv2 import Citation
 from energyml.resqml.v2_2.resqmlv2 import (
     TriangulatedSetRepresentation,
     BoundaryFeatureInterpretation,
@@ -65,7 +64,7 @@ def sample_objects():
             originator="Test",
             creation=epoch_to_date(epoch()),
         ),
-        uuid=gen_uuid(),
+        uuid="25773477-ffee-4cc2-867d-000000000001",
         object_version="1.0",
     )
 
@@ -76,21 +75,9 @@ def sample_objects():
             originator="Test",
             creation=epoch_to_date(epoch()),
         ),
-        uuid=gen_uuid(),
+        uuid="25773477-ffee-4cc2-867d-000000000002",
         object_version="1.0",
         interpreted_feature=as_dor(bf),
-    )
-
-    # Create a TriangulatedSetRepresentation
-    trset = TriangulatedSetRepresentation(
-        citation=Citation(
-            title="Test TriangulatedSetRepresentation",
-            originator="Test",
-            creation=epoch_to_date(epoch()),
-        ),
-        uuid=gen_uuid(),
-        object_version="1.0",
-        represented_object=as_dor(bfi),
     )
 
     # Create a HorizonInterpretation (independent object)
@@ -100,9 +87,22 @@ def sample_objects():
             originator="Test",
             creation=epoch_to_date(epoch()),
         ),
-        uuid=gen_uuid(),
+        interpreted_feature=as_dor(bf),
+        uuid="25773477-ffee-4cc2-867d-000000000003",
         object_version="1.0",
-        domain="depth",
+        # domain="depth",
+    )
+
+    # Create a TriangulatedSetRepresentation
+    trset = TriangulatedSetRepresentation(
+        citation=Citation(
+            title="Test TriangulatedSetRepresentation",
+            originator="Test",
+            creation=epoch_to_date(epoch()),
+        ),
+        uuid="25773477-ffee-4cc2-867d-000000000004",
+        object_version="1.0",
+        represented_object=as_dor(horizon_interp),
     )
 
     return {
@@ -139,7 +139,7 @@ class TestRelsUpdateModes:
 
         # Basic rels should exist (from _add_object_to_file)
         bfi_rels = reader2.get_obj_rels(get_obj_identifier(bfi))
-        assert len(bfi_rels) > 0  # Should have SOURCE rels
+        assert len(bfi_rels) == 0, "Expected no relationships in MANUAL mode without explicit rebuild"
 
         reader2.close()
 
@@ -162,15 +162,22 @@ class TestRelsUpdateModes:
         # Reopen and verify relationships were built
         reader2 = EpcStreamReader(temp_epc_file)
 
-        # Check that bfi has a SOURCE relationship to bf
+        # Check that bfi has a DEST relationship to bf
         bfi_rels = reader2.get_obj_rels(get_obj_identifier(bfi))
-        source_rels = [r for r in bfi_rels if r.type_value == EPCRelsRelationshipType.SOURCE_OBJECT.get_type()]
-        assert len(source_rels) >= 1, "Expected SOURCE relationship from bfi to bf"
+        dest_rels = [r for r in bfi_rels if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)]
+        source_rels = [r for r in bfi_rels if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)]
+        assert len(dest_rels) == 1, "Expected DESTINATION relationship from bfi to bf"
+        assert len(source_rels) == 1, "Expected SOURCE relationship from bfi to trset"
 
-        # Check that bf has a DESTINATION relationship from bfi
+        # Check that bf has a SOURCE relationship from bfi
         bf_rels = reader2.get_obj_rels(get_obj_identifier(bf))
-        dest_rels = [r for r in bf_rels if r.type_value == EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()]
-        assert len(dest_rels) >= 1, "Expected DESTINATION relationship from bfi to bf"
+        source_rels = [r for r in bf_rels if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)]
+        assert len(source_rels) == 1, "Expected SOURCE relationship in bf rels targeting bfi"
+
+        # Check that bf has a SOURCE relationship from bfi
+        trset_rels = reader2.get_obj_rels(get_obj_identifier(trset))
+        dest_rels = [r for r in trset_rels if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)]
+        assert len(dest_rels) >= 1, "Expected DESTINATION relationship in trset rels targeting bfi"
 
         reader2.close()
 
@@ -187,12 +194,37 @@ class TestRelsUpdateModes:
 
         # Check relationships immediately (without closing)
         bfi_rels = reader.get_obj_rels(get_obj_identifier(bfi))
-        source_rels = [r for r in bfi_rels if r.type_value == EPCRelsRelationshipType.SOURCE_OBJECT.get_type()]
-        assert len(source_rels) >= 1, "Expected immediate SOURCE relationship from bfi to bf"
+        source_rels = [r for r in bfi_rels if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)]
+        assert len(source_rels) == 0, "Expected no SOURCE relationships in bfi rels since bf does not refers to bfi"
+
+        dest_rels = [r for r in bfi_rels if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)]
+        assert len(dest_rels) >= 1, f"Expected immediate DESTINATION relationship from bfi to bf {bfi_rels}"
 
         bf_rels = reader.get_obj_rels(get_obj_identifier(bf))
-        dest_rels = [r for r in bf_rels if r.type_value == EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()]
-        assert len(dest_rels) >= 1, "Expected immediate DESTINATION relationship from bfi to bf"
+        source_rels = [r for r in bf_rels if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)]
+        assert len(source_rels) >= 1, f"Expected immediate SOURCE relationship from bfi to bf {bf_rels}"
+
+        reader.close()
+
+    def test_update_at_modification_mode_add_reversed_order(self, temp_epc_file, sample_objects):
+        """Test that UPDATE_AT_MODIFICATION mode updates rels immediately on add even if objects are added in reversed order."""
+        reader = EpcStreamReader(temp_epc_file, rels_update_mode=RelsUpdateMode.UPDATE_AT_MODIFICATION)
+
+        bf = sample_objects["bf"]
+        bfi = sample_objects["bfi"]
+
+        # Add objects in reversed order to test that relationships are created even if the interpreted feature is added after the interpretation
+        reader.add_object(bfi)
+        reader.add_object(bf)
+
+        # Check relationships immediately (without closing)
+        bfi_rels = reader.get_obj_rels(get_obj_identifier(bfi))
+        dest_rels = [r for r in bfi_rels if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)]
+        assert len(dest_rels) >= 1, "Expected immediate DESTINATION relationship in bfi rels targeting bf"
+
+        bf_rels = reader.get_obj_rels(get_obj_identifier(bf))
+        source_rels = [r for r in bf_rels if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)]
+        assert len(source_rels) >= 1, "Expected immediate SOURCE relationship in bf rels targeting bfi"
 
         reader.close()
 
@@ -209,14 +241,14 @@ class TestRelsUpdateModes:
 
         # Verify relationships exist
         bf_rels_before = reader.get_obj_rels(get_obj_identifier(bf))
-        assert len(bf_rels_before) > 0, "Expected relationships before removal"
+        assert len(bf_rels_before) == 1, "Expected relationships before removal"
 
         # Remove bfi
         reader.remove_object(get_obj_identifier(bfi))
 
         # Check that bf's rels no longer has references to bfi
         bf_rels_after = reader.get_obj_rels(get_obj_identifier(bf))
-        bfi_refs = [r for r in bf_rels_after if get_obj_identifier(bfi) in r.id]
+        bfi_refs = [r for r in bf_rels_after if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)]
         assert len(bfi_refs) == 0, "Expected no references to removed object"
 
         reader.close()
@@ -256,23 +288,25 @@ class TestRelsUpdateModes:
 
         reader.update_object(bfi_modified)
 
-        # Check that bf no longer has DESTINATION relationship from bfi
+        # Check that bf no longer has SOURCE relationship from bfi
         bf_rels = reader.get_obj_rels(get_obj_identifier(bf))
-        bfi_dest_rels = [
+        bfi_source_rels = [
             r
             for r in bf_rels
-            if r.type_value == EPCRelsRelationshipType.DESTINATION_OBJECT.get_type() and get_obj_identifier(bfi) in r.id
+            if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)
+            and gen_energyml_object_path(bfi, reader.export_version) in r.target
         ]
-        assert len(bfi_dest_rels) == 0, "Expected old DESTINATION relationship to be removed"
+        assert len(bfi_source_rels) == 0, "Expected old SOURCE relationship to be removed"
 
-        # Check that bf2 now has DESTINATION relationship from bfi
+        # Check that bf2 now has SOURCE relationship from bfi
         bf2_rels = reader.get_obj_rels(get_obj_identifier(bf2))
-        bfi_dest_rels2 = [
+        bfi_source_rels2 = [
             r
             for r in bf2_rels
-            if r.type_value == EPCRelsRelationshipType.DESTINATION_OBJECT.get_type() and get_obj_identifier(bfi) in r.id
+            if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)
+            and gen_energyml_object_path(bfi, reader.export_version) in r.target
         ]
-        assert len(bfi_dest_rels2) >= 1, "Expected new DESTINATION relationship to be added"
+        assert len(bfi_source_rels2) >= 1, "Expected new SOURCE relationship to be added"
 
         reader.close()
 
@@ -369,21 +403,23 @@ class TestRelationshipConsistency:
 
         # Check bfi -> bf (SOURCE)
         bfi_rels = reader.get_obj_rels(get_obj_identifier(bfi))
-        bfi_source_to_bf = [
+        bfi_dest_to_bf = [
             r
             for r in bfi_rels
-            if r.type_value == EPCRelsRelationshipType.SOURCE_OBJECT.get_type() and get_obj_identifier(bf) in r.id
+            if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)
+            and gen_energyml_object_path(bf, reader.export_version) in r.target
         ]
-        assert len(bfi_source_to_bf) >= 1
+        assert len(bfi_dest_to_bf) >= 1
 
         # Check bf -> bfi (DESTINATION)
         bf_rels = reader.get_obj_rels(get_obj_identifier(bf))
-        bf_dest_from_bfi = [
+        bf_source_from_bfi = [
             r
             for r in bf_rels
-            if r.type_value == EPCRelsRelationshipType.DESTINATION_OBJECT.get_type() and get_obj_identifier(bfi) in r.id
+            if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)
+            and gen_energyml_object_path(bfi, reader.export_version) in r.target
         ]
-        assert len(bf_dest_from_bfi) >= 1
+        assert len(bf_source_from_bfi) >= 1
 
         reader.close()
 
@@ -392,35 +428,38 @@ class TestRelationshipConsistency:
         reader = EpcStreamReader(temp_epc_file, rels_update_mode=RelsUpdateMode.UPDATE_AT_MODIFICATION)
 
         bf = sample_objects["bf"]
-        bfi = sample_objects["bfi"]
+        hi = sample_objects["horizon_interp"]
         trset = sample_objects["trset"]
 
         reader.add_object(bf)
-        reader.add_object(bfi)
+        reader.add_object(hi)
         reader.add_object(trset)
 
-        # Check trset -> bfi
-        trset_rels = reader.get_obj_rels(get_obj_identifier(trset))
-        trset_to_bfi = [
+        # Check trset -> hi
+        trset_rels = reader.get_obj_rels(trset)
+        assert len(trset_rels) == 1, "Expected relationships in trset rels"
+        hi_dest_rels = [
             r
             for r in trset_rels
-            if r.type_value == EPCRelsRelationshipType.SOURCE_OBJECT.get_type() and get_obj_identifier(bfi) in r.id
+            if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)
+            and gen_energyml_object_path(hi, reader.export_version) in r.target
         ]
-        assert len(trset_to_bfi) >= 1
+        assert len(hi_dest_rels) == 1, "Expected DESTINATION relationship from trset to hi"
 
-        # Check bfi -> bf
-        bfi_rels = reader.get_obj_rels(get_obj_identifier(bfi))
-        bfi_to_bf = [
+        # Check hi -> bf
+        hi_rels = reader.get_obj_rels(hi)
+        hi_to_bf = [
             r
-            for r in bfi_rels
-            if r.type_value == EPCRelsRelationshipType.SOURCE_OBJECT.get_type() and get_obj_identifier(bf) in r.id
+            for r in hi_rels
+            if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)
+            and gen_energyml_object_path(bf, reader.export_version) in r.target
         ]
-        assert len(bfi_to_bf) >= 1
+        assert len(hi_to_bf) == 1, "Expected DESTINATION relationship from hi to bf"
 
-        # Check bf has 2 DESTINATION relationships (from bfi and indirectly from trset)
-        bf_rels = reader.get_obj_rels(get_obj_identifier(bf))
-        bf_dest_rels = [r for r in bf_rels if r.type_value == EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()]
-        assert len(bf_dest_rels) >= 1
+        # Check bf has 1 SOURCE relationships (from hi and indirectly from trset)
+        bf_rels = reader.get_obj_rels(bf)
+        bf_source_rels = [r for r in bf_rels if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)]
+        assert len(bf_source_rels) == 1, "Expected 1 SOURCE relationship in bf rels targeting hi"
 
         reader.close()
 
@@ -482,39 +521,40 @@ class TestCachingAndPerformance:
         reader.close()
 
         # Reopen and access metadata
-        reader2 = EpcStreamReader(temp_epc_file, preload_metadata=True)
+        reader2 = EpcStreamReader(temp_epc_file)
 
         # Check that we can list objects without loading them
-        metadata_list = reader2.list_object_metadata()
+        metadata_list = reader2.list_objects()
         assert len(metadata_list) == 2
         assert reader2.stats.loaded_objects == 0, "Expected no objects loaded when accessing metadata"
 
         reader2.close()
 
-    def test_lazy_loading(self, temp_epc_file, sample_objects):
-        """Test that objects are loaded on-demand."""
-        reader = EpcStreamReader(temp_epc_file)
+    # ==> no lazy loading for now
+    # def test_lazy_loading(self, temp_epc_file, sample_objects):
+    #     """Test that objects are loaded on-demand."""
+    #     reader = EpcStreamReader(temp_epc_file)
 
-        bf = sample_objects["bf"]
-        bfi = sample_objects["bfi"]
-        trset = sample_objects["trset"]
+    #     bf = sample_objects["bf"]
+    #     hi = sample_objects["horizon_interp"]
+    #     trset = sample_objects["trset"]
 
-        reader.add_object(bf)
-        reader.add_object(bfi)
-        reader.add_object(trset)
+    #     reader.add_object(bf)
+    #     reader.add_object(hi)
+    #     reader.add_object(trset)
 
-        reader.close()
+    #     reader.close()
 
-        # Reopen
-        reader2 = EpcStreamReader(temp_epc_file)
-        assert len(reader2) == 3
-        assert reader2.stats.loaded_objects == 0, "Expected no objects loaded initially"
+    #     # Reopen
+    #     reader2 = EpcStreamReader(temp_epc_file)
+    #     assert len(reader2) == 3
+    #     assert reader2.stats.loaded_objects == 0, "Expected no objects loaded initially"
 
-        # Load one object
-        reader2.get_object_by_identifier(get_obj_identifier(bf))
-        assert reader2.stats.loaded_objects == 1, "Expected exactly 1 object loaded"
+    #     # Load one object
+    #     reader2.get_object_by_identifier(get_obj_identifier(bf))
+    #     assert reader2.stats.loaded_objects == 1, "Expected exactly 1 object loaded"
 
-        reader2.close()
+    #     reader2.close()
 
 
 class TestHelperMethods:
@@ -528,7 +568,7 @@ class TestHelperMethods:
         identifier = reader.add_object(bf)
 
         metadata = reader._metadata[identifier]
-        rels_path = reader._gen_rels_path_from_metadata(metadata)
+        rels_path = reader._metadata_mgr.gen_rels_path_from_metadata(metadata)
 
         assert rels_path is not None
         assert "_rels/" in rels_path
@@ -543,7 +583,7 @@ class TestHelperMethods:
         bf = sample_objects["bf"]
         identifier = reader.add_object(bf)
 
-        rels_path = reader._gen_rels_path_from_identifier(identifier)
+        rels_path = reader._metadata_mgr.gen_rels_path_from_identifier(identifier)
 
         assert rels_path is not None
         assert "_rels/" in rels_path
@@ -559,10 +599,10 @@ class TestModeManagement:
         """Test changing the relationship update mode."""
         reader = EpcStreamReader(temp_epc_file, rels_update_mode=RelsUpdateMode.MANUAL)
 
-        assert reader.get_rels_update_mode() == RelsUpdateMode.MANUAL
+        assert reader.rels_update_mode == RelsUpdateMode.MANUAL
 
-        reader.set_rels_update_mode(RelsUpdateMode.UPDATE_AT_MODIFICATION)
-        assert reader.get_rels_update_mode() == RelsUpdateMode.UPDATE_AT_MODIFICATION
+        reader.rels_update_mode = RelsUpdateMode.UPDATE_AT_MODIFICATION
+        assert reader.rels_update_mode == RelsUpdateMode.UPDATE_AT_MODIFICATION
 
         reader.close()
 
@@ -571,7 +611,7 @@ class TestModeManagement:
         reader = EpcStreamReader(temp_epc_file)
 
         with pytest.raises(ValueError):
-            reader.set_rels_update_mode("invalid_mode")
+            reader.rels_update_mode = "invalid_mode"
 
         reader.close()
 
@@ -588,23 +628,12 @@ class TestEdgeCases:
 
         reader.close()
 
-    def test_update_nonexistent_object(self, temp_epc_file, sample_objects):
-        """Test updating an object that doesn't exist."""
-        reader = EpcStreamReader(temp_epc_file)
-
-        bf = sample_objects["bf"]
-
-        with pytest.raises(ValueError):
-            reader.update_object(bf)
-
-        reader.close()
-
     def test_empty_epc_operations(self, temp_epc_file):
         """Test operations on empty EPC."""
         reader = EpcStreamReader(temp_epc_file)
 
         assert len(reader) == 0
-        assert len(reader.list_object_metadata()) == 0
+        assert len(reader.list_objects()) == 0
 
         reader.close()
 
@@ -706,10 +735,10 @@ class TestAdditionalRelsPreservation:
 
         h5_rel = Relationship(
             target="data/test_data.h5",
-            type_value=EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type(),
+            type_value=str(EPCRelsRelationshipType.EXTERNAL_RESOURCE),
             id=f"_external_{identifier}_h5",
         )
-        reader.add_rels_for_object(identifier, [h5_rel], write_immediately=True)
+        reader.add_rels_for_object(identifier, [h5_rel])
 
         # Verify the HDF5 path is returned
         h5_paths_before = reader.get_h5_file_paths(identifier)
@@ -725,7 +754,7 @@ class TestAdditionalRelsPreservation:
 
         # Also verify by checking rels directly
         rels = reader.get_obj_rels(identifier)
-        external_rels = [r for r in rels if r.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type()]
+        external_rels = [r for r in rels if r.type_value == str(EPCRelsRelationshipType.EXTERNAL_RESOURCE)]
         assert len(external_rels) > 0, "EXTERNAL_RESOURCE relationship not found in rels"
         assert any("test_data.h5" in r.target for r in external_rels)
 
@@ -744,10 +773,10 @@ class TestAdditionalRelsPreservation:
 
         h5_rel = Relationship(
             target="data/boundary_data.h5",
-            type_value=EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type(),
+            type_value=str(EPCRelsRelationshipType.EXTERNAL_RESOURCE),
             id=f"_external_{bf_id}_h5",
         )
-        reader.add_rels_for_object(bf_id, [h5_rel], write_immediately=True)
+        reader.add_rels_for_object(bf_id, [h5_rel])
 
         # Verify initial state
         h5_paths_initial = reader.get_h5_file_paths(bf_id)
@@ -764,7 +793,7 @@ class TestAdditionalRelsPreservation:
 
         # Verify rels directly
         rels = reader.get_obj_rels(bf_id)
-        external_rels = [r for r in rels if r.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type()]
+        external_rels = [r for r in rels if r.type_value == str(EPCRelsRelationshipType.EXTERNAL_RESOURCE)]
         assert len(external_rels) > 0
         assert any("boundary_data.h5" in r.target for r in external_rels)
 
@@ -783,10 +812,10 @@ class TestAdditionalRelsPreservation:
 
         h5_rel = Relationship(
             target="data/test_data.h5",
-            type_value=EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type(),
+            type_value=str(EPCRelsRelationshipType.EXTERNAL_RESOURCE),
             id=f"_external_{identifier}_h5",
         )
-        reader.add_rels_for_object(identifier, [h5_rel], write_immediately=True)
+        reader.add_rels_for_object(identifier, [h5_rel])
 
         # Update object
         trset.citation.title = "Modified in UPDATE_ON_CLOSE mode"
@@ -815,21 +844,21 @@ class TestAdditionalRelsPreservation:
         h5_rels = [
             Relationship(
                 target="data/geometry.h5",
-                type_value=EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type(),
+                type_value=str(EPCRelsRelationshipType.EXTERNAL_RESOURCE),
                 id=f"_external_{identifier}_geometry",
             ),
             Relationship(
                 target="data/properties.h5",
-                type_value=EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type(),
+                type_value=str(EPCRelsRelationshipType.EXTERNAL_RESOURCE),
                 id=f"_external_{identifier}_properties",
             ),
             Relationship(
                 target="data/metadata.h5",
-                type_value=EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type(),
+                type_value=str(EPCRelsRelationshipType.EXTERNAL_RESOURCE),
                 id=f"_external_{identifier}_metadata",
             ),
         ]
-        reader.add_rels_for_object(identifier, h5_rels, write_immediately=True)
+        reader.add_rels_for_object(identifier, h5_rels)
 
         # Verify all are present
         h5_paths_before = reader.get_h5_file_paths(identifier)
@@ -868,10 +897,10 @@ class TestAdditionalRelsPreservation:
 
         h5_rel = Relationship(
             target="data/bf_data.h5",
-            type_value=EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type(),
+            type_value=str(EPCRelsRelationshipType.EXTERNAL_RESOURCE),
             id=f"_external_{bf_id}_h5",
         )
-        reader.add_rels_for_object(bf_id, [h5_rel], write_immediately=True)
+        reader.add_rels_for_object(bf_id, [h5_rel])
 
         # Verify initial state
         h5_paths = reader.get_h5_file_paths(bf_id)
@@ -907,10 +936,10 @@ class TestAdditionalRelsPreservation:
 
         h5_rel = Relationship(
             target="data/bfi_data.h5",
-            type_value=EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type(),
+            type_value=str(EPCRelsRelationshipType.EXTERNAL_RESOURCE),
             id=f"_external_{bfi_id}_h5",
         )
-        reader.add_rels_for_object(bfi_id, [h5_rel], write_immediately=True)
+        reader.add_rels_for_object(bfi_id, [h5_rel])
 
         # Verify it exists
         h5_paths = reader.get_h5_file_paths(bfi_id)

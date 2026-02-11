@@ -13,7 +13,7 @@ sys.path.insert(0, str(src_path))
 
 from energyml.utils.introspection import get_obj_uri
 from energyml.utils.constants import EpcExportVersion
-from energyml.utils.epc_stream import read_epc_stream
+from energyml.utils.epc_stream_old import read_epc_stream
 from energyml.utils.epc import (
     Epc,
     create_energyml_object,

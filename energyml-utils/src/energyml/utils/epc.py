@@ -30,6 +30,12 @@ from energyml.opc.opc import (
     Keywords1,
     TargetMode,
 )
+from energyml.utils.epc_utils import (
+    gen_core_props_path,
+    gen_energyml_object_path,
+    gen_rels_path,
+    get_epc_content_type_path,
+)
 from energyml.utils.storage_interface import DataArrayMetadata, EnergymlStorageInterface, ResourceMetadata
 import numpy as np
 from .uri import Uri, parse_uri
@@ -103,7 +109,7 @@ class Epc(EnergymlStorageInterface):
 
     export_version: EpcExportVersion = field(default=EpcExportVersion.CLASSIC)
 
-    core_props: CoreProperties = field(default=None)
+    core_props: Optional[CoreProperties] = field(default=None)
 
     """ xml files referred in the [Content_Types].xml  """
     energyml_objects: List = field(
@@ -724,14 +730,11 @@ class Epc(EnergymlStorageInterface):
                                 # RELS FILES READING START
 
                                 # logging.debug(f"reading rels {f_info.filename}")
-                                (
-                                    rels_folder,
-                                    rels_file_name,
-                                ) = get_file_folder_and_name_from_path(f_info.filename)
-                                while rels_folder.endswith("/"):
-                                    rels_folder = rels_folder[:-1]
-                                obj_folder = rels_folder[: rels_folder.rindex("/") + 1] if "/" in rels_folder else ""
-                                obj_file_name = rels_file_name[:-5]  # removing the ".rels"
+                                rels_path = Path(f_info.filename)
+                                obj_folder = (
+                                    str(rels_path.parent.parent) + "/" if str(rels_path.parent.parent) != "." else ""
+                                )
+                                obj_file_name = rels_path.stem  # removing the ".rels"
                                 rels_file: Relationships = read_energyml_xml_bytes(
                                     epc_file.read(f_info.filename),
                                     Relationships,
@@ -907,7 +910,7 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
         if isinstance(obj_or_identifier, str):  # is an identifier or uri
             parsed_uri = parse_uri(obj_or_identifier)
             if parsed_uri is not None:
-                print(f"====> parsed uri {parsed_uri} : uuid is {parsed_uri.uuid}")
+                logging.debug(f"====> parsed uri {parsed_uri} : uuid is {parsed_uri.uuid}")
                 if hasattr(dor, "qualified_type"):
                     set_attribute_from_path(dor, "qualified_type", parsed_uri.get_qualified_type())
                 if hasattr(dor, "content_type"):
@@ -960,8 +963,9 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
                         dor.content_type = get_object_attribute(obj_or_identifier, "content_type")
 
                 set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Title"))
-                set_attribute_from_path(dor, "uuid", get_obj_uuid(obj_or_identifier))
-                set_attribute_from_path(dor, "uid", get_obj_uuid(obj_or_identifier))
+                obj_uuid = get_obj_uuid(obj_or_identifier)
+                set_attribute_from_path(dor, "uuid", obj_uuid)
+                set_attribute_from_path(dor, "uid", obj_uuid)
                 if hasattr(dor, "object_version"):
                     set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
                 if hasattr(dor, "version_string"):
@@ -989,9 +993,10 @@ def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectRe
                             logging.error(f"Failed to set content_type for DOR {e}")
 
                     set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Citation.Title"))
-
-                    set_attribute_from_path(dor, "uuid", get_obj_uuid(obj_or_identifier))
-                    set_attribute_from_path(dor, "uid", get_obj_uuid(obj_or_identifier))
+                    obj_uuid = get_obj_uuid(obj_or_identifier)
+                    # logging.debug(f"====> obj uuid is {obj_uuid}")
+                    set_attribute_from_path(dor, "uid", obj_uuid)
+                    set_attribute_from_path(dor, "uuid", obj_uuid)
                     if hasattr(dor, "object_version"):
                         set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
                     if hasattr(dor, "version_string"):
@@ -1088,43 +1093,6 @@ def get_reverse_dor_list(obj_list: List[Any], key_func: Callable = get_obj_ident
 # PATHS
 
 
-def gen_core_props_path(
-    export_version: EpcExportVersion = EpcExportVersion.CLASSIC,
-):
-    return "docProps/core.xml"
-
-
-def gen_energyml_object_path(
-    energyml_object: Union[str, Any],
-    export_version: EpcExportVersion = EpcExportVersion.CLASSIC,
-):
-    """
-    Generate a path to store the :param:`energyml_object` into an epc file (depending on the :param:`export_version`)
-    :param energyml_object:
-    :param export_version:
-    :return:
-    """
-    if isinstance(energyml_object, str):
-        energyml_object = read_energyml_xml_str(energyml_object)
-
-    obj_type = get_object_type_for_file_path_from_class(energyml_object.__class__)
-    # logging.debug("is_dor: ", str(is_dor(energyml_object)), "object type : " + str(obj_type))
-
-    if is_dor(energyml_object):
-        uuid, pkg, pkg_version, obj_cls, object_version = get_dor_obj_info(energyml_object)
-        obj_type = get_object_type_for_file_path_from_class(obj_cls)
-    else:
-        pkg = get_class_pkg(energyml_object)
-        pkg_version = get_class_pkg_version(energyml_object)
-        object_version = get_obj_version(energyml_object)
-        uuid = get_obj_uuid(energyml_object)
-
-    if export_version == EpcExportVersion.EXPANDED:
-        return f"namespace_{pkg}{pkg_version.replace('.', '')}/{(('version_' + object_version + '/') if object_version is not None and len(object_version) > 0 else '')}{obj_type}_{uuid}.xml"
-    else:
-        return obj_type + "_" + uuid + ".xml"
-
-
 def get_file_folder_and_name_from_path(path: str) -> Tuple[str, str]:
     """
     Returns a tuple (FOLDER_PATH, FILE_NAME)
@@ -1136,48 +1104,4 @@ def get_file_folder_and_name_from_path(path: str) -> Tuple[str, str]:
     return obj_folder, obj_file_name
 
 
-def gen_rels_path(
-    energyml_object: Any,
-    export_version: EpcExportVersion = EpcExportVersion.CLASSIC,
-) -> str:
-    """
-    Generate a path to store the :param:`energyml_object` rels file into an epc file
-    (depending on the :param:`export_version`)
-    :param energyml_object:
-    :param export_version:
-    :return:
-    """
-    if isinstance(energyml_object, CoreProperties):
-        return f"{RELS_FOLDER_NAME}/.rels"
-    else:
-        obj_path = gen_energyml_object_path(energyml_object, export_version)
-        obj_folder, obj_file_name = get_file_folder_and_name_from_path(obj_path)
-        return f"{obj_folder}{RELS_FOLDER_NAME}/{obj_file_name}.rels"
-
-
 # def gen_rels_path_from_dor(dor: Any, export_version: EpcExportVersion = EpcExportVersion.CLASSIC) -> str:
-
-
-def get_epc_content_type_path(
-    export_version: EpcExportVersion = EpcExportVersion.CLASSIC,
-) -> str:
-    """
-    Generate a path to store the "[Content_Types].xml" file into an epc file
-    (depending on the :param:`export_version`)
-    :return:
-    """
-    return "[Content_Types].xml"
-
-
-def create_h5_external_relationship(h5_path: str, current_idx: int = 0) -> Relationship:
-    """
-    Create a Relationship object to link an external HDF5 file.
-    :param h5_path:
-    :return:
-    """
-    return Relationship(
-        target=h5_path,
-        type_value=EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type(),
-        id=f"Hdf5File{current_idx + 1 if current_idx > 0 else ''}",
-        target_mode=TargetMode.EXTERNAL,
-    )

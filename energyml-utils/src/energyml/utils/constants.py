@@ -113,7 +113,7 @@ RGX_ENERGYML_FILE_NAME = rf"^(.*/)?({RGX_ENERGYML_FILE_NAME_OLD})|({RGX_ENERGYML
 
 RGX_XML_HEADER = r"^\s*<\?xml(\s+(encoding\s*=\s*\"(?P<encoding>[^\"]+)\"|version\s*=\s*\"(?P<version>[^\"]+)\"|standalone\s*=\s*\"(?P<standalone>[^\"]+)\"))+"
 
-RGX_IDENTIFIER = rf"{RGX_UUID}(.(?P<version>\w+)?)?"
+RGX_IDENTIFIER = rf"{RGX_UUID}.((?P<version>\w+)?)?"
 
 # URI regex components
 URI_RGX_GRP_DOMAIN = "domain"
@@ -208,6 +208,7 @@ class OptimizedRegex:
 # CONSTANTS AND ENUMS
 # ===================================
 
+# TODO: RELS_CONTENT_TYPE may be incorrect or not well named, needs review
 RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
 RELS_FOLDER_NAME = "_rels"
 
@@ -222,6 +223,8 @@ class MimeType(Enum):
     PARQUET = "application/x-parquet"
     PDF = "application/pdf"
     RELS = "application/vnd.openxmlformats-package.relationships+xml"
+    CORE_PROPERTIES = "application/vnd.openxmlformats-package.core-properties+xml"
+    EXTENDED_CORE_PROPERTIES = "application/x-extended-core-properties+xml"
 
     def __str__(self):
         return self.value
@@ -237,17 +240,26 @@ class EpcExportVersion(Enum):
 class EPCRelsRelationshipType(Enum):
     """EPC relationships types with proper URL generation"""
 
-    # Standard relationship types
     DESTINATION_OBJECT = "destinationObject"
+    """The object in Target is the destination of the relationship."""
     SOURCE_OBJECT = "sourceObject"
+    """The current object is the source in the relationship with the target object."""
     ML_TO_EXTERNAL_PART_PROXY = "mlToExternalPartProxy"
+    """The target object is a proxy object for an external file."""
     EXTERNAL_PART_PROXY_TO_ML = "externalPartProxyToMl"
+    """The current object is used as a proxy object by the target object."""
     EXTERNAL_RESOURCE = "externalResource"
+    """The target is a resource outside of the EPC package. Note that TargetMode should be "External" for this relationship."""
     DestinationMedia = "destinationMedia"
+    """The object in Target is a media representation for the current object. As a guideline, media files should be stored in a "media" folder in the root of the package."""
     SOURCE_MEDIA = "sourceMedia"
+    """The current object is a media representation for the object in Target."""
     CHUNKED_PART = "chunkedPart"
+    """The target is part of a larger data object that has been chunked into several smaller files."""
     CORE_PROPERTIES = "core-properties"
-    EXTENDED_CORE_PROPERTIES = "extended-core-properties"  # Not in standard
+    """Core properties metadata relationship."""
+    EXTENDED_CORE_PROPERTIES = "extended-core-properties"
+    """Extended core properties metadata relationship (not in standard)."""
 
     def get_type(self) -> str:
         """Get the full relationship type URL"""
@@ -258,13 +270,16 @@ class EPCRelsRelationshipType(Enum):
         else:
             return "http://schemas.energistics.org/package/2012/relationships/" + self.value
 
+    def __str__(self) -> str:
+        return self.get_type()
+
 
 @dataclass
 class RawFile:
     """A class for non-energyml files to be stored in an EPC file"""
 
     path: str = field(default="_")
-    content: BytesIO = field(default=None)
+    content: Optional[BytesIO] = field(default=None)
 
 
 # ===================================
@@ -360,11 +375,11 @@ def content_type_to_qualified_type(ct: str) -> Optional[str]:
         return None
 
 
-def qualified_type_to_content_type(qt: str) -> Optional[str]:
+def qualified_type_to_content_type(qt: str) -> str:
     """Convert qualified type to content type format"""
     parsed = parse_content_or_qualified_type(qt)
     if not parsed:
-        return None
+        raise ValueError(f"Failed to parse qualified type: {qt}")
 
     try:
         domain = parsed.group("domain")
@@ -376,7 +391,7 @@ def qualified_type_to_content_type(qt: str) -> Optional[str]:
 
         return f"application/x-{domain}+xml;" f"version={formatted_version};" f"type={obj_type}"
     except (AttributeError, KeyError):
-        return None
+        raise ValueError(f"Failed to convert qualified type to content type: {qt}")
 
 
 def get_domain_version_from_content_or_qualified_type(cqt: str) -> Optional[str]:
@@ -389,6 +404,18 @@ def get_domain_version_from_content_or_qualified_type(cqt: str) -> Optional[str]
         return parsed.group("domainVersion")
     except (AttributeError, KeyError):
         return None
+
+
+def get_obj_type_from_content_or_qualified_type(cqt: str) -> str:
+    """Extract object type (e.g., "WellboreFeature") from content or qualified type"""
+    parsed = parse_content_or_qualified_type(cqt)
+    if not parsed:
+        raise ValueError(f"Failed to parse content or qualified type: {cqt}")
+
+    if parsed.group("type") is None:
+        raise ValueError(f"Failed to extract object type from content or qualified type: {cqt}")
+
+    return parsed.group("type")
 
 
 def split_identifier(identifier: str) -> Tuple[Optional[str], Optional[str]]:
@@ -435,6 +462,17 @@ def date_to_epoch(date: str) -> int:
         raise ValueError(f"Invalid date format: {date}")
 
 
+def date_to_datetime(date: str) -> datetime.datetime:
+    """Convert energyml date string to datetime object"""
+    try:
+        # Python 3.10 doesn't support 'Z' suffix in fromisoformat()
+        # Replace 'Z' with '+00:00' for compatibility
+        date_normalized = date.replace("Z", "+00:00") if date.endswith("Z") else date
+        return datetime.datetime.fromisoformat(date_normalized)
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid date format: {date}")
+
+
 def epoch_to_date(epoch_value: int) -> str:
     """Convert epoch timestamp to energyml date format"""
     try:
@@ -447,6 +485,18 @@ def epoch_to_date(epoch_value: int) -> str:
 def gen_uuid() -> str:
     """Generate a new UUID string"""
     return str(uuid_mod.uuid4())
+
+
+def extract_uuid_from_string(s: str) -> Optional[str]:
+    """Extract UUID from a string using optimized regex"""
+    if not s:
+        return None
+
+    match = OptimizedRegex.UUID_NO_GRP.search(s)
+    if match:
+        return match.group(0)
+
+    return None
 
 
 def mime_type_to_file_extension(mime_type: str) -> Optional[str]:
@@ -465,9 +515,36 @@ def mime_type_to_file_extension(mime_type: str) -> Optional[str]:
         "text/csv": "csv",
         "application/vnd.openxmlformats-package.relationships+xml": "rels",
         "application/pdf": "pdf",
+        "application/xml": "xml",
+        "text/xml": "xml",
+        "application/json": "json",
+        "application/vnd.openxmlformats-package.core-properties+xml": "xml",
+        "application/x-extended-core-properties+xml": "xml",
     }
 
     return mime_to_ext.get(mime_type_lower)
+
+
+def file_extension_to_mime_type(extension: str) -> Optional[str]:
+    """Convert file extension to MIME type"""
+    if not extension:
+        return None
+
+    ext_lower = extension.lower()
+
+    # Use dict for faster lookup than if/elif chain
+    ext_to_mime = {
+        "parquet": "application/x-parquet",
+        "h5": "application/x-hdf5",
+        "hdf5": "application/x-hdf5",
+        "csv": "text/csv",
+        "rels": "application/vnd.openxmlformats-package.relationships+xml",
+        "pdf": "application/pdf",
+        "xml": "application/xml",
+        "json": "application/json",
+    }
+
+    return ext_to_mime.get(ext_lower)
 
 
 # ===================================
@@ -583,3 +660,5 @@ if __name__ == "__main__":
             result = OptimizedRegex.URI.search(test_string)
 
         print(f"  {name}: {'✓' if result else '✗'} - {test_string[:50]}{'...' if len(test_string) > 50 else ''}")
+
+    print(EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES)

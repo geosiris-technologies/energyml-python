@@ -6,6 +6,7 @@ import logging
 import random
 import re
 import sys
+import traceback
 import typing
 from dataclasses import Field, field
 from enum import Enum
@@ -1147,10 +1148,16 @@ def get_obj_version(obj: Any) -> Optional[str]:
     try:
         return get_object_attribute_no_verif(obj, "object_version")
     except AttributeError:
+        # AttributeError is expected when attribute doesn't exist - try alternative
         try:
             return get_object_attribute_no_verif(obj, "version_string")
         except Exception:
-            logging.error(f"Error with {type(obj)}")
+            # Log with full call stack to see WHO called this function
+            logging.error(
+                f"Error getting version for {type(obj)} -- {obj}",
+                exc_info=True,
+                stack_info=True,  # This shows the full call stack including caller
+            )
             return None
             # raise e
 
