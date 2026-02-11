@@ -10,7 +10,6 @@ content into memory at once.
 
 import atexit
 from datetime import datetime
-from io import BytesIO
 import tempfile
 import traceback
 import numpy as np
@@ -19,6 +18,7 @@ import logging
 import os
 import re
 import zipfile
+from enum import Enum
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,22 +31,19 @@ from energyml.opc.opc import (
     CoreProperties,
     Relationships,
     Relationship,
-    Default,
-    Created,
-    Creator,
-    Identifier,
 )
-from energyml.utils.data.datasets_io import HDF5FileReader, HDF5FileWriter
+from energyml.utils.data.datasets_io import (
+    FileCacheManager,
+    get_handler_registry,
+)
 from energyml.utils.epc_utils import (
     EXPANDED_EXPORT_FOLDER_PREFIX,
     create_default_core_properties,
     create_default_types,
     create_mandatory_structure_epc,
     extract_uuid_and_version_from_obj_path,
-    gen_core_props_rels_path,
     gen_rels_path_from_obj_path,
     repair_epc_structure_if_not_valid,
-    valdiate_basic_epc_structure,
 )
 from energyml.utils.storage_interface import (
     DataArrayMetadata,
@@ -54,7 +51,7 @@ from energyml.utils.storage_interface import (
     ResourceMetadata,
     create_resource_metadata_from_uri,
 )
-from energyml.utils.uri import Uri, create_uri_from_content_type_or_qualified_type, parse_uri
+from energyml.utils.uri import Uri, create_uri_from_content_type_or_qualified_type
 from energyml.utils.constants import (
     EPCRelsRelationshipType,
     EpcExportVersion,
@@ -62,12 +59,9 @@ from energyml.utils.constants import (
     OptimizedRegex,
     file_extension_to_mime_type,
     date_to_datetime,
-    get_obj_type_from_content_or_qualified_type,
-    parse_content_type,
 )
 from energyml.utils.epc import (
     gen_energyml_object_path,
-    gen_rels_path,
     get_epc_content_type_path,
     gen_core_props_path,
 )
@@ -75,25 +69,18 @@ from energyml.utils.epc import (
 from energyml.utils.introspection import (
     get_class_from_content_type,
     get_content_type_from_class,
-    get_obj_content_type,
     get_obj_identifier,
     get_obj_title,
     get_obj_uri,
-    get_obj_uuid,
     get_object_attribute_advanced,
-    get_object_type_for_file_path_from_class,
     get_direct_dor_list,
     get_obj_type,
     get_obj_usable_class,
-    epoch_to_date,
-    epoch,
     gen_uuid,
 )
 from energyml.utils.serialization import read_energyml_xml_bytes, serialize_xml
 
-
-from .xml import is_energyml_content_type
-from enum import Enum
+from energyml.utils.xml import is_energyml_content_type
 
 
 def get_dor_identifiers_from_obj(obj: Any) -> Set[str]:
@@ -239,7 +226,8 @@ class _WorkerResult(TypedDict):
 
     identifier: str
     file_path: str
-    dest_obj_identifiers: Set[str]
+    object_type: str
+    referenced_objects: List[Tuple[str, str]]  # List of (target_identifier, target_type)
 
 
 def process_object_for_rels_worker(
@@ -248,7 +236,7 @@ def process_object_for_rels_worker(
     """
     Worker function for parallel relationship processing (runs in separate process).
 
-    This function is executed in a separate process to compute SOURCE relationships
+    This function is executed in a separate process to compute DESTINATION relationships
     for a single object. It bypasses Python's GIL for CPU-intensive XML parsing.
 
     Performance characteristics:
@@ -257,19 +245,22 @@ def process_object_for_rels_worker(
     - Results are serialized back to the main process via pickle
 
     Args:
-        args:
-        - args: Tuple containing:
+        args: Tuple containing:
             - identifier: Object UUID/identifier to process
             - epc_file_path: Absolute path to the EPC file
             - metadata_dict: Dictionary of all object metadata (for validation)
-        - export_version: Version of EPC export format to use
+        export_version: Version of EPC export format to use
 
     Returns:
-        Dictionary conforming to _WorkerResult TypedDict, or None if processing fails.
+        Dictionary conforming to _WorkerResult TypedDict with the following keys:
+            - 'identifier': The identifier of the processed object
+            - 'file_path': The file path of the object within the EPC archive
+            - 'object_type': The type of the object (e.g., 'BoundaryFeature', 'TriangulatedSetRepresentation')
+            - 'referenced_objects': List of tuples (target_identifier, target_type) for all
+              Data Object References (DORs) found in this object that exist in the EPC
+        Returns None if processing fails (e.g., object not found, parsing error).
     """
     identifier, epc_file_path, metadata_dict = args
-
-    dor_targets = []
 
     try:
         # Open ZIP file in this worker process
@@ -283,13 +274,32 @@ def process_object_for_rels_worker(
             obj_class = get_class_from_content_type(metadata.content_type)
             obj = read_energyml_xml_bytes(obj_data, obj_class)
 
-        # Get all Data Object References (DORs) from this object
-        dor_targets = get_dor_identifiers_from_obj(obj)
+        # Extract this object's type from metadata (no need to parse object)
+        obj_type = metadata.object_type
+
+        # Get all DOR URIs - URIs contain all necessary info (type, uuid, version)
+        dor_uris = get_dor_uris_from_obj(obj)
+
+        # Build list of (target_identifier, target_type) tuples from URIs
+        referenced_objects = []
+        for uri in dor_uris:
+            try:
+                target_identifier = uri.as_identifier()
+                # Only include if target exists in metadata
+                if target_identifier and target_identifier in metadata_dict:
+                    # Extract type directly from URI (no need to load target object)
+                    target_type = uri.object_type
+                    if target_type:
+                        referenced_objects.append((target_identifier, target_type))
+            except Exception as e:
+                # Don't fail entire object for one bad DOR
+                logging.debug(f"Skipping invalid DOR URI in {identifier}: {e}")
 
         return {
             "identifier": identifier,
             "file_path": metadata.file_path(export_version=export_version),
-            "dest_obj_identifiers": dor_targets,
+            "object_type": obj_type,
+            "referenced_objects": referenced_objects,
         }
 
     except Exception as e:
@@ -1215,6 +1225,10 @@ class EpcStreamReader(EnergymlStorageInterface):
             self._metadata_mgr.set_export_version(export_version)
         self._rels_mgr = _RelationshipManager(self._zip_accessor, self._metadata_mgr, self.stats, rels_update_mode)
 
+        # Initialize file cache manager for external array files (HDF5, Parquet, CSV, etc.)
+        self._file_cache = FileCacheManager(max_open_files=3)
+        self._handler_registry = get_handler_registry()
+
         # Register atexit handler to ensure cleanup on program shutdown
         self._atexit_registered = True
         atexit.register(self._atexit_close)
@@ -1353,10 +1367,10 @@ class EpcStreamReader(EnergymlStorageInterface):
         if _id is not None:
             rels_path = self._metadata_mgr.gen_rels_path_from_identifier(_id)
 
-        # Check in-memory additional rels first
-        for rels in self._rels_mgr.additional_rels.get(_id, []):
-            if rels.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
-                h5_paths.add(rels.target)
+            # Check in-memory additional rels first
+            for rels in self._rels_mgr.additional_rels.get(_id, []):
+                if rels.type_value == str(EPCRelsRelationshipType.EXTERNAL_RESOURCE):
+                    h5_paths.add(rels.target)
 
         # Also check rels from the EPC file
         if rels_path is not None:
@@ -1366,7 +1380,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                     self.stats.bytes_read += len(rels_data)
                     relationships = read_energyml_xml_bytes(rels_data, Relationships)
                     for rel in relationships.relationship:
-                        if rel.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
+                        if rel.type_value == str(EPCRelsRelationshipType.EXTERNAL_RESOURCE):
                             h5_paths.add(rel.target)
                 except KeyError:
                     pass
@@ -1689,20 +1703,224 @@ class EpcStreamReader(EnergymlStorageInterface):
         return True
 
     def read_array(self, proxy: Union[str, Uri, Any], path_in_external: str) -> Optional[np.ndarray]:
-        pass
+        """
+        Read a dataset from an external file (HDF5, Parquet, CSV, etc.) linked to the proxy object.
 
-    def write_array(
-        self,
-        proxy: Union[str, Uri, Any],
-        path_in_external: str,
-        array: np.ndarray,
-    ) -> bool:
-        pass
+        Uses an intelligent caching mechanism that:
+        1. Checks cached open files first (up to 3 files kept open)
+        2. Tries all possible file paths
+        3. Automatically selects the correct reader based on file extension
+        4. Adds successfully opened files to cache
+
+        Args:
+            proxy: The object, its identifier, or URI
+            path_in_external: Path/dataset name within the external file
+
+        Returns:
+            Numpy array if successful, None otherwise
+        """
+        # Get possible file paths for this object
+        file_paths = []
+
+        if self.force_h5_path is not None:
+            # Use forced path if specified
+            file_paths = [self.force_h5_path]
+        else:
+            # Get file paths from relationships
+            file_paths = self.get_h5_file_paths(proxy)
+
+        if not file_paths:
+            logging.warning(f"No external file paths found for proxy: {proxy}")
+            return None
+
+        # Keep track of which paths we've tried from cache vs from scratch
+        cached_paths = [p for p in file_paths if p in self._file_cache]
+        non_cached_paths = [p for p in file_paths if p not in self._file_cache]
+
+        # Try cached files first (most recently used first)
+        for file_path in cached_paths:
+            handler = self._handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                logging.debug(f"No handler found for file: {file_path}")
+                continue
+
+            try:
+                # Get cached file handle
+                file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
+                if file_handle is not None:
+                    # Try to read from cached handle
+                    result = handler.read_array(file_handle, path_in_external)
+                    if result is not None:
+                        return result
+            except Exception as e:
+                logging.debug(f"Failed to read from cached file {file_path}: {e}")
+                # Remove from cache if it's causing issues
+                self._file_cache.remove(file_path)
+
+        # Try non-cached files
+        for file_path in non_cached_paths:
+            handler = self._handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                logging.debug(f"No handler found for file: {file_path}")
+                continue
+
+            try:
+                # Try to open and read, which will add to cache if successful
+                file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
+                if file_handle is not None:
+                    result = handler.read_array(file_handle, path_in_external)
+                    if result is not None:
+                        return result
+                else:
+                    # Cache failed, try direct read without caching
+                    result = handler.read_array(file_path, path_in_external)
+                    if result is not None:
+                        return result
+            except Exception as e:
+                logging.debug(f"Failed to read from file {file_path}: {e}")
+
+        logging.error(f"Failed to read array from any available file paths: {file_paths}")
+        return None
+
+    def write_array(self, proxy: Union[str, Uri, Any], path_in_external: str, array: np.ndarray, **kwargs) -> bool:
+        """
+        Write a dataset to an external file (HDF5, Parquet, CSV, etc.) linked to the proxy object.
+
+        Uses the same caching mechanism as read_array for efficiency.
+
+        Args:
+            proxy: The object, its identifier, or URI
+            path_in_external: Path/dataset name within the external file
+            array: Numpy array to write
+            **kwargs: Additional format-specific parameters (e.g., dtype for HDF5, column_titles for Parquet)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        # Get possible file paths for this object
+        file_paths = []
+
+        if self.force_h5_path is not None:
+            # Use forced path if specified
+            file_paths = [self.force_h5_path]
+        else:
+            # Get file paths from relationships
+            file_paths = self.get_h5_file_paths(proxy)
+
+        if not file_paths:
+            logging.warning(f"No external file paths found for proxy: {proxy}")
+            return False
+
+        # Try to write to the first available file
+        # For writes, we prefer cached files first, then non-cached
+        cached_paths = [p for p in file_paths if p in self._file_cache]
+        non_cached_paths = [p for p in file_paths if p not in self._file_cache]
+
+        # Try cached files first
+        for file_path in cached_paths:
+            handler = self._handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                continue
+
+            try:
+                file_handle = self._file_cache.get_or_open(file_path, handler, mode="a")
+                if file_handle is not None:
+                    success = handler.write_array(file_handle, array, path_in_external, **kwargs)
+                    if success:
+                        return True
+            except Exception as e:
+                logging.debug(f"Failed to write to cached file {file_path}: {e}")
+                self._file_cache.remove(file_path)
+
+        # Try non-cached files
+        for file_path in non_cached_paths:
+            handler = self._handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                continue
+
+            try:
+                # Open in append mode and add to cache
+                file_handle = self._file_cache.get_or_open(file_path, handler, mode="a")
+                if file_handle is not None:
+                    success = handler.write_array(file_handle, array, path_in_external, **kwargs)
+                    if success:
+                        return True
+                else:
+                    # Cache failed, try direct write
+                    success = handler.write_array(file_path, array, path_in_external, **kwargs)
+                    if success:
+                        return True
+            except Exception as e:
+                logging.error(f"Failed to write to file {file_path}: {e}")
+
+        return False
 
     def get_array_metadata(
         self, proxy: Union[str, Uri, Any], path_in_external: Optional[str] = None
     ) -> Union[DataArrayMetadata, List[DataArrayMetadata], None]:
-        pass
+        """
+        Get metadata for data array(s) without loading the full array data.
+
+        Args:
+            proxy: The object, its identifier, or URI
+            path_in_external: Optional specific array path. If None, returns metadata for all arrays.
+
+        Returns:
+            DataArrayMetadata if path specified, List[DataArrayMetadata] if no path,
+            or None if not found
+        """
+        # Get possible file paths for this object
+        file_paths = []
+
+        if self.force_h5_path is not None:
+            file_paths = [self.force_h5_path]
+        else:
+            file_paths = self.get_h5_file_paths(proxy)
+
+        if not file_paths:
+            logging.warning(f"No external file paths found for proxy: {proxy}")
+            return None
+
+        # Try cached files first
+        cached_paths = [p for p in file_paths if p in self._file_cache]
+        non_cached_paths = [p for p in file_paths if p not in self._file_cache]
+
+        for file_path in cached_paths + non_cached_paths:
+            handler = self._handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                continue
+
+            try:
+                file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
+                source = file_handle if file_handle is not None else file_path
+
+                metadata_dict = handler.get_array_metadata(source, path_in_external)
+
+                if metadata_dict is None:
+                    continue
+
+                # Convert dict(s) to DataArrayMetadata
+                if isinstance(metadata_dict, list):
+                    return [
+                        DataArrayMetadata(
+                            path_in_resource=m.get("path"),
+                            array_type=m.get("dtype", "unknown"),
+                            dimensions=m.get("shape", []),
+                            custom_data={"size": m.get("size", 0)},
+                        )
+                        for m in metadata_dict
+                    ]
+                else:
+                    return DataArrayMetadata(
+                        path_in_resource=metadata_dict.get("path"),
+                        array_type=metadata_dict.get("dtype", "unknown"),
+                        dimensions=metadata_dict.get("shape", []),
+                        custom_data={"size": metadata_dict.get("size", 0)},
+                    )
+            except Exception as e:
+                logging.debug(f"Failed to get metadata from file {file_path}: {e}")
+
+        return None
 
     def list_objects(
         self, dataspace: Optional[str] = None, object_type: Optional[str] = None
@@ -1711,6 +1929,10 @@ class EpcStreamReader(EnergymlStorageInterface):
 
     def get_obj_rels(self, obj: Union[str, Uri, Any]) -> List[Relationship]:
         _id = self._id_from_uri_or_identifier(obj)
+
+        if _id is None:
+            logging.warning(f"Could not resolve identifier for object {obj}, cannot get relationships")
+            return []
 
         metadata = self._metadata_mgr.get_metadata(_id)
         if metadata is None:
@@ -1733,6 +1955,18 @@ class EpcStreamReader(EnergymlStorageInterface):
                 logging.info("Rebuilt all relationships on close (UPDATE_ON_CLOSE mode)")
             except Exception as e:
                 logging.warning(f"Error rebuilding rels on close: {e}")
+
+        # Close file cache
+        if hasattr(self, "_file_cache"):
+            self._file_cache.close_all()
+
+        # Close cached h5 if using force_h5_path
+        if self.cache_opened_h5 is not None:
+            try:
+                self.cache_opened_h5.close()
+            except Exception as e:
+                logging.debug(f"Error closing cache_opened_h5: {e}")
+            self.cache_opened_h5 = None
 
         # Delegate to ZIP accessor
         self._zip_accessor.close()
@@ -1757,12 +1991,7 @@ class EpcStreamReader(EnergymlStorageInterface):
         """Context manager exit with cleanup."""
         self.clear_cache()
         self.close()
-        if self.cache_opened_h5 is not None:
-            try:
-                self.cache_opened_h5.close()
-            except Exception:
-                pass
-            self.cache_opened_h5 = None
+        # Note: close() now handles cache_opened_h5
 
     def __len__(self) -> int:
         """Return total number of objects."""
@@ -1885,6 +2114,9 @@ class EpcStreamReader(EnergymlStorageInterface):
 
                 stats["objects_processed"] += 1
 
+                # Extract this object's type
+                obj_type = get_obj_type(get_obj_usable_class(obj))
+
                 # Get all DORs in this object
                 dors = get_direct_dor_list(obj)
 
@@ -1892,10 +2124,10 @@ class EpcStreamReader(EnergymlStorageInterface):
                     try:
                         target_identifier = get_obj_identifier(dor)
                         if target_identifier in self._metadata:
-                            # Record this reference
+                            # Record this reference (for building SOURCE rels in target's file)
                             if target_identifier not in reverse_references:
                                 reverse_references[target_identifier] = []
-                            reverse_references[target_identifier].append((identifier, obj))
+                            reverse_references[target_identifier].append((identifier, obj_type))
                     except Exception:
                         pass
 
@@ -1906,21 +2138,20 @@ class EpcStreamReader(EnergymlStorageInterface):
         # Map of rels_file_path -> Relationships object
         rels_files: Dict[str, Relationships] = {}
 
-        # Process each object to create SOURCE relationships
+        # Process each object to create DESTINATION relationships
         for identifier in self._metadata:
             try:
                 obj = self.get_object(identifier)
                 if obj is None:
                     continue
 
-                # metadata = self._metadata[identifier]
                 obj_rels_path = self._metadata_mgr.gen_rels_path_from_identifier(identifier)
 
                 # Get all DORs (objects this object references)
                 dors = get_direct_dor_list(obj)
 
                 if dors:
-                    # Create SOURCE relationships
+                    # Create DESTINATION relationships (this object -> targets it references)
                     relationships = []
 
                     for dor in dors:
@@ -1928,17 +2159,18 @@ class EpcStreamReader(EnergymlStorageInterface):
                             target_identifier = get_obj_identifier(dor)
                             if target_identifier in self._metadata:
                                 target_metadata = self._metadata[target_identifier]
+                                target_type = get_obj_type(get_obj_usable_class(dor))
 
                                 rel = Relationship(
                                     target=target_metadata.file_path(export_version=self._metadata_mgr._export_version),
-                                    type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
-                                    id=f"_{identifier}_{get_obj_type(get_obj_usable_class(dor))}_{target_identifier}",
+                                    type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
+                                    id=f"_{identifier}_{target_type}_{target_identifier}",
                                 )
                                 relationships.append(rel)
-                                stats["source_relationships"] += 1
+                                stats["destination_relationships"] += 1
 
                         except Exception as e:
-                            logging.debug(f"Failed to create SOURCE relationship: {e}")
+                            logging.debug(f"Failed to create DESTINATION relationship: {e}")
 
                     if relationships and obj_rels_path:
                         if obj_rels_path not in rels_files:
@@ -1946,9 +2178,9 @@ class EpcStreamReader(EnergymlStorageInterface):
                         rels_files[obj_rels_path].relationship.extend(relationships)
 
             except Exception as e:
-                logging.warning(f"Failed to create SOURCE rels for {identifier}: {e}")
+                logging.warning(f"Failed to create DESTINATION rels for {identifier}: {e}")
 
-        # Add DESTINATION relationships
+        # Add SOURCE relationships (in target's .rels file, pointing back to sources)
         for target_identifier, source_list in reverse_references.items():
             try:
                 if target_identifier not in self._metadata:
@@ -1960,27 +2192,27 @@ class EpcStreamReader(EnergymlStorageInterface):
                 if not target_rels_path:
                     continue
 
-                # Create DESTINATION relationships for each object that references this one
-                for source_identifier, source_obj in source_list:
+                # Create SOURCE relationships for each object that references this one
+                for source_identifier, source_type in source_list:
                     try:
                         source_metadata = self._metadata[source_identifier]
 
                         rel = Relationship(
                             target=source_metadata.file_path(export_version=self._metadata_mgr._export_version),
-                            type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
-                            id=f"_{target_identifier}_{get_obj_type(get_obj_usable_class(source_obj))}_{source_identifier}",
+                            type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
+                            id=f"_{target_identifier}_{source_type}_{source_identifier}",
                         )
 
                         if target_rels_path not in rels_files:
                             rels_files[target_rels_path] = Relationships(relationship=[])
                         rels_files[target_rels_path].relationship.append(rel)
-                        stats["destination_relationships"] += 1
+                        stats["source_relationships"] += 1
 
                     except Exception as e:
-                        logging.debug(f"Failed to create DESTINATION relationship: {e}")
+                        logging.debug(f"Failed to create SOURCE relationship: {e}")
 
             except Exception as e:
-                logging.warning(f"Failed to create DESTINATION rels for {target_identifier}: {e}")
+                logging.warning(f"Failed to create SOURCE rels for {target_identifier}: {e}")
 
         stats["rels_files_created"] = len(rels_files)
 
@@ -2104,12 +2336,12 @@ class EpcStreamReader(EnergymlStorageInterface):
             results = pool.starmap(process_object_for_rels_worker, work_items)
 
         # ============================================================================
-        # PHASE 2: SEQUENTIAL - Aggregate worker results and build SOURCE relationships
+        # PHASE 2: SEQUENTIAL - Aggregate worker results and build DESTINATION relationships
         # ============================================================================
         # Build data structures for subsequent phases:
-        # - reverse_references: Map target objects to their sources (for DESTINATION rels)
+        # - reverse_references: Map target objects to their sources (for SOURCE rels in target)
         # - rels_files: Accumulate all relationships by file path
-        reverse_references: Dict[str, List[str]] = {}
+        reverse_references: Dict[str, List[Tuple[str, str]]] = {}  # target_id -> [(source_id, source_type)]
         rels_files: Dict[str, Relationships] = {}
 
         for result in results:
@@ -2117,41 +2349,40 @@ class EpcStreamReader(EnergymlStorageInterface):
                 continue
 
             identifier = result["identifier"]
-            dest_obj_identifiers = result["dest_obj_identifiers"]
+            object_type = result["object_type"]
+            referenced_objects = result["referenced_objects"]
 
             stats["objects_processed"] += 1
 
-            # Create SOURCE relationships for this object
+            # Create DESTINATION relationships for this object (objects this one references)
             obj_rels_path = self._metadata_mgr.gen_rels_path_from_identifier(identifier)
-            if obj_rels_path and dest_obj_identifiers:
+            if obj_rels_path and referenced_objects:
                 if obj_rels_path not in rels_files:
                     rels_files[obj_rels_path] = Relationships(relationship=[])
 
-                for target_identifier in dest_obj_identifiers:
+                for target_identifier, target_type in referenced_objects:
                     # Verify target exists in metadata
                     if target_identifier not in self._metadata:
                         continue
 
                     target_metadata = self._metadata[target_identifier]
-                    target_class = get_class_from_content_type(target_metadata.content_type)
-                    target_type = get_obj_type(target_class) if target_class else "Unknown"
 
-                    # Create SOURCE relationship
+                    # Create DESTINATION relationship (this object -> target)
                     rel = Relationship(
                         target=target_metadata.file_path(export_version=export_version),
-                        type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
+                        type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
                         id=f"_{identifier}_{target_type}_{target_identifier}",
                     )
                     rels_files[obj_rels_path].relationship.append(rel)
-                    stats["source_relationships"] += 1
+                    stats["destination_relationships"] += 1
 
-                    # Build reverse reference map for DESTINATION relationships
+                    # Build reverse reference map for SOURCE relationships
                     if target_identifier not in reverse_references:
                         reverse_references[target_identifier] = []
-                    reverse_references[target_identifier].append(identifier)
+                    reverse_references[target_identifier].append((identifier, object_type))
 
         # ============================================================================
-        # PHASE 3: SEQUENTIAL - Create DESTINATION relationships
+        # PHASE 3: SEQUENTIAL - Create SOURCE relationships
         # ============================================================================
         for target_identifier, source_list in reverse_references.items():
             try:
@@ -2163,28 +2394,27 @@ class EpcStreamReader(EnergymlStorageInterface):
                 if not target_rels_path:
                     continue
 
-                for source_identifier in source_list:
+                for source_identifier, source_type in source_list:
                     try:
                         source_metadata = self._metadata[source_identifier]
-                        source_class = get_class_from_content_type(source_metadata.content_type)
-                        source_type = get_obj_type(source_class) if source_class else "Unknown"
 
+                        # Create SOURCE relationship (source object -> this target object)
                         rel = Relationship(
                             target=source_metadata.file_path(export_version=export_version),
-                            type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
+                            type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
                             id=f"_{target_identifier}_{source_type}_{source_identifier}",
                         )
 
                         if target_rels_path not in rels_files:
                             rels_files[target_rels_path] = Relationships(relationship=[])
                         rels_files[target_rels_path].relationship.append(rel)
-                        stats["destination_relationships"] += 1
+                        stats["source_relationships"] += 1
 
                     except Exception as e:
-                        logging.debug(f"Failed to create DESTINATION relationship: {e}")
+                        logging.debug(f"Failed to create SOURCE relationship: {e}")
 
             except Exception as e:
-                logging.warning(f"Failed to create DESTINATION rels for {target_identifier}: {e}")
+                logging.warning(f"Failed to create SOURCE rels for {target_identifier}: {e}")
 
         stats["rels_files_created"] = len(rels_files)
 

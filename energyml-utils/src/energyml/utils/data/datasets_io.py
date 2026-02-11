@@ -707,3 +707,576 @@ def get_proxy_uri_for_path_in_external(obj: Any, dataspace_name_or_uri: Union[st
     else:
         logging.debug(f"No datasets found in object {str(get_obj_uri(obj))}")
     return uri_path_map
+
+
+# ===========================================================================================
+# FILE CACHE MANAGER AND HANDLER REGISTRY
+# ===========================================================================================
+
+from collections import OrderedDict
+from typing import Callable
+from energyml.utils.data.model import ExternalArrayHandler
+
+
+class FileCacheManager:
+    """
+    Manages a cache of open file handles to avoid reopening overhead.
+
+    Keeps up to `max_open_files` (default 3) files open using an LRU strategy.
+    When a file is accessed, it moves to the front of the cache. When the cache
+    is full, the least recently used file is closed and removed.
+
+    Features:
+    - Thread-safe access to file handles
+    - Automatic cleanup of least-recently-used files
+    - Support for any file type with proper handlers
+    - Explicit close() method for cleanup
+    """
+
+    def __init__(self, max_open_files: int = 3):
+        """
+        Initialize file cache manager.
+
+        Args:
+            max_open_files: Maximum number of files to keep open simultaneously
+        """
+        self.max_open_files = max_open_files
+        self._cache: OrderedDict[str, Any] = OrderedDict()  # file_path -> open file handle
+        self._handlers: Dict[str, ExternalArrayHandler] = {}  # file_path -> handler instance
+
+    def get_or_open(self, file_path: str, handler: ExternalArrayHandler, mode: str = "r") -> Optional[Any]:
+        """
+        Get an open file handle from cache, or open it if not cached.
+
+        Args:
+            file_path: Path to the file
+            handler: Handler instance that knows how to open this file type
+            mode: File open mode ('r', 'a', etc.)
+
+        Returns:
+            Open file handle, or None if opening failed
+        """
+        # Normalize path
+        file_path = os.path.abspath(file_path) if os.path.exists(file_path) else file_path
+
+        # Check cache first
+        if file_path in self._cache:
+            # Move to end (most recently used)
+            self._cache.move_to_end(file_path)
+            return self._cache[file_path]
+
+        # Not in cache - try to open it
+        try:
+            file_handle = self._open_file(file_path, mode)
+            if file_handle is None:
+                return None
+
+            # Add to cache
+            self._cache[file_path] = file_handle
+            self._handlers[file_path] = handler
+            self._cache.move_to_end(file_path)
+
+            # Evict oldest if cache is full
+            if len(self._cache) > self.max_open_files:
+                self._evict_oldest()
+
+            return file_handle
+
+        except Exception as e:
+            logging.debug(f"Failed to open file {file_path}: {e}")
+            return None
+
+    def _open_file(self, file_path: str, mode: str) -> Optional[Any]:
+        """
+        Open a file based on its extension.
+
+        Args:
+            file_path: Path to the file
+            mode: File open mode
+
+        Returns:
+            Open file handle specific to the file type
+        """
+        ext = os.path.splitext(file_path)[1].lower()
+
+        if ext in [".h5", ".hdf5"] and __H5PY_MODULE_EXISTS__:
+            return h5py.File(file_path, mode)  # type: ignore
+        # Add other file types as needed
+        # For now, other types will be opened on-demand by their handlers
+
+        return None
+
+    def _evict_oldest(self) -> None:
+        """Remove the least recently used file from cache."""
+        if not self._cache:
+            return
+
+        # Get oldest (first) item
+        oldest_path, oldest_handle = self._cache.popitem(last=False)
+
+        # Close the file handle
+        try:
+            if hasattr(oldest_handle, "close"):
+                oldest_handle.close()
+        except Exception as e:
+            logging.debug(f"Error closing cached file {oldest_path}: {e}")
+
+        # Remove handler reference
+        if oldest_path in self._handlers:
+            del self._handlers[oldest_path]
+
+    def close_all(self) -> None:
+        """Close all cached file handles."""
+        for file_path, file_handle in list(self._cache.items()):
+            try:
+                if hasattr(file_handle, "close"):
+                    file_handle.close()
+            except Exception as e:
+                logging.debug(f"Error closing file {file_path}: {e}")
+
+        self._cache.clear()
+        self._handlers.clear()
+
+    def remove(self, file_path: str) -> None:
+        """
+        Remove a specific file from cache and close it.
+
+        Args:
+            file_path: Path to the file to remove
+        """
+        file_path = os.path.abspath(file_path) if os.path.exists(file_path) else file_path
+
+        if file_path in self._cache:
+            file_handle = self._cache.pop(file_path)
+            try:
+                if hasattr(file_handle, "close"):
+                    file_handle.close()
+            except Exception as e:
+                logging.debug(f"Error closing file {file_path}: {e}")
+
+        if file_path in self._handlers:
+            del self._handlers[file_path]
+
+    def __len__(self) -> int:
+        """Return number of cached files."""
+        return len(self._cache)
+
+    def __contains__(self, file_path: str) -> bool:
+        """Check if a file is in cache."""
+        file_path = os.path.abspath(file_path) if os.path.exists(file_path) else file_path
+        return file_path in self._cache
+
+
+class FileHandlerRegistry:
+    """
+    Global registry that maps file extensions to handler classes.
+
+    This allows the system to automatically select the correct handler
+    based on file extension without hardcoding dependencies.
+
+    Usage:
+        registry = FileHandlerRegistry()
+        handler = registry.get_handler_for_file("data.h5")
+        if handler:
+            array = handler.read_array("data.h5", "/dataset/path")
+    """
+
+    def __init__(self):
+        self._handlers: Dict[str, Callable[[], ExternalArrayHandler]] = {}
+        self._register_default_handlers()
+
+    def _register_default_handlers(self) -> None:
+        """Register all available handlers based on installed dependencies."""
+        # HDF5 Handler
+        if __H5PY_MODULE_EXISTS__:
+            self.register_handler([".h5", ".hdf5"], lambda: HDF5ArrayHandler())
+        else:
+            self.register_handler([".h5", ".hdf5"], lambda: MockHDF5ArrayHandler())
+
+        # Parquet Handler
+        if __PARQUET_MODULE_EXISTS__:
+            self.register_handler([".parquet", ".pq"], lambda: ParquetArrayHandler())
+        else:
+            self.register_handler([".parquet", ".pq"], lambda: MockParquetArrayHandler())
+
+        # CSV Handler - always available (uses Python's csv module)
+        if __CSV_MODULE_EXISTS__:
+            self.register_handler([".csv", ".txt", ".dat"], lambda: CSVArrayHandler())
+
+    def register_handler(self, extensions: List[str], handler_factory: Callable[[], ExternalArrayHandler]) -> None:
+        """
+        Register a handler factory for given file extensions.
+
+        Args:
+            extensions: List of file extensions (with leading dot, e.g., ['.h5', '.hdf5'])
+            handler_factory: Callable that returns a new handler instance
+        """
+        for ext in extensions:
+            ext_lower = ext.lower() if ext.startswith(".") else "." + ext.lower()
+            self._handlers[ext_lower] = handler_factory
+
+    def get_handler_for_file(self, file_path: str) -> Optional[ExternalArrayHandler]:
+        """
+        Get appropriate handler for a file based on its extension.
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            Handler instance, or None if no handler registered for this extension
+        """
+        ext = os.path.splitext(file_path)[1].lower()
+
+        if ext in self._handlers:
+            return self._handlers[ext]()
+
+        return None
+
+    def supports_extension(self, extension: str) -> bool:
+        """
+        Check if a handler is registered for the given extension.
+
+        Args:
+            extension: File extension (with or without leading dot)
+
+        Returns:
+            True if a handler is registered
+        """
+        ext_lower = extension.lower() if extension.startswith(".") else "." + extension.lower()
+        return ext_lower in self._handlers
+
+
+# Global registry instance
+_GLOBAL_HANDLER_REGISTRY = FileHandlerRegistry()
+
+
+def get_handler_registry() -> FileHandlerRegistry:
+    """Get the global file handler registry."""
+    return _GLOBAL_HANDLER_REGISTRY
+
+
+# ===========================================================================================
+# CONCRETE HANDLER IMPLEMENTATIONS
+# ===========================================================================================
+
+# HDF5 Handler
+if __H5PY_MODULE_EXISTS__:
+
+    class HDF5ArrayHandler(ExternalArrayHandler):
+        """Handler for HDF5 files (.h5, .hdf5)."""
+
+        def read_array(
+            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+        ) -> Optional[np.ndarray]:
+            """Read array from HDF5 file."""
+            if isinstance(source, h5py.File):  # type: ignore
+                if path_in_external_file:
+                    d_group = source[path_in_external_file]
+                    return d_group[()]  # type: ignore
+                return None
+            else:
+                with h5py.File(source, "r") as f:  # type: ignore
+                    if path_in_external_file:
+                        d_group = f[path_in_external_file]
+                        return d_group[()]  # type: ignore
+                    return None
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            **kwargs,
+        ) -> bool:
+            """Write array to HDF5 file."""
+            if not path_in_external_file:
+                return False
+
+            if isinstance(array, list):
+                array = np.asarray(array)
+
+            dtype = kwargs.get("dtype")
+            if dtype is not None and not isinstance(dtype, np.dtype):
+                dtype = np.dtype(dtype)
+
+            try:
+                if isinstance(target, h5py.File):  # type: ignore
+                    if isinstance(array, np.ndarray) and array.dtype == "O":
+                        array = np.asarray([s.encode() if isinstance(s, str) else s for s in array])
+                        np.void(array)
+                    dset = target.create_dataset(path_in_external_file, array.shape, dtype or array.dtype)
+                    dset[()] = array
+                else:
+                    with h5py.File(target, "a") as f:  # type: ignore
+                        if isinstance(array, np.ndarray) and array.dtype == "O":
+                            array = np.asarray([s.encode() if isinstance(s, str) else s for s in array])
+                            np.void(array)
+                        dset = f.create_dataset(path_in_external_file, array.shape, dtype or array.dtype)
+                        dset[()] = array
+                return True
+            except Exception as e:
+                logging.error(f"Failed to write array to HDF5: {e}")
+                return False
+
+        def get_array_metadata(
+            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+        ) -> Optional[Union[dict, List[dict]]]:
+            """Get metadata for HDF5 datasets."""
+            try:
+                if isinstance(source, h5py.File):  # type: ignore
+                    if path_in_external_file:
+                        dset = source[path_in_external_file]
+                        return {
+                            "path": path_in_external_file,
+                            "dtype": str(dset.dtype),
+                            "shape": list(dset.shape),
+                            "size": dset.size,
+                        }
+                    else:
+                        # List all datasets
+                        datasets = h5_list_datasets(source)
+                        return [self.get_array_metadata(source, ds) for ds in datasets]
+                else:
+                    with h5py.File(source, "r") as f:  # type: ignore
+                        return self.get_array_metadata(f, path_in_external_file)
+            except Exception as e:
+                logging.debug(f"Failed to get HDF5 metadata: {e}")
+                return None
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            """List all datasets in HDF5 file."""
+            return h5_list_datasets(source)
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext in [".h5", ".hdf5"]
+
+else:
+
+    class MockHDF5ArrayHandler(ExternalArrayHandler):
+        """Mock handler when h5py is not installed."""
+
+        def read_array(
+            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+        ) -> Optional[np.ndarray]:
+            raise MissingExtraInstallation(extra_name="hdf5")
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            **kwargs,
+        ) -> bool:
+            raise MissingExtraInstallation(extra_name="hdf5")
+
+        def get_array_metadata(
+            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+        ) -> Optional[Union[dict, List[dict]]]:
+            raise MissingExtraInstallation(extra_name="hdf5")
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            raise MissingExtraInstallation(extra_name="hdf5")
+
+        def can_handle_file(self, file_path: str) -> bool:
+            return os.path.splitext(file_path)[1].lower() in [".h5", ".hdf5"]
+
+
+# Parquet Handler
+if __PARQUET_MODULE_EXISTS__:
+
+    class ParquetArrayHandler(ExternalArrayHandler):
+        """Handler for Parquet files (.parquet, .pq)."""
+
+        def read_array(
+            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+        ) -> Optional[np.ndarray]:
+            """Read array from Parquet file."""
+            if isinstance(source, bytes):
+                source = pa.BufferReader(source)
+
+            table = pq.read_table(source)
+
+            if path_in_external_file:
+                return np.array(table[path_in_external_file])
+            else:
+                # Return all columns as 2D array
+                return table.to_pandas().values
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            **kwargs,
+        ) -> bool:
+            """Write array to Parquet file."""
+            column_titles = kwargs.get("column_titles")
+
+            try:
+                if not isinstance(array[0], (list, np.ndarray, pd.Series)):
+                    array = [array]
+
+                array_as_pd_df = pd.DataFrame(
+                    {k: array[idx] for idx, k in enumerate(column_titles or range(len(array)))}
+                )
+
+                pq.write_table(
+                    pa.Table.from_pandas(array_as_pd_df),
+                    target,
+                    version="2.6",
+                    compression="snappy",
+                )
+                return True
+            except Exception as e:
+                logging.error(f"Failed to write array to Parquet: {e}")
+                return False
+
+        def get_array_metadata(
+            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+        ) -> Optional[Union[dict, List[dict]]]:
+            """Get metadata for Parquet columns."""
+            try:
+                if isinstance(source, bytes):
+                    source = pa.BufferReader(source)
+
+                metadata = pq.read_metadata(source)
+                schema = pq.read_schema(source)
+
+                if path_in_external_file:
+                    # Get specific column metadata
+                    col_idx = schema.get_field_index(path_in_external_file)
+                    if col_idx >= 0:
+                        field = schema.field(col_idx)
+                        return {
+                            "path": path_in_external_file,
+                            "dtype": str(field.type),
+                            "shape": [metadata.num_rows],
+                            "size": metadata.num_rows,
+                        }
+                else:
+                    # Get all columns
+                    return [
+                        {
+                            "path": field.name,
+                            "dtype": str(field.type),
+                            "shape": [metadata.num_rows],
+                            "size": metadata.num_rows,
+                        }
+                        for field in schema
+                    ]
+            except Exception as e:
+                logging.debug(f"Failed to get Parquet metadata: {e}")
+                return None
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            """List all columns in Parquet file."""
+            try:
+                if isinstance(source, bytes):
+                    source = pa.BufferReader(source)
+                schema = pq.read_schema(source)
+                return [field.name for field in schema]
+            except Exception:
+                return []
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext in [".parquet", ".pq"]
+
+else:
+
+    class MockParquetArrayHandler(ExternalArrayHandler):
+        """Mock handler when parquet libraries are not installed."""
+
+        def read_array(
+            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+        ) -> Optional[np.ndarray]:
+            raise MissingExtraInstallation(extra_name="parquet")
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            **kwargs,
+        ) -> bool:
+            raise MissingExtraInstallation(extra_name="parquet")
+
+        def get_array_metadata(
+            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+        ) -> Optional[Union[dict, List[dict]]]:
+            raise MissingExtraInstallation(extra_name="parquet")
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            raise MissingExtraInstallation(extra_name="parquet")
+
+        def can_handle_file(self, file_path: str) -> bool:
+            return os.path.splitext(file_path)[1].lower() in [".parquet", ".pq"]
+
+
+# CSV Handler
+if __CSV_MODULE_EXISTS__:
+
+    class CSVArrayHandler(ExternalArrayHandler):
+        """Handler for CSV files (.csv, .txt, .dat)."""
+
+        def read_array(
+            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+        ) -> Optional[np.ndarray]:
+            """Read array from CSV file."""
+            # For CSV, path_in_external_file can be column name or index
+            # This is a simplified implementation
+            try:
+                if isinstance(source, str):
+                    data = np.genfromtxt(source, delimiter=",")
+                else:
+                    data = np.genfromtxt(source, delimiter=",")
+                return data
+            except Exception as e:
+                logging.debug(f"Failed to read CSV: {e}")
+                return None
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            **kwargs,
+        ) -> bool:
+            """Write array to CSV file."""
+            try:
+                if isinstance(array, list):
+                    array = np.asarray(array)
+                np.savetxt(target, array, delimiter=",")
+                return True
+            except Exception as e:
+                logging.error(f"Failed to write CSV: {e}")
+                return False
+
+        def get_array_metadata(
+            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+        ) -> Optional[Union[dict, List[dict]]]:
+            """Get metadata for CSV file."""
+            try:
+                data = self.read_array(source, path_in_external_file)
+                if data is not None:
+                    return {
+                        "path": path_in_external_file or "",
+                        "dtype": str(data.dtype),
+                        "shape": list(data.shape),
+                        "size": data.size,
+                    }
+            except Exception as e:
+                logging.debug(f"Failed to get CSV metadata: {e}")
+            return None
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            """CSV files don't have named datasets."""
+            return []
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext in [".csv", ".txt", ".dat"]

@@ -143,17 +143,21 @@ class TestRelsUpdateModes:
 
         reader2.close()
 
-    def test_update_on_close_mode(self, temp_epc_file, sample_objects):
-        """Test that UPDATE_ON_CLOSE mode rebuilds rels on close."""
-        reader = EpcStreamReader(temp_epc_file, rels_update_mode=RelsUpdateMode.UPDATE_ON_CLOSE)
+    def test_update_on_close_mode_sequential(self, temp_epc_file, sample_objects):
+        """Test that UPDATE_ON_CLOSE mode rebuilds rels on close (sequential processing)."""
+        reader = EpcStreamReader(
+            temp_epc_file, rels_update_mode=RelsUpdateMode.UPDATE_ON_CLOSE, enable_parallel_rels=False
+        )
 
         bf = sample_objects["bf"]
         bfi = sample_objects["bfi"]
+        horizon_interp = sample_objects["horizon_interp"]
         trset = sample_objects["trset"]
 
-        # Add objects
+        # Add objects (including horizon_interp that trset references)
         reader.add_object(bf)
         reader.add_object(bfi)
+        reader.add_object(horizon_interp)
         reader.add_object(trset)
 
         # Before closing, rels may not be complete
@@ -165,19 +169,187 @@ class TestRelsUpdateModes:
         # Check that bfi has a DEST relationship to bf
         bfi_rels = reader2.get_obj_rels(get_obj_identifier(bfi))
         dest_rels = [r for r in bfi_rels if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)]
-        source_rels = [r for r in bfi_rels if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)]
         assert len(dest_rels) == 1, "Expected DESTINATION relationship from bfi to bf"
-        assert len(source_rels) == 1, "Expected SOURCE relationship from bfi to trset"
 
-        # Check that bf has a SOURCE relationship from bfi
+        # Check that bf has SOURCE relationships from bfi and horizon_interp
         bf_rels = reader2.get_obj_rels(get_obj_identifier(bf))
         source_rels = [r for r in bf_rels if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)]
-        assert len(source_rels) == 1, "Expected SOURCE relationship in bf rels targeting bfi"
+        assert len(source_rels) == 2, "Expected 2 SOURCE relationships in bf rels (from bfi and horizon_interp)"
 
-        # Check that bf has a SOURCE relationship from bfi
+        # Check that horizon_interp has a SOURCE relationship from trset
+        hi_rels = reader2.get_obj_rels(get_obj_identifier(horizon_interp))
+        hi_source_rels = [r for r in hi_rels if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)]
+        assert len(hi_source_rels) == 1, "Expected SOURCE relationship in horizon_interp rels from trset"
+
+        # Check that trset has a DESTINATION relationship to horizon_interp
         trset_rels = reader2.get_obj_rels(get_obj_identifier(trset))
         dest_rels = [r for r in trset_rels if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)]
-        assert len(dest_rels) >= 1, "Expected DESTINATION relationship in trset rels targeting bfi"
+        assert len(dest_rels) == 1, "Expected DESTINATION relationship in trset rels targeting horizon_interp"
+
+        # Close to release file handles (important on Windows)
+        reader2.close()
+
+    def test_update_on_close_mode_parallel(self, temp_epc_file, sample_objects):
+        """Test that UPDATE_ON_CLOSE mode rebuilds rels on close (parallel processing)."""
+        reader = EpcStreamReader(
+            temp_epc_file, rels_update_mode=RelsUpdateMode.UPDATE_ON_CLOSE, enable_parallel_rels=True
+        )
+
+        bf = sample_objects["bf"]
+        bfi = sample_objects["bfi"]
+        horizon_interp = sample_objects["horizon_interp"]
+        trset = sample_objects["trset"]
+
+        # Add objects (including horizon_interp that trset references)
+        reader.add_object(bf)
+        reader.add_object(bfi)
+        reader.add_object(horizon_interp)
+        reader.add_object(trset)
+
+        # Before closing, rels may not be complete
+        reader.close()
+
+        # Reopen and verify relationships were built
+        reader2 = EpcStreamReader(temp_epc_file)
+
+        # Check that bfi has a DEST relationship to bf
+        bfi_rels = reader2.get_obj_rels(get_obj_identifier(bfi))
+        dest_rels = [r for r in bfi_rels if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)]
+        assert len(dest_rels) == 1, "Expected DESTINATION relationship from bfi to bf"
+
+        # Check that bf has SOURCE relationships from bfi and horizon_interp
+        bf_rels = reader2.get_obj_rels(get_obj_identifier(bf))
+        source_rels = [r for r in bf_rels if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)]
+        assert len(source_rels) == 2, "Expected 2 SOURCE relationships in bf rels (from bfi and horizon_interp)"
+
+        # Check that horizon_interp has a SOURCE relationship from trset
+        hi_rels = reader2.get_obj_rels(get_obj_identifier(horizon_interp))
+        hi_source_rels = [r for r in hi_rels if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)]
+        assert len(hi_source_rels) == 1, "Expected SOURCE relationship in horizon_interp rels from trset"
+
+        # Check that trset has a DESTINATION relationship to horizon_interp
+        trset_rels = reader2.get_obj_rels(get_obj_identifier(trset))
+        dest_rels = [r for r in trset_rels if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)]
+        assert len(dest_rels) == 1, "Expected DESTINATION relationship in trset rels targeting horizon_interp"
+
+        # Close to release file handles (important on Windows)
+        reader2.close()
+
+    def test_update_on_close_mode_metadata_before_close_sequential(self, temp_epc_file, sample_objects):
+        """Test that UPDATE_ON_CLOSE mode updates metadata immediately but delays rels until close (sequential)."""
+        reader = EpcStreamReader(
+            temp_epc_file, rels_update_mode=RelsUpdateMode.UPDATE_ON_CLOSE, enable_parallel_rels=False
+        )
+
+        bf = sample_objects["bf"]
+        bfi = sample_objects["bfi"]
+        horizon_interp = sample_objects["horizon_interp"]
+        trset = sample_objects["trset"]
+
+        # Add objects
+        reader.add_object(bf)
+        reader.add_object(bfi)
+        reader.add_object(horizon_interp)
+        reader.add_object(trset)
+
+        # BEFORE closing, verify metadata is updated
+        objects_list = reader.list_objects()
+        assert len(objects_list) == 4, "Expected 4 objects in metadata before close"
+        assert len(reader) == 4, "Expected length of reader to be 4 before close"
+
+        # BEFORE closing, verify NO relationships exist yet (UPDATE_ON_CLOSE behavior)
+        bfi_rels = reader.get_obj_rels(get_obj_identifier(bfi))
+        assert len(bfi_rels) == 0, "Expected no relationships before close in UPDATE_ON_CLOSE mode"
+
+        bf_rels = reader.get_obj_rels(get_obj_identifier(bf))
+        assert len(bf_rels) == 0, "Expected no relationships before close in UPDATE_ON_CLOSE mode"
+
+        hi_rels = reader.get_obj_rels(get_obj_identifier(horizon_interp))
+        assert len(hi_rels) == 0, "Expected no relationships before close in UPDATE_ON_CLOSE mode"
+
+        trset_rels = reader.get_obj_rels(get_obj_identifier(trset))
+        assert len(trset_rels) == 0, "Expected no relationships before close in UPDATE_ON_CLOSE mode"
+
+        # Now close to trigger rels rebuild
+        reader.close()
+
+        # Reopen and verify relationships were built AFTER close
+        reader2 = EpcStreamReader(temp_epc_file)
+
+        # Verify metadata is still correct
+        assert len(reader2) == 4, "Expected 4 objects after reopen"
+
+        # Verify relationships NOW exist
+        bfi_rels = reader2.get_obj_rels(get_obj_identifier(bfi))
+        assert len(bfi_rels) == 1, "Expected relationships after close in UPDATE_ON_CLOSE mode"
+
+        bf_rels = reader2.get_obj_rels(get_obj_identifier(bf))
+        assert len(bf_rels) == 2, "Expected relationships after close in UPDATE_ON_CLOSE mode"
+
+        hi_rels = reader2.get_obj_rels(get_obj_identifier(horizon_interp))
+        assert len(hi_rels) == 2, "Expected relationships after close in UPDATE_ON_CLOSE mode"
+
+        trset_rels = reader2.get_obj_rels(get_obj_identifier(trset))
+        assert len(trset_rels) == 1, "Expected relationships after close in UPDATE_ON_CLOSE mode"
+
+        reader2.close()
+
+    def test_update_on_close_mode_metadata_before_close_parallel(self, temp_epc_file, sample_objects):
+        """Test that UPDATE_ON_CLOSE mode updates metadata immediately but delays rels until close (parallel)."""
+        reader = EpcStreamReader(
+            temp_epc_file, rels_update_mode=RelsUpdateMode.UPDATE_ON_CLOSE, enable_parallel_rels=True
+        )
+
+        bf = sample_objects["bf"]
+        bfi = sample_objects["bfi"]
+        horizon_interp = sample_objects["horizon_interp"]
+        trset = sample_objects["trset"]
+
+        # Add objects
+        reader.add_object(bf)
+        reader.add_object(bfi)
+        reader.add_object(horizon_interp)
+        reader.add_object(trset)
+
+        # BEFORE closing, verify metadata is updated
+        objects_list = reader.list_objects()
+        assert len(objects_list) == 4, "Expected 4 objects in metadata before close"
+        assert len(reader) == 4, "Expected length of reader to be 4 before close"
+
+        # BEFORE closing, verify NO relationships exist yet (UPDATE_ON_CLOSE behavior)
+        bfi_rels = reader.get_obj_rels(get_obj_identifier(bfi))
+        assert len(bfi_rels) == 0, "Expected no relationships before close in UPDATE_ON_CLOSE mode"
+
+        bf_rels = reader.get_obj_rels(get_obj_identifier(bf))
+        assert len(bf_rels) == 0, "Expected no relationships before close in UPDATE_ON_CLOSE mode"
+
+        hi_rels = reader.get_obj_rels(get_obj_identifier(horizon_interp))
+        assert len(hi_rels) == 0, "Expected no relationships before close in UPDATE_ON_CLOSE mode"
+
+        trset_rels = reader.get_obj_rels(get_obj_identifier(trset))
+        assert len(trset_rels) == 0, "Expected no relationships before close in UPDATE_ON_CLOSE mode"
+
+        # Now close to trigger rels rebuild
+        reader.close()
+
+        # Reopen and verify relationships were built AFTER close
+        reader2 = EpcStreamReader(temp_epc_file)
+
+        # Verify metadata is still correct
+        assert len(reader2) == 4, "Expected 4 objects after reopen"
+
+        # Verify relationships NOW exist
+        bfi_rels = reader2.get_obj_rels(get_obj_identifier(bfi))
+        assert len(bfi_rels) == 1, "Expected relationships after close in UPDATE_ON_CLOSE mode"
+
+        bf_rels = reader2.get_obj_rels(get_obj_identifier(bf))
+        assert len(bf_rels) == 2, "Expected relationships after close in UPDATE_ON_CLOSE mode"
+
+        hi_rels = reader2.get_obj_rels(get_obj_identifier(horizon_interp))
+        assert len(hi_rels) == 2, "Expected relationships after close in UPDATE_ON_CLOSE mode"
+
+        trset_rels = reader2.get_obj_rels(get_obj_identifier(trset))
+        assert len(trset_rels) == 1, "Expected relationships after close in UPDATE_ON_CLOSE mode"
 
         reader2.close()
 

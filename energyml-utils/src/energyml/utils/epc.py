@@ -28,7 +28,6 @@ from energyml.opc.opc import (
     Creator,
     Identifier,
     Keywords1,
-    TargetMode,
 )
 from energyml.utils.epc_utils import (
     gen_core_props_path,
@@ -43,7 +42,6 @@ from xsdata.formats.dataclass.models.generics import DerivedElement
 
 from .constants import (
     RELS_CONTENT_TYPE,
-    RELS_FOLDER_NAME,
     EpcExportVersion,
     RawFile,
     EPCRelsRelationshipType,
@@ -62,7 +60,6 @@ from .data.datasets_io import (
 from .exception import UnparsableFile
 from .introspection import (
     get_class_from_content_type,
-    get_dor_obj_info,
     get_obj_type,
     get_obj_uri,
     get_obj_usable_class,
@@ -70,7 +67,6 @@ from .introspection import (
     search_attribute_matching_type,
     get_obj_version,
     get_obj_uuid,
-    get_object_type_for_file_path_from_class,
     get_content_type_from_class,
     get_direct_dor_list,
     epoch_to_date,

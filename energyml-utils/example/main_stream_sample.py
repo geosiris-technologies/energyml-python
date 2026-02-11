@@ -2,16 +2,27 @@ import os
 import sys
 import logging
 from energyml.utils.epc_stream import EpcStreamReader, RelsUpdateMode
-from energyml.eml.v2_3.commonv2 import Citation
+from energyml.eml.v2_3.commonv2 import Citation, ExternalDataArrayPart, 
 from energyml.resqml.v2_2.resqmlv2 import (
     TriangulatedSetRepresentation,
     BoundaryFeatureInterpretation,
     BoundaryFeature,
     HorizonInterpretation,
+    TrianglePatch,
+    IntegerExternalArray,
+    ExternalDataArray,
+    PointGeometry,
+    Point3DExternalArray,
 )
 from energyml.utils.introspection import epoch_to_date, epoch
 from energyml.utils.epc import as_dor, gen_uuid, get_obj_identifier
-from energyml.utils.constants import EPCRelsRelationshipType
+from energyml.utils.constants import EPCRelsRelationshipType, MimeType
+
+from energyml.opc.opc import Relationship
+
+
+CONST_H5_PATH = "wip/external_data.h5"
+CONST_CSV_PATH = "wip/external_data.csv"
 
 
 def sample_objects():
@@ -53,6 +64,7 @@ def sample_objects():
     )
 
     # Create a TriangulatedSetRepresentation
+    trset_uuid = "25773477-ffee-4cc2-867d-000000000004"
     trset = TriangulatedSetRepresentation(
         citation=Citation(
             title="Test TriangulatedSetRepresentation",
@@ -62,6 +74,37 @@ def sample_objects():
         uuid="25773477-ffee-4cc2-867d-000000000004",
         object_version="1.0",
         represented_object=as_dor(horizon_interp),
+        triangle_patch=[
+            TrianglePatch(
+                node_count=3,
+                triangles=IntegerExternalArray(
+                    values=ExternalDataArray(
+                        external_data_array_part=[
+                            ExternalDataArrayPart(
+                                count=[6],
+                                path_in_external_file=f"/RESQML/{trset_uuid}/triangles",
+                                uri=CONST_H5_PATH,
+                                mime_type=str(MimeType.HDF5),
+                            )
+                        ]
+                    )
+                ),
+                geometry=PointGeometry(
+                    points=Point3DExternalArray(
+                        coordinates=ExternalDataArray(
+                            external_data_array_part=[
+                                ExternalDataArrayPart(
+                                    count=[9],
+                                    path_in_external_file=f"/RESQML/{trset_uuid}/points",
+                                    uri=CONST_CSV_PATH,
+                                    mime_type=str(MimeType.CSV),
+                                )
+                            ]
+                        )
+                    ),
+                ),
+            )
+        ],
     )
 
     return {
@@ -183,10 +226,41 @@ def test_create_epc_v2(path: str):
     logging.info(f"Horizon interpretation rels: {hi_rels}")
 
 
+def test_create_epc_v3_with_different_external_files(path: str):
+
+    if os.path.exists(path):
+        os.remove(path)
+    logging.info(f"==> Creating new EPC at {path}...")
+    epc = EpcStreamReader(epc_file_path=path, rels_update_mode=RelsUpdateMode.UPDATE_AT_MODIFICATION)
+
+    data = sample_objects()
+
+    epc.add_object(data["bf"])
+    # epc.add_object(data["bfi"])
+    epc.add_object(data["horizon_interp"])
+    tr_set_id = epc.add_object(data["trset"])
+
+    hi_rels = epc.get_obj_rels(data["horizon_interp"])
+
+    logging.info(f"Horizon interpretation rels: {hi_rels}")
+
+    # Create an h5 file
+    h5_file_path = "wip/notARealFile.h5"
+    epc.add_rels_for_object(
+        tr_set_id,
+        relationships=[Relationship(type_value=str(EPCRelsRelationshipType.EXTERNAL_RESOURCE), target=h5_file_path)],
+    )
+    
+    epc.write_array()
+
+    # Create an
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
     # main((sys.argv[1] if len(sys.argv) > 1 else None) or "wip/80wells_surf.epc")
 
     # test_create_epc("wip/test_create.epc")
-    test_create_epc_v2("wip/test_create.epc")
+    # test_create_epc_v2("wip/test_create.epc")
+    test_create_epc_v3_with_different_external_files("wip/test_create_v3.epc")
