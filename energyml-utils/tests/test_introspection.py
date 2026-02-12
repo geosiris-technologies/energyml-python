@@ -1,6 +1,10 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 import energyml.resqml.v2_0_1.resqmlv2
+from energyml.eml.v2_0.commonv2 import Citation as Citation20
+from energyml.eml.v2_3.commonv2 import Citation
+from energyml.resqml.v2_0_1.resqmlv2 import FaultInterpretation
+from energyml.resqml.v2_2.resqmlv2 import TriangulatedSetRepresentation
 from energyml.opc.opc import Dcmitype1, Contributor
 
 from src.energyml.utils.constants import (
@@ -18,6 +22,10 @@ from src.energyml.utils.introspection import (
     get_object_attribute,
     set_attribute_from_path,
     copy_attributes,
+    get_obj_identifier,
+    get_obj_pkg_pkgv_type_uuid_version,
+    get_obj_uri,
+    gen_uuid,
 )
 
 
@@ -150,3 +158,96 @@ def test_copy_attributes_case_sensitive():
     assert data_out["Uuid"] != data_in["uuid"]
     assert data_out["object_version"] == data_in["objectVersion"]
     assert data_out["non_existing"] == data_in["non_existing"]
+
+
+# Test fixtures for object identifiers and URIs
+fi_cit = Citation20(
+    title="An interpretation",
+    originator="Valentin",
+    creation=epoch_to_date(epoch()),
+    editor="test",
+    format="Geosiris",
+    last_update=epoch_to_date(epoch()),
+)
+
+fi = FaultInterpretation(
+    citation=fi_cit,
+    uuid=gen_uuid(),
+    object_version="0",
+)
+
+tr_cit = Citation(
+    title="Test TriSet",
+    originator="Valentin",
+    creation=epoch_to_date(epoch()),
+    editor="test",
+    format="Geosiris",
+    last_update=epoch_to_date(epoch()),
+)
+
+tr = TriangulatedSetRepresentation(
+    citation=tr_cit,
+    uuid=gen_uuid(),
+)
+
+tr_versioned = TriangulatedSetRepresentation(
+    citation=tr_cit,
+    uuid=gen_uuid(),
+    object_version="3",
+)
+
+
+def test_get_obj_identifier():
+    """Test object identifier generation."""
+    assert get_obj_identifier(tr) == tr.uuid + "."
+    assert get_obj_identifier(fi) == fi.uuid + ".0"
+    assert get_obj_identifier(tr_versioned) == tr_versioned.uuid + ".3"
+
+
+def test_get_obj_pkg_pkgv_type_uuid_version_obj_201():
+    """Test extracting package, version, type, uuid, and version from resqml20 object."""
+    (
+        domain,
+        domain_version,
+        object_type,
+        obj_uuid,
+        obj_version,
+    ) = get_obj_pkg_pkgv_type_uuid_version(fi)
+    assert domain == "resqml"
+    assert domain_version == "20"
+    assert object_type == "obj_FaultInterpretation"
+    assert obj_uuid == fi.uuid
+    assert obj_version == fi.object_version
+
+
+def test_get_obj_pkg_pkgv_type_uuid_version_obj_22():
+    """Test extracting package, version, type, uuid, and version from resqml22 object."""
+    (
+        domain,
+        domain_version,
+        object_type,
+        obj_uuid,
+        obj_version,
+    ) = get_obj_pkg_pkgv_type_uuid_version(tr)
+    assert domain == "resqml"
+    assert domain_version == "22"
+    assert object_type == "TriangulatedSetRepresentation"
+    assert obj_uuid == tr.uuid
+    assert obj_version == tr.object_version
+
+
+def test_get_obj_uri():
+    """Test URI generation for energyml objects."""
+    assert str(get_obj_uri(tr)) == f"eml:///resqml22.TriangulatedSetRepresentation({tr.uuid})"
+    assert (
+        str(get_obj_uri(tr, "/MyDataspace/"))
+        == f"eml:///dataspace('/MyDataspace/')/resqml22.TriangulatedSetRepresentation({tr.uuid})"
+    )
+
+    assert (
+        str(get_obj_uri(fi)) == f"eml:///resqml20.obj_FaultInterpretation(uuid={fi.uuid},version='{fi.object_version}')"
+    )
+    assert (
+        str(get_obj_uri(fi, "/MyDataspace/"))
+        == f"eml:///dataspace('/MyDataspace/')/resqml20.obj_FaultInterpretation(uuid={fi.uuid},version='{fi.object_version}')"
+    )
