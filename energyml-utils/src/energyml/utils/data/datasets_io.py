@@ -51,6 +51,22 @@ try:
 except Exception:
     __PARQUET_MODULE_EXISTS__ = False
 
+try:
+    import lasio
+
+    __LASIO_MODULE_EXISTS__ = True
+except Exception:
+    lasio = None
+    __LASIO_MODULE_EXISTS__ = False
+
+try:
+    import segyio
+
+    __SEGYIO_MODULE_EXISTS__ = True
+except Exception:
+    segyio = None
+    __SEGYIO_MODULE_EXISTS__ = False
+
 # HDF5
 if __H5PY_MODULE_EXISTS__:
 
@@ -903,6 +919,18 @@ class FileHandlerRegistry:
         if __CSV_MODULE_EXISTS__:
             self.register_handler([".csv", ".txt", ".dat"], lambda: CSVArrayHandler())
 
+        # LAS Handler
+        if __LASIO_MODULE_EXISTS__:
+            self.register_handler([".las"], lambda: LASArrayHandler())
+        else:
+            self.register_handler([".las"], lambda: MockLASArrayHandler())
+
+        # SEG-Y Handler
+        if __SEGYIO_MODULE_EXISTS__:
+            self.register_handler([".sgy", ".segy"], lambda: SEGYArrayHandler())
+        else:
+            self.register_handler([".sgy", ".segy"], lambda: MockSEGYArrayHandler())
+
     def register_handler(self, extensions: List[str], handler_factory: Callable[[], ExternalArrayHandler]) -> None:
         """
         Register a handler factory for given file extensions.
@@ -1157,12 +1185,27 @@ if __PARQUET_MODULE_EXISTS__:
             column_titles = kwargs.get("column_titles")
 
             try:
-                if not isinstance(array[0], (list, np.ndarray, pd.Series)):
-                    array = [array]
+                # Convert to numpy array if needed
+                if not isinstance(array, np.ndarray):
+                    array = np.array(array)
 
-                array_as_pd_df = pd.DataFrame(
-                    {k: array[idx] for idx, k in enumerate(column_titles or range(len(array)))}
-                )
+                # Handle 2D arrays properly: rows as rows, columns as columns
+                if array.ndim == 2:
+                    # Create DataFrame where each column is a dimension
+                    if column_titles is None:
+                        column_titles = [str(i) for i in range(array.shape[1])]
+                    array_as_pd_df = pd.DataFrame(array, columns=column_titles)
+                elif array.ndim == 1:
+                    # 1D array becomes a single column
+                    col_name = column_titles[0] if column_titles else "0"
+                    array_as_pd_df = pd.DataFrame({col_name: array})
+                else:
+                    # For higher dimensions, flatten or handle as needed
+                    logging.warning(f"Parquet writer received {array.ndim}D array, flattening to 2D")
+                    array_2d = array.reshape(array.shape[0], -1)
+                    if column_titles is None:
+                        column_titles = [str(i) for i in range(array_2d.shape[1])]
+                    array_as_pd_df = pd.DataFrame(array_2d, columns=column_titles)
 
                 pq.write_table(
                     pa.Table.from_pandas(array_as_pd_df),
@@ -1349,3 +1392,455 @@ if __CSV_MODULE_EXISTS__:
             """Check if this handler can process the file."""
             ext = os.path.splitext(file_path)[1].lower()
             return ext in [".csv", ".txt", ".dat"]
+
+
+# LAS Handler
+if __LASIO_MODULE_EXISTS__:
+
+    class LASArrayHandler(ExternalArrayHandler):
+        """Handler for LAS (Log ASCII Standard) files (.las)."""
+
+        def read_array(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            """
+            Read array from LAS file.
+
+            Args:
+                source: Path to LAS file or BytesIO object
+                path_in_external_file: Comma-separated list of mnemonics to read from ~A block
+                start_indices: Starting index for each dimension (optional)
+                counts: Number of elements to read for each dimension (optional)
+
+            Returns:
+                NumPy array with requested curves, or None if reading failed
+            """
+            try:
+                # Load LAS file
+                las = lasio.read(source)
+
+                if path_in_external_file is None or path_in_external_file.strip() == "":
+                    # Return all curves as 2D array (depth, curves)
+                    data = las.data
+                else:
+                    # Parse mnemonic list (comma or semicolon separated)
+                    mnemonics = [m.strip() for m in path_in_external_file.replace(";", ",").split(",")]
+
+                    # Extract specified curves
+                    curves_data = []
+                    for mnemonic in mnemonics:
+                        if mnemonic in las.keys():
+                            curves_data.append(las[mnemonic])
+                        else:
+                            logging.warning(f"Mnemonic '{mnemonic}' not found in LAS file")
+
+                    if not curves_data:
+                        logging.error("No valid mnemonics found in LAS file")
+                        return None
+
+                    # Stack curves horizontally
+                    data = np.column_stack(curves_data) if len(curves_data) > 1 else np.array(curves_data[0])
+
+                # Apply slicing if specified
+                if start_indices is not None or counts is not None:
+                    slices = []
+                    for dim in range(len(data.shape)):
+                        start = start_indices[dim] if start_indices and dim < len(start_indices) else 0
+                        count = counts[dim] if counts and dim < len(counts) else data.shape[dim] - start
+                        slices.append(slice(start, start + count))
+                    data = data[tuple(slices)]
+
+                return np.array(data)
+
+            except Exception as e:
+                logging.error(f"Failed to read LAS file: {e}")
+                return None
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            **kwargs,
+        ) -> bool:
+            """
+            Write array to LAS file.
+
+            Args:
+                target: Path to LAS file
+                array: NumPy array or list to write
+                path_in_external_file: Comma-separated list of mnemonics for curves
+                start_indices: Not used for LAS files
+                **kwargs: Additional parameters (well_name, field, etc.)
+
+            Returns:
+                True if successful, False otherwise
+            """
+            try:
+                # Convert to numpy array
+                if not isinstance(array, np.ndarray):
+                    array = np.array(array)
+
+                # Create new LAS file
+                las = lasio.LASFile()
+
+                # Set well information from kwargs
+                if "well_name" in kwargs:
+                    las.well.WELL = kwargs["well_name"]
+                if "field" in kwargs:
+                    las.well.FLD = kwargs["field"]
+                if "company" in kwargs:
+                    las.well.COMP = kwargs["company"]
+
+                # Parse mnemonics if provided
+                mnemonics = None
+                if path_in_external_file:
+                    mnemonics = [m.strip() for m in path_in_external_file.replace(";", ",").split(",")]
+
+                # Add curves
+                if array.ndim == 1:
+                    # Single curve
+                    mnemonic = mnemonics[0] if mnemonics else "DATA"
+                    las.append_curve(mnemonic, array, unit=kwargs.get("unit", ""))
+                else:
+                    # Multiple curves
+                    for i in range(array.shape[1]):
+                        mnemonic = mnemonics[i] if mnemonics and i < len(mnemonics) else f"CURVE{i}"
+                        las.append_curve(mnemonic, array[:, i], unit=kwargs.get("unit", ""))
+
+                # Write to file
+                if isinstance(target, str):
+                    las.write(target)
+                else:
+                    # For BytesIO, write to string then encode
+                    las_str = las.write(None)  # Returns string
+                    target.write(las_str.encode("utf-8"))
+
+                return True
+
+            except Exception as e:
+                logging.error(f"Failed to write LAS file: {e}")
+                return False
+
+        def get_array_metadata(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[Union[dict, List[dict]]]:
+            """
+            Get metadata for LAS file curves.
+
+            Args:
+                source: Path to LAS file or BytesIO object
+                path_in_external_file: Comma-separated list of mnemonics
+
+            Returns:
+                Dictionary with metadata (shape, dtype, curves, well_info)
+            """
+            try:
+                las = lasio.read(source)
+
+                # Get curve information
+                curves_info = []
+                for curve in las.curves:
+                    curves_info.append(
+                        {
+                            "mnemonic": curve.mnemonic,
+                            "unit": curve.unit,
+                            "descr": curve.descr,
+                            "data_points": len(curve.data),
+                        }
+                    )
+
+                # Get overall metadata
+                metadata = {
+                    "shape": las.data.shape,
+                    "dtype": str(las.data.dtype),
+                    "curves": curves_info,
+                    "well_info": {
+                        "well_name": las.well.WELL.value if hasattr(las.well, "WELL") else None,
+                        "field": las.well.FLD.value if hasattr(las.well, "FLD") else None,
+                        "company": las.well.COMP.value if hasattr(las.well, "COMP") else None,
+                    },
+                    "version": las.version.VERS.value if hasattr(las.version, "VERS") else None,
+                }
+
+                return metadata
+
+            except Exception as e:
+                logging.error(f"Failed to get LAS metadata: {e}")
+                return None
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            """List all curve mnemonics in LAS file."""
+            try:
+                las = lasio.read(source)
+                return [curve.mnemonic for curve in las.curves]
+            except Exception as e:
+                logging.error(f"Failed to list LAS curves: {e}")
+                return []
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext == ".las"
+
+else:
+
+    class MockLASArrayHandler(ExternalArrayHandler):
+        """Mock handler when lasio is not installed."""
+
+        def read_array(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            raise MissingExtraInstallation(extra_name="las")
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            **kwargs,
+        ) -> bool:
+            raise MissingExtraInstallation(extra_name="las")
+
+        def get_array_metadata(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[Union[dict, List[dict]]]:
+            raise MissingExtraInstallation(extra_name="las")
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            raise MissingExtraInstallation(extra_name="las")
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext == ".las"
+
+
+# SEG-Y Handler
+if __SEGYIO_MODULE_EXISTS__:
+
+    class SEGYArrayHandler(ExternalArrayHandler):
+        """Handler for SEG-Y seismic files (.sgy, .segy)."""
+
+        def read_array(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            """
+            Read array from SEG-Y file.
+
+            Args:
+                source: Path to SEG-Y file
+                path_in_external_file: Comma-separated list of trace headers or 'traces' for trace data
+                start_indices: Starting index [trace_start, sample_start]
+                counts: Number of elements [trace_count, sample_count]
+
+            Returns:
+                NumPy array with requested data
+            """
+            try:
+                # SEG-Y requires file path, not BytesIO
+                if not isinstance(source, str):
+                    logging.error("SEG-Y handler requires file path, not BytesIO")
+                    return None
+
+                with segyio.open(source, "r", ignore_geometry=True) as f:
+                    if path_in_external_file is None or path_in_external_file.strip().lower() == "traces":
+                        # Read trace data
+                        trace_start = start_indices[0] if start_indices and len(start_indices) > 0 else 0
+                        sample_start = start_indices[1] if start_indices and len(start_indices) > 1 else 0
+
+                        trace_count = counts[0] if counts and len(counts) > 0 else len(f.trace) - trace_start
+                        sample_count = counts[1] if counts and len(counts) > 1 else len(f.samples) - sample_start
+
+                        # Read traces
+                        traces = []
+                        for i in range(trace_start, trace_start + trace_count):
+                            if i < len(f.trace):
+                                trace = f.trace[i][sample_start : sample_start + sample_count]
+                                traces.append(trace)
+
+                        return np.array(traces)
+                    else:
+                        # Read trace headers
+                        headers = [h.strip() for h in path_in_external_file.replace(";", ",").split(",")]
+
+                        trace_start = start_indices[0] if start_indices and len(start_indices) > 0 else 0
+                        trace_count = counts[0] if counts and len(counts) > 0 else len(f.trace) - trace_start
+
+                        # Extract header values
+                        header_data = []
+                        for i in range(trace_start, trace_start + trace_count):
+                            if i < len(f.trace):
+                                trace_headers = f.header[i]
+                                header_values = [
+                                    trace_headers.get(segyio.TraceField.__dict__.get(h.upper(), 0), 0) for h in headers
+                                ]
+                                header_data.append(header_values)
+
+                        return np.array(header_data)
+
+            except Exception as e:
+                logging.error(f"Failed to read SEG-Y file: {e}")
+                return None
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            **kwargs,
+        ) -> bool:
+            """
+            Write array to SEG-Y file.
+
+            Args:
+                target: Path to SEG-Y file
+                array: NumPy array (traces x samples)
+                path_in_external_file: Not used (SEG-Y structure is fixed)
+                **kwargs: Additional parameters (sample_interval, etc.)
+
+            Returns:
+                True if successful, False otherwise
+            """
+            try:
+                if not isinstance(target, str):
+                    logging.error("SEG-Y handler requires file path for writing")
+                    return False
+
+                if not isinstance(array, np.ndarray):
+                    array = np.array(array)
+
+                # Ensure 2D array (traces x samples)
+                if array.ndim == 1:
+                    array = array.reshape(1, -1)
+
+                n_traces, n_samples = array.shape
+
+                # Create SEG-Y file specification
+                spec = segyio.spec()
+                spec.format = kwargs.get("format", 1)  # 1 = 4-byte IBM float
+                spec.samples = range(n_samples)
+                spec.tracecount = n_traces
+
+                # Write SEG-Y file
+                with segyio.create(target, spec) as f:
+                    for i in range(n_traces):
+                        f.trace[i] = array[i, :]
+
+                    # Set sample interval if provided (in microseconds)
+                    if "sample_interval" in kwargs:
+                        f.bin[segyio.BinField.Interval] = kwargs["sample_interval"]
+
+                return True
+
+            except Exception as e:
+                logging.error(f"Failed to write SEG-Y file: {e}")
+                return False
+
+        def get_array_metadata(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[Union[dict, List[dict]]]:
+            """
+            Get metadata for SEG-Y file.
+
+            Returns:
+                Dictionary with shape, dtype, trace count, sample info
+            """
+            try:
+                if not isinstance(source, str):
+                    logging.error("SEG-Y handler requires file path")
+                    return None
+
+                with segyio.open(source, "r", ignore_geometry=True) as f:
+                    metadata = {
+                        "shape": (len(f.trace), len(f.samples)),
+                        "dtype": str(f.dtype),
+                        "trace_count": len(f.trace),
+                        "sample_count": len(f.samples),
+                        "sample_interval": f.bin[segyio.BinField.Interval],
+                        "format": f.format,
+                        "samples": f.samples.tolist() if hasattr(f.samples, "tolist") else list(f.samples),
+                    }
+
+                    return metadata
+
+            except Exception as e:
+                logging.error(f"Failed to get SEG-Y metadata: {e}")
+                return None
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            """List available data in SEG-Y file (always 'traces')."""
+            return ["traces"]
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext in [".sgy", ".segy"]
+
+else:
+
+    class MockSEGYArrayHandler(ExternalArrayHandler):
+        """Mock handler when segyio is not installed."""
+
+        def read_array(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            raise MissingExtraInstallation(extra_name="segy")
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            **kwargs,
+        ) -> bool:
+            raise MissingExtraInstallation(extra_name="segy")
+
+        def get_array_metadata(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[Union[dict, List[dict]]]:
+            raise MissingExtraInstallation(extra_name="segy")
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            raise MissingExtraInstallation(extra_name="segy")
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext in [".sgy", ".segy"]

@@ -60,6 +60,8 @@ python_functions = [ "test_*" ]
 [tool.poetry.extras]
 parquet = ["pyarrow", "numpy", "pandas"]
 hdf5 = ["h5py"]
+las = ["lasio"]
+segy = ["segyio"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
@@ -69,6 +71,8 @@ h5py = { version = "^3.7.0", optional = false }
 pyarrow = { version = "^14.0.1", optional = false }
 numpy = { version = "^1.16.6", optional = false }
 flake8 = "^7.3.0"
+lasio = { version = "^0.31", optional = true }
+segyio = { version = "^1.9", optional = true }
 
 [tool.poetry.group.dev.dependencies]
 pandas = { version = "^1.1.0", optional = false }
