@@ -20,7 +20,7 @@ from .helper import (
     get_crs_origin_offset,
     is_z_reversed,
 )
-from energyml.utils.epc import gen_energyml_object_path
+from energyml.utils.epc_utils import gen_energyml_object_path
 from energyml.utils.epc_stream import EpcStreamReader
 from energyml.utils.exception import NotSupportedError, ObjectNotFoundNotError
 from energyml.utils.introspection import (

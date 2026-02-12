@@ -60,7 +60,7 @@ from energyml.utils.constants import (
     file_extension_to_mime_type,
     date_to_datetime,
 )
-from energyml.utils.epc import (
+from energyml.utils.epc_utils import (
     gen_energyml_object_path,
     get_epc_content_type_path,
     gen_core_props_path,

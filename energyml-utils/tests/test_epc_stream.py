@@ -27,7 +27,7 @@ from energyml.resqml.v2_2.resqmlv2 import (
 from energyml.opc.opc import Relationships
 
 from energyml.utils.epc_stream import EpcStreamReader, RelsUpdateMode
-from energyml.utils.epc import create_energyml_object, as_dor, get_obj_identifier
+from energyml.utils.epc_utils import as_dor, get_obj_identifier
 from energyml.utils.introspection import (
     epoch_to_date,
     epoch,

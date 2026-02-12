@@ -7,8 +7,10 @@ import traceback
 from typing import Any, Dict, List, Optional, Union
 
 from .epc import (
-    get_obj_identifier,
     Epc,
+)
+from .epc_utils import (
+    get_obj_identifier,
     get_property_kind_by_uuid,
 )
 from .introspection import (
