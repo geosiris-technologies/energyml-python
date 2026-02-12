@@ -281,6 +281,9 @@ def get_module_name(domain: str, domain_version: str):
     ns = ENERGYML_NAMESPACES[domain]
     if not domain_version.startswith("v"):
         domain_version = "v" + domain_version
+
+    if "." in domain_version:
+        domain_version = domain_version.replace(".", "_")
     return f"energyml.{domain}.{domain_version}.{ns[ns.rindex('/') + 1:]}"
 
 
@@ -368,6 +371,9 @@ def get_class_attributes(cls: Union[type, Any]) -> List[str]:
 
 
 def get_class_attribute_type(cls: Union[type, Any], attribute_name: str):
+    """
+    Return the type of an attribute of a class.
+    """
     fields = get_class_fields(cls)
     try:
         return fields[attribute_name].type
@@ -430,7 +436,7 @@ def get_object_attribute(obj: Any, attr_dot_path: str, force_snake_case=True) ->
 
     :param obj:
     :param attr_dot_path:
-    :param force_snake_case:
+    :param force_snake_case: if True, the method will try to find the attribute name in snake case (only for class attribute, not for dict keys nor list index)
     :return:
     """
     current_attrib_name, path_next = path_next_attribute(attr_dot_path)
@@ -439,9 +445,6 @@ def get_object_attribute(obj: Any, attr_dot_path: str, force_snake_case=True) ->
         logging.error(f"Attribute path '{attr_dot_path}' is invalid.")
         return None
 
-    if force_snake_case:
-        current_attrib_name = snake_case(current_attrib_name)
-
     value = None
     if isinstance(obj, list):
         value = obj[int(current_attrib_name)]
@@ -449,6 +452,8 @@ def get_object_attribute(obj: Any, attr_dot_path: str, force_snake_case=True) ->
         value = obj.get(current_attrib_name, None)
     else:
         try:
+            if force_snake_case:
+                current_attrib_name = snake_case(current_attrib_name)
             value = getattr(obj, current_attrib_name)
         except AttributeError:
             return None
@@ -960,7 +965,7 @@ def search_attribute_matching_name_with_path(
                     re_flags=re_flags,
                     current_path=matched_path,
                     deep_search=deep_search,  # no deep with partial
-                    search_in_sub_obj=True,
+                    search_in_sub_obj=search_in_sub_obj,
                 )
     if search_in_sub_obj:
         for not_matched_path, not_matched in not_match_path_and_obj:
@@ -989,8 +994,8 @@ def search_attribute_matching_name(
     :param obj:
     :param name_rgx:
     :param re_flags:
-    :param deep_search:
-    :param search_in_sub_obj:
+    :param deep_search: if True, the method will search for matching attribute in the sub attributes of a matching attribute (recursive search). If False, only the first level of attributes will be searched for a match.
+    :param search_in_sub_obj: if True, the method will search for matching attribute in the sub attributes of a non-matching attribute (recursive search). If False, only the first level of attributes will be searched for a match.
     :return:
     """
     return [
@@ -1136,7 +1141,14 @@ def get_obj_uuid(obj: Any) -> Optional[str]:
     :param obj:
     :return:
     """
-    return getattr(obj, "uuid", None) or getattr(obj, "uid", None)
+    try:
+        return getattr(obj, "uuid", None) or getattr(obj, "uid")
+    except AttributeError:
+        if isinstance(obj, dict):
+            for k in obj.keys():
+                if re.match(r"[Uu]u?id|UUID", k):
+                    return obj[k]
+    return None
     # return get_object_attribute_rgx(obj, "[Uu]u?id|UUID")
 
 
@@ -1150,7 +1162,7 @@ def get_obj_version(obj: Any) -> Optional[str]:
         return (
             getattr(obj, "object_version", None)
             or getattr(obj, "version_string", None)
-            or (getattr(obj, "citation", None) and getattr(obj.citation, "version_string", None))
+            or getattr(getattr(obj, "citation"), "version_string", None)
         )
     except AttributeError:
         # Log with full call stack to see WHO called this function
@@ -1159,6 +1171,14 @@ def get_obj_version(obj: Any) -> Optional[str]:
         #     exc_info=True,
         #     stack_info=True,  # This shows the full call stack including caller
         # )
+        if isinstance(obj, dict):
+            for k in obj.keys():
+                if re.match(r"object_version|version_string", k, re.IGNORECASE):
+                    return obj[k]
+                elif re.match(r"citation", k, re.IGNORECASE) and isinstance(obj[k], dict):
+                    for ck in obj[k].keys():
+                        if re.match(r"version_string", ck, re.IGNORECASE):
+                            return obj[k][ck]
         pass
     return None
     # raise e
@@ -1171,10 +1191,15 @@ def get_obj_title(obj: Any) -> Optional[str]:
     :return:
     """
     try:
-        return getattr(obj, "citation", None) and getattr(obj.citation, "title", None)
-        # return get_object_attribute_advanced(obj, "citation.title")
+        return getattr(getattr(obj, "citation"), "title", None)
     except AttributeError:
-        return None
+        if isinstance(obj, dict):
+            for k in obj.keys():
+                if re.match(r"citation", k, re.IGNORECASE) and isinstance(obj[k], dict):
+                    for ck in obj[k].keys():
+                        if re.match(r"title", ck, re.IGNORECASE):
+                            return obj[k][ck]
+    return None
 
 
 def get_obj_pkg_pkgv_type_uuid_version(
