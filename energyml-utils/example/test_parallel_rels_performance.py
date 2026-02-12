@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 import pytest
 
-from energyml.utils.epc_stream_old import EpcStreamReader
+from energyml.utils.epc_stream import EpcStreamReader
 
 
 # Default test file path - can be overridden via environment variable
