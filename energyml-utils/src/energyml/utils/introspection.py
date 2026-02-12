@@ -1130,13 +1130,14 @@ def copy_attributes(
 # Utility functions
 
 
-def get_obj_uuid(obj: Any) -> str:
+def get_obj_uuid(obj: Any) -> Optional[str]:
     """
     Return the object uuid (attribute must match the following regex : "[Uu]u?id|UUID").
     :param obj:
     :return:
     """
-    return get_object_attribute_rgx(obj, "[Uu]u?id|UUID")
+    return getattr(obj, "uuid", None) or getattr(obj, "uid", None)
+    # return get_object_attribute_rgx(obj, "[Uu]u?id|UUID")
 
 
 def get_obj_version(obj: Any) -> Optional[str]:
@@ -1146,20 +1147,21 @@ def get_obj_version(obj: Any) -> Optional[str]:
     :return:
     """
     try:
-        return get_object_attribute_no_verif(obj, "object_version")
+        return (
+            getattr(obj, "object_version", None)
+            or getattr(obj, "version_string", None)
+            or (getattr(obj, "citation", None) and getattr(obj.citation, "version_string", None))
+        )
     except AttributeError:
-        # AttributeError is expected when attribute doesn't exist - try alternative
-        try:
-            return get_object_attribute_no_verif(obj, "version_string")
-        except Exception:
-            # Log with full call stack to see WHO called this function
-            logging.error(
-                f"Error getting version for {type(obj)} -- {obj}",
-                exc_info=True,
-                stack_info=True,  # This shows the full call stack including caller
-            )
-            return None
-            # raise e
+        # Log with full call stack to see WHO called this function
+        # logging.error(
+        #     f"Error getting version for {type(obj)} -- {obj}",
+        #     exc_info=True,
+        #     stack_info=True,  # This shows the full call stack including caller
+        # )
+        pass
+    return None
+    # raise e
 
 
 def get_obj_title(obj: Any) -> Optional[str]:
@@ -1169,7 +1171,8 @@ def get_obj_title(obj: Any) -> Optional[str]:
     :return:
     """
     try:
-        return get_object_attribute_advanced(obj, "citation.title")
+        return getattr(obj, "citation", None) and getattr(obj.citation, "title", None)
+        # return get_object_attribute_advanced(obj, "citation.title")
     except AttributeError:
         return None
 
@@ -1430,6 +1433,9 @@ def get_content_type_from_class(cls: Union[type, Any], print_dev_version=True, n
 
 
 def get_object_type_for_file_path_from_class(cls) -> str:
+    """
+    Return the object type to use in file path or content type. It is not always the same as the class name, for example for resqml201, the class "TriangulatedSetRepresentation" has to be written "obj_TriangulatedSetRepresentation" in file path and content type.
+    """
     if not isinstance(cls, type):
         cls = type(cls)
     classic_type = get_obj_type(cls)

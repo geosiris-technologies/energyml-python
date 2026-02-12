@@ -182,6 +182,11 @@ def get_class_pkg(cls):
         return match.group("pkg")  # type: ignore
     except AttributeError as e:
         logging.error(f"Exception to get class package for '{cls}'")
+        logging.error(
+            f"Error getting package for {type(cls)} -- {cls}",
+            exc_info=True,
+            stack_info=True,  # This shows the full call stack including caller
+        )
         raise e
 
 
