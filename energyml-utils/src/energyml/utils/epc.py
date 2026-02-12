@@ -53,8 +53,7 @@ from .constants import (
     OptimizedRegex,
 )
 from .data.datasets_io import (
-    HDF5FileReader,
-    HDF5FileWriter,
+    get_handler_registry,
     read_external_dataset_array,
 )
 from .exception import UnparsableFile
@@ -329,20 +328,26 @@ class Epc(EnergymlStorageInterface):
 
         return zip_buffer
 
-    def get_obj_rels(self, obj: Any) -> Optional[Relationships]:
+    def get_obj_rels(self, obj: Union[str, Uri, Any]) -> List[Relationship]:
         """
-        Get the Relationships object for a given energyml object
-        :param obj:
-        :return:
+        Get the relationships for a given energyml object
+        :param obj: The object identifier/URI or the object itself
+        :return: List of Relationship objects
         """
+        # Convert identifier to object if needed
+        if isinstance(obj, str) or isinstance(obj, Uri):
+            obj = self.get_object_by_identifier(obj)
+            if obj is None:
+                return []
+
         rels_path = gen_rels_path(
             energyml_object=obj,
             export_version=self.export_version,
         )
         all_rels = self.compute_rels()
         if rels_path in all_rels:
-            return all_rels[rels_path]
-        return None
+            return all_rels[rels_path].relationship if all_rels[rels_path].relationship else []
+        return []
 
     def compute_rels(self) -> Dict[str, Relationships]:
         """
@@ -576,65 +581,112 @@ class Epc(EnergymlStorageInterface):
             epc=self,
         )
 
-    def read_array(self, proxy: Union[str, Uri, Any], path_in_external: str) -> Optional[np.ndarray]:
+    def read_array(
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: str,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
+        external_uri: Optional[str] = None,
+    ) -> Optional[np.ndarray]:
+        """
+        Read a data array from external storage (HDF5, Parquet, CSV, etc.) with optional sub-selection.
+
+        :param proxy: The object identifier/URI or the object itself that references the array
+        :param path_in_external: Path within the external file (e.g., 'values/0')
+        :param start_indices: Optional start index for each dimension (RESQML v2.2 StartIndex)
+        :param counts: Optional count of elements for each dimension (RESQML v2.2 Count)
+        :param external_uri: Optional URI to override default file path (RESQML v2.2 URI)
+        :return: The data array as a numpy array, or None if not found
+        """
         obj = proxy
         if isinstance(proxy, str) or isinstance(proxy, Uri):
             obj = self.get_object_by_identifier(proxy)
 
-        h5_path = self.get_h5_file_paths(obj)
-        h5_reader = HDF5FileReader()
+        # Determine which external files to use
+        file_paths = [external_uri] if external_uri else self.get_h5_file_paths(obj)
+        if not file_paths or len(file_paths) == 0:
+            file_paths = self.external_files_path
 
-        if h5_path is None or len(h5_path) == 0:
-            for h5_path in self.external_files_path:
-                try:
-                    return h5_reader.read_array(source=h5_path, path_in_external_file=path_in_external)
-                except Exception:
-                    pass
-                    # logging.error(f"Failed to read HDF5 dataset from {h5_path}: {e}")
-        else:
-            for h5p in h5_path:
-                try:
-                    return h5_reader.read_array(source=h5p, path_in_external_file=path_in_external)
-                except Exception:
-                    pass
-                    # logging.error(f"Failed to read HDF5 dataset from {h5p}: {e}")
+        if not file_paths:
+            logging.warning(f"No external file paths found for proxy: {proxy}")
+            return None
+
+        # Get the file handler registry
+        handler_registry = get_handler_registry()
+
+        for file_path in file_paths:
+            # Get the appropriate handler for this file type
+            handler = handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                logging.debug(f"No handler found for file: {file_path}")
+                continue
+
+            try:
+                # Use handler to read array with sub-selection support
+                array = handler.read_array(file_path, path_in_external, start_indices, counts)
+                if array is not None:
+                    return array
+            except Exception as e:
+                logging.debug(f"Failed to read dataset from {file_path}: {e}")
+                pass
+
+        logging.error(f"Failed to read array from any available file paths: {file_paths}")
         return None
 
     def write_array(
-        self, proxy: Union[str, Uri, Any], path_in_external: str, array: Any, in_memory: bool = False
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: str,
+        array: np.ndarray,
+        start_indices: Optional[List[int]] = None,
+        external_uri: Optional[str] = None,
+        **kwargs,
     ) -> bool:
         """
-        Write a dataset in the HDF5 file linked to the proxy object.
-        :param proxy: the object or its identifier
-        :param path_in_external: the path in the external file
-        :param array: the data to write
-        :param in_memory: if True, write in the in-memory HDF5 files (epc.h5_io_files)
+        Write a data array to external storage (HDF5, Parquet, CSV, etc.) with optional offset.
 
-        :return: True if successful
+        :param proxy: The object identifier/URI or the object itself that references the array
+        :param path_in_external: Path within the external file (e.g., 'values/0')
+        :param array: The numpy array to write
+        :param start_indices: Optional start index for each dimension for partial writes
+        :param external_uri: Optional URI to override default file path (RESQML v2.2 URI)
+        :param kwargs: Additional format-specific parameters (e.g., dtype, column_titles)
+        :return: True if successfully written, False otherwise
         """
         obj = proxy
         if isinstance(proxy, str) or isinstance(proxy, Uri):
             obj = self.get_object_by_identifier(proxy)
 
-        h5_path = self.get_h5_file_paths(obj)
-        h5_writer = HDF5FileWriter()
+        # Determine which external files to use
+        file_paths = [external_uri] if external_uri else self.get_h5_file_paths(obj)
+        if not file_paths or len(file_paths) == 0:
+            file_paths = self.external_files_path
 
-        if in_memory or h5_path is None or len(h5_path) == 0:
-            for h5_path in self.external_files_path:
-                try:
-                    h5_writer.write_array(target=h5_path, path_in_external_file=path_in_external, array=array)
-                    return True
-                except Exception:
-                    pass
-                    # logging.error(f"Failed to write HDF5 dataset to {h5_path}: {e}")
+        if not file_paths:
+            logging.warning(f"No external file paths found for proxy: {proxy}")
+            return False
 
-        for h5p in h5_path:
+        # Get the file handler registry
+        handler_registry = get_handler_registry()
+
+        # Try to write to the first available file
+        for file_path in file_paths:
+            # Get the appropriate handler for this file type
+            handler = handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                logging.debug(f"No handler found for file: {file_path}")
+                continue
+
             try:
-                h5_writer.write_array(target=h5p, path_in_external_file=path_in_external, array=array)
-                return True
-            except Exception:
-                pass
-                # logging.error(f"Failed to write HDF5 dataset to {h5p}: {e}")
+                # Use handler to write array with optional partial write support
+                success = handler.write_array(file_path, array, path_in_external, start_indices, **kwargs)
+                if success:
+                    return True
+            except Exception as e:
+                logging.error(f"Failed to write dataset to {file_path}: {e}")
+
+        logging.error(f"Failed to write array to any available file paths: {file_paths}")
         return False
 
     # Class methods
@@ -804,14 +856,76 @@ class Epc(EnergymlStorageInterface):
         return False
 
     def get_array_metadata(
-        self, proxy: str | Uri | Any, path_in_external: str | None = None
-    ) -> DataArrayMetadata | List[DataArrayMetadata] | None:
-        array = self.read_array(proxy=proxy, path_in_external=path_in_external)
-        if array is not None:
-            if isinstance(array, np.ndarray):
-                return DataArrayMetadata.from_numpy_array(path_in_resource=path_in_external, array=array)
-            elif isinstance(array, list):
-                return DataArrayMetadata.from_list(path_in_resource=path_in_external, data=array)
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: Optional[str] = None,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
+    ) -> Union[DataArrayMetadata, List[DataArrayMetadata], None]:
+        """
+        Get metadata for data array(s) without loading the full array data.
+        Supports RESQML v2.2 sub-array selection metadata.
+
+        :param proxy: The object identifier/URI or the object itself that references the array
+        :param path_in_external: Optional specific path. If None, returns all array metadata for the object
+        :param start_indices: Optional start index for each dimension (RESQML v2.2 StartIndex)
+        :param counts: Optional count of elements for each dimension (RESQML v2.2 Count)
+        :return: DataArrayMetadata if path specified, List[DataArrayMetadata] if no path, or None if not found
+        """
+        obj = proxy
+        if isinstance(proxy, str) or isinstance(proxy, Uri):
+            obj = self.get_object_by_identifier(proxy)
+
+        # Get possible file paths for this object
+        file_paths = self.get_h5_file_paths(obj)
+        if not file_paths or len(file_paths) == 0:
+            file_paths = self.external_files_path
+
+        if not file_paths:
+            logging.warning(f"No external file paths found for proxy: {proxy}")
+            return None
+
+        # Get the file handler registry
+        handler_registry = get_handler_registry()
+
+        for file_path in file_paths:
+            # Get the appropriate handler for this file type
+            handler = handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                logging.debug(f"No handler found for file: {file_path}")
+                continue
+
+            try:
+                # Use handler to get metadata without loading full array
+                metadata_dict = handler.get_array_metadata(file_path, path_in_external, start_indices, counts)
+
+                if metadata_dict is None:
+                    continue
+
+                # Convert dict(s) to DataArrayMetadata
+                if isinstance(metadata_dict, list):
+                    return [
+                        DataArrayMetadata(
+                            path_in_resource=m.get("path"),
+                            array_type=m.get("dtype", "unknown"),
+                            dimensions=m.get("shape", []),
+                            start_indices=start_indices,
+                            custom_data={"size": m.get("size", 0)},
+                        )
+                        for m in metadata_dict
+                    ]
+                else:
+                    return DataArrayMetadata(
+                        path_in_resource=metadata_dict.get("path"),
+                        array_type=metadata_dict.get("dtype", "unknown"),
+                        dimensions=metadata_dict.get("shape", []),
+                        start_indices=start_indices,
+                        custom_data={"size": metadata_dict.get("size", 0)},
+                    )
+            except Exception as e:
+                logging.debug(f"Failed to get metadata from file {file_path}: {e}")
+
+        return None
 
     def dumps_epc_content_and_files_lists(self) -> str:
         """
