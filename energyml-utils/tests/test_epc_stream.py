@@ -17,7 +17,13 @@ from energyml.utils.epc_utils import gen_energyml_object_path
 import pytest
 import numpy as np
 
+from energyml.eml.v2_0.commonv2 import Citation as Citation20, EpcExternalPartReference
 from energyml.eml.v2_3.commonv2 import Citation
+from energyml.resqml.v2_0_1.resqmlv2 import (
+    TriangulatedSetRepresentation as TriangulatedSetRepresentation20,
+    TrianglePatch as TrianglePatch20,
+    PointGeometry as PointGeometry20,
+)
 from energyml.resqml.v2_2.resqmlv2 import (
     TriangulatedSetRepresentation,
     BoundaryFeatureInterpretation,
@@ -105,10 +111,37 @@ def sample_objects():
         represented_object=as_dor(horizon_interp),
     )
 
+    # Create an EpcExternalPartReference (RESQML 2.0.1)
+    external_ref = EpcExternalPartReference(
+        uuid="25773477-ffee-4cc2-867d-000000000005",
+        citation=Citation20(
+            title="An external reference",
+            originator="Test",
+            creation=epoch_to_date(epoch()),
+        ),
+    )
+
+    # Create a TriangulatedSetRepresentation 2.0.1 that references the external part
+    trset20 = TriangulatedSetRepresentation20(
+        citation=Citation20(
+            title="Test TriangulatedSetRepresentation 2.0",
+            originator="Test",
+            creation=epoch_to_date(epoch()),
+        ),
+        uuid="25773477-ffee-4cc2-867d-000000000006",
+        object_version="1.0",
+        represented_interpretation=as_dor(horizon_interp, "eml20.DataObjectReference"),
+        triangle_patch=[
+            TrianglePatch20(geometry=PointGeometry20(local_crs=as_dor(external_ref, "eml20.DataObjectReference")))
+        ],
+    )
+
     return {
         "bf": bf,
         "bfi": bfi,
         "trset": trset,
+        "trset20": trset20,
+        "external_ref": external_ref,
         "horizon_interp": horizon_interp,
     }
 
@@ -653,6 +686,106 @@ class TestRelationshipConsistency:
         bf2_rels = reader.get_obj_rels(get_obj_identifier(bf2))
         bf1_refs = [r for r in bf2_rels if get_obj_identifier(bf1) in r.id]
         assert len(bf1_refs) == 0
+
+        reader.close()
+
+    def test_external_part_reference_relationships(self, temp_epc_file, sample_objects):
+        """Test external part reference has EXTERNAL_PART_PROXY_TO_ML to trset20."""
+        reader = EpcStreamReader(temp_epc_file, rels_update_mode=RelsUpdateMode.UPDATE_AT_MODIFICATION)
+
+        external_ref = sample_objects["external_ref"]
+        trset20 = sample_objects["trset20"]
+        horizon_interp = sample_objects["horizon_interp"]
+        bf = sample_objects["bf"]
+
+        reader.add_object(bf)
+        reader.add_object(horizon_interp)
+        reader.add_object(external_ref)
+        reader.add_object(trset20)
+
+        # Get external_ref rels
+        external_ref_rels = reader.get_obj_rels(get_obj_identifier(external_ref))
+
+        # Check for EXTERNAL_PART_PROXY_TO_ML relationship
+        proxy_to_ml_rels = [
+            r for r in external_ref_rels if r.type_value == str(EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML)
+        ]
+        assert len(proxy_to_ml_rels) >= 1, "Expected EXTERNAL_PART_PROXY_TO_ML relationship from external_ref"
+
+        # Verify target points to trset20
+        trset20_path = gen_energyml_object_path(trset20, reader.export_version)
+        assert any(
+            trset20_path in r.target for r in proxy_to_ml_rels
+        ), "Expected relationship target to point to trset20"
+
+        reader.close()
+
+    def test_trset20_has_ml_to_external_part_proxy_relationship(self, temp_epc_file, sample_objects):
+        """Test that trset20 has ML_TO_EXTERNAL_PART_PROXY relationship to external_ref."""
+        reader = EpcStreamReader(temp_epc_file, rels_update_mode=RelsUpdateMode.UPDATE_AT_MODIFICATION)
+
+        external_ref = sample_objects["external_ref"]
+        trset20 = sample_objects["trset20"]
+        horizon_interp = sample_objects["horizon_interp"]
+        bf = sample_objects["bf"]
+
+        reader.add_object(bf)
+        reader.add_object(horizon_interp)
+        reader.add_object(external_ref)
+        reader.add_object(trset20)
+
+        # Get trset20 rels
+        trset20_rels = reader.get_obj_rels(get_obj_identifier(trset20))
+
+        # Check for ML_TO_EXTERNAL_PART_PROXY relationship
+        ml_to_proxy_rels = [
+            r for r in trset20_rels if r.type_value == str(EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY)
+        ]
+        assert len(ml_to_proxy_rels) >= 1, "Expected ML_TO_EXTERNAL_PART_PROXY relationship from trset20"
+
+        # Verify target points to external_ref
+        external_ref_path = gen_energyml_object_path(external_ref, reader.export_version)
+        assert any(
+            external_ref_path in r.target for r in ml_to_proxy_rels
+        ), "Expected relationship target to point to external_ref"
+
+        reader.close()
+
+    def test_complete_external_ref_bidirectional_relationships(self, temp_epc_file, sample_objects):
+        """Test complete bidirectional relationships between trset20 and external_ref."""
+        reader = EpcStreamReader(temp_epc_file, rels_update_mode=RelsUpdateMode.UPDATE_AT_MODIFICATION)
+
+        external_ref = sample_objects["external_ref"]
+        trset20 = sample_objects["trset20"]
+        horizon_interp = sample_objects["horizon_interp"]
+        bf = sample_objects["bf"]
+
+        reader.add_object(bf)
+        reader.add_object(horizon_interp)
+        reader.add_object(external_ref)
+        reader.add_object(trset20)
+
+        # Check trset20 -> external_ref (ML_TO_EXTERNAL_PART_PROXY)
+        trset20_rels = reader.get_obj_rels(get_obj_identifier(trset20))
+        external_ref_path = gen_energyml_object_path(external_ref, reader.export_version)
+
+        ml_to_proxy = [
+            r
+            for r in trset20_rels
+            if r.type_value == str(EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY) and external_ref_path in r.target
+        ]
+        assert len(ml_to_proxy) >= 1, "Expected ML_TO_EXTERNAL_PART_PROXY from trset20 to external_ref"
+
+        # Check external_ref -> trset20 (EXTERNAL_PART_PROXY_TO_ML)
+        external_ref_rels = reader.get_obj_rels(get_obj_identifier(external_ref))
+        trset20_path = gen_energyml_object_path(trset20, reader.export_version)
+
+        proxy_to_ml = [
+            r
+            for r in external_ref_rels
+            if r.type_value == str(EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML) and trset20_path in r.target
+        ]
+        assert len(proxy_to_ml) >= 1, "Expected EXTERNAL_PART_PROXY_TO_ML from external_ref to trset20"
 
         reader.close()
 

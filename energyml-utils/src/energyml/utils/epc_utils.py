@@ -12,6 +12,7 @@ import zipfile
 from energyml.opc.opc import (
     CoreProperties,
     Relationship,
+    Relationships,
     TargetMode,
     Created,
     Creator,
@@ -116,6 +117,8 @@ def gen_energyml_object_path(
         obj_type = get_object_type_for_file_path_from_class(obj_cls)
     elif isinstance(energyml_object, CoreProperties):
         return gen_core_props_path(export_version)
+    elif isinstance(energyml_object, Types):
+        return get_epc_content_type_path()
     else:
         obj_type = get_object_type_for_file_path_from_class(energyml_object.__class__)
         # logging.debug("is_dor: ", str(is_dor(energyml_object)), "object type : " + str(obj_type))
@@ -155,6 +158,8 @@ def gen_rels_path(
     """
     if isinstance(energyml_object, CoreProperties):
         return gen_core_props_rels_path()
+    elif isinstance(energyml_object, Types):
+        return get_epc_content_type_rels_path()
     else:
         obj_path = Path(gen_energyml_object_path(energyml_object, export_version))
         return gen_rels_path_from_obj_path(obj_path=obj_path)
@@ -180,6 +185,11 @@ def get_epc_content_type_path(
     :return:
     """
     return "[Content_Types].xml"
+
+
+def get_epc_content_type_rels_path() -> str:
+    """Generate a path to store the rels file for "[Content_Types].xml" into an epc file :return:"""
+    return f"{RELS_FOLDER_NAME}/.rels"
 
 
 def extract_uuid_and_version_from_obj_path(obj_path: Union[str, Path]) -> Tuple[str, Optional[str]]:
@@ -242,6 +252,51 @@ def create_default_types() -> Types:
     )
 
 
+def match_external_proxy_type(obj_or_path_or_type: Union[str, Uri, Any]) -> bool:
+    """Check if the given object, path or type string matches the pattern of an external proxy reference."""
+    if isinstance(obj_or_path_or_type, str):
+        # for a classname, a filepath or a content-type, we check if it contains "external" and "reference"
+        obj_or_path_or_type_lw = obj_or_path_or_type.lower()
+        return "external" in obj_or_path_or_type_lw and "reference" in obj_or_path_or_type_lw
+    elif isinstance(obj_or_path_or_type, Uri):
+        return match_external_proxy_type(obj_or_path_or_type.get_qualified_type())
+    else:
+        return match_external_proxy_type(str(type(obj_or_path_or_type)))
+
+
+def get_rels_dor_type(dor_target: Union[str, Uri, Any], in_dor_owner_rels_file: bool) -> str:
+    """
+    Determine the appropriate EPC relationship type for a DOR based on its target and rels file context.
+
+    :param dor_target: The target object/type that the DOR references. Can be a string (qualified type),
+                       a Uri object, or an EnergyML object. Used to determine if it's an external proxy.
+    :param in_dor_owner_rels_file: Boolean indicating which rels file perspective:
+                                    - True: We're in the rels file of the object that OWNS/CONTAINS the DOR
+                                    - False: We're in the rels file of the object that is TARGETED by the DOR
+    :return: The appropriate EPCRelsRelationshipType as a string for the relationship
+
+    The function handles four scenarios:
+    - External proxy from owner's perspective -> ML_TO_EXTERNAL_PART_PROXY
+    - External proxy from target's perspective -> EXTERNAL_PART_PROXY_TO_ML
+    - Regular object from owner's perspective -> DESTINATION_OBJECT
+    - Regular object from target's perspective -> SOURCE_OBJECT
+    """
+    if match_external_proxy_type(dor_target):
+        if in_dor_owner_rels_file:
+            # in the rels file of the Representation that points to the proxy
+            return str(EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY)
+        else:
+            # in the EpcExternalPartReference rels file
+            return str(EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML)
+    else:
+        if in_dor_owner_rels_file:
+            # in the rels file of the object that contains the DOR
+            return str(EPCRelsRelationshipType.DESTINATION_OBJECT)
+        else:
+            # in the DOR target rels file
+            return str(EPCRelsRelationshipType.SOURCE_OBJECT)
+
+
 #  _    __      ___     __      __  _
 # | |  / /___ _/ (_)___/ /___ _/ /_(_)___  ____
 # | | / / __ `/ / / __  / __ `/ __/ / __ \/ __ \
@@ -266,6 +321,7 @@ def valdiate_basic_epc_structure(epc: Union[str, Path, zipfile.ZipFile, BytesIO]
     required_files = {
         get_epc_content_type_path(),
         gen_core_props_rels_path(),
+        get_epc_content_type_rels_path(),
         gen_core_props_path(),
     }
 
@@ -301,8 +357,19 @@ def create_mandatory_structure_epc(epc: Union[str, Path, zipfile.ZipFile, BytesI
     core_props = create_default_core_properties()
     empty_epc_structure = {
         get_epc_content_type_path(): serialize_xml(Types()),
-        gen_core_props_rels_path(): serialize_xml(Relationship()),
+        gen_core_props_rels_path(): serialize_xml(Relationships()),
         gen_core_props_path(): serialize_xml(core_props),
+        get_epc_content_type_rels_path(): serialize_xml(
+            Relationships(
+                relationship=[
+                    Relationship(
+                        id="CoreProperties",
+                        type_value=str(EPCRelsRelationshipType.CORE_PROPERTIES),
+                        target=gen_core_props_path(),
+                    )
+                ]
+            )
+        ),
     }
 
     # print(f"Current files in the EPC: {epc_io.namelist()}")
@@ -389,111 +456,119 @@ def get_property_kind_and_parents(uuids: list) -> Dict[str, Any]:
 # /_____/\____/_/ |_|   \____/_/   \___/\__,_/\__/_/\____/_/ /_/
 
 
-def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectReference"):
+def as_dor(obj_or_identifier: Union[str, Uri, Any], dor_qualified_type: str = "eml23.DataObjectReference"):
     """
     Create a DOR (Data Object Reference) from an object to target the latter.
     :param obj_or_identifier: an energyml object, identifier string, or URI
     :param dor_qualified_type: the qualified type of the DOR (e.g. "eml23.DataObjectReference" is the default value)
     :return: a DOR object
     """
-    dor = None
-    if obj_or_identifier is not None:
-        cls = get_class_from_qualified_type(dor_qualified_type)
-        dor = cls()
-        if isinstance(obj_or_identifier, str):  # is an identifier or uri
-            parsed_uri = parse_uri(obj_or_identifier)
-            if parsed_uri is not None:
-                logging.debug(f"====> parsed uri {parsed_uri} : uuid is {parsed_uri.uuid}")
-                if hasattr(dor, "qualified_type"):
-                    set_attribute_from_path(dor, "qualified_type", parsed_uri.get_qualified_type())
-                if hasattr(dor, "content_type"):
-                    set_attribute_from_path(
-                        dor, "content_type", qualified_type_to_content_type(parsed_uri.get_qualified_type())
-                    )
-                set_attribute_from_path(dor, "uuid", parsed_uri.uuid)
-                set_attribute_from_path(dor, "uid", parsed_uri.uuid)
-                if hasattr(dor, "object_version"):
-                    set_attribute_from_path(dor, "object_version", parsed_uri.version)
-                if hasattr(dor, "version_string"):
-                    set_attribute_from_path(dor, "version_string", parsed_uri.version)
-                if hasattr(dor, "energistics_uri"):
-                    set_attribute_from_path(dor, "energistics_uri", obj_or_identifier)
+    if obj_or_identifier is None:
+        return None
 
-            else:  # identifier
-                if len(__CACHE_PROP_KIND_DICT__) == 0:
-                    # update the cache to check if it is a
-                    try:
-                        update_prop_kind_dict_cache()
-                    except FileNotFoundError as e:
-                        logging.error(f"Failed to parse propertykind dict {e}")
+    cls = get_class_from_qualified_type(dor_qualified_type)
+    dor = cls()
+
+    # Variables to collect data from different sources
+    dor_uuid = None
+    dor_title = None
+    dor_version = None
+    dor_qualified_type_str = None
+    dor_content_type_str = None
+    dor_energistics_uri = None
+
+    if isinstance(obj_or_identifier, str) or isinstance(obj_or_identifier, Uri):  # is an identifier or uri
+        parsed_uri = obj_or_identifier if isinstance(obj_or_identifier, Uri) else parse_uri(obj_or_identifier)
+        if parsed_uri is not None:
+            # From URI
+            logging.debug(f"====> parsed uri {parsed_uri} : uuid is {parsed_uri.uuid}")
+            dor_uuid = parsed_uri.uuid
+            dor_version = parsed_uri.version
+            dor_qualified_type_str = parsed_uri.get_qualified_type()
+            dor_content_type_str = qualified_type_to_content_type(parsed_uri.get_qualified_type())
+            dor_energistics_uri = str(obj_or_identifier)
+        elif isinstance(obj_or_identifier, str):  # identifier
+            if len(__CACHE_PROP_KIND_DICT__) == 0:
                 try:
-                    uuid, version = split_identifier(obj_or_identifier)
-                    if uuid in __CACHE_PROP_KIND_DICT__:
-                        return as_dor(__CACHE_PROP_KIND_DICT__[uuid])
-                    else:
-                        set_attribute_from_path(dor, "uuid", uuid)
-                        set_attribute_from_path(dor, "uid", uuid)
-                        set_attribute_from_path(dor, "ObjectVersion", version)
-                except AttributeError:
-                    logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
-        else:
-            if is_dor(obj_or_identifier):
-                # If it is a dor, we create a dor conversion
-                if hasattr(dor, "qualified_type"):
-                    if hasattr(obj_or_identifier, "qualified_type"):
-                        dor.qualified_type = get_object_attribute(obj_or_identifier, "qualified_type")
-                    elif hasattr(obj_or_identifier, "content_type"):
-                        dor.qualified_type = content_type_to_qualified_type(
-                            get_object_attribute(obj_or_identifier, "content_type")
-                        )
-
-                if hasattr(dor, "content_type"):
-                    if hasattr(obj_or_identifier, "qualified_type"):
-                        dor.content_type = qualified_type_to_content_type(
-                            get_object_attribute(obj_or_identifier, "qualified_type")
-                        )
-                    elif hasattr(obj_or_identifier, "content_type"):
-                        dor.content_type = get_object_attribute(obj_or_identifier, "content_type")
-
-                set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Title"))
-                obj_uuid = get_obj_uuid(obj_or_identifier)
-                set_attribute_from_path(dor, "uuid", obj_uuid)
-                set_attribute_from_path(dor, "uid", obj_uuid)
-                if hasattr(dor, "object_version"):
-                    set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
-                if hasattr(dor, "version_string"):
-                    set_attribute_from_path(dor, "version_string", get_obj_version(obj_or_identifier))
-
-            else:
-
-                # for etp Resource object:
-                if hasattr(obj_or_identifier, "uri"):
-                    dor = as_dor(obj_or_identifier.uri, dor_qualified_type)
-                    if hasattr(obj_or_identifier, "name"):
-                        set_attribute_from_path(dor, "title", getattr(obj_or_identifier, "name"))
+                    update_prop_kind_dict_cache()
+                except FileNotFoundError as e:
+                    logging.error(f"Failed to parse propertykind dict {e}")
+            try:
+                uuid, version = split_identifier(obj_or_identifier)
+                if uuid in __CACHE_PROP_KIND_DICT__:
+                    return as_dor(__CACHE_PROP_KIND_DICT__[uuid], dor_qualified_type)
                 else:
-                    if hasattr(dor, "qualified_type"):
-                        try:
-                            set_attribute_from_path(
-                                dor, "qualified_type", get_qualified_type_from_class(obj_or_identifier)
-                            )
-                        except Exception as e:
-                            logging.error(f"Failed to set qualified_type for DOR {e}")
-                    if hasattr(dor, "content_type"):
-                        try:
-                            set_attribute_from_path(dor, "content_type", get_content_type_from_class(obj_or_identifier))
-                        except Exception as e:
-                            logging.error(f"Failed to set content_type for DOR {e}")
+                    dor_uuid = uuid
+                    dor_version = version
+            except AttributeError:
+                logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
+    else:
+        if is_dor(obj_or_identifier):
+            # DOR conversion
+            if hasattr(obj_or_identifier, "qualified_type"):
+                dor_qualified_type_str = get_object_attribute(obj_or_identifier, "qualified_type")
+            elif hasattr(obj_or_identifier, "content_type"):
+                dor_qualified_type_str = content_type_to_qualified_type(
+                    get_object_attribute(obj_or_identifier, "content_type")
+                )
 
-                    set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Citation.Title"))
-                    obj_uuid = get_obj_uuid(obj_or_identifier)
-                    # logging.debug(f"====> obj uuid is {obj_uuid}")
-                    set_attribute_from_path(dor, "uid", obj_uuid)
-                    set_attribute_from_path(dor, "uuid", obj_uuid)
-                    if hasattr(dor, "object_version"):
-                        set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
-                    if hasattr(dor, "version_string"):
-                        set_attribute_from_path(dor, "version_string", get_obj_version(obj_or_identifier))
+            if hasattr(obj_or_identifier, "qualified_type"):
+                dor_content_type_str = qualified_type_to_content_type(
+                    get_object_attribute(obj_or_identifier, "qualified_type")
+                )
+            elif hasattr(obj_or_identifier, "content_type"):
+                dor_content_type_str = get_object_attribute(obj_or_identifier, "content_type")
+
+            dor_title = get_object_attribute(obj_or_identifier, "Title")
+            dor_uuid = get_obj_uuid(obj_or_identifier)
+            dor_version = get_obj_version(obj_or_identifier)
+        else:
+            # For etp Resource object
+            if hasattr(obj_or_identifier, "uri"):
+                dor = as_dor(obj_or_identifier.uri, dor_qualified_type)
+                if hasattr(obj_or_identifier, "name") and hasattr(dor, "title"):
+                    setattr(dor, "title", getattr(obj_or_identifier, "name"))
+                return dor
+            else:
+                # Regular EnergyML object
+                try:
+                    dor_qualified_type_str = get_qualified_type_from_class(obj_or_identifier)
+                except Exception as e:
+                    logging.error(f"Failed to set qualified_type for DOR {e}")
+
+                try:
+                    dor_content_type_str = get_content_type_from_class(obj_or_identifier)
+                except Exception as e:
+                    logging.error(f"Failed to set content_type for DOR {e}")
+
+                dor_title = get_object_attribute(obj_or_identifier, "Citation.Title")
+                dor_uuid = get_obj_uuid(obj_or_identifier)
+                dor_version = get_obj_version(obj_or_identifier)
+
+    # Unified attribute setting section - applies collected data to DOR
+    if dor_qualified_type_str and hasattr(dor, "qualified_type"):
+        dor.qualified_type = dor_qualified_type_str
+
+    if dor_content_type_str and hasattr(dor, "content_type"):
+        dor.content_type = dor_content_type_str
+
+    if dor_title and hasattr(dor, "title"):
+        setattr(dor, "title", dor_title)
+
+    if dor_uuid:
+        if hasattr(dor, "uuid"):
+            setattr(dor, "uuid", dor_uuid)
+        if hasattr(dor, "uid"):
+            setattr(dor, "uid", dor_uuid)
+
+    if dor_version:
+        if hasattr(dor, "object_version"):
+            setattr(dor, "object_version", dor_version)
+        if hasattr(dor, "version_string"):
+            setattr(dor, "version_string", dor_version)
+
+    if dor_energistics_uri and hasattr(dor, "energistics_uri"):
+        setattr(dor, "energistics_uri", dor_energistics_uri)
 
     return dor
 
@@ -573,7 +648,7 @@ def create_external_part_reference(
     return obj
 
 
-#     ____       __      __  _                 __    _
+#     ____       __      __  _                __    _
 #    / __ \___  / /___ _/ /_(_)___  ____  ___/ /_  (_)___  _____
 #   / /_/ / _ \/ / __ `/ __/ / __ \/ __ \/ __  / / / / __ \/ ___/
 #  / _, _/  __/ / /_/ / /_/ / /_/ / / / / /_/ / /_/ / /_/ (__  )

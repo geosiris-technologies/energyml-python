@@ -19,9 +19,14 @@ import pytest
 import numpy as np
 
 from energyml.eml.v2_0.commonv2 import Citation as Citation20
-from energyml.eml.v2_0.commonv2 import DataObjectReference as DataObjectReference201
+from energyml.eml.v2_0.commonv2 import DataObjectReference as DataObjectReference201, EpcExternalPartReference
 from energyml.eml.v2_3.commonv2 import Citation, DataObjectReference
-from energyml.resqml.v2_0_1.resqmlv2 import FaultInterpretation
+from energyml.resqml.v2_0_1.resqmlv2 import (
+    FaultInterpretation,
+    TriangulatedSetRepresentation as TriangulatedSetRepresentation20,
+    TrianglePatch as TrianglePatch20,
+    PointGeometry as PointGeometry20,
+)
 from energyml.resqml.v2_2.resqmlv2 import (
     TriangulatedSetRepresentation,
     BoundaryFeatureInterpretation,
@@ -125,10 +130,30 @@ def sample_objects():
         object_version="0",
     )
 
+    # 201
+    external_ref = EpcExternalPartReference(
+        uuid="25773477-ffee-4cc2-867d-000000000005",
+        citation=Citation20(title="An external reference", originator="Valentin", creation=epoch_to_date(epoch())),
+    )
+
+    tr_set_20 = TriangulatedSetRepresentation20(
+        citation=Citation20(
+            title="Test TriangulatedSetRepresentation 2.0", originator="Test", creation=epoch_to_date(epoch())
+        ),
+        uuid="25773477-ffee-4cc2-867d-000000000006",
+        object_version="1.0",
+        represented_interpretation=as_dor(horizon_interp, "eml20.DataObjectReference"),
+        triangle_patch=[
+            TrianglePatch20(geometry=PointGeometry20(local_crs=as_dor(external_ref, "eml20.DataObjectReference")))
+        ],
+    )
+
     return {
         "bf": bf,
         "bfi": bfi,
         "trset": trset,
+        "trset20": tr_set_20,
+        "external_ref": external_ref,
         "horizon_interp": horizon_interp,
         "fi": fi,
     }
@@ -308,6 +333,192 @@ class TestRelationships:
                 r for r in bfi_rels.relationship if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)
             ]
             assert len(dest_rels) >= 1
+
+    def test_trset_to_interpretation_destination_relationship(self, sample_objects):
+        """Test that TriangulatedSetRepresentation has DESTINATION_OBJECT relationship to interpretation."""
+        epc = Epc()
+        bf = sample_objects["bf"]
+        horizon_interp = sample_objects["horizon_interp"]
+        trset = sample_objects["trset"]
+
+        epc.add_object(bf)
+        epc.add_object(horizon_interp)
+        epc.add_object(trset)
+
+        rels_dict = epc.compute_rels()
+
+        # Get trset rels path
+        trset_path = gen_energyml_object_path(trset, epc.export_version)
+        trset_rels_path = f"_rels/{trset_path}.rels"
+
+        assert trset_rels_path in rels_dict
+        trset_rels = rels_dict[trset_rels_path]
+
+        # Check for DESTINATION_OBJECT relationship to horizon_interp
+        dest_rels = [
+            r for r in trset_rels.relationship if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)
+        ]
+        assert len(dest_rels) >= 1
+
+        # Verify target points to horizon_interp
+        horizon_interp_path = gen_energyml_object_path(horizon_interp, epc.export_version)
+        assert any(horizon_interp_path in r.target for r in dest_rels)
+
+    def test_interpretation_has_source_and_destination_relationships(self, sample_objects):
+        """Test that interpretation has SOURCE_OBJECT from trset and DESTINATION_OBJECT to feature."""
+        epc = Epc()
+        bf = sample_objects["bf"]
+        horizon_interp = sample_objects["horizon_interp"]
+        trset = sample_objects["trset"]
+
+        epc.add_object(bf)
+        epc.add_object(horizon_interp)
+        epc.add_object(trset)
+
+        rels_dict = epc.compute_rels()
+
+        # Get interpretation rels path
+        interp_path = gen_energyml_object_path(horizon_interp, epc.export_version)
+        interp_rels_path = f"_rels/{interp_path}.rels"
+
+        assert interp_rels_path in rels_dict
+        interp_rels = rels_dict[interp_rels_path]
+
+        # Check for SOURCE_OBJECT relationship from trset
+        source_rels = [
+            r for r in interp_rels.relationship if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)
+        ]
+        assert len(source_rels) >= 1
+
+        # Verify source points to trset
+        trset_path = gen_energyml_object_path(trset, epc.export_version)
+        assert any(trset_path in r.target for r in source_rels)
+
+        # Check for DESTINATION_OBJECT relationship to feature
+        dest_rels = [
+            r for r in interp_rels.relationship if r.type_value == str(EPCRelsRelationshipType.DESTINATION_OBJECT)
+        ]
+        assert len(dest_rels) >= 1
+
+        # Verify target points to bf
+        bf_path = gen_energyml_object_path(bf, epc.export_version)
+        assert any(bf_path in r.target for r in dest_rels)
+
+    def test_feature_has_source_relationship_from_interpretation(self, sample_objects):
+        """Test that feature has SOURCE_OBJECT relationship from interpretation."""
+        epc = Epc()
+        bf = sample_objects["bf"]
+        horizon_interp = sample_objects["horizon_interp"]
+
+        epc.add_object(bf)
+        epc.add_object(horizon_interp)
+
+        rels_dict = epc.compute_rels()
+
+        # Get feature rels path
+        bf_path = gen_energyml_object_path(bf, epc.export_version)
+        bf_rels_path = f"_rels/{bf_path}.rels"
+
+        assert bf_rels_path in rels_dict
+        bf_rels = rels_dict[bf_rels_path]
+
+        # Check for SOURCE_OBJECT relationship from interpretation
+        source_rels = [r for r in bf_rels.relationship if r.type_value == str(EPCRelsRelationshipType.SOURCE_OBJECT)]
+        assert len(source_rels) >= 1
+
+        # Verify source points to horizon_interp
+        interp_path = gen_energyml_object_path(horizon_interp, epc.export_version)
+        assert any(interp_path in r.target for r in source_rels)
+
+    def test_external_part_reference_relationships(self, sample_objects):
+        """Test external part reference has EXTERNAL_PART_PROXY_TO_ML to trset20."""
+        epc = Epc()
+        external_ref = sample_objects["external_ref"]
+        trset20 = sample_objects["trset20"]
+        horizon_interp = sample_objects["horizon_interp"]
+        bf = sample_objects["bf"]
+
+        epc.add_object(bf)
+        epc.add_object(horizon_interp)
+        epc.add_object(external_ref)
+        epc.add_object(trset20)
+
+        rels_dict = epc.compute_rels()
+
+        # Get external_ref rels path
+        external_ref_path = gen_energyml_object_path(external_ref, epc.export_version)
+        external_ref_rels_path = f"_rels/{external_ref_path}.rels"
+
+        assert external_ref_rels_path in rels_dict
+        external_ref_rels = rels_dict[external_ref_rels_path]
+
+        # Check for EXTERNAL_PART_PROXY_TO_ML relationship
+        proxy_to_ml_rels = [
+            r
+            for r in external_ref_rels.relationship
+            if r.type_value == str(EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML)
+        ]
+        assert len(proxy_to_ml_rels) >= 1
+
+        # Verify target points to trset20
+        trset20_path = gen_energyml_object_path(trset20, epc.export_version)
+        assert any(trset20_path in r.target for r in proxy_to_ml_rels)
+
+    def test_trset20_has_ml_to_external_part_proxy_relationship(self, sample_objects):
+        """Test that trset20 has ML_TO_EXTERNAL_PART_PROXY relationship to external_ref."""
+        epc = Epc()
+        external_ref = sample_objects["external_ref"]
+        trset20 = sample_objects["trset20"]
+        horizon_interp = sample_objects["horizon_interp"]
+        bf = sample_objects["bf"]
+
+        epc.add_object(bf)
+        epc.add_object(horizon_interp)
+        epc.add_object(external_ref)
+        epc.add_object(trset20)
+
+        rels_dict = epc.compute_rels()
+
+        # Get trset20 rels path
+        trset20_path = gen_energyml_object_path(trset20, epc.export_version)
+        trset20_rels_path = f"_rels/{trset20_path}.rels"
+
+        assert trset20_rels_path in rels_dict
+        trset20_rels = rels_dict[trset20_rels_path]
+
+        # Check for ML_TO_EXTERNAL_PART_PROXY relationship
+        ml_to_proxy_rels = [
+            r
+            for r in trset20_rels.relationship
+            if r.type_value == str(EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY)
+        ]
+        assert len(ml_to_proxy_rels) >= 1
+
+        # Verify target points to external_ref
+        external_ref_path = gen_energyml_object_path(external_ref, epc.export_version)
+        assert any(external_ref_path in r.target for r in ml_to_proxy_rels)
+
+    def test_complete_relationship_chain(self, sample_objects):
+        """Test complete relationship chain: trset -> interp -> feature."""
+        epc = Epc()
+        bf = sample_objects["bf"]
+        horizon_interp = sample_objects["horizon_interp"]
+        trset = sample_objects["trset"]
+
+        epc.add_object(bf)
+        epc.add_object(horizon_interp)
+        epc.add_object(trset)
+
+        rels_dict = epc.compute_rels()
+
+        # Verify all three objects have relationship files
+        trset_path = gen_energyml_object_path(trset, epc.export_version)
+        interp_path = gen_energyml_object_path(horizon_interp, epc.export_version)
+        bf_path = gen_energyml_object_path(bf, epc.export_version)
+
+        assert f"_rels/{trset_path}.rels" in rels_dict
+        assert f"_rels/{interp_path}.rels" in rels_dict
+        assert f"_rels/{bf_path}.rels" in rels_dict
 
     def test_get_obj_rels_after_compute(self, sample_objects):
         """Test get_obj_rels after explicit compute_rels call."""

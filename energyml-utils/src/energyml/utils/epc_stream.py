@@ -43,6 +43,7 @@ from energyml.utils.epc_utils import (
     create_mandatory_structure_epc,
     extract_uuid_and_version_from_obj_path,
     gen_rels_path_from_obj_path,
+    get_rels_dor_type,
     repair_epc_structure_if_not_valid,
 )
 from energyml.utils.storage_interface import (
@@ -535,7 +536,8 @@ class _MetadataManager:
             return None
         return self.gen_rels_path_from_metadata(metadata)
 
-    def get_core_properties(self) -> Optional[CoreProperties]:
+    @property
+    def core_properties(self) -> Optional[CoreProperties]:
         """Get core properties (loaded lazily)."""
         if self._core_props is None and self._core_props_path:
             try:
@@ -548,6 +550,56 @@ class _MetadataManager:
                 self._core_props = create_default_core_properties()
 
         return self._core_props
+
+    @core_properties.setter
+    def core_properties(self, core_props: CoreProperties) -> None:
+        """Set core properties (updates immediately in the EPC zip file)."""
+        self._core_props = core_props
+        self._write_core_properties_to_zip(core_props)
+
+    def _write_core_properties_to_zip(self, core_props: CoreProperties) -> None:
+        """Write core properties to the EPC zip file, replacing existing ones."""
+        core_props_path = gen_core_props_path()
+        temp_path = None
+
+        try:
+            # Create a temporary file for the new zip
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".epc") as temp_file:
+                temp_path = temp_file.name
+
+            # Create new zip and copy all content except old core properties
+            with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zf:
+                with self.zip_accessor.get_zip_file() as source_zf:
+                    # Copy all files except the core properties
+                    for item in source_zf.infolist():
+                        if item.filename != core_props_path:
+                            data = source_zf.read(item.filename)
+                            target_zf.writestr(item, data)
+
+                # Write new core properties
+                core_props_xml = serialize_xml(core_props)
+                zip_info = zipfile.ZipInfo(
+                    filename=core_props_path,
+                    date_time=datetime.now().timetuple()[:6],
+                )
+                target_zf.writestr(zip_info, core_props_xml)
+
+            # Replace the original file
+            shutil.move(temp_path, self.zip_accessor.epc_file_path)
+
+            # Reopen the zip file to reflect changes
+            self.zip_accessor.reopen_persistent_zip()
+
+            logging.info(f"Successfully updated core properties in {self.zip_accessor.epc_file_path}")
+
+        except Exception as e:
+            # Clean up temp file if it exists
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+            raise IOError(f"Failed to write core properties to EPC: {e}")
 
     def detect_epc_version(self) -> EpcExportVersion:
         """Detect EPC packaging version based on file structure."""
@@ -579,37 +631,6 @@ class _MetadataManager:
         except Exception as e:
             logging.warning(f"Failed to detect EPC version, defaulting to CLASSIC: {e}")
             return EpcExportVersion.CLASSIC
-
-    # def update_content_types_xml(
-    #     self, source_zip: zipfile.ZipFile, metadata: EpcObjectMetadata, add: bool = True
-    # ) -> str:
-    #     """Update [Content_Types].xml to add or remove object entry.
-
-    #     Args:
-    #         source_zip: Open ZIP file to read from
-    #         metadata: Object metadata
-    #         add: If True, add entry; if False, remove entry
-
-    #     Returns:
-    #         Updated [Content_Types].xml as string
-    #     """
-    #     # Read existing content types
-    #     content_types = self._read_content_types(source_zip)
-
-    #     if add:
-    #         # Add new override entry
-    #         new_override = Override()
-    #         new_override.part_name = f"/{metadata.file_path}"
-    #         new_override.content_type = metadata.content_type
-    #         content_types.override.append(new_override)
-    #     else:
-    #         # Remove existing override entry
-    #         content_types.override = [
-    #             o for o in content_types.override if o.part_name and o.part_name.lstrip("/") != metadata.file_path
-    #         ]
-
-    #     # Serialize back to XML
-    #     return serialize_xml(content_types)
 
     def get_content_type(self, zf: zipfile.ZipFile) -> Types:
 
@@ -822,14 +843,14 @@ class _RelationshipManager:
 
             dest_rel = Relationship(
                 target=target_path,
-                type_value=str(EPCRelsRelationshipType.DESTINATION_OBJECT),
+                type_value=get_rels_dor_type(dor_target=target_path, in_dor_owner_rels_file=True),
                 id=f"_{gen_uuid()}",
             )
             dest_rels.append(dest_rel)
 
             source_relationships[target_path] = Relationship(
                 target=obj_file_path,
-                type_value=str(EPCRelsRelationshipType.SOURCE_OBJECT),
+                type_value=get_rels_dor_type(dor_target=target_path, in_dor_owner_rels_file=False),
                 id=f"_{gen_uuid()}",
             )
 
@@ -869,7 +890,7 @@ class _RelationshipManager:
             # DESTINATION relationship : current is referenced by
             dest_rel = Relationship(
                 target=target_path,
-                type_value=str(EPCRelsRelationshipType.DESTINATION_OBJECT),
+                type_value=get_rels_dor_type(dor_target=target_path, in_dor_owner_rels_file=True),
                 id=f"_{gen_uuid()}",
             )
             current_rels_additions.append(dest_rel)
@@ -878,7 +899,7 @@ class _RelationshipManager:
                 # REVERSED SOURCE relationship : target references current, if not already existing (to avoid duplicates if DORs are not changed for this target)
                 source_rel = Relationship(
                     target=obj_path,
-                    type_value=str(EPCRelsRelationshipType.SOURCE_OBJECT),
+                    type_value=get_rels_dor_type(dor_target=target_path, in_dor_owner_rels_file=False),
                     id=f"_{gen_uuid()}",
                 )
                 reversed_source_relationships[target_path] = source_rel
@@ -2136,9 +2157,6 @@ class EpcStreamReader(EnergymlStorageInterface):
             - 'source_relationships': Number of SOURCE relationships created
             - 'destination_relationships': Number of DESTINATION relationships created
         """
-        import tempfile
-        import shutil
-
         stats = {
             "objects_processed": 0,
             "rels_files_created": 0,
@@ -2207,10 +2225,12 @@ class EpcStreamReader(EnergymlStorageInterface):
                             if target_identifier in self._metadata:
                                 target_metadata = self._metadata[target_identifier]
                                 target_type = get_obj_type(get_obj_usable_class(dor))
-
+                                target_path = target_metadata.file_path(
+                                    export_version=self._metadata_mgr._export_version
+                                )
                                 rel = Relationship(
-                                    target=target_metadata.file_path(export_version=self._metadata_mgr._export_version),
-                                    type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
+                                    target=target_path,
+                                    type_value=get_rels_dor_type(dor_target=target_path, in_dor_owner_rels_file=True),
                                     id=f"_{identifier}_{target_type}_{target_identifier}",
                                 )
                                 relationships.append(rel)
@@ -2246,7 +2266,7 @@ class EpcStreamReader(EnergymlStorageInterface):
 
                         rel = Relationship(
                             target=source_metadata.file_path(export_version=self._metadata_mgr._export_version),
-                            type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
+                            type_value=get_rels_dor_type(dor_target=target_rels_path, in_dor_owner_rels_file=False),
                             id=f"_{target_identifier}_{source_type}_{source_identifier}",
                         )
 
@@ -2413,11 +2433,12 @@ class EpcStreamReader(EnergymlStorageInterface):
                         continue
 
                     target_metadata = self._metadata[target_identifier]
+                    target_path = target_metadata.file_path(export_version=export_version)
 
                     # Create DESTINATION relationship (this object -> target)
                     rel = Relationship(
-                        target=target_metadata.file_path(export_version=export_version),
-                        type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
+                        target=target_path,
+                        type_value=get_rels_dor_type(dor_target=target_path, in_dor_owner_rels_file=True),
                         id=f"_{identifier}_{target_type}_{target_identifier}",
                     )
                     rels_files[obj_rels_path].relationship.append(rel)
@@ -2448,7 +2469,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                         # Create SOURCE relationship (source object -> this target object)
                         rel = Relationship(
                             target=source_metadata.file_path(export_version=export_version),
-                            type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
+                            type_value=get_rels_dor_type(dor_target=target_rels_path, in_dor_owner_rels_file=False),
                             id=f"_{target_identifier}_{source_type}_{source_identifier}",
                         )
 

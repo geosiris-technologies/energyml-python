@@ -347,7 +347,10 @@ class Epc(EnergymlStorageInterface):
             obj_id: [
                 Relationship(
                     target=gen_energyml_object_path(target_obj, self.export_version),
-                    type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
+                    type_value=get_rels_dor_type(
+                        gen_energyml_object_path(self.get_object(obj_id), self.export_version),
+                        in_dor_owner_rels_file=False,
+                    ),
                     id=f"_{obj_id}_{get_obj_type(get_obj_usable_class(target_obj))}_{get_obj_identifier(target_obj)}",
                 )
                 for target_obj in target_obj_list
@@ -364,7 +367,9 @@ class Epc(EnergymlStorageInterface):
                     rels[obj_id].append(
                         Relationship(
                             target=gen_energyml_object_path(target_obj, self.export_version),
-                            type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
+                            type_value=get_rels_dor_type(
+                                gen_energyml_object_path(target_obj, self.export_version), in_dor_owner_rels_file=True
+                            ),
                             id=f"_{obj_id}_{get_obj_type(get_obj_usable_class(target_obj))}_{get_obj_identifier(target_obj)}",
                         )
                     )
@@ -943,6 +948,7 @@ class Epc(EnergymlStorageInterface):
 # Backward compatibility: re-export functions that were moved to epc_utils
 # This allows existing code that imports these functions from epc.py to continue working
 from .epc_utils import (
+    get_rels_dor_type,
     update_prop_kind_dict_cache,
     get_property_kind_by_uuid,
     get_property_kind_and_parents,
