@@ -135,11 +135,11 @@ if __name__ == "__main__":
     import logging
 
     logging.basicConfig(level=logging.DEBUG)
-    # epc_file = "rc/epc/testingPackageCpp.epc"
-    epc_file = "rc/epc/output-val.epc"
+    epc_file = "rc/epc/testingPackageCpp.epc"
+    # epc_file = "rc/epc/output-val.epc"
     # epc_file = "rc/epc/Volve_Horizons_and_Faults_Depth_originEQN.epc"
     output_directory = Path("exported_meshes") / Path(epc_file).name.replace(".epc", "_3D_export")
     # export_all_representation(epc_file, output_directory)
     # export_all_representation(epc_file, output_directory, regex_type_filter="Wellbore")
-    # export_all_representation(epc_file, str(output_directory), regex_type_filter="")
-    export_all_representation_in_memory(epc_file, str(output_directory), regex_type_filter="")
+    export_all_representation(epc_file, str(output_directory), regex_type_filter="")
+    # export_all_representation_in_memory(epc_file, str(output_directory), regex_type_filter="")

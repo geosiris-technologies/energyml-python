@@ -9,18 +9,20 @@ from energyml.utils.storage_interface import EnergymlStorageInterface
 import numpy as np
 
 from .datasets_io import read_external_dataset_array
-from ..constants import flatten_concatenation
+from ..constants import flatten_concatenation, path_last_attribute
 from ..exception import ObjectNotFoundNotError
-from ..introspection import (
+from energyml.utils.introspection import (
     get_obj_uri,
     snake_case,
     get_object_attribute_no_verif,
     search_attribute_matching_name_with_path,
     search_attribute_matching_name,
+    search_attribute_matching_type,
     search_attribute_in_upper_matching_name,
     get_obj_uuid,
     get_object_attribute,
     get_object_attribute_rgx,
+    get_object_attribute_advanced,
 )
 
 from .datasets_io import get_path_in_external_with_path
@@ -335,6 +337,60 @@ def get_not_supported_array():
     return [x for x in _ARRAY_NAMES_ if get_array_reader_function(_array_name_mapping(x)) is None]
 
 
+def _extract_external_data_array_part_params(
+    obj: Any,
+) -> tuple[Optional[List[int]], Optional[List[int]], Optional[str]]:
+    """
+    Extract array parameters (Count, StartIndex, URI) from an object.
+    Uses regex to match various attribute name formats (snake_case, PascalCase).
+
+    Args:
+        obj: The object to extract parameters from (ExternalDataArrayPart or parent object)
+
+    Returns:
+        Tuple of (start_indices, counts, external_uri)
+    """
+    start_indices = None
+    counts = None
+    external_uri = None
+
+    # Extract StartIndex using regex (matches: StartIndex, start_index, startIndex)
+    start_attr = get_object_attribute_rgx(obj, "[Ss]tart[_]?[Ii]ndex")
+    if start_attr is not None:
+        if isinstance(start_attr, list):
+            start_indices = start_attr
+        elif isinstance(start_attr, (int, float)):
+            start_indices = [int(start_attr)]
+        elif hasattr(start_attr, "value"):
+            if isinstance(start_attr.value, list):
+                start_indices = start_attr.value
+            elif isinstance(start_attr.value, (int, float)):
+                start_indices = [int(start_attr.value)]
+
+    # Extract Count using regex (matches: Count, count, NodeCount, node_count)
+    count_attr = get_object_attribute_rgx(obj, "([Nn]ode[_]?)?[Cc]ount")
+    if count_attr is not None:
+        if isinstance(count_attr, list):
+            counts = count_attr
+        elif isinstance(count_attr, (int, float)):
+            counts = [int(count_attr)]
+        elif hasattr(count_attr, "value"):
+            if isinstance(count_attr.value, list):
+                counts = count_attr.value
+            elif isinstance(count_attr.value, (int, float)):
+                counts = [int(count_attr.value)]
+
+    # Extract URI using regex (matches: URI, uri)
+    uri_attr = get_object_attribute_rgx(obj, "[Uu][Rr][Ii]")
+    if uri_attr is not None:
+        if isinstance(uri_attr, str):
+            external_uri = uri_attr
+        elif hasattr(uri_attr, "value") and isinstance(uri_attr.value, str):
+            external_uri = uri_attr.value
+
+    return start_indices, counts, external_uri
+
+
 def read_external_array(
     energyml_array: Any,
     root_obj: Optional[Any] = None,
@@ -344,32 +400,75 @@ def read_external_array(
 ) -> Optional[Union[List[Any], np.ndarray]]:
     """
     Read an external array (BooleanExternalArray, BooleanHdf5Array, DoubleHdf5Array, IntegerHdf5Array, StringExternalArray ...)
+    Automatically handles RESQML v2.2 (multiple ExternalDataArrayPart with individual parameters)
+    and RESQML v2.0.1 (count from parent object).
+
     :param energyml_array:
     :param root_obj:
     :param path_in_root:
     :param workspace:
+    :param sub_indices:
     :return:
     """
     array = None
     if workspace is not None:
-        # array = workspace.read_external_array(
-        #     energyml_array=energyml_array,
-        #     root_obj=root_obj,
-        #     path_in_root=path_in_root,
-        # )
         crs = get_crs_obj(
             context_obj=root_obj,
             root_obj=root_obj,
             path_in_root=path_in_root,
             workspace=workspace,
         )
-        pief_list = get_path_in_external_with_path(obj=energyml_array)
-        # empty array
-        array = None
-        for pief_path_in_obj, pief in pief_list:
-            arr = workspace.read_array(proxy=crs or root_obj, path_in_external=pief)
-            if arr is not None:
-                array = arr if array is None else np.concatenate((array, arr))
+
+        # Search for ExternalDataArrayPart type objects (RESQML v2.2)
+        external_parts = search_attribute_matching_type(
+            energyml_array, "ExternalDataArrayPart", return_self=False, deep_search=True
+        )
+
+        if external_parts and len(external_parts) > 0:
+            # RESQML v2.2: Loop over each ExternalDataArrayPart
+            # Each part has its own start/count/uri and path_in_external
+            for ext_part in external_parts:
+                start_indices, counts, external_uri = _extract_external_data_array_part_params(ext_part)
+                pief_list = get_path_in_external_with_path(obj=ext_part)
+
+                for pief_path_in_obj, pief in pief_list:
+                    arr = workspace.read_array(
+                        proxy=crs or root_obj,
+                        path_in_external=pief,
+                        start_indices=start_indices,
+                        counts=counts,
+                        external_uri=external_uri,
+                    )
+                    if arr is not None:
+                        array = arr if array is None else np.concatenate((array, arr))
+        else:
+            # RESQML v2.0.1: Extract count from parent object, no StartIndex or URI
+            counts = None
+            if path_in_root and root_obj:
+                last_attr = path_last_attribute(path_in_root)
+                if last_attr:
+                    parent_path = path_in_root[: path_in_root.rfind("." + last_attr)]
+                    if parent_path:
+                        try:
+                            parent_obj = get_object_attribute_advanced(root_obj, parent_path)
+                            if parent_obj:
+                                # Extract count from parent using simplified function
+                                _, counts, _ = _extract_external_data_array_part_params(parent_obj)
+                        except Exception as e:
+                            logging.debug(f"Failed to extract count from parent: {e}")
+
+            # Read array using path_in_external from the array object itself
+            pief_list = get_path_in_external_with_path(obj=energyml_array)
+            for pief_path_in_obj, pief in pief_list:
+                arr = workspace.read_array(
+                    proxy=crs or root_obj,
+                    path_in_external=pief,
+                    start_indices=None,
+                    counts=counts,
+                    external_uri=None,
+                )
+                if arr is not None:
+                    array = arr if array is None else np.concatenate((array, arr))
 
     else:
         array = read_external_dataset_array(

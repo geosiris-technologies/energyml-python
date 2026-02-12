@@ -136,17 +136,30 @@ class DataArrayMetadata:
     Metadata for a data array in an energyml object.
 
     This provides information about arrays stored in HDF5 or other external storage,
-    similar to ETP DataArrayMetadata.
+    similar to ETP DataArrayMetadata. Supports RESQML v2.2 ExternalDataArrayPart attributes.
+
+    The dimensions field represents the shape of the array that would be returned:
+    - For full arrays: the complete array dimensions from the external file
+    - For sub-selections: the size of the selected portion (determined by start_indices + counts)
     """
 
     path_in_resource: Optional[str]
-    """Path to the array within the HDF5 file"""
+    """Path to the array within the HDF5 file (PathInExternalFile)"""
 
     array_type: str
     """Data type of the array (e.g., 'double', 'int', 'string')"""
 
     dimensions: List[int]
-    """Array dimensions/shape"""
+    """Array dimensions/shape. For sub-selections, this reflects the selected portion size."""
+
+    start_indices: Optional[List[int]] = None
+    """Start index for each dimension (RESQML v2.2 StartIndex). If None, starts at 0."""
+
+    external_uri: Optional[str] = None
+    """URI where the DataArrayPart is stored (RESQML v2.2 URI). Can override default file path."""
+
+    mime_type: Optional[str] = None
+    """MIME type of the external file (RESQML v2.2 MimeType)"""
 
     custom_data: Dict[str, Any] = field(default_factory=dict)
     """Additional custom metadata"""
@@ -267,16 +280,27 @@ class EnergymlStorageInterface(ABC):
         pass
 
     @abstractmethod
-    def read_array(self, proxy: Union[str, Uri, Any], path_in_external: str) -> Optional[np.ndarray]:
+    def read_array(
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: str,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
+        external_uri: Optional[str] = None,
+    ) -> Optional[np.ndarray]:
         """
-        Read a data array from external storage (HDF5).
+        Read a data array from external storage (HDF5) with optional sub-selection.
 
         Args:
             proxy: The object identifier/URI or the object itself that references the array
             path_in_external: Path within the HDF5 file (e.g., 'values/0')
+            start_indices: Optional start index for each dimension (RESQML v2.2 StartIndex)
+            counts: Optional count of elements for each dimension (RESQML v2.2 Count)
+            external_uri: Optional URI to override default file path (RESQML v2.2 URI)
 
         Returns:
-            The data array as a numpy array, or None if not found
+            The data array as a numpy array, or None if not found.
+            If start_indices and counts are provided, returns the sub-selected portion.
         """
         pass
 
@@ -286,14 +310,20 @@ class EnergymlStorageInterface(ABC):
         proxy: Union[str, Uri, Any],
         path_in_external: str,
         array: np.ndarray,
+        start_indices: Optional[List[int]] = None,
+        external_uri: Optional[str] = None,
+        **kwargs,
     ) -> bool:
         """
-        Write a data array to external storage (HDF5).
+        Write a data array to external storage (HDF5) with optional offset.
 
         Args:
             proxy: The object identifier/URI or the object itself that references the array
             path_in_external: Path within the HDF5 file (e.g., 'values/0')
             array: The numpy array to write
+            start_indices: Optional start index for each dimension for partial writes
+            external_uri: Optional URI to override default file path (RESQML v2.2 URI)
+            **kwargs: Additional format-specific parameters
 
         Returns:
             True if successfully written, False otherwise
@@ -302,18 +332,25 @@ class EnergymlStorageInterface(ABC):
 
     @abstractmethod
     def get_array_metadata(
-        self, proxy: Union[str, Uri, Any], path_in_external: Optional[str] = None
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: Optional[str] = None,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
     ) -> Union[DataArrayMetadata, List[DataArrayMetadata], None]:
         """
-        Get metadata for data array(s).
+        Get metadata for data array(s) with optional sub-selection.
 
         Args:
             proxy: The object identifier/URI or the object itself that references the array
             path_in_external: Optional specific path. If None, returns all array metadata for the object
+            start_indices: Optional start index for each dimension (RESQML v2.2 StartIndex)
+            counts: Optional count of elements for each dimension (RESQML v2.2 Count).
+                    When provided, the returned dimensions will reflect the sub-selected size.
 
         Returns:
             DataArrayMetadata if path specified, List[DataArrayMetadata] if no path,
-            or None if not found
+            or None if not found. The dimensions field reflects sub-selection when counts provided.
         """
         pass
 

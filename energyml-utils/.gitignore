@@ -39,6 +39,9 @@ src/energyml/utils/converter/
 
 # Other files
 requirements.txt
+.github/
+
+
 #doc/
 sample/
 gen*/

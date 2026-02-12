@@ -1702,7 +1702,14 @@ class EpcStreamReader(EnergymlStorageInterface):
         self._metadata_mgr.remove_metadata(_id)
         return True
 
-    def read_array(self, proxy: Union[str, Uri, Any], path_in_external: str) -> Optional[np.ndarray]:
+    def read_array(
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: str,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
+        external_uri: Optional[str] = None,
+    ) -> Optional[np.ndarray]:
         """
         Read a dataset from an external file (HDF5, Parquet, CSV, etc.) linked to the proxy object.
 
@@ -1711,18 +1718,30 @@ class EpcStreamReader(EnergymlStorageInterface):
         2. Tries all possible file paths
         3. Automatically selects the correct reader based on file extension
         4. Adds successfully opened files to cache
+        5. Supports RESQML v2.2 sub-array selection via start_indices and counts
 
         Args:
             proxy: The object, its identifier, or URI
             path_in_external: Path/dataset name within the external file
+            start_indices: Optional start index for each dimension (auto-extracted from proxy if not provided)
+            counts: Optional count of elements for each dimension (auto-extracted from proxy if not provided)
+            external_uri: Optional URI to override file path resolution (auto-extracted from proxy if not provided)
 
         Returns:
-            Numpy array if successful, None otherwise
+            Numpy array if successful, None otherwise. Returns sub-selected portion if start_indices/counts provided.
         """
         # Get possible file paths for this object
         file_paths = []
 
-        if self.force_h5_path is not None:
+        if external_uri is not None:
+            # Use external_uri if provided (RESQML v2.2)
+            # May need to resolve relative to EPC folder
+            epc_folder = os.path.dirname(self.epc_file_path) if self.epc_file_path else "."
+            if os.path.isabs(external_uri):
+                file_paths = [external_uri]
+            else:
+                file_paths = [os.path.join(epc_folder, external_uri), external_uri]
+        elif self.force_h5_path is not None:
             # Use forced path if specified
             file_paths = [self.force_h5_path]
         else:
@@ -1748,8 +1767,8 @@ class EpcStreamReader(EnergymlStorageInterface):
                 # Get cached file handle
                 file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
                 if file_handle is not None:
-                    # Try to read from cached handle
-                    result = handler.read_array(file_handle, path_in_external)
+                    # Try to read from cached handle with sub-selection
+                    result = handler.read_array(file_handle, path_in_external, start_indices, counts)
                     if result is not None:
                         return result
             except Exception as e:
@@ -1768,12 +1787,12 @@ class EpcStreamReader(EnergymlStorageInterface):
                 # Try to open and read, which will add to cache if successful
                 file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
                 if file_handle is not None:
-                    result = handler.read_array(file_handle, path_in_external)
+                    result = handler.read_array(file_handle, path_in_external, start_indices, counts)
                     if result is not None:
                         return result
                 else:
                     # Cache failed, try direct read without caching
-                    result = handler.read_array(file_path, path_in_external)
+                    result = handler.read_array(file_path, path_in_external, start_indices, counts)
                     if result is not None:
                         return result
             except Exception as e:
@@ -1782,16 +1801,27 @@ class EpcStreamReader(EnergymlStorageInterface):
         logging.error(f"Failed to read array from any available file paths: {file_paths}")
         return None
 
-    def write_array(self, proxy: Union[str, Uri, Any], path_in_external: str, array: np.ndarray, **kwargs) -> bool:
+    def write_array(
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: str,
+        array: np.ndarray,
+        start_indices: Optional[List[int]] = None,
+        external_uri: Optional[str] = None,
+        **kwargs,
+    ) -> bool:
         """
         Write a dataset to an external file (HDF5, Parquet, CSV, etc.) linked to the proxy object.
 
         Uses the same caching mechanism as read_array for efficiency.
+        Supports RESQML v2.2 partial writes via start_indices.
 
         Args:
             proxy: The object, its identifier, or URI
             path_in_external: Path/dataset name within the external file
             array: Numpy array to write
+            start_indices: Optional start index for each dimension for partial writes
+            external_uri: Optional URI to override file path resolution
             **kwargs: Additional format-specific parameters (e.g., dtype for HDF5, column_titles for Parquet)
 
         Returns:
@@ -1800,7 +1830,14 @@ class EpcStreamReader(EnergymlStorageInterface):
         # Get possible file paths for this object
         file_paths = []
 
-        if self.force_h5_path is not None:
+        if external_uri is not None:
+            # Use external_uri if provided (RESQML v2.2)
+            epc_folder = os.path.dirname(self.epc_file_path) if self.epc_file_path else "."
+            if os.path.isabs(external_uri):
+                file_paths = [external_uri]
+            else:
+                file_paths = [os.path.join(epc_folder, external_uri), external_uri]
+        elif self.force_h5_path is not None:
             # Use forced path if specified
             file_paths = [self.force_h5_path]
         else:
@@ -1825,7 +1862,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             try:
                 file_handle = self._file_cache.get_or_open(file_path, handler, mode="a")
                 if file_handle is not None:
-                    success = handler.write_array(file_handle, array, path_in_external, **kwargs)
+                    success = handler.write_array(file_handle, array, path_in_external, start_indices, **kwargs)
                     if success:
                         return True
             except Exception as e:
@@ -1842,12 +1879,12 @@ class EpcStreamReader(EnergymlStorageInterface):
                 # Open in append mode and add to cache
                 file_handle = self._file_cache.get_or_open(file_path, handler, mode="a")
                 if file_handle is not None:
-                    success = handler.write_array(file_handle, array, path_in_external, **kwargs)
+                    success = handler.write_array(file_handle, array, path_in_external, start_indices, **kwargs)
                     if success:
                         return True
                 else:
                     # Cache failed, try direct write
-                    success = handler.write_array(file_path, array, path_in_external, **kwargs)
+                    success = handler.write_array(file_path, array, path_in_external, start_indices, **kwargs)
                     if success:
                         return True
             except Exception as e:
@@ -1856,18 +1893,26 @@ class EpcStreamReader(EnergymlStorageInterface):
         return False
 
     def get_array_metadata(
-        self, proxy: Union[str, Uri, Any], path_in_external: Optional[str] = None
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: Optional[str] = None,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
     ) -> Union[DataArrayMetadata, List[DataArrayMetadata], None]:
         """
         Get metadata for data array(s) without loading the full array data.
+        Supports RESQML v2.2 sub-array selection metadata.
 
         Args:
             proxy: The object, its identifier, or URI
             path_in_external: Optional specific array path. If None, returns metadata for all arrays.
+            start_indices: Optional start index for each dimension (auto-extracted from proxy if not provided)
+            counts: Optional count of elements for each dimension (auto-extracted from proxy if not provided).
+                    When provided, the returned dimensions will reflect the sub-selected size.
 
         Returns:
             DataArrayMetadata if path specified, List[DataArrayMetadata] if no path,
-            or None if not found
+            or None if not found. The dimensions field reflects the sub-selection when counts provided.
         """
         # Get possible file paths for this object
         file_paths = []
@@ -1894,7 +1939,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                 file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
                 source = file_handle if file_handle is not None else file_path
 
-                metadata_dict = handler.get_array_metadata(source, path_in_external)
+                metadata_dict = handler.get_array_metadata(source, path_in_external, start_indices, counts)
 
                 if metadata_dict is None:
                     continue
@@ -1906,6 +1951,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                             path_in_resource=m.get("path"),
                             array_type=m.get("dtype", "unknown"),
                             dimensions=m.get("shape", []),
+                            start_indices=start_indices,
                             custom_data={"size": m.get("size", 0)},
                         )
                         for m in metadata_dict
@@ -1915,6 +1961,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                         path_in_resource=metadata_dict.get("path"),
                         array_type=metadata_dict.get("dtype", "unknown"),
                         dimensions=metadata_dict.get("shape", []),
+                        start_indices=start_indices,
                         custom_data={"size": metadata_dict.get("size", 0)},
                     )
             except Exception as e:

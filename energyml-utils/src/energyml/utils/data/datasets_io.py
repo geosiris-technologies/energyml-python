@@ -966,29 +966,36 @@ if __H5PY_MODULE_EXISTS__:
         """Handler for HDF5 files (.h5, .hdf5)."""
 
         def read_array(
-            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
         ) -> Optional[np.ndarray]:
-            """Read array from HDF5 file."""
+            """Read array from HDF5 file with optional sub-selection."""
             if isinstance(source, h5py.File):  # type: ignore
                 if path_in_external_file:
                     d_group = source[path_in_external_file]
-                    return d_group[()]  # type: ignore
+                    full_array = d_group[()]  # type: ignore
+                    # Apply sub-selection if specified
+                    if start_indices is not None and counts is not None:
+                        slices = tuple(slice(start, start + count) for start, count in zip(start_indices, counts))
+                        return full_array[slices]
+                    return full_array
                 return None
             else:
                 with h5py.File(source, "r") as f:  # type: ignore
-                    if path_in_external_file:
-                        d_group = f[path_in_external_file]
-                        return d_group[()]  # type: ignore
-                    return None
+                    return self.read_array(f, path_in_external_file, start_indices, counts)
 
         def write_array(
             self,
             target: Union[str, BytesIO, Any],
             array: Union[list, np.ndarray],
             path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
             **kwargs,
         ) -> bool:
-            """Write array to HDF5 file."""
+            """Write array to HDF5 file with optional offset."""
             if not path_in_external_file:
                 return False
 
@@ -1004,41 +1011,56 @@ if __H5PY_MODULE_EXISTS__:
                     if isinstance(array, np.ndarray) and array.dtype == "O":
                         array = np.asarray([s.encode() if isinstance(s, str) else s for s in array])
                         np.void(array)
-                    dset = target.create_dataset(path_in_external_file, array.shape, dtype or array.dtype)
-                    dset[()] = array
+
+                    # Handle partial writes if start_indices provided
+                    if start_indices is not None and path_in_external_file in target:
+                        dset = target[path_in_external_file]
+                        slices = tuple(slice(start, start + dim) for start, dim in zip(start_indices, array.shape))
+                        dset[slices] = array
+                    else:
+                        dset = target.create_dataset(path_in_external_file, array.shape, dtype or array.dtype)
+                        dset[()] = array
                 else:
                     with h5py.File(target, "a") as f:  # type: ignore
-                        if isinstance(array, np.ndarray) and array.dtype == "O":
-                            array = np.asarray([s.encode() if isinstance(s, str) else s for s in array])
-                            np.void(array)
-                        dset = f.create_dataset(path_in_external_file, array.shape, dtype or array.dtype)
-                        dset[()] = array
+                        return self.write_array(f, array, path_in_external_file, start_indices, **kwargs)
                 return True
             except Exception as e:
                 logging.error(f"Failed to write array to HDF5: {e}")
                 return False
 
         def get_array_metadata(
-            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
         ) -> Optional[Union[dict, List[dict]]]:
-            """Get metadata for HDF5 datasets."""
+            """Get metadata for HDF5 datasets with optional sub-selection."""
             try:
                 if isinstance(source, h5py.File):  # type: ignore
                     if path_in_external_file:
                         dset = source[path_in_external_file]
+                        shape = list(dset.shape)
+                        size = dset.size
+
+                        # Adjust shape and size for sub-selection
+                        if start_indices is not None and counts is not None:
+                            shape = counts
+                            size = int(np.prod(counts))
+
                         return {
                             "path": path_in_external_file,
                             "dtype": str(dset.dtype),
-                            "shape": list(dset.shape),
-                            "size": dset.size,
+                            "shape": shape,
+                            "size": size,
                         }
                     else:
                         # List all datasets
                         datasets = h5_list_datasets(source)
-                        return [self.get_array_metadata(source, ds) for ds in datasets]
+                        return [self.get_array_metadata(source, ds, start_indices, counts) for ds in datasets]
                 else:
                     with h5py.File(source, "r") as f:  # type: ignore
-                        return self.get_array_metadata(f, path_in_external_file)
+                        return self.get_array_metadata(f, path_in_external_file, start_indices, counts)
             except Exception as e:
                 logging.debug(f"Failed to get HDF5 metadata: {e}")
                 return None
@@ -1058,7 +1080,11 @@ else:
         """Mock handler when h5py is not installed."""
 
         def read_array(
-            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
         ) -> Optional[np.ndarray]:
             raise MissingExtraInstallation(extra_name="hdf5")
 
@@ -1067,12 +1093,17 @@ else:
             target: Union[str, BytesIO, Any],
             array: Union[list, np.ndarray],
             path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
             **kwargs,
         ) -> bool:
             raise MissingExtraInstallation(extra_name="hdf5")
 
         def get_array_metadata(
-            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
         ) -> Optional[Union[dict, List[dict]]]:
             raise MissingExtraInstallation(extra_name="hdf5")
 
@@ -1090,25 +1121,36 @@ if __PARQUET_MODULE_EXISTS__:
         """Handler for Parquet files (.parquet, .pq)."""
 
         def read_array(
-            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
         ) -> Optional[np.ndarray]:
-            """Read array from Parquet file."""
+            """Read array from Parquet file with optional sub-selection."""
             if isinstance(source, bytes):
                 source = pa.BufferReader(source)
 
             table = pq.read_table(source)
 
             if path_in_external_file:
-                return np.array(table[path_in_external_file])
+                array = np.array(table[path_in_external_file])
             else:
                 # Return all columns as 2D array
-                return table.to_pandas().values
+                array = table.to_pandas().values
+
+            # Apply sub-selection if specified
+            if array is not None and start_indices is not None and counts is not None:
+                slices = tuple(slice(start, start + count) for start, count in zip(start_indices, counts))
+                return array[slices]
+            return array
 
         def write_array(
             self,
             target: Union[str, BytesIO, Any],
             array: Union[list, np.ndarray],
             path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
             **kwargs,
         ) -> bool:
             """Write array to Parquet file."""
@@ -1134,9 +1176,13 @@ if __PARQUET_MODULE_EXISTS__:
                 return False
 
         def get_array_metadata(
-            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
         ) -> Optional[Union[dict, List[dict]]]:
-            """Get metadata for Parquet columns."""
+            """Get metadata for Parquet columns with optional sub-selection."""
             try:
                 if isinstance(source, bytes):
                     source = pa.BufferReader(source)
@@ -1149,23 +1195,23 @@ if __PARQUET_MODULE_EXISTS__:
                     col_idx = schema.get_field_index(path_in_external_file)
                     if col_idx >= 0:
                         field = schema.field(col_idx)
+                        shape = [metadata.num_rows]
+                        size = metadata.num_rows
+
+                        # Adjust for sub-selection
+                        if start_indices is not None and counts is not None:
+                            shape = counts
+                            size = int(np.prod(counts))
+
                         return {
                             "path": path_in_external_file,
                             "dtype": str(field.type),
-                            "shape": [metadata.num_rows],
-                            "size": metadata.num_rows,
+                            "shape": shape,
+                            "size": size,
                         }
                 else:
                     # Get all columns
-                    return [
-                        {
-                            "path": field.name,
-                            "dtype": str(field.type),
-                            "shape": [metadata.num_rows],
-                            "size": metadata.num_rows,
-                        }
-                        for field in schema
-                    ]
+                    return [self.get_array_metadata(source, field.name, start_indices, counts) for field in schema]
             except Exception as e:
                 logging.debug(f"Failed to get Parquet metadata: {e}")
                 return None
@@ -1191,7 +1237,11 @@ else:
         """Mock handler when parquet libraries are not installed."""
 
         def read_array(
-            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
         ) -> Optional[np.ndarray]:
             raise MissingExtraInstallation(extra_name="parquet")
 
@@ -1200,12 +1250,17 @@ else:
             target: Union[str, BytesIO, Any],
             array: Union[list, np.ndarray],
             path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
             **kwargs,
         ) -> bool:
             raise MissingExtraInstallation(extra_name="parquet")
 
         def get_array_metadata(
-            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
         ) -> Optional[Union[dict, List[dict]]]:
             raise MissingExtraInstallation(extra_name="parquet")
 
@@ -1223,9 +1278,13 @@ if __CSV_MODULE_EXISTS__:
         """Handler for CSV files (.csv, .txt, .dat)."""
 
         def read_array(
-            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
         ) -> Optional[np.ndarray]:
-            """Read array from CSV file."""
+            """Read array from CSV file with optional sub-selection."""
             # For CSV, path_in_external_file can be column name or index
             # This is a simplified implementation
             try:
@@ -1233,6 +1292,11 @@ if __CSV_MODULE_EXISTS__:
                     data = np.genfromtxt(source, delimiter=",")
                 else:
                     data = np.genfromtxt(source, delimiter=",")
+
+                # Apply sub-selection if specified
+                if data is not None and start_indices is not None and counts is not None:
+                    slices = tuple(slice(start, start + count) for start, count in zip(start_indices, counts))
+                    return data[slices]
                 return data
             except Exception as e:
                 logging.debug(f"Failed to read CSV: {e}")
@@ -1243,6 +1307,7 @@ if __CSV_MODULE_EXISTS__:
             target: Union[str, BytesIO, Any],
             array: Union[list, np.ndarray],
             path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
             **kwargs,
         ) -> bool:
             """Write array to CSV file."""
@@ -1256,11 +1321,15 @@ if __CSV_MODULE_EXISTS__:
                 return False
 
         def get_array_metadata(
-            self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
         ) -> Optional[Union[dict, List[dict]]]:
-            """Get metadata for CSV file."""
+            """Get metadata for CSV file with optional sub-selection."""
             try:
-                data = self.read_array(source, path_in_external_file)
+                data = self.read_array(source, path_in_external_file, start_indices, counts)
                 if data is not None:
                     return {
                         "path": path_in_external_file or "",

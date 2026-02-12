@@ -2,7 +2,7 @@ import os
 import sys
 import logging
 from energyml.utils.epc_stream import EpcStreamReader, RelsUpdateMode
-from energyml.eml.v2_3.commonv2 import Citation, ExternalDataArrayPart, 
+from energyml.eml.v2_3.commonv2 import Citation, ExternalDataArrayPart
 from energyml.resqml.v2_2.resqmlv2 import (
     TriangulatedSetRepresentation,
     BoundaryFeatureInterpretation,
@@ -14,15 +14,18 @@ from energyml.resqml.v2_2.resqmlv2 import (
     PointGeometry,
     Point3DExternalArray,
 )
+
+from energyml.resqml.v2_0_1.resqmlv2 import TrianglePatch as TrianglePatchV2_0_1
 from energyml.utils.introspection import epoch_to_date, epoch
 from energyml.utils.epc import as_dor, gen_uuid, get_obj_identifier
 from energyml.utils.constants import EPCRelsRelationshipType, MimeType
 
 from energyml.opc.opc import Relationship
+import numpy as np
 
 
-CONST_H5_PATH = "wip/external_data.h5"
-CONST_CSV_PATH = "wip/external_data.csv"
+CONST_H5_PATH = "external_data.h5"
+CONST_CSV_PATH = "external_data.csv"
 
 
 def sample_objects():
@@ -250,8 +253,20 @@ def test_create_epc_v3_with_different_external_files(path: str):
         tr_set_id,
         relationships=[Relationship(type_value=str(EPCRelsRelationshipType.EXTERNAL_RESOURCE), target=h5_file_path)],
     )
-    
-    epc.write_array()
+
+    epc.write_array(
+        proxy=tr_set_id,
+        path_in_external=f"/RESQML/{tr_set_id}/triangles",
+        array=np.array([0, 1, 2, 2, 3, 0], dtype=np.int32),
+        external_uri=CONST_H5_PATH,
+    )
+
+    epc.write_array(
+        proxy=tr_set_id,
+        path_in_external=f"/RESQML/{tr_set_id}/points",
+        array=np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]], dtype=np.float32),
+        external_uri=CONST_CSV_PATH,
+    )
 
     # Create an
 

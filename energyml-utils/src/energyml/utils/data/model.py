@@ -29,21 +29,29 @@ class ExternalArrayHandler(ABC):
     - Format-agnostic interface
     - Support for file paths, BytesIO, or already-opened file handles
     - Metadata queries without loading full arrays
+    - Support for sub-array selection via start_indices and counts (RESQML v2.2)
     """
 
     @abstractmethod
     def read_array(
-        self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+        self,
+        source: Union[BytesIO, str, Any],
+        path_in_external_file: Optional[str] = None,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
     ) -> Optional[np.ndarray]:
         """
-        Read array data from external storage.
+        Read array data from external storage with optional sub-selection.
 
         Args:
             source: File path, BytesIO, or already-opened file handle
             path_in_external_file: Path/dataset name within the file (format-specific)
+            start_indices: Optional start index for each dimension (RESQML v2.2 StartIndex)
+            counts: Optional count of elements for each dimension (RESQML v2.2 Count)
 
         Returns:
-            Numpy array if successful, None otherwise
+            Numpy array if successful, None otherwise. If start_indices and counts are
+            provided, returns the sub-selected portion of the array.
         """
         pass
 
@@ -53,15 +61,17 @@ class ExternalArrayHandler(ABC):
         target: Union[str, BytesIO, Any],
         array: Union[list, np.ndarray],
         path_in_external_file: Optional[str] = None,
+        start_indices: Optional[List[int]] = None,
         **kwargs,
     ) -> bool:
         """
-        Write array data to external storage.
+        Write array data to external storage with optional offset.
 
         Args:
             target: File path, BytesIO, or already-opened file handle
             array: Data to write
             path_in_external_file: Path/dataset name within the file (format-specific)
+            start_indices: Optional start index for each dimension for partial writes
             **kwargs: Additional format-specific parameters
 
         Returns:
@@ -71,7 +81,11 @@ class ExternalArrayHandler(ABC):
 
     @abstractmethod
     def get_array_metadata(
-        self, source: Union[BytesIO, str, Any], path_in_external_file: Optional[str] = None
+        self,
+        source: Union[BytesIO, str, Any],
+        path_in_external_file: Optional[str] = None,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
     ) -> Optional[Union[dict, List[dict]]]:
         """
         Get metadata about arrays in external storage without loading the data.
@@ -79,11 +93,14 @@ class ExternalArrayHandler(ABC):
         Args:
             source: File path, BytesIO, or already-opened file handle
             path_in_external_file: Specific array path, or None to get all arrays
+            start_indices: Optional start index for each dimension
+            counts: Optional count of elements for each dimension
 
         Returns:
-            Dict with keys: 'path', 'dtype', 'shape', 'size' for single array
-            List of such dicts if path_in_external_file is None
-            None if not found or error
+            Dict with keys: 'path', 'dtype', 'shape', 'size' for single array.
+            If start_indices and counts provided, 'shape' reflects the sub-selection.
+            List of such dicts if path_in_external_file is None.
+            None if not found or error.
         """
         pass
 
