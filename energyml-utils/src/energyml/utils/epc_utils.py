@@ -23,12 +23,14 @@ from energyml.opc.opc import (
 )
 
 from energyml.utils.constants import (
+    CORE_PROPERTIES_FOLDER_NAME,
     EPCRelsRelationshipType,
     EpcExportVersion,
     RELS_FOLDER_NAME,
     epoch,
     epoch_to_date,
     extract_uuid_from_string,
+    file_extension_to_mime_type,
     gen_uuid,
     MimeType,
     OptimizedRegex,
@@ -80,6 +82,21 @@ def gen_core_props_rels_path() -> str:
     return (core_path.parent / RELS_FOLDER_NAME / f"{core_path.name}.rels").as_posix()
 
 
+def is_core_prop_or_extension_path(path: Union[str, Path]) -> bool:
+    """
+    Check if the given path is the one for core properties or its rels file in an epc file
+    :param path:
+    :return:
+    """
+    _path = Path(path) if not isinstance(path, Path) else path
+    return (
+        _path.as_posix() == gen_core_props_path()
+        or _path.as_posix() == gen_core_props_rels_path()
+        or _path.as_posix().startswith(f"/{CORE_PROPERTIES_FOLDER_NAME}/")
+        or _path.as_posix().startswith(f"{CORE_PROPERTIES_FOLDER_NAME}/")
+    )
+
+
 def gen_core_props_path(
     export_version: EpcExportVersion = EpcExportVersion.CLASSIC,
 ) -> str:
@@ -88,7 +105,7 @@ def gen_core_props_path(
     :param export_version: the version of the EPC export to use (classic or expanded)
     :return:
     """
-    return "docProps/core.xml"
+    return f"{CORE_PROPERTIES_FOLDER_NAME}/core.xml"
 
 
 def gen_energyml_object_path(
@@ -211,6 +228,24 @@ def extract_uuid_and_version_from_obj_path(obj_path: Union[str, Path]) -> Tuple[
             version = part[len(PATH_VERSION_PREFIX) :]
 
     return uuid_match, version
+
+
+def in_epc_file_path_to_mime_type(path: str) -> Optional[str]:
+    """Infer MIME type from in-EPC file path"""
+    if not path:
+        return None
+
+    # Check for specific EPC file types first
+    if path.endswith("rels"):
+        return MimeType.RELS.value
+    elif path in (gen_core_props_path(), f"/{gen_core_props_path()}"):
+        return MimeType.CORE_PROPERTIES.value
+    elif path.startswith((f"/{CORE_PROPERTIES_FOLDER_NAME}/", f"{CORE_PROPERTIES_FOLDER_NAME}/")):
+        return MimeType.EXTENDED_CORE_PROPERTIES.value
+
+    # Fallback to inferring from file extension
+    ext = path.split(".")[-1]
+    return file_extension_to_mime_type(ext)
 
 
 #     __  ____________ ______

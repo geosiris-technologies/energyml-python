@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import logging
 from energyml.utils.epc_stream import EpcStreamReader, RelsUpdateMode
@@ -661,6 +662,19 @@ def recompute_rels(path: str):
     EpcStreamReader(epc_file_path=path, enable_parallel_rels=True, rels_update_mode=RelsUpdateMode.UPDATE_ON_CLOSE)
 
 
+def recompute_rels_change_name(path: str):
+    path_reshaped = path.replace(".epc", "_reshaped.epc")
+    path_reshaped_seq = path.replace(".epc", "_reshaped_seq.epc")
+    shutil.copy(path, path_reshaped)
+    shutil.copy(path, path_reshaped_seq)
+    EpcStreamReader(
+        epc_file_path=path_reshaped, enable_parallel_rels=True, rels_update_mode=RelsUpdateMode.UPDATE_ON_CLOSE
+    )
+    EpcStreamReader(
+        epc_file_path=path_reshaped_seq, enable_parallel_rels=False, rels_update_mode=RelsUpdateMode.UPDATE_ON_CLOSE
+    )
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
@@ -670,5 +684,8 @@ if __name__ == "__main__":
     # test_create_epc_v2("wip/test_create.epc")
     # test_create_epc_v3_with_different_external_files("wip/test_create_v3.epc")
 
-    recompute_rels(sys.argv[1] if len(sys.argv) > 1 else "wip/failingData/fix/S-PASS-1-EARTHMODEL_ONLY.epc")
-    recompute_rels(sys.argv[1] if len(sys.argv) > 1 else "wip/failingData/fix/S-PASS-1-GEOMODEL.epc")
+    # recompute_rels_change_name(sys.argv[1] if len(sys.argv) > 1 else "wip/failingData/fix/S-PASS-1-EARTHMODEL_ONLY.epc")
+    # recompute_rels_change_name(sys.argv[1] if len(sys.argv) > 1 else "wip/failingData/fix/S-PASS-1-GEOMODEL.epc")
+    recompute_rels_change_name(
+        sys.argv[1] if len(sys.argv) > 1 else "wip/failingData/fix/sample_mini_firp_201_norels_with_media.epc"
+    )

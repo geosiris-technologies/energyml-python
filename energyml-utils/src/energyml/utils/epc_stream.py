@@ -42,8 +42,11 @@ from energyml.utils.epc_utils import (
     create_default_types,
     create_mandatory_structure_epc,
     extract_uuid_and_version_from_obj_path,
+    gen_core_props_rels_path,
     gen_rels_path_from_obj_path,
     get_rels_dor_type,
+    in_epc_file_path_to_mime_type,
+    is_core_prop_or_extension_path,
     repair_epc_structure_if_not_valid,
 )
 from energyml.utils.storage_interface import (
@@ -54,6 +57,7 @@ from energyml.utils.storage_interface import (
 )
 from energyml.utils.uri import Uri, create_uri_from_content_type_or_qualified_type
 from energyml.utils.constants import (
+    CORE_PROPERTIES_FOLDER_NAME,
     EPCRelsRelationshipType,
     EpcExportVersion,
     MimeType,
@@ -639,12 +643,7 @@ class _MetadataManager:
         }
         other_files_in_epc = set()
         for name in zf.namelist():
-            if (
-                name not in meta_dict_key_path
-                and not name.endswith("rels")
-                and not name == get_epc_content_type_path()
-                and not name == gen_core_props_path()
-            ):
+            if name not in meta_dict_key_path and not name.endswith("rels") and not name == get_epc_content_type_path():
                 other_files_in_epc.add(name)
 
         content_types = create_default_types()
@@ -656,8 +655,8 @@ class _MetadataManager:
 
         # Add overrides for other files in EPC that are not in metadata (to preserve them)
         for file_path in other_files_in_epc:
-            file_extension = os.path.splitext(file_path)[1].lstrip(".").lower()
-            mime_type = file_extension_to_mime_type(file_extension)
+            # file_extension = os.path.splitext(file_path)[1].lstrip(".").lower()
+            mime_type = in_epc_file_path_to_mime_type(file_path)
             if mime_type:
                 override = Override(content_type=mime_type, part_name=f"/{file_path}")
                 content_types.override.append(override)
@@ -2285,10 +2284,20 @@ class EpcStreamReader(EnergymlStorageInterface):
 
         # Before writing, preserve EXTERNAL_RESOURCE and other non-SOURCE/DESTINATION relationships
         # This includes rels files that may not be in rels_files yet
+        # Also collect content types and core property extended files
+        core_prop_extended_files = set()
+        core_prop_rels = None
+        c_types: Optional[Types] = None
+
         with self._zip_accessor.get_zip_file() as zf:
+            c_types = self._metadata_mgr.get_content_type(zf)
             # Check all existing .rels files
             for filename in zf.namelist():
                 if not filename.endswith(".rels"):
+                    if is_core_prop_or_extension_path(filename) and not filename.endswith(gen_core_props_path()):
+                        core_prop_extended_files.add(filename)
+                    if filename == gen_core_props_rels_path():
+                        core_prop_rels = read_energyml_xml_bytes(zf.read(filename), Relationships)
                     continue
 
                 try:
@@ -2301,8 +2310,8 @@ class EpcStreamReader(EnergymlStorageInterface):
                             for r in existing_rels_obj.relationship
                             if r.type_value
                             not in (
-                                EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
-                                EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
+                                str(EPCRelsRelationshipType.SOURCE_OBJECT),
+                                str(EPCRelsRelationshipType.DESTINATION_OBJECT),
                             )
                         ]
                         if preserved_rels:
@@ -2315,6 +2324,31 @@ class EpcStreamReader(EnergymlStorageInterface):
                 except Exception as e:
                     logging.debug(f"Could not preserve existing rels from {filename}: {e}")
 
+        # Update core_prop_rels with extended props if needed
+        new_core_prop_rels = Relationships(
+            relationship=[
+                Relationship(
+                    target=e_path,
+                    type_value=str(EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES),
+                )
+                for e_path in core_prop_extended_files
+            ]
+        )
+        if core_prop_rels is None:
+            core_prop_rels = new_core_prop_rels
+        else:
+            for new_rel in new_core_prop_rels.relationship:
+                found = False
+                for existing_rel in core_prop_rels.relationship:
+                    if existing_rel.target == new_rel.target and existing_rel.type_value == new_rel.type_value:
+                        found = True
+                        break
+
+                if not found:
+                    core_prop_rels.relationship.append(new_rel)
+
+        rels_files[gen_core_props_rels_path()] = core_prop_rels
+
         # Third pass: write the new EPC with updated .rels files
         with tempfile.NamedTemporaryFile(delete=False, suffix=".epc") as temp_file:
             temp_path = temp_file.name
@@ -2322,9 +2356,11 @@ class EpcStreamReader(EnergymlStorageInterface):
         try:
             with self._zip_accessor.get_zip_file() as source_zip:
                 with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zip:
-                    # Copy all non-.rels files
+                    # Copy all non-.rels files (excluding [Content_Types].xml which will be regenerated)
                     for item in source_zip.infolist():
-                        if not (item.filename.endswith(".rels") and clean_first):
+                        if not (item.filename.endswith(".rels") and clean_first) and (
+                            c_types is None or item.filename != get_epc_content_type_path()
+                        ):
                             data = source_zip.read(item.filename)
                             target_zip.writestr(item, data)
 
@@ -2332,6 +2368,11 @@ class EpcStreamReader(EnergymlStorageInterface):
                     for rels_path, rels_obj in rels_files.items():
                         rels_xml = serialize_xml(rels_obj)
                         target_zip.writestr(rels_path, rels_xml)
+
+                    if c_types is not None:
+                        # Write the new generated [Content_Types].xml
+                        c_types_xml = serialize_xml(c_types)
+                        target_zip.writestr(get_epc_content_type_path(), c_types_xml)
 
             # Replace original file
             shutil.move(temp_path, self.epc_file_path)
@@ -2490,9 +2531,23 @@ class EpcStreamReader(EnergymlStorageInterface):
         # PHASE 4: SEQUENTIAL - Preserve non-object relationships
         # ============================================================================
         # Preserve EXTERNAL_RESOURCE and other non-standard relationship types
+
+        # media_files = set()
+        core_prop_extended_files = set()
+        core_prop_rels = None
+        c_types: Optional[Types] = None
+
         with self._zip_accessor.get_zip_file() as zf:
+            c_types = self._metadata_mgr.get_content_type(zf)
             for filename in zf.namelist():
+                # if not filename.endswith(".rels") and not filename.endswith(".xml"):
+                #     media_files.add(filename)
+
                 if not filename.endswith(".rels"):
+                    if is_core_prop_or_extension_path(filename) and not filename.endswith(gen_core_props_path()):
+                        core_prop_extended_files.add(filename)
+                    if filename == gen_core_props_rels_path():
+                        core_prop_rels = read_energyml_xml_bytes(zf.read(filename), Relationships)
                     continue
 
                 try:
@@ -2504,8 +2559,8 @@ class EpcStreamReader(EnergymlStorageInterface):
                             for r in existing_rels_obj.relationship
                             if r.type_value
                             not in (
-                                EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
-                                EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
+                                str(EPCRelsRelationshipType.SOURCE_OBJECT),
+                                str(EPCRelsRelationshipType.DESTINATION_OBJECT),
                             )
                         ]
                         if preserved_rels:
@@ -2516,9 +2571,36 @@ class EpcStreamReader(EnergymlStorageInterface):
                 except Exception as e:
                     logging.debug(f"Could not preserve existing rels from {filename}: {e}")
 
+        # update core_prop_rels with extended props if needed
+        new_core_prop_rels = Relationships(
+            relationship=[
+                Relationship(
+                    target=e_path,
+                    type_value=str(EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES),
+                )
+                for e_path in core_prop_extended_files
+            ]
+        )
+        if core_prop_rels is None:
+            core_prop_rels = new_core_prop_rels
+        else:
+            for new_rel in new_core_prop_rels.relationship:
+                found = False
+                for existing_rel in core_prop_rels.relationship:
+                    if existing_rel.target == new_rel.target and existing_rel.type_value == new_rel.type_value:
+                        found = True
+                        break
+
+                if not found:
+                    core_prop_rels.relationship.append(new_rel)
+
+        rels_files[gen_core_props_rels_path()] = core_prop_rels
+        print(f"Coreprops : {core_prop_rels}")
+
         # ============================================================================
         # PHASE 5: SEQUENTIAL - Write all relationships to ZIP file
         # ============================================================================
+
         # ZIP file writing must be sequential (file format limitation)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".epc") as temp_file:
             temp_path = temp_file.name
@@ -2528,7 +2610,9 @@ class EpcStreamReader(EnergymlStorageInterface):
                 with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zip:
                     # Copy all non-.rels files
                     for item in source_zip.infolist():
-                        if not (item.filename.endswith(".rels") and clean_first):
+                        if not (item.filename.endswith(".rels") and clean_first) and (
+                            c_types is None or item.filename != get_epc_content_type_path()
+                        ):
                             data = source_zip.read(item.filename)
                             target_zip.writestr(item, data)
 
@@ -2536,6 +2620,11 @@ class EpcStreamReader(EnergymlStorageInterface):
                     for rels_path, rels_obj in rels_files.items():
                         rels_xml = serialize_xml(rels_obj)
                         target_zip.writestr(rels_path, rels_xml)
+
+                    if c_types is not None:
+                        # writing the new new generated [Content_Types].xml with the new media files if any
+                        c_types_xml = serialize_xml(c_types)
+                        target_zip.writestr(get_epc_content_type_path(), c_types_xml)
 
             # Replace original file
             shutil.move(temp_path, self.epc_file_path)

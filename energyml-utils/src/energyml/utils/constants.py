@@ -211,6 +211,7 @@ class OptimizedRegex:
 # TODO: RELS_CONTENT_TYPE may be incorrect or not well named, needs review
 RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
 RELS_FOLDER_NAME = "_rels"
+CORE_PROPERTIES_FOLDER_NAME = "docProps"
 
 primitives = (bool, str, int, float, type(None))
 
@@ -225,6 +226,20 @@ class MimeType(Enum):
     RELS = "application/vnd.openxmlformats-package.relationships+xml"
     CORE_PROPERTIES = "application/vnd.openxmlformats-package.core-properties+xml"
     EXTENDED_CORE_PROPERTIES = "application/x-extended-core-properties+xml"
+    JPEG = "image/jpeg"
+    PNG = "image/png"
+    TIFF = "image/tiff"
+    GIF = "image/gif"
+    SVG = "image/svg+xml"
+    DOC = "application/msword"
+    DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    XML = "application/xml"
+    JSON = "application/json"
+    TXT = "text/plain"
+    MARKDOWN = "text/markdown"
+    HTML = "text/html"
+    ZIP = "application/zip"
 
     def __str__(self):
         return self.value
@@ -280,6 +295,120 @@ class RawFile:
 
     path: str = field(default="_")
     content: Optional[BytesIO] = field(default=None)
+
+
+# ===================================
+# MIME TYPE MAPPINGS
+# ===================================
+
+# Primary mapping: MimeType enum → file extension
+MIME_TYPE_TO_EXTENSION: dict[MimeType, str] = {
+    MimeType.CSV: "csv",
+    MimeType.HDF5: "h5",
+    MimeType.PARQUET: "parquet",
+    MimeType.PDF: "pdf",
+    MimeType.RELS: "rels",
+    MimeType.CORE_PROPERTIES: "xml",
+    MimeType.EXTENDED_CORE_PROPERTIES: "xml",
+    MimeType.JPEG: "jpg",
+    MimeType.PNG: "png",
+    MimeType.TIFF: "tiff",
+    MimeType.GIF: "gif",
+    MimeType.SVG: "svg",
+    MimeType.DOC: "doc",
+    MimeType.DOCX: "docx",
+    MimeType.XLSX: "xlsx",
+    MimeType.XML: "xml",
+    MimeType.JSON: "json",
+    MimeType.TXT: "txt",
+    MimeType.MARKDOWN: "md",
+    MimeType.HTML: "html",
+    MimeType.ZIP: "zip",
+}
+
+# Alternative MIME type strings (aliases and variants)
+MIME_TYPE_ALIASES: dict[str, MimeType] = {
+    "application/parquet": MimeType.PARQUET,
+    "application/vnd.apache.parquet": MimeType.PARQUET,
+    "text/xml": MimeType.XML,
+    "image/jpg": MimeType.JPEG,
+}
+
+# Alternative file extensions
+EXTENSION_ALIASES: dict[str, str] = {
+    "hdf5": "h5",
+    "jpeg": "jpg",
+    "tif": "tiff",
+    "markdown": "md",
+    "htm": "html",
+}
+
+
+def mime_type_to_file_extension(mime_type: str) -> Optional[str]:
+    """
+    Convert MIME type to file extension using the MimeType enum and aliases.
+
+    Args:
+        mime_type: MIME type string (case-insensitive)
+
+    Returns:
+        File extension without leading dot, or None if not found
+
+    Examples:
+        >>> mime_type_to_file_extension("text/csv")
+        'csv'
+        >>> mime_type_to_file_extension("application/parquet")
+        'parquet'
+    """
+    if not mime_type:
+        return None
+
+    mime_type_lower = mime_type.lower()
+
+    # Try to find in MimeType enum
+    for mime_enum in MimeType:
+        if mime_enum.value.lower() == mime_type_lower:
+            return MIME_TYPE_TO_EXTENSION.get(mime_enum)
+
+    # Try aliases
+    mime_enum = MIME_TYPE_ALIASES.get(mime_type_lower)
+    if mime_enum:
+        return MIME_TYPE_TO_EXTENSION.get(mime_enum)
+
+    return None
+
+
+def file_extension_to_mime_type(extension: str) -> Optional[str]:
+    """
+    Convert file extension to MIME type using the MimeType enum.
+
+    Args:
+        extension: File extension with or without leading dot (case-insensitive)
+
+    Returns:
+        MIME type string, or None if not found
+
+    Examples:
+        >>> file_extension_to_mime_type("csv")
+        'text/csv'
+        >>> file_extension_to_mime_type(".json")
+        'application/json'
+    """
+    if not extension:
+        return None
+
+    # Remove leading dot if present
+    ext_lower = extension.lstrip(".").lower()
+
+    # Normalize through aliases first
+    ext_normalized = EXTENSION_ALIASES.get(ext_lower, ext_lower)
+
+    # Find the MimeType that matches this extension
+    for mime_enum, ext in MIME_TYPE_TO_EXTENSION.items():
+        if ext == ext_normalized:
+            return mime_enum.value
+
+    return None
 
 
 # ===================================
@@ -497,54 +626,6 @@ def extract_uuid_from_string(s: str) -> Optional[str]:
         return match.group(0)
 
     return None
-
-
-def mime_type_to_file_extension(mime_type: str) -> Optional[str]:
-    """Convert MIME type to file extension"""
-    if not mime_type:
-        return None
-
-    mime_type_lower = mime_type.lower()
-
-    # Use dict for faster lookup than if/elif chain
-    mime_to_ext = {
-        "application/x-parquet": "parquet",
-        "application/parquet": "parquet",
-        "application/vnd.apache.parquet": "parquet",
-        "application/x-hdf5": "h5",
-        "text/csv": "csv",
-        "application/vnd.openxmlformats-package.relationships+xml": "rels",
-        "application/pdf": "pdf",
-        "application/xml": "xml",
-        "text/xml": "xml",
-        "application/json": "json",
-        "application/vnd.openxmlformats-package.core-properties+xml": "xml",
-        "application/x-extended-core-properties+xml": "xml",
-    }
-
-    return mime_to_ext.get(mime_type_lower)
-
-
-def file_extension_to_mime_type(extension: str) -> Optional[str]:
-    """Convert file extension to MIME type"""
-    if not extension:
-        return None
-
-    ext_lower = extension.lower()
-
-    # Use dict for faster lookup than if/elif chain
-    ext_to_mime = {
-        "parquet": "application/x-parquet",
-        "h5": "application/x-hdf5",
-        "hdf5": "application/x-hdf5",
-        "csv": "text/csv",
-        "rels": "application/vnd.openxmlformats-package.relationships+xml",
-        "pdf": "application/pdf",
-        "xml": "application/xml",
-        "json": "application/json",
-    }
-
-    return ext_to_mime.get(ext_lower)
 
 
 # ===================================
