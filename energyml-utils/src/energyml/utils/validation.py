@@ -37,6 +37,9 @@ class ErrorType(Enum):
     INFO = "info"
     WARNING = "warning"
 
+    def __str__(self):
+        return self.value
+
 
 @dataclass
 class ValidationError:
@@ -52,6 +55,7 @@ class ValidationError:
         return {
             "msg": self.msg,
             "error_type": self.error_type.value,
+            "err_class": self.__class__.__name__,
         }
 
     @property

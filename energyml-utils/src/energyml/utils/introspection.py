@@ -1199,6 +1199,24 @@ def get_obj_title(obj: Any) -> Optional[str]:
                     for ck in obj[k].keys():
                         if re.match(r"title", ck, re.IGNORECASE):
                             return obj[k][ck]
+            # search for title or name if not classical citation.title found
+
+            for k in obj.keys():
+                if re.match(r"title", k, re.IGNORECASE):
+                    return obj[k]
+                elif re.match(r"name", k, re.IGNORECASE):
+                    return obj[k]
+
+        else:
+            # DOR :
+            try:
+                return getattr(obj, "title")
+            except AttributeError:
+                # etp resource meta :
+                try:
+                    return getattr(obj, "name")
+                except AttributeError:
+                    pass
     return None
 
 
@@ -1704,6 +1722,10 @@ def get_all_possible_instanciable_classes_for_attribute(parent_obj: Any, attribu
                 )
                 return get_all_possible_instanciable_classes([sub_cls] + get_sub_classes(sub_cls), ctx)
     return []
+
+
+def get_enum_values(cls: Any) -> List[str]:
+    return cls._member_names_ if is_enum(cls) else []
 
 
 def _random_value_from_class(

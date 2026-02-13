@@ -318,6 +318,26 @@ Validate a folder containing EPC/XML/JSON files:
 poetry run validate --file "path/to/your/folder" *> output_logs.json
 ```
 
+Ignore specific error types (e.g., INFO):
+```bash
+poetry run validate --file "path/to/file.epc" --ignore-err-type INFO *> output_logs.json
+```
+
+Group errors by their class for better organization:
+```bash
+poetry run validate --file "path/to/file.epc" --group-by-err-class *> output_logs.json
+```
+
+Include PRODML version errors in validation (by default they are ignored):
+```bash
+poetry run validate --file "path/to/file.epc" --ignore-prodml-version-errs *> output_logs.json
+```
+
+Combined example with multiple options:
+```bash
+poetry run validate --file "path/to/file.epc" -i INFO WARNING --group-by-err-class *> output_logs.json
+```
+
 ### Extract 3D Representations
 
 Extract all representations from an EPC to OBJ files:

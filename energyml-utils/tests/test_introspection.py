@@ -658,6 +658,20 @@ def test_get_obj_title(triangulated_set_no_version, fault_interpretation):
     """Test extracting object title."""
     assert get_obj_title(triangulated_set_no_version) == "Test Citation v2.3"
     assert get_obj_title(fault_interpretation) == "Test Citation v2.0"
+    assert get_obj_title(as_dor(fault_interpretation)) == "Test Citation v2.0"
+
+    class MockObjWithTitle:
+        name = "Mock Title"
+
+    assert get_obj_title(MockObjWithTitle()) == "Mock Title"
+
+    assert get_obj_title({"Title": "Dict Title"}) == "Dict Title"
+    assert get_obj_title({"title": "Dict Title Lower"}) == "Dict Title Lower"
+    assert get_obj_title({"what": 42}) is None
+    assert get_obj_title({"name": "Dict Title Lower"}) == "Dict Title Lower"
+
+    # priority to citation.title
+    assert get_obj_title({"name": "Dict Title Lower", "citation": {"title": "Citation Title"}}) == "Citation Title"
 
 
 def test_get_obj_type(triangulated_set_no_version, fault_interpretation):

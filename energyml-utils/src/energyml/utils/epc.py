@@ -367,7 +367,7 @@ class Epc(EnergymlStorageInterface):
 
         return ct
 
-    @log_timestamp
+    # @log_timestamp
     def export_file(self, path: Optional[str] = None, allowZip64: bool = True) -> None:
         """
         Export the epc file. If :param:`path` is None, the epc 'self.epc_file_path' is used
@@ -869,7 +869,7 @@ class Epc(EnergymlStorageInterface):
     # Class methods
 
     @classmethod
-    @log_timestamp
+    # @log_timestamp
     def read_file(cls, epc_file_path: str) -> "Epc":
         with open(epc_file_path, "rb") as f:
             epc = cls.read_stream(BytesIO(f.read()))
