@@ -721,7 +721,7 @@ def get_dor_uris_from_obj(obj: Any) -> Set[Uri]:
         for dor in dor_list:
             try:
                 uri = get_obj_uri(dor)
-                if uri:
+                if uri and uri.is_object_uri():
                     uri_set.add(uri)
             except Exception as e:
                 logging.warning(f"Failed to extract uri from DOR: {e}")

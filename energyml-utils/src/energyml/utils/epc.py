@@ -17,18 +17,15 @@ from dataclasses import dataclass, field
 from functools import wraps
 from io import BytesIO
 from typing import List, Any, Union, Dict, Optional
+import numpy as np
+from xsdata.formats.dataclass.models.generics import DerivedElement
 
 from energyml.opc.opc import (
     CoreProperties,
     Relationships,
     Types,
-    Default,
     Relationship,
     Override,
-    Created,
-    Creator,
-    Identifier,
-    Keywords1,
 )
 from energyml.utils.epc_utils import (
     gen_core_props_path,
@@ -38,12 +35,9 @@ from energyml.utils.epc_utils import (
     create_h5_external_relationship,
 )
 from energyml.utils.storage_interface import DataArrayMetadata, EnergymlStorageInterface, ResourceMetadata
-import numpy as np
 from energyml.utils.uri import Uri, parse_uri
-from xsdata.formats.dataclass.models.generics import DerivedElement
 
 from energyml.utils.constants import (
-    RELS_CONTENT_TYPE,
     EpcExportVersion,
     RawFile,
     EPCRelsRelationshipType,
@@ -62,8 +56,6 @@ from energyml.utils.introspection import (
     get_obj_uuid,
     get_content_type_from_class,
     get_direct_dor_list,
-    epoch_to_date,
-    epoch,
     gen_uuid,
     get_obj_identifier,
     get_object_attribute,
@@ -78,6 +70,114 @@ from energyml.utils.serialization import (
     JSON_VERSION,
 )
 from energyml.utils.xml import is_energyml_content_type
+
+
+class EnergymlObjectCollection:
+    """
+    A collection that maintains both list semantics (for backward compatibility)
+    and dict-based lookups (for O(1) performance) for energyml objects.
+
+    This allows existing code using .append() to work while providing efficient
+    get_object_by_identifier() and get_object_by_uuid() operations.
+    """
+
+    def __init__(self, objects: Optional[List[Any]] = None):
+        self._by_identifier: Dict[str, Any] = {}
+        self._by_uri: Dict[str, Any] = {}
+        self._by_uuid: Dict[str, List[Any]] = {}
+        self._objects_list: List[Any] = []
+
+        if objects:
+            for obj in objects:
+                self.append(obj)
+
+    def append(self, obj: Any) -> None:
+        """Add an object to the collection (list-compatible method)."""
+        identifier = get_obj_identifier(obj)
+        uri = str(get_obj_uri(obj))
+        uuid = get_obj_uuid(obj)
+
+        # Check if object already exists by identifier
+        if identifier in self._by_identifier:
+            # Replace existing object
+            existing = self._by_identifier[identifier]
+            idx = self._objects_list.index(existing)
+            self._objects_list[idx] = obj
+
+            # Clean up old URI mapping
+            old_uri = str(get_obj_uri(existing))
+            if old_uri in self._by_uri:
+                del self._by_uri[old_uri]
+
+            # Clean up old UUID mapping
+            old_uuid = get_obj_uuid(existing)
+            if old_uuid in self._by_uuid and existing in self._by_uuid[old_uuid]:
+                self._by_uuid[old_uuid].remove(existing)
+                if not self._by_uuid[old_uuid]:
+                    del self._by_uuid[old_uuid]
+        else:
+            # Add new object
+            self._objects_list.append(obj)
+
+        # Update all indices
+        self._by_identifier[identifier] = obj
+        self._by_uri[uri] = obj
+
+        if uuid not in self._by_uuid:
+            self._by_uuid[uuid] = []
+        if obj not in self._by_uuid[uuid]:
+            self._by_uuid[uuid].append(obj)
+
+    def remove(self, obj: Any) -> None:
+        """Remove an object from the collection (list-compatible method)."""
+        identifier = get_obj_identifier(obj)
+
+        if identifier in self._by_identifier:
+            stored_obj = self._by_identifier[identifier]
+            self._objects_list.remove(stored_obj)
+
+            # Clean up all indices
+            del self._by_identifier[identifier]
+
+            uri = str(get_obj_uri(stored_obj))
+            if uri in self._by_uri:
+                del self._by_uri[uri]
+
+            uuid = get_obj_uuid(stored_obj)
+            if uuid in self._by_uuid and stored_obj in self._by_uuid[uuid]:
+                self._by_uuid[uuid].remove(stored_obj)
+                if not self._by_uuid[uuid]:
+                    del self._by_uuid[uuid]
+
+    def get_by_identifier(self, identifier: Union[str, Uri]) -> Optional[Any]:
+        """Get object by identifier (O(1) lookup)."""
+        # Try identifier lookup first
+        obj = self._by_identifier.get(str(identifier))
+        if obj is not None:
+            return obj
+
+        # Try URI lookup
+        return self._by_uri.get(str(identifier))
+
+    def get_by_uuid(self, uuid: str) -> List[Any]:
+        """Get all objects with this UUID (O(1) lookup)."""
+        return self._by_uuid.get(uuid, [])
+
+    def __iter__(self):
+        """Iterate over objects in insertion order."""
+        return iter(self._objects_list)
+
+    def __len__(self) -> int:
+        """Get number of objects."""
+        return len(self._objects_list)
+
+    def __getitem__(self, index: int) -> Any:
+        """Support indexing (e.g., energyml_objects[0])."""
+        return self._objects_list[index]
+
+    def __bool__(self) -> bool:
+        """Support boolean checks (e.g., if energyml_objects:)."""
+        return len(self._objects_list) > 0
 
 
 def log_timestamp(func):
@@ -134,8 +234,8 @@ class Epc(EnergymlStorageInterface):
     core_props: Optional[CoreProperties] = field(default=None)
 
     """ xml files referred in the [Content_Types].xml  """
-    energyml_objects: List = field(
-        default_factory=list,
+    energyml_objects: EnergymlObjectCollection = field(
+        default_factory=EnergymlObjectCollection,
     )
 
     """ Other files content like pdf etc """
@@ -564,7 +664,7 @@ class Epc(EnergymlStorageInterface):
         :param uuid:
         :return:
         """
-        return list(filter(lambda o: get_obj_uuid(o) == uuid, self.energyml_objects))
+        return self.energyml_objects.get_by_uuid(uuid)
 
     def get_object_by_identifier(self, identifier: Union[str, Uri]) -> Optional[Any]:
         """
@@ -572,12 +672,8 @@ class Epc(EnergymlStorageInterface):
         :param identifier: given by the function :func:`get_obj_identifier`, or a URI (or its str representation)
         :return:
         """
-        is_uri = isinstance(identifier, Uri) or parse_uri(identifier) is not None
-        id_str = str(identifier)
-        for o in self.energyml_objects:
-            if (get_obj_identifier(o) if not is_uri else str(get_obj_uri(o))) == id_str:
-                return o
-        return None
+        # Use the O(1) dict lookup from the collection
+        return self.energyml_objects.get_by_identifier(identifier)
 
     def get_object(self, identifier: Union[str, Uri]) -> Optional[Any]:
         return self.get_object_by_identifier(identifier)
@@ -898,7 +994,7 @@ class Epc(EnergymlStorageInterface):
                                     )
 
             return Epc(
-                energyml_objects=obj_list,
+                energyml_objects=EnergymlObjectCollection(obj_list),
                 raw_files=raw_file_list,
                 core_props=core_props,
                 additional_rels=additional_rels,

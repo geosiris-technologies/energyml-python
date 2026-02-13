@@ -724,6 +724,10 @@ def test_get_obj_uri(triangulated_set_no_version, fault_interpretation):
     """Test URI generation for energyml objects."""
     uri_str = str(get_obj_uri(triangulated_set_no_version))
     assert uri_str == f"eml:///resqml22.TriangulatedSetRepresentation({triangulated_set_no_version.uuid})"
+    assert (
+        str(get_obj_uri(as_dor(triangulated_set_no_version)))
+        == f"eml:///resqml22.TriangulatedSetRepresentation({triangulated_set_no_version.uuid})"
+    )
 
     uri_str_with_dataspace = str(get_obj_uri(triangulated_set_no_version, "/MyDataspace/"))
     assert (
