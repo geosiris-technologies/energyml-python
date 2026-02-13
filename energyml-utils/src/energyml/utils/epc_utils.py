@@ -5,7 +5,7 @@
 from io import BytesIO
 import json
 import logging
-from typing import Optional, Tuple, Union, Any, List, Dict, Callable
+from typing import Optional, Set, Tuple, Union, Any, List, Dict, Callable
 from pathlib import Path
 import zipfile
 
@@ -40,6 +40,8 @@ from energyml.utils.constants import (
     get_property_kind_dict_path_as_dict,
 )
 from energyml.utils.introspection import (
+    get_direct_dor_list,
+    get_obj_uri,
     get_dor_obj_info,
     get_object_type_for_file_path_from_class,
     is_dor,
@@ -283,7 +285,9 @@ def create_default_types() -> Types:
     """Create default Types object."""
     return Types(
         default=[Default(extension="rels", content_type=str(MimeType.RELS))],
-        override=[Override(content_type=str(MimeType.CORE_PROPERTIES), part_name=gen_core_props_path())],
+        override=[
+            Override(content_type=str(MimeType.CORE_PROPERTIES), part_name=gen_core_props_path()),
+        ],
     )
 
 
@@ -707,6 +711,23 @@ def get_reverse_dor_list(obj_list: List[Any], key_func: Callable = get_obj_ident
                 rels[key] = []
             rels[key] = rels.get(key, []) + [obj]
     return rels
+
+
+def get_dor_uris_from_obj(obj: Any) -> Set[Uri]:
+    """Get uri of all Data Object References (DORs) directly referenced by the given object."""
+    uri_set = set()
+    try:
+        dor_list = get_direct_dor_list(obj)
+        for dor in dor_list:
+            try:
+                uri = get_obj_uri(dor)
+                if uri:
+                    uri_set.add(uri)
+            except Exception as e:
+                logging.warning(f"Failed to extract uri from DOR: {e}")
+    except Exception as e:
+        logging.warning(f"Failed to get DOR list from object: {e}")
+    return uri_set
 
 
 #     ____  ___  ________  ______

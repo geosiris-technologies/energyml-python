@@ -10,9 +10,11 @@ import os
 from pathlib import Path
 import random
 import re
+import time
 import traceback
 import zipfile
 from dataclasses import dataclass, field
+from functools import wraps
 from io import BytesIO
 from typing import List, Any, Union, Dict, Optional
 
@@ -76,6 +78,45 @@ from energyml.utils.serialization import (
     JSON_VERSION,
 )
 from energyml.utils.xml import is_energyml_content_type
+
+
+def log_timestamp(func):
+    """Decorator to log timestamps for function execution."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        func_name = func.__name__
+        start_time = time.perf_counter()
+        timestamp_start = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+        # Get file path from arguments if available
+        file_path = None
+        if args:
+            if isinstance(args[0], str) and (args[0].endswith(".epc") or "/" in args[0] or "\\" in args[0]):
+                file_path = args[0]
+            elif hasattr(args[0], "epc_file_path"):
+                file_path = args[0].epc_file_path
+        if "path" in kwargs:
+            file_path = kwargs["path"]
+        elif "epc_file_path" in kwargs:
+            file_path = kwargs["epc_file_path"]
+
+        path_info = f" [{file_path}]" if file_path else ""
+        print(f"⏱️  [{timestamp_start}] Starting {func_name}{path_info}")
+
+        try:
+            result = func(*args, **kwargs)
+            elapsed = time.perf_counter() - start_time
+            timestamp_end = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            print(f"✅ [{timestamp_end}] Completed {func_name} in {elapsed:.3f}s{path_info}")
+            return result
+        except Exception as e:
+            elapsed = time.perf_counter() - start_time
+            timestamp_end = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            print(f"❌ [{timestamp_end}] Failed {func_name} after {elapsed:.3f}s{path_info}: {e}")
+            raise
+
+    return wrapper
 
 
 @dataclass
@@ -207,14 +248,8 @@ class Epc(EnergymlStorageInterface):
         Generates a :class:`Types` instance and fill it with energyml objects :class:`Override` values
         :return:
         """
-        ct = Types()
-        rels_default = Default()
-        rels_default.content_type = RELS_CONTENT_TYPE
-        rels_default.extension = "rels"
+        ct = create_default_types()
 
-        ct.default = [rels_default]
-
-        ct.override = []
         for e_obj in self.energyml_objects:
             ct.override.append(
                 Override(
@@ -223,17 +258,17 @@ class Epc(EnergymlStorageInterface):
                 )
             )
 
-        if self.core_props is not None:
-            ct.override.append(
-                Override(
-                    content_type=get_content_type_from_class(self.core_props),
-                    part_name=gen_core_props_path(self.export_version),
-                )
-            )
+        for rf in self.raw_files:
+            # file_extension = os.path.splitext(file_path)[1].lstrip(".").lower()
+            mime_type = in_epc_file_path_to_mime_type(rf.path)
+            if mime_type:
+                override = Override(content_type=mime_type, part_name=f"{rf.path}")
+                ct.override.append(override)
 
         return ct
 
-    def export_file(self, path: Optional[str] = None) -> None:
+    @log_timestamp
+    def export_file(self, path: Optional[str] = None, allowZip64: bool = True) -> None:
         """
         Export the epc file. If :param:`path` is None, the epc 'self.epc_file_path' is used
         :param path:
@@ -242,77 +277,53 @@ class Epc(EnergymlStorageInterface):
         if path is None:
             path = self.epc_file_path
 
-        # Ensure directory exists
-        if path is not None:
-            Path(path).parent.mkdir(parents=True, exist_ok=True)
-        epc_io = self.export_io()
-        with open(path, "wb") as f:
-            f.write(epc_io.getbuffer())
+        if path is None:
+            raise ValueError("No path provided and epc_file_path is not set")
 
-    def export_io(self) -> BytesIO:
+        # Ensure directory exists
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED, allowZip64=allowZip64) as zip_file:
+            self._export_io(zip_file=zip_file, allowZip64=allowZip64)
+
+    def export_io(self, allowZip64: bool = True) -> BytesIO:
         """
         Export the epc file into a :class:`BytesIO` instance. The result is an 'in-memory' zip file.
         :return:
         """
         zip_buffer = BytesIO()
 
-        with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-            # CoreProps
-            if self.core_props is None:
-                self.core_props = CoreProperties(
-                    created=Created(any_element=epoch_to_date(epoch())),
-                    creator=Creator(any_element="energyml-utils python module (Geosiris)"),
-                    identifier=Identifier(any_element=f"urn:uuid:{gen_uuid()}"),
-                    keywords=Keywords1(
-                        lang="en",
-                        content=["generated;Geosiris;python;energyml-utils"],
-                    ),
-                    version="1.0",
-                )
-
-            zip_info_core = zipfile.ZipInfo(
-                filename=gen_core_props_path(self.export_version),
-                date_time=datetime.datetime.now().timetuple()[:6],
-            )
-            data = serialize_xml(self.core_props)
-            zip_file.writestr(zip_info_core, data)
-
-            #  Energyml objects
-            for e_obj in self.energyml_objects:
-                e_path = gen_energyml_object_path(e_obj, self.export_version)
-                zip_info = zipfile.ZipInfo(
-                    filename=e_path,
-                    date_time=datetime.datetime.now().timetuple()[:6],
-                )
-                data = serialize_xml(e_obj)
-                zip_file.writestr(zip_info, data)
-
-            # Rels
-            for rels_path, rels in self.compute_rels().items():
-                zip_info = zipfile.ZipInfo(
-                    filename=rels_path,
-                    date_time=datetime.datetime.now().timetuple()[:6],
-                )
-                data = serialize_xml(rels)
-                zip_file.writestr(zip_info, data)
-
-            # Other files:
-            for raw in self.raw_files:
-                zip_info = zipfile.ZipInfo(
-                    filename=raw.path,
-                    date_time=datetime.datetime.now().timetuple()[:6],
-                )
-                zip_file.writestr(zip_info, raw.content.read())
-
-            # ContentType
-            zip_info_ct = zipfile.ZipInfo(
-                filename=get_epc_content_type_path(),
-                date_time=datetime.datetime.now().timetuple()[:6],
-            )
-            data = serialize_xml(self.gen_opc_content_type())
-            zip_file.writestr(zip_info_ct, data)
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED, allowZip64=allowZip64) as zip_file:
+            self._export_io(zip_file=zip_file, allowZip64=allowZip64)
 
         return zip_buffer
+
+    def _export_io(self, zip_file: zipfile.ZipFile, allowZip64: bool = True) -> None:
+        """
+        Export the epc file into a :class:`BytesIO` instance. The result is an 'in-memory' zip file.
+        :return:
+        """
+        # CoreProps
+        if self.core_props is None:
+            self.core_props = create_default_core_properties()
+
+        zip_file.writestr(gen_core_props_path(self.export_version), serialize_xml(self.core_props))
+
+        #  Energyml objects
+        for e_obj in self.energyml_objects:
+            e_path = gen_energyml_object_path(e_obj, self.export_version)
+            zip_file.writestr(e_path, serialize_xml(e_obj))
+
+        # Rels
+        for rels_path, rels in self.compute_rels().items():
+            zip_file.writestr(rels_path, serialize_xml(rels))
+
+        # Other files:
+        for raw in self.raw_files:
+            zip_file.writestr(raw.path, raw.content.read())
+
+        # ContentType
+        zip_file.writestr(get_epc_content_type_path(), serialize_xml(self.gen_opc_content_type()))
 
     def get_obj_rels(self, obj: Union[str, Uri, Any]) -> List[Relationship]:
         """
@@ -336,6 +347,84 @@ class Epc(EnergymlStorageInterface):
         return []
 
     def compute_rels(self) -> Dict[str, Relationships]:
+        result = {}
+
+        # all energyml objects
+        for obj in self.energyml_objects:
+            obj_file_path = gen_energyml_object_path(obj, export_version=self.export_version)
+            obj_file_rels_path = gen_rels_path(obj, export_version=self.export_version)
+            obj_id = get_obj_identifier(obj)
+            obj_rels = Relationships(relationship=[])
+
+            dor_uris = get_dor_uris_from_obj(obj)
+
+            for target_uri in dor_uris:
+                # if "propertykind" in target_uri.object_type.lower():
+                #     if get_property_kind_by_uuid(target_uri.uuid) is not None:
+                #         # we can ignore prop kind from official dictionary
+                #         continue
+
+                # if self.get_object(target_uri) is None:
+                #     logging.warning(
+                #         f"Object with identifier {target_uri} is referenced in DOR but not found in energyml_objects."
+                #     )
+
+                target_path = gen_energyml_object_path(target_uri, export_version=self.export_version)
+                target_rels_path = gen_rels_path(target_uri, export_version=self.export_version)
+                if target_path != obj_file_path:
+                    dest_rel = Relationship(
+                        target=target_path,
+                        type_value=get_rels_dor_type(dor_target=target_path, in_dor_owner_rels_file=True),
+                        id=f"_{gen_uuid()}",
+                    )
+                    obj_rels.relationship.append(dest_rel)
+
+                    if target_rels_path not in result:
+                        result[target_rels_path] = Relationships(relationship=[])
+
+                    result[target_rels_path].relationship.append(
+                        Relationship(
+                            target=obj_file_path,
+                            type_value=get_rels_dor_type(dor_target=target_path, in_dor_owner_rels_file=False),
+                            id=f"_{gen_uuid()}",
+                        )
+                    )
+
+            # additional rels
+            for supplemental_rels in self.additional_rels.get(obj_id, []):
+                obj_rels.relationship.append(supplemental_rels)
+
+            result[obj_file_rels_path] = obj_rels
+
+        # CoreProps
+        core_props = self.core_props or create_default_core_properties()
+        core_props_rels_path = gen_rels_path(core_props, self.export_version)
+        result[core_props_rels_path] = Relationships(relationship=[])
+        for rf in self.raw_files:
+            if is_core_prop_or_extension_path(rf.path):
+                result[core_props_rels_path].relationship.append(
+                    Relationship(
+                        target=rf.path,
+                        type_value=str(EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES),
+                        id=f"_{gen_uuid()}",
+                    )
+                )
+
+        # ContentType
+        content_type_path_rels = get_epc_content_type_rels_path()
+        result[content_type_path_rels] = Relationships(
+            relationship=[
+                Relationship(
+                    id="CoreProperties",
+                    type_value=str(EPCRelsRelationshipType.CORE_PROPERTIES),
+                    target=gen_core_props_path(),
+                )
+            ]
+        )
+
+        return result
+
+    def compute_rels_old(self) -> Dict[str, Relationships]:
         """
         Returns a dict containing for each objet, the rels xml file path as key and the RelationShips object as value
         :return:
@@ -354,6 +443,7 @@ class Epc(EnergymlStorageInterface):
                     id=f"_{obj_id}_{get_obj_type(get_obj_usable_class(target_obj))}_{get_obj_identifier(target_obj)}",
                 )
                 for target_obj in target_obj_list
+                if self.get_object(obj_id) is not None
             ]
             for obj_id, target_obj_list in dor_relation.items()
         }
@@ -683,6 +773,7 @@ class Epc(EnergymlStorageInterface):
     # Class methods
 
     @classmethod
+    @log_timestamp
     def read_file(cls, epc_file_path: str) -> "Epc":
         with open(epc_file_path, "rb") as f:
             epc = cls.read_stream(BytesIO(f.read()))
@@ -948,7 +1039,14 @@ class Epc(EnergymlStorageInterface):
 # Backward compatibility: re-export functions that were moved to epc_utils
 # This allows existing code that imports these functions from epc.py to continue working
 from .epc_utils import (
+    create_default_core_properties,
+    create_default_types,
+    gen_rels_path_from_obj_path,
+    get_dor_uris_from_obj,
+    get_epc_content_type_rels_path,
     get_rels_dor_type,
+    in_epc_file_path_to_mime_type,
+    is_core_prop_or_extension_path,
     update_prop_kind_dict_cache,
     get_property_kind_by_uuid,
     get_property_kind_and_parents,

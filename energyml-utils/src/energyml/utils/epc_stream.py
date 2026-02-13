@@ -44,6 +44,7 @@ from energyml.utils.epc_utils import (
     extract_uuid_and_version_from_obj_path,
     gen_core_props_rels_path,
     gen_rels_path_from_obj_path,
+    get_dor_uris_from_obj,
     get_rels_dor_type,
     in_epc_file_path_to_mime_type,
     is_core_prop_or_extension_path,
@@ -103,23 +104,6 @@ def get_dor_identifiers_from_obj(obj: Any) -> Set[str]:
     except Exception as e:
         logging.warning(f"Failed to get DOR list from object: {e}")
     return identifiers
-
-
-def get_dor_uris_from_obj(obj: Any) -> Set[Uri]:
-    """Get uri of all Data Object References (DORs) directly referenced by the given object."""
-    uri_set = set()
-    try:
-        dor_list = get_direct_dor_list(obj)
-        for dor in dor_list:
-            try:
-                uri = get_obj_uri(dor)
-                if uri:
-                    uri_set.add(uri)
-            except Exception as e:
-                logging.warning(f"Failed to extract uri from DOR: {e}")
-    except Exception as e:
-        logging.warning(f"Failed to get DOR list from object: {e}")
-    return uri_set
 
 
 class RelsUpdateMode(Enum):
