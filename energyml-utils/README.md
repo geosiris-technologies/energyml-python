@@ -86,27 +86,32 @@ The **EpcStreamReader** provides memory-efficient handling of large EPC files th
 - **Smart Caching**: LRU (Least Recently Used) cache with configurable size  
 - **Automatic EPC Version Detection**: Supports both CLASSIC and EXPANDED EPC formats
 - **Add/Remove/Update Operations**: Full CRUD operations with automatic file structure maintenance
+- **Relationship Management**: Automatic or manual .rels file updates with parallel processing support
+- **External Data Arrays**: Read/write HDF5, Parquet, CSV arrays with intelligent file caching
 - **Context Management**: Automatic resource cleanup with `with` statements
 - **Memory Monitoring**: Track cache efficiency and memory usage statistics
 
 ### Basic Usage
 
 ```python
-from energyml.utils.epc_stream import EpcStreamReader
+from energyml.utils.epc_stream import EpcStreamReader, RelsUpdateMode
 
 # Open EPC file with context manager (recommended)
-with EpcStreamReader('large_file.epc', cache_size=50) as reader:
+with EpcStreamReader('large_file.epc', 
+                     cache_size=50,
+                     rels_update_mode=RelsUpdateMode.UPDATE_ON_CLOSE) as reader:
     # List all objects without loading them
-    print(f"Total objects: {reader.stats.total_objects}")
+    print(f"Total objects: {len(reader)}")
     
     # Get object by identifier
-    obj: Any = reader.get_object_by_identifier("uuid.version")
+    obj = reader.get_object("uuid.version")
     
-    # Get objects by type
-    features: List[Any] = reader.get_objects_by_type("BoundaryFeature")
+    # List objects by type (returns metadata, not full objects)
+    features = reader.list_objects(object_type="BoundaryFeature")
+    print(f"Found {len(features)} features")
     
     # Get all objects with same UUID
-    versions: List[Any] = reader.get_object_by_uuid("12345678-1234-1234-1234-123456789abc")
+    versions = reader.get_object_by_uuid("12345678-1234-1234-1234-123456789abc")
 ```
 
 ### Adding Objects
@@ -135,31 +140,31 @@ with EpcStreamReader('my_file.epc') as reader:
 
 ```python
 with EpcStreamReader('my_file.epc') as reader:
-    # Remove specific version by full identifier
+    # Remove by full identifier
+    success = reader.delete_object("uuid.version")
+    
+    # Or use the alias
     success = reader.remove_object("uuid.version")
     
-    # Remove ALL versions by UUID only
-    success = reader.remove_object("12345678-1234-1234-1234-123456789abc")
-    
     if success:
-        print("Object(s) removed successfully")
+        print("Object removed successfully")
 ```
 
 ### Updating Objects
 
 ```python
-...
+from energyml.utils.epc_stream import EpcStreamReader
 from energyml.utils.introspection import set_attribute_from_path
 
 with EpcStreamReader('my_file.epc') as reader:
     # Get existing object
-    obj = reader.get_object_by_identifier("uuid.version")
+    obj = reader.get_object("uuid.version")
     
     # Modify the object
     set_attribute_from_path(obj, "citation.title", "Updated Title")
     
     # Update in EPC file
-    new_identifier = reader.update_object(obj)
+    new_identifier = reader.put_object(obj)
     print(f"Updated object: {new_identifier}")
 ```
 
@@ -190,23 +195,71 @@ with EpcStreamReader('my_file.epc') as reader:
     # Objects added will use the same format as the existing EPC file
 ```
 
+### Relationship Management
+
+```python
+from energyml.utils.epc_stream import EpcStreamReader, RelsUpdateMode
+
+# Choose relationship update strategy
+with EpcStreamReader('my_file.epc', 
+                     rels_update_mode=RelsUpdateMode.UPDATE_ON_CLOSE,
+                     enable_parallel_rels=True) as reader:
+    
+    # Add/modify objects - rels updated automatically based on mode
+    reader.add_object(my_object)
+    
+    # Manual rebuild of all relationships (e.g., after bulk operations)
+    stats = reader.rebuild_all_rels(clean_first=True)
+    print(f"Rebuilt {stats['rels_files_created']} .rels files")
+```
+
+### External Data Arrays
+
+```python
+import numpy as np
+
+with EpcStreamReader('my_file.epc') as reader:
+    # Read array from HDF5/Parquet/CSV
+    data = reader.read_array(
+        proxy=my_representation,
+        path_in_external="/geometry/points"
+    )
+    
+    # Write array to external file
+    new_data = np.array([[1, 2, 3], [4, 5, 6]])
+    success = reader.write_array(
+        proxy=my_representation,
+        path_in_external="/geometry/points",
+        array=new_data
+    )
+    
+    # Get metadata without loading full array
+    metadata = reader.get_array_metadata(my_representation)
+    print(f"Array shape: {metadata.dimensions}, dtype: {metadata.array_type}")
+```
+
 ### Advanced Usage
 
 ```python
-# Initialize without preloading metadata for faster startup
-reader = EpcStreamReader('huge_file.epc', preload_metadata=False, cache_size=200)
+# Initialize with persistent ZIP connection for better performance
+reader = EpcStreamReader('huge_file.epc', 
+                         keep_open=True,
+                         cache_size=200,
+                         enable_parallel_rels=True,
+                         parallel_worker_ratio=10)
 
 try:
-    # Manual metadata loading when needed
-    reader._load_metadata()
-    
     # Get object dependencies
     deps = reader.get_object_dependencies("uuid.version")
     
     # Batch processing with memory monitoring
     for obj_type in ["BoundaryFeature", "PropertyKind"]:
-        objects = reader.get_objects_by_type(obj_type)
-        print(f"Processing {len(objects)} {obj_type} objects")
+        obj_list = reader.list_objects(object_type=obj_type)
+        print(f"Processing {len(obj_list)} {obj_type} objects")
+        
+        for metadata in obj_list:
+            obj = reader.get_object(metadata.identifier)
+            # Process object...
         
 finally:
     reader.close()  # Manual cleanup if not using context manager
@@ -240,25 +293,139 @@ $env:PYTHONPATH="src"
 ```
 
 
-## Validation examples : 
 
-An epc file:
+## Poetry Script Examples : 
+
+### Validation
+
+Validate an EPC file:
 ```bash
 poetry run validate --file "path/to/your/energyml/object.epc" *> output_logs.json
 ```
 
-An xml file:
+Validate an XML file:
 ```bash
 poetry run validate --file "path/to/your/energyml/object.xml" *> output_logs.json
 ```
 
-A json file:
+Validate a JSON file:
 ```bash
 poetry run validate --file "path/to/your/energyml/object.json" *> output_logs.json
 ```
 
-A folder containing Epc/xml/json files:
+Validate a folder containing EPC/XML/JSON files:
 ```bash
 poetry run validate --file "path/to/your/folder" *> output_logs.json
 ```
+
+### Extract 3D Representations
+
+Extract all representations from an EPC to OBJ files:
+```bash
+poetry run extract_3d --epc "path/to/file.epc" --output "output_folder"
+```
+
+Extract specific representations by UUID:
+```bash
+poetry run extract_3d --epc "path/to/file.epc" --output "output_folder" --uuid "uuid1" "uuid2"
+```
+
+Extract to OFF format without CRS displacement:
+```bash
+poetry run extract_3d --epc "path/to/file.epc" --output "output_folder" --file-format OFF --no-crs
+```
+
+### CSV to Dataset
+
+Convert CSV to HDF5:
+```bash
+poetry run csv_to_dataset --csv "data.csv" --output "output.h5"
+```
+
+Convert CSV to Parquet with custom delimiter:
+```bash
+poetry run csv_to_dataset --csv "data.csv" --output "output.parquet" --csv-delimiter ";"
+```
+
+With dataset name prefix:
+```bash
+poetry run csv_to_dataset --csv "data.csv" --output "output.h5" --prefix "/my/path/"
+```
+
+With column mapping (JSON file):
+```bash
+poetry run csv_to_dataset --csv "data.csv" --output "output.h5" --mapping "mapping.json"
+```
+
+With inline column mapping:
+```bash
+poetry run csv_to_dataset --csv "data.csv" --output "output.h5" --mapping-line '{"DATASET_A": ["COL1", "COL2"], "DATASET_B": ["COL3"]}'
+```
+
+### Generate Random Data
+
+Generate a random RESQML object in JSON:
+```bash
+poetry run generate_data --type "energyml.resqml.v2_2.resqmlv2.TriangulatedSetRepresentation" --file-format json
+```
+
+Generate a random object in XML:
+```bash
+poetry run generate_data --type "energyml.resqml.v2_0_1.resqmlv2.Grid2dRepresentation" --file-format xml
+```
+
+Using qualified type:
+```bash
+poetry run generate_data --type "resqml22.WellboreFeature" --file-format json
+```
+
+### XML to JSON Conversion
+
+Convert an XML file to JSON:
+```bash
+poetry run xml_to_json --file "path/to/object.xml"
+```
+
+Convert with custom output path:
+```bash
+poetry run xml_to_json --file "path/to/object.xml" --out "output.json"
+```
+
+Convert entire EPC to JSON array:
+```bash
+poetry run xml_to_json --file "path/to/file.epc" --out "output.json"
+```
+
+### JSON to XML Conversion
+
+Convert a JSON file to XML:
+```bash
+poetry run json_to_xml --file "path/to/object.json"
+```
+
+Convert with custom output directory:
+```bash
+poetry run json_to_xml --file "path/to/object.json" --out "output_folder/"
+```
+
+### Describe as CSV
+
+Generate a CSV description of all objects in a folder:
+```bash
+poetry run describe_as_csv --folder "path/to/folder"
+```
+
+With custom columns:
+```bash
+poetry run describe_as_csv --folder "path/to/folder" \
+  --columnsNames "Title" "Type" "UUID" \
+  --columnsValues "citation.title" "$qualifiedType" "Uuid"
+```
+
+Available special values for columnsValues:
+- `$type`: Object Python type
+- `$qualifiedType`: EnergyML qualified type
+- `$contentType`: EnergyML content type
+- `$path`: File path
+- `$dor`: UUIDs of referenced objects
 
