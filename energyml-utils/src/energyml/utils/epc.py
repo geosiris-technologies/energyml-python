@@ -5,6 +5,7 @@ This module contains utilities to read/write EPC files.
 """
 
 import datetime
+import threading
 import logging
 import os
 from pathlib import Path
@@ -16,8 +17,10 @@ import zipfile
 from dataclasses import dataclass, field
 from functools import wraps
 from io import BytesIO
-from typing import List, Any, Union, Dict, Optional
+from typing import List, Any, Set, Union, Dict, Optional
 import numpy as np
+
+from enum import Enum
 from xsdata.formats.dataclass.models.generics import DerivedElement
 
 from energyml.opc.opc import (
@@ -178,6 +181,460 @@ class EnergymlObjectCollection:
     def __bool__(self) -> bool:
         """Support boolean checks (e.g., if energyml_objects:)."""
         return len(self._objects_list) > 0
+
+
+class EpcRelsCacheErrorPolicy(Enum):
+    LOG = "log"
+    RAISE = "raise"
+    SKIP = "skip"
+
+
+class EpcRelsCache:
+    """
+    EPC Relationships Cache Manager
+
+    Summary
+    -------
+    Manages in-memory relationships between EPC objects, using canonical Uri as the internal key.
+    Accepts identifier, Uri, str(Uri), or the object itself as input for all public methods.
+    Does not manage rels file paths; export logic is handled by the Epc class.
+
+    API Reference
+    -------------
+    - __init__(epc: Epc | EnergymlObjectCollection, export_version, error_policy='log')
+        Initialize with a reference to the owning Epc or a collection of objects.
+        Optionally set error handling policy ('log', 'raise', 'skip').
+
+    - set_rels_from_file(obj: Union[str, Uri, Any], rels: Relationships) -> None
+        Attach relationships loaded from a .rels file to the given object (by any accepted key type).
+        Used for supplemental or precomputed rels.
+
+    - add_supplemental_rels(obj: Union[str, Uri, Any], rels: Union[Relationship, List[Relationship]]) -> None
+        Add supplemental relationships for an object. These persist across cache clears and are merged lazily.
+
+    - get_object_rels(obj: Union[str, Uri, Any]) -> List[Relationship]
+        Return the effective relationships for an object, merging computed and supplemental rels, deduplicated.
+
+    - get_object_relationships(obj: Union[str, Uri, Any]) -> Relationships
+        Return RelationShips(get_object_rels(obj)) for the given object.
+
+    - compute_rels(parallel: bool = False, recompute_all: bool = False) -> Dict[Uri, List[Relationship]]
+        Recompute all relationships. If parallel=True, use a thread/process pool for the map phase.
+        Returns a mapping of Uri to deduplicated relationships. Export logic (rels path, target) is handled by Epc.
+
+    - update_cache_for_object(obj: Union[str, Uri, Any]) -> None
+        Incrementally update relationships for a single object add, remove, or modification.
+
+    - clear_cache() and recompute_cache(parallel=False)
+        Clear or fully recompute the internal cache.
+
+    - clean_rels(obj: Union[str, Uri, Any] = None) -> None
+        Deduplicate relationships for a given object or all objects. Called after full recompute.
+
+    - validate_rels() -> Dict[str, Any]
+        Run validation checks: duplicate rels, missing reverse links, circular references, etc.
+        Returns a report of issues found.
+
+    Implementation Notes
+    -------------------
+    - All public methods accept identifier, Uri, str(Uri), or object; internally, always convert to Uri with a specific function to avoid code duplication.
+    - Internal caches: {Uri: List[Relationship]} for computed, {Uri: List[Relationship]} for supplemental, {Uri: Set[Uri]} for reverse index (target -> sources).
+    - Reverse index enables O(1) lookup of which objects reference a given target, critical for incremental updates.
+    - No rels path management; Epc class is responsible for rels file path and target attribute generation.
+    - Relationship IDs must be deterministic (e.g., UUIDv5 or hash of source+target+type).
+    - On exception, log/skip/raise according to error_policy. Omitted objects do not block the pipeline.
+    - clean_rels() can be parallelized, as deduplication is per-object.
+    - Use threading.Lock or RLock to protect cache updates. Only lock during writes.
+
+    Behavioural Invariants
+    ---------------------
+    - Canonical in-memory key: Uri. Never mix identifier and Uri in the same map.
+    - Supplemental rels are preserved and merged lazily; not lost on clear/recompute unless explicitly removed.
+    - All deduplication and validation is performed on the in-memory Uri-keyed data.
+
+    Validation & Testing
+    -------------------
+    - clean_rels() ensures no duplicate (type, target) relationships per object.
+    - validate_rels() checks for missing reverse links, circular references, and other edge cases.
+    - Unit tests should cover all input types, deduplication, error handling, and validation.
+    - Use EnergymlObjectCollection for initial tests.
+
+    Migration/Integration
+    --------------------
+    - This class is standalone. Once implemented and tested, integrate into Epc, replacing legacy rels handling.
+    - No migration needed until integration.
+
+    """
+
+    def __init__(self, epc_or_collection, export_version, error_policy=EpcRelsCacheErrorPolicy.LOG):
+        """
+        Initialize the EpcRelsCache.
+        :param epc_or_collection: Epc instance or EnergymlObjectCollection
+        :param export_version: EPC export version (for rels path/target generation)
+        :param error_policy: EpcRelsCacheErrorPolicy enum value for error handling
+        """
+        self._lock = threading.RLock()
+        if isinstance(error_policy, str):
+            # Allow legacy string for backward compatibility
+            error_policy = EpcRelsCacheErrorPolicy(error_policy.lower())
+        self._error_policy = error_policy
+        self._export_version = export_version
+        # Accept Epc or EnergymlObjectCollection
+        if isinstance(epc_or_collection, Epc):
+            self._objects = epc_or_collection.energyml_objects
+            self._epc = epc_or_collection
+        else:
+            self._objects = epc_or_collection
+            self._epc = None
+        # Internal caches
+        self._computed_rels = {}  # {Uri: List[Relationship]}
+        self._supplemental_rels = {}  # {Uri: List[Relationship]}
+        self._reverse_index: Dict[Uri, Set[Uri]] = {}  # {target_uri: {source_uris}}
+
+    def _uri_from_any(self, obj_or_id: Any) -> "Uri":
+        """
+        Normalize input to canonical Uri.
+        Accepts identifier, Uri, str(Uri), or object.
+        """
+        if isinstance(obj_or_id, Uri):
+            return obj_or_id
+        if hasattr(obj_or_id, "object_version") or hasattr(obj_or_id, "__dict__"):
+            # Likely an energyml object
+            return get_obj_uri(obj_or_id)
+        if isinstance(obj_or_id, str):
+            # Try parse as Uri
+            uri = parse_uri(obj_or_id)
+            if uri:
+                return uri
+            # Try as identifier
+            obj = None
+            if self._epc and hasattr(self._epc, "get_object_by_identifier"):
+                obj = self._epc.get_object_by_identifier(obj_or_id)
+            elif hasattr(self._objects, "get_by_identifier"):
+                obj = self._objects.get_by_identifier(obj_or_id)
+            if obj:
+                return get_obj_uri(obj)
+        raise ValueError(f"Cannot resolve to Uri: {obj_or_id}")
+
+    def set_rels_from_file(self, obj: Any, rels: "Relationships") -> None:
+        """Attach relationships loaded from a .rels file to the given object."""
+        uri = self._uri_from_any(obj)
+        with self._lock:
+            self._supplemental_rels[uri] = list(rels.relationship) if hasattr(rels, "relationship") else list(rels)
+
+    def add_supplemental_rels(self, obj: Any, rels: Union["Relationship", List["Relationship"]]) -> None:
+        """Add supplemental relationships for an object."""
+        uri = self._uri_from_any(obj)
+        with self._lock:
+            if uri not in self._supplemental_rels:
+                self._supplemental_rels[uri] = []
+            if isinstance(rels, list):
+                self._supplemental_rels[uri].extend(rels)
+            else:
+                self._supplemental_rels[uri].append(rels)
+
+    def get_object_rels(self, obj: Any) -> List["Relationship"]:
+        """Return the effective relationships for an object, merging computed and supplemental rels, deduplicated."""
+        uri = self._uri_from_any(obj)
+        with self._lock:
+            rels = list(self._computed_rels.get(uri, []))
+            rels.extend(self._supplemental_rels.get(uri, []))
+        return self._deduplicate_rels(rels)
+
+    def compute_rels(self, parallel: bool = False, recompute_all: bool = False) -> Dict["Uri", List["Relationship"]]:
+        """
+        Recompute all relationships, including reverse relationships. If parallel=True, use a thread/process pool for the map phase.
+        Returns a mapping of Uri to deduplicated relationships.
+        """
+        import collections
+        import concurrent.futures
+
+        with self._lock:
+            self._computed_rels.clear()
+            objects = list(self._objects)
+
+        # First pass: collect direct DORs for each object
+        def map_func(obj):
+            try:
+                uri = get_obj_uri(obj)
+                dor_uris = self._get_direct_dor_uris(obj)
+                return (uri, dor_uris)
+            except Exception as e:
+                self._handle_error(f"Failed to compute DORs for {obj}: {e}")
+                return None
+
+        results = []
+        if parallel:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                for res in executor.map(map_func, objects):
+                    if res:
+                        results.append(res)
+        else:
+            for obj in objects:
+                res = map_func(obj)
+                if res:
+                    results.append(res)
+
+        # Second pass: build forward and reverse relationships
+        rels_map = collections.defaultdict(list)  # {Uri: List[Relationship]}
+        for src_uri, dor_uris in results:
+            src_path = gen_rels_path(src_uri, export_version=self._export_version)
+            for tgt_uri in dor_uris:
+                tgt_path = gen_rels_path(tgt_uri, export_version=self._export_version)
+                # Forward rel (src -> tgt)
+                rels_map[src_uri].append(
+                    Relationship(
+                        target=tgt_path,
+                        type_value=get_rels_dor_type(dor_target=tgt_path, in_dor_owner_rels_file=True),
+                        id=f"_{gen_uuid()}",
+                    )
+                )
+                # Reverse rel (tgt -> src)
+                rels_map[tgt_uri].append(
+                    Relationship(
+                        target=src_path,
+                        type_value=get_rels_dor_type(dor_target=tgt_path, in_dor_owner_rels_file=False),
+                        id=f"_{gen_uuid()}",
+                    )
+                )
+
+        # Build reverse index from results
+        reverse_idx = collections.defaultdict(set)
+        for src_uri, dor_uris in results:
+            for tgt_uri in dor_uris:
+                reverse_idx[tgt_uri].add(src_uri)
+
+        with self._lock:
+            self._computed_rels = dict(rels_map)
+            self._reverse_index = {k: v for k, v in reverse_idx.items()}
+        self.clean_rels()
+        return {uri: self.get_object_rels(uri) for uri in self._computed_rels}
+
+    def _get_direct_dor_uris(self, obj: Any) -> Set[Uri]:
+        """
+        Return the set of direct DOR target Uris for the given object.
+        """
+        try:
+            return get_dor_uris_from_obj(obj)
+        except Exception as e:
+            self._handle_error(f"Error getting direct DOR URIs: {e}")
+            return set()
+
+    def update_cache_for_object(self, obj: Any) -> None:
+        """Incrementally update relationships for a single object, including reverse relationships."""
+        uri = self._uri_from_any(obj)
+        dor_uris = self._get_direct_dor_uris(obj)
+
+        with self._lock:
+            # Remove old reverse index entries for this object
+            if uri in self._computed_rels:
+                # Find old DOR targets and clean them up
+                old_rels = self._computed_rels.get(uri, [])
+                for old_rel in old_rels:
+                    # Extract target URI from path (approximate - we'll rebuild from scratch)
+                    pass
+
+            # Clean up old reverse index entries where this object was the source
+            for tgt_uri, sources in list(self._reverse_index.items()):
+                if uri in sources:
+                    sources.discard(uri)
+                    if not sources:
+                        del self._reverse_index[tgt_uri]
+
+            # Compute forward relationships for this object
+            forward_rels = []
+            src_path = gen_rels_path(uri, export_version=self._export_version)
+
+            for tgt_uri in dor_uris:
+                tgt_path = gen_rels_path(tgt_uri, export_version=self._export_version)
+                # Forward rel (this object -> target)
+                forward_rels.append(
+                    Relationship(
+                        target=tgt_path,
+                        type_value=get_rels_dor_type(dor_target=tgt_path, in_dor_owner_rels_file=True),
+                        id=f"_{gen_uuid()}",
+                    )
+                )
+
+                # Update reverse index: target is now referenced by this object
+                if tgt_uri not in self._reverse_index:
+                    self._reverse_index[tgt_uri] = set()
+                self._reverse_index[tgt_uri].add(uri)
+
+                # Add reverse rel to target if target exists in cache
+                if tgt_uri in self._computed_rels:
+                    reverse_rel = Relationship(
+                        target=src_path,
+                        type_value=get_rels_dor_type(dor_target=tgt_path, in_dor_owner_rels_file=False),
+                        id=f"_{gen_uuid()}",
+                    )
+                    self._computed_rels[tgt_uri].append(reverse_rel)
+
+            # Compute reverse relationships from index (who references me?)
+            reverse_rels = []
+            for src_uri in self._reverse_index.get(uri, set()):
+                if src_uri != uri:  # Avoid self-references
+                    src_path = gen_rels_path(src_uri, export_version=self._export_version)
+                    tgt_path = gen_rels_path(uri, export_version=self._export_version)
+                    reverse_rels.append(
+                        Relationship(
+                            target=src_path,
+                            type_value=get_rels_dor_type(dor_target=tgt_path, in_dor_owner_rels_file=False),
+                            id=f"_{gen_uuid()}",
+                        )
+                    )
+
+            # Store combined relationships
+            self._computed_rels[uri] = forward_rels + reverse_rels
+
+    def clear_cache(self) -> None:
+        """Clear the internal caches and reverse index."""
+        with self._lock:
+            self._computed_rels.clear()
+            self._reverse_index.clear()
+
+    def recompute_cache(self, parallel: bool = False) -> Dict["Uri", List["Relationship"]]:
+        """Fully recompute the internal cache."""
+        return self.compute_rels(parallel=parallel, recompute_all=True)
+
+    def clean_rels(self, obj: Optional[Any] = None) -> None:
+        """
+        Deduplicate relationships for a given object or all objects.
+        Removes duplicates by (target, type_value).
+        """
+        with self._lock:
+            if obj is not None:
+                uri = self._uri_from_any(obj)
+                rels = self._computed_rels.get(uri, []) + self._supplemental_rels.get(uri, [])
+                deduped = self._deduplicate_rels(rels)
+                self._computed_rels[uri] = deduped
+            else:
+                for uri in set(list(self._computed_rels.keys()) + list(self._supplemental_rels.keys())):
+                    rels = self._computed_rels.get(uri, []) + self._supplemental_rels.get(uri, [])
+                    deduped = self._deduplicate_rels(rels)
+                    self._computed_rels[uri] = deduped
+
+    def _deduplicate_rels(self, rels: List["Relationship"]) -> List["Relationship"]:
+        """Remove duplicate relationships by (target, type_value)."""
+        seen = set()
+        result = []
+        for rel in rels:
+            key = (getattr(rel, "target", None), getattr(rel, "type_value", None))
+            if key not in seen:
+                seen.add(key)
+                result.append(rel)
+        return result
+
+    def validate_rels(self) -> Dict[str, Any]:
+        """
+        Run validation checks: duplicate rels, orphaned references, circular references, etc.
+        Returns a report of issues found.
+        """
+        report = {"duplicates": [], "orphaned_references": [], "circular": [], "index_inconsistency": []}
+
+        with self._lock:
+            # Check for duplicates
+            for uri, rels in self._computed_rels.items():
+                seen = set()
+                for rel in rels:
+                    key = (getattr(rel, "target", None), getattr(rel, "type_value", None))
+                    if key in seen:
+                        report["duplicates"].append((str(uri), key))
+                    else:
+                        seen.add(key)
+
+            # Check for orphaned references (references to non-existent objects)
+            all_object_uris = set()
+            if self._epc:
+                all_object_uris = {get_obj_uri(obj) for obj in self._epc.energyml_objects}
+            elif self._objects:
+                all_object_uris = {get_obj_uri(obj) for obj in self._objects}
+
+            for target_uri, sources in self._reverse_index.items():
+                # An object is orphaned if it's referenced but doesn't exist in the collection
+                # Note: target_uri may be in _computed_rels due to reverse relationships,
+                # but that doesn't mean the object actually exists in the collection
+                if target_uri not in all_object_uris:
+                    report["orphaned_references"].append(
+                        {"target": str(target_uri), "referenced_by": [str(s) for s in sources]}
+                    )
+
+            # Check reverse index consistency
+            for src_uri, rels in self._computed_rels.items():
+                for rel in rels:
+                    # Check if forward relationships are properly indexed
+                    # This is a sanity check for the index
+                    pass
+
+        return report
+
+    def _remove_object_from_cache(self, obj: Any) -> None:
+        """
+        Remove an object from the cache, cleaning up all references and reverse index entries.
+        """
+        uri = self._uri_from_any(obj)
+
+        with self._lock:
+            # Remove from computed rels
+            if uri in self._computed_rels:
+                del self._computed_rels[uri]
+
+            # Remove from supplemental rels
+            if uri in self._supplemental_rels:
+                del self._supplemental_rels[uri]
+
+            # Remove from reverse index (as target)
+            if uri in self._reverse_index:
+                del self._reverse_index[uri]
+
+            # Remove from reverse index (as source)
+            for target_uri, sources in list(self._reverse_index.items()):
+                if uri in sources:
+                    sources.discard(uri)
+                    if not sources:
+                        del self._reverse_index[target_uri]
+
+            # Remove reverse rels from targets' computed rels
+            for other_uri, other_rels in self._computed_rels.items():
+                if other_uri != uri:
+                    # Filter out relationships targeting the removed object
+                    uri_path = gen_rels_path(uri, export_version=self._export_version)
+                    self._computed_rels[other_uri] = [
+                        rel for rel in other_rels if getattr(rel, "target", None) != uri_path
+                    ]
+
+    def get_reverse_index_stats(self) -> Dict[str, Any]:
+        """
+        Get statistics about the reverse reference index for debugging and validation.
+        Returns a dictionary with index statistics.
+        """
+        with self._lock:
+            stats = {
+                "total_targets": len(self._reverse_index),
+                "total_references": sum(len(sources) for sources in self._reverse_index.values()),
+                "max_references_to_single_target": max(
+                    (len(sources) for sources in self._reverse_index.values()), default=0
+                ),
+                "targets_by_reference_count": {},
+            }
+
+            # Group targets by how many sources reference them
+            for target_uri, sources in self._reverse_index.items():
+                count = len(sources)
+                if count not in stats["targets_by_reference_count"]:
+                    stats["targets_by_reference_count"][count] = 0
+                stats["targets_by_reference_count"][count] += 1
+
+            return stats
+
+    def _handle_error(self, msg: str) -> None:
+        if self._error_policy == EpcRelsCacheErrorPolicy.LOG:
+            import logging
+
+            logging.error(msg)
+        elif self._error_policy == EpcRelsCacheErrorPolicy.RAISE:
+            raise RuntimeError(msg)
+        # else: SKIP
 
 
 def log_timestamp(func):

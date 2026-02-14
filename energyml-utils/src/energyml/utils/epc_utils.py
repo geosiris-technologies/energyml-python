@@ -116,7 +116,7 @@ def gen_energyml_object_path(
 ) -> str:
     """
     Generate a path to store the :param:`energyml_object` into an epc file (depending on the :param:`export_version`)
-    :param energyml_object: can be either an EnergyML object or a string containing the XML representation of an EnergyML object, or a string containing the URI of an EnergyML object, or a Uri object representing an EnergyML object
+    :param energyml_object: can be either an EnergyML object or a string containing the XML representation of an EnergyML object, or a string containing the URI of an EnergyML object, or a Uri object representing an EnergyML object, or even a DOR object.
     :param export_version: the version of the EPC export to use (classic or expanded)
     :return:
     """
@@ -269,6 +269,29 @@ def create_h5_external_relationship(h5_path: str, current_idx: int = 0) -> Relat
         id=f"Hdf5File{current_idx + 1 if current_idx > 0 else ''}",
         target_mode=TargetMode.EXTERNAL,
     )
+
+
+def relationships_equal(rel1: Relationship, rel2: Relationship) -> bool:
+    """
+    Compare two Relationship objects for equality based on their target and type_value.
+
+    Two relationships are considered equal if they have:
+    - The same target (destination path)
+    - The same type_value (relationship type)
+
+    Note: The id field is NOT compared as it's typically auto-generated and
+    doesn't affect the semantic meaning of the relationship.
+
+    :param rel1: First Relationship object
+    :param rel2: Second Relationship object
+    :return: True if relationships are semantically equal, False otherwise
+
+    Example:
+        >>> rel1 = Relationship(target="obj.xml", type_value="destinationObject", id="_1")
+        >>> rel2 = Relationship(target="obj.xml", type_value="destinationObject", id="_2")
+        >>> relationships_equal(rel1, rel2)  # True (different IDs don't matter)
+    """
+    return rel1.target == rel2.target and rel1.type_value == rel2.type_value
 
 
 def create_default_core_properties(creator: Optional[str] = None) -> CoreProperties:
