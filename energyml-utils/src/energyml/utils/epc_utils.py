@@ -257,6 +257,15 @@ def in_epc_file_path_to_mime_type(path: str) -> Optional[str]:
 # /_/  /_/___//____/\____/
 
 
+def create_external_relationship(path: str, _id: Optional[str] = None) -> Relationship:
+    return Relationship(
+        target=path,
+        type_value=str(EPCRelsRelationshipType.EXTERNAL_RESOURCE),
+        target_mode=TargetMode.EXTERNAL,
+        id=_id or f"_ext_{gen_uuid()}",
+    )
+
+
 def create_h5_external_relationship(h5_path: str, current_idx: int = 0) -> Relationship:
     """
     Create a Relationship object to link an external HDF5 file.
@@ -751,6 +760,80 @@ def get_dor_uris_from_obj(obj: Any) -> Set[Uri]:
     except Exception as e:
         logging.warning(f"Failed to get DOR list from object: {e}")
     return uri_set
+
+
+def get_dor_or_external_uris_from_obj(obj: Any) -> Tuple[Set[Uri], Set[Tuple[str, str]]]:
+    """
+    Extract all URIs from Data Object References (DORs) and external data references in an EnergyML object.
+
+    This function performs a comprehensive scan of an EnergyML object to find:
+    1. **Data Object References (DORs)**: Internal references to other EnergyML objects within the EPC
+       (e.g., a TriangulatedSetRepresentation pointing to a HorizonInterpretation)
+    2. **External Data References**: References to external data files, typically HDF5 arrays
+       (e.g., ExternalDataArrayPart.uri for array storage outside the EPC)
+
+    Unlike `get_dor_uris_from_obj()` which only returns DORs, this function captures both internal
+    object references AND external file references, making it suitable for complete dependency analysis.
+
+    :param obj: Any EnergyML object (e.g., Representation, Property, Interpretation, etc.)
+                The function will recursively search all attributes matching DOR or external reference patterns.
+
+    :return: A tuple containing:
+             - A set of URIs for all DORs found (internal references to other EnergyML objects)
+             - A set of tuples for external references, where each tuple contains (external URI, MIME type)
+
+    :raises: Does not raise exceptions. Logs warnings for any extraction failures and continues processing.
+
+    Example:
+        >>> from energyml.resqml.v2_2.resqmlv2 import TriangulatedSetRepresentation
+        >>> trset = load_triangulated_set()  # Has DOR to interpretation + external HDF5 arrays
+        >>> dor_uris, external_uris = get_dor_or_external_uris_from_obj(trset)
+        >>> for uri in dor_uris:
+        ...     print(f"Internal reference: {uri}")
+        >>> for ext_uri, mime_type in external_uris:
+        ...     print(f"External file: {ext_uri} (type: {mime_type})")
+
+        ...         print(f"Internal reference: {uri}")
+        ...     else:
+        ...         print(f"External file: {uri[0]} (type: {uri[1]})")
+        Internal reference: eml:///resqml22.HorizonInterpretation(abc-123-def)
+        External file: my_hdf5_file.h5 (type: application/x-hdf5)
+
+    Note:
+        - The search pattern matches both 'DataObjectReference' and 'ExternalDataArrayPart' types
+        - DORs are identified by having 'uid' or 'uuid' attributes
+        - External references are identified by having 'uri' and optionally 'mime_type' attributes
+        - For complete relationship analysis including reverse relationships, use EpcRelsCache instead
+
+    See Also:
+        - `get_dor_uris_from_obj()`: Similar function but only returns internal DOR references
+        - `get_direct_dor_list()`: Returns the actual DOR objects rather than their URIs
+    """
+    dor_uris = set()
+    external_uris = set()
+    try:
+        dor_list = search_attribute_matching_type(obj, "DataObjectReference|ExternalDataArrayPart")
+        for dor_or_ext in dor_list:
+            if hasattr(dor_or_ext, "uid") or hasattr(dor_or_ext, "uuid"):
+                # DOR case
+                try:
+                    uri = get_obj_uri(dor_or_ext)
+                    if uri and uri.is_object_uri():
+                        dor_uris.add(uri)
+                except Exception as e:
+                    logging.warning(f"Failed to extract uri from DOR: {e}")
+            else:
+                # External reference case (e.g. ExternalDataArrayPart)
+                try:
+                    ext_uri = getattr(dor_or_ext, "uri", None)
+                    ext_mime_type = getattr(dor_or_ext, "mime_type", None)
+                    if ext_uri:
+                        external_uris.add((ext_uri, ext_mime_type))
+                except Exception as e:
+                    logging.warning(f"Failed to extract uri from external reference: {e}")
+    except Exception as e:
+        logging.warning(f"Failed to get DOR list from object: {e}")
+    return dor_uris, external_uris
 
 
 #     ____  ___  ________  ______

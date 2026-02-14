@@ -20,7 +20,7 @@ import numpy as np
 
 from energyml.eml.v2_0.commonv2 import Citation as Citation20
 from energyml.eml.v2_0.commonv2 import DataObjectReference as DataObjectReference201, EpcExternalPartReference
-from energyml.eml.v2_3.commonv2 import Citation, DataObjectReference
+from energyml.eml.v2_3.commonv2 import Citation, DataObjectReference, ExternalDataArray, ExternalDataArrayPart
 from energyml.resqml.v2_0_1.resqmlv2 import (
     FaultInterpretation,
     TriangulatedSetRepresentation as TriangulatedSetRepresentation20,
@@ -32,6 +32,9 @@ from energyml.resqml.v2_2.resqmlv2 import (
     BoundaryFeatureInterpretation,
     BoundaryFeature,
     HorizonInterpretation,
+    TrianglePatch,
+    PointGeometry,
+    Point3DExternalArray,
 )
 
 from energyml.utils.epc import (
@@ -45,10 +48,13 @@ from energyml.utils.introspection import (
     epoch,
     gen_uuid,
     get_content_type_from_class,
+    get_obj_uri,
     get_qualified_type_from_class,
     get_obj_identifier,
 )
-from energyml.utils.constants import EPCRelsRelationshipType
+from energyml.utils.constants import EPCRelsRelationshipType, MimeType
+
+CST_H5_PATH = "my_h5_filepath.h5"
 
 
 @pytest.fixture
@@ -112,6 +118,21 @@ def sample_objects():
         uuid="25773477-ffee-4cc2-867d-000000000004",
         object_version="1.0",
         represented_object=as_dor(horizon_interp),
+        triangle_patch=[
+            TrianglePatch(
+                geometry=PointGeometry(
+                    points=Point3DExternalArray(
+                        coordinates=ExternalDataArray(
+                            external_data_array_part=[
+                                ExternalDataArrayPart(
+                                    path_in_external_file="/points", uri=CST_H5_PATH, mime_type=MimeType.HDF5.value
+                                )
+                            ]
+                        )
+                    )
+                )
+            )
+        ],
     )
 
     # Resqml 2.0.1 FaultInterpretation for additional tests
@@ -464,6 +485,24 @@ class TestRelationships:
         trset20_path = gen_energyml_object_path(trset20, epc.export_version)
         assert any(trset20_path in r.target for r in proxy_to_ml_rels)
 
+    def test_external_data_array_part_rels_detection(self, sample_objects):
+        """Test that ExternalDataArrayPart relationships are detected."""
+        from energyml.opc.opc import TargetMode
+
+        epc = Epc()
+        trset22 = sample_objects["trset"]
+        horizon_interp = sample_objects["horizon_interp"]
+
+        epc.add_object(horizon_interp)
+        epc.add_object(trset22)
+
+        trset22_external_rels = [
+            r for r in epc.get_obj_rels(trset22) if r.type_value == str(EPCRelsRelationshipType.EXTERNAL_RESOURCE)
+        ]
+        assert len(trset22_external_rels) == 1
+        assert trset22_external_rels[0].target == CST_H5_PATH
+        assert trset22_external_rels[0].target_mode == TargetMode.EXTERNAL
+
     def test_trset20_has_ml_to_external_part_proxy_relationship(self, sample_objects):
         """Test that trset20 has ML_TO_EXTERNAL_PART_PROXY relationship to external_ref."""
         epc = Epc()
@@ -797,7 +836,7 @@ class TestAdditionalRels:
         bf = sample_objects["bf"]
         epc.add_object(bf)
 
-        identifier = get_obj_identifier(bf)
+        identifier = get_obj_uri(bf)
 
         # Add external resource relationship
         h5_rel = Relationship(
@@ -808,8 +847,8 @@ class TestAdditionalRels:
 
         epc.add_rels_for_object(identifier, [h5_rel])
 
-        assert identifier in epc.additional_rels
-        assert len(epc.additional_rels[identifier]) == 1
+        assert identifier in epc._rels_cache._supplemental_rels
+        assert len(epc._rels_cache._supplemental_rels[identifier]) == 1
 
     def test_get_h5_file_paths(self, sample_objects):
         """Test retrieving H5 file paths from relationships."""

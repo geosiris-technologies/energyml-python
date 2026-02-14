@@ -17,26 +17,13 @@ import zipfile
 from dataclasses import dataclass, field
 from functools import wraps
 from io import BytesIO
-from typing import List, Any, Set, Union, Dict, Optional
+from typing import List, Any, Set, Tuple, Union, Dict, Optional
 import numpy as np
 
 from enum import Enum
 from xsdata.formats.dataclass.models.generics import DerivedElement
 
-from energyml.opc.opc import (
-    CoreProperties,
-    Relationships,
-    Types,
-    Relationship,
-    Override,
-)
-from energyml.utils.epc_utils import (
-    gen_core_props_path,
-    gen_energyml_object_path,
-    gen_rels_path,
-    get_epc_content_type_path,
-    create_h5_external_relationship,
-)
+from energyml.opc.opc import CoreProperties, Relationships, Types, Relationship, Override, TargetMode
 from energyml.utils.storage_interface import DataArrayMetadata, EnergymlStorageInterface, ResourceMetadata
 from energyml.utils.uri import Uri, parse_uri
 
@@ -58,7 +45,6 @@ from energyml.utils.introspection import (
     get_obj_version,
     get_obj_uuid,
     get_content_type_from_class,
-    get_direct_dor_list,
     gen_uuid,
     get_obj_identifier,
     get_object_attribute,
@@ -73,6 +59,13 @@ from energyml.utils.serialization import (
     JSON_VERSION,
 )
 from energyml.utils.xml import is_energyml_content_type
+from energyml.utils.epc_utils import (
+    gen_core_props_path,
+    gen_energyml_object_path,
+    gen_rels_path,
+    get_epc_content_type_path,
+    create_h5_external_relationship,
+)
 
 
 class EnergymlObjectCollection:
@@ -330,6 +323,19 @@ class EpcRelsCache:
         uri = self._uri_from_any(obj)
         with self._lock:
             self._computed_rels[uri] = list(rels.relationship) if hasattr(rels, "relationship") else list(rels)
+
+            # check supplemental to keep :
+            for r in rels.relationship or []:
+                if r.type_value not in (
+                    str(EPCRelsRelationshipType.DESTINATION_OBJECT),
+                    str(EPCRelsRelationshipType.SOURCE_OBJECT),
+                    str(EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY),
+                    str(EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML),
+                ):
+                    if uri not in self._supplemental_rels:
+                        self._supplemental_rels[uri] = []
+                    self._supplemental_rels[uri].append(r)
+
             # self._supplemental_rels[uri] = list(rels.relationship) if hasattr(rels, "relationship") else list(rels)
 
     def add_supplemental_rels(self, obj: Any, rels: Union["Relationship", List["Relationship"]]) -> None:
@@ -343,6 +349,12 @@ class EpcRelsCache:
             else:
                 self._supplemental_rels[uri].append(rels)
 
+    def get_supplemental_rels(self, obj: Any, default=None) -> List["Relationship"]:
+        """Get supplemental relationships for an object."""
+        uri = self._uri_from_any(obj)
+        with self._lock:
+            return self._supplemental_rels.get(uri, default if default is not None else [])
+
     def get_object_rels(self, obj: Any) -> List["Relationship"]:
         """Return the effective relationships for an object, merging computed and supplemental rels, deduplicated."""
         uri = self._uri_from_any(obj)
@@ -351,7 +363,7 @@ class EpcRelsCache:
             rels.extend(self._supplemental_rels.get(uri, []))
         return self._deduplicate_rels(rels)
 
-    def compute_rels(self, parallel: bool = False, recompute_all: bool = False) -> Dict["Uri", List["Relationship"]]:
+    def compute_rels(self, parallel: bool = False) -> Dict["Uri", List["Relationship"]]:
         """
         Recompute all relationships, including reverse relationships. If parallel=True, use a thread/process pool for the map phase.
         Returns a mapping of Uri to deduplicated relationships.
@@ -364,11 +376,11 @@ class EpcRelsCache:
             objects = list(self._objects)
 
         # First pass: collect direct DORs for each object
-        def map_func(obj):
+        def map_func(obj) -> Optional[Tuple[Uri, Set[Uri], Set[Tuple[str, str]]]]:
             try:
                 uri = get_obj_uri(obj)
-                dor_uris = self._get_direct_dor_uris(obj)
-                return (uri, dor_uris)
+                dor_uris, external_uris = self._get_direct_dor_uris(obj)
+                return (uri, dor_uris, external_uris)
             except Exception as e:
                 self._handle_error(f"Failed to compute DORs for {obj}: {e}")
                 return None
@@ -387,7 +399,7 @@ class EpcRelsCache:
 
         # Second pass: build forward and reverse relationships
         rels_map = collections.defaultdict(list)  # {Uri: List[Relationship]}
-        for src_uri, dor_uris in results:
+        for src_uri, dor_uris, external_uris in results:
             src_path = gen_energyml_object_path(src_uri, export_version=self.export_version)
             for tgt_uri in dor_uris:
                 tgt_path = gen_energyml_object_path(tgt_uri, export_version=self.export_version)
@@ -407,10 +419,12 @@ class EpcRelsCache:
                         id=f"_{gen_uuid()}",
                     )
                 )
+            for ext_uri, _ in external_uris:
+                rels_map[src_uri].append(create_external_relationship(ext_uri))
 
         # Build reverse index from results
         reverse_idx = collections.defaultdict(set)
-        for src_uri, dor_uris in results:
+        for src_uri, dor_uris, external_uris in results:
             for tgt_uri in dor_uris:
                 reverse_idx[tgt_uri].add(src_uri)
 
@@ -420,20 +434,10 @@ class EpcRelsCache:
         self.clean_rels()
         return {uri: self.get_object_rels(uri) for uri in self._computed_rels}
 
-    def _get_direct_dor_uris(self, obj: Any) -> Set[Uri]:
-        """
-        Return the set of direct DOR target Uris for the given object.
-        """
-        try:
-            return get_dor_uris_from_obj(obj)
-        except Exception as e:
-            self._handle_error(f"Error getting direct DOR URIs: {e}")
-            return set()
-
     def update_cache_for_object(self, obj: Any) -> None:
         """Incrementally update relationships for a single object, including reverse relationships."""
         uri = self._uri_from_any(obj)
-        dor_uris = self._get_direct_dor_uris(obj)
+        dor_uris, external_uris = self._get_direct_dor_uris(obj)
 
         with self._lock:
             # Remove old reverse index entries for this object
@@ -494,6 +498,9 @@ class EpcRelsCache:
                         )
                     )
 
+            for ext_uri, _ in external_uris:
+                forward_rels.append(create_external_relationship(ext_uri))
+
             # Store combined relationships
             self._computed_rels[uri] = forward_rels + reverse_rels
 
@@ -505,7 +512,7 @@ class EpcRelsCache:
 
     def recompute_cache(self, parallel: bool = False) -> Dict["Uri", List["Relationship"]]:
         """Fully recompute the internal cache."""
-        return self.compute_rels(parallel=parallel, recompute_all=True)
+        return self.compute_rels(parallel=parallel)
 
     def clean_rels(self, obj: Optional[Any] = None) -> None:
         """
@@ -523,17 +530,6 @@ class EpcRelsCache:
                     rels = self._computed_rels.get(uri, []) + self._supplemental_rels.get(uri, [])
                     deduped = self._deduplicate_rels(rels)
                     self._computed_rels[uri] = deduped
-
-    def _deduplicate_rels(self, rels: List["Relationship"]) -> List["Relationship"]:
-        """Remove duplicate relationships by (target, type_value)."""
-        seen = set()
-        result = []
-        for rel in rels:
-            key = (getattr(rel, "target", None), getattr(rel, "type_value", None))
-            if key not in seen:
-                seen.add(key)
-                result.append(rel)
-        return result
 
     def validate_rels(self) -> Dict[str, Any]:
         """
@@ -578,6 +574,50 @@ class EpcRelsCache:
 
         return report
 
+    def get_reverse_index_stats(self) -> Dict[str, Any]:
+        """
+        Get statistics about the reverse reference index for debugging and validation.
+        Returns a dictionary with index statistics.
+        """
+        with self._lock:
+            stats = {
+                "total_targets": len(self._reverse_index),
+                "total_references": sum(len(sources) for sources in self._reverse_index.values()),
+                "max_references_to_single_target": max(
+                    (len(sources) for sources in self._reverse_index.values()), default=0
+                ),
+                "targets_by_reference_count": {},
+            }
+
+            # Group targets by how many sources reference them
+            for target_uri, sources in self._reverse_index.items():
+                count = len(sources)
+                if count not in stats["targets_by_reference_count"]:
+                    stats["targets_by_reference_count"][count] = 0
+                stats["targets_by_reference_count"][count] += 1
+
+            return stats
+
+    def _handle_error(self, msg: str) -> None:
+        if self._error_policy == EpcRelsCacheErrorPolicy.LOG:
+            import logging
+
+            logging.error(msg)
+        elif self._error_policy == EpcRelsCacheErrorPolicy.RAISE:
+            raise RuntimeError(msg)
+        # else: SKIP
+
+    def _deduplicate_rels(self, rels: List["Relationship"]) -> List["Relationship"]:
+        """Remove duplicate relationships by (target, type_value)."""
+        seen = set()
+        result = []
+        for rel in rels:
+            key = (getattr(rel, "target", None), getattr(rel, "type_value", None))
+            if key not in seen:
+                seen.add(key)
+                result.append(rel)
+        return result
+
     def _remove_object_from_cache(self, obj: Any) -> None:
         """
         Remove an object from the cache, cleaning up all references and reverse index entries.
@@ -613,38 +653,15 @@ class EpcRelsCache:
                         rel for rel in other_rels if getattr(rel, "target", None) != uri_path
                     ]
 
-    def get_reverse_index_stats(self) -> Dict[str, Any]:
+    def _get_direct_dor_uris(self, obj: Any) -> Tuple[Set[Uri], Set[Tuple[str, str]]]:
         """
-        Get statistics about the reverse reference index for debugging and validation.
-        Returns a dictionary with index statistics.
+        Return the set of direct DOR target Uris for the given object and Tuple[filepath, mimetype] for external references.
         """
-        with self._lock:
-            stats = {
-                "total_targets": len(self._reverse_index),
-                "total_references": sum(len(sources) for sources in self._reverse_index.values()),
-                "max_references_to_single_target": max(
-                    (len(sources) for sources in self._reverse_index.values()), default=0
-                ),
-                "targets_by_reference_count": {},
-            }
-
-            # Group targets by how many sources reference them
-            for target_uri, sources in self._reverse_index.items():
-                count = len(sources)
-                if count not in stats["targets_by_reference_count"]:
-                    stats["targets_by_reference_count"][count] = 0
-                stats["targets_by_reference_count"][count] += 1
-
-            return stats
-
-    def _handle_error(self, msg: str) -> None:
-        if self._error_policy == EpcRelsCacheErrorPolicy.LOG:
-            import logging
-
-            logging.error(msg)
-        elif self._error_policy == EpcRelsCacheErrorPolicy.RAISE:
-            raise RuntimeError(msg)
-        # else: SKIP
+        try:
+            return get_dor_or_external_uris_from_obj(obj)
+        except Exception as e:
+            self._handle_error(f"Error getting direct DOR URIs: {e}")
+            return set(), set()
 
 
 def log_timestamp(func):
@@ -733,7 +750,7 @@ class Epc(EnergymlStorageInterface):
     RelationShip. This can be used to link an HDF5 to an ExternalPartReference in resqml 2.0.1
     Key is a value returned by @get_obj_identifier
     """
-    additional_rels: Dict[str, List[Relationship]] = field(default_factory=lambda: {})
+    # additional_rels: Dict[str, List[Relationship]] = field(default_factory=lambda: {})
 
     """
     Epc file path. Used when loaded from a local file or for export
@@ -911,6 +928,51 @@ class Epc(EnergymlStorageInterface):
         # ContentType
         zip_file.writestr(get_epc_content_type_path(), serialize_xml(self.gen_opc_content_type()))
 
+    # === Relationships management functions ===
+
+    def add_rels_for_object(
+        self,
+        obj: Any,
+        relationships: List[Relationship],
+    ) -> None:
+        """
+        Add relationships to an object in the EPC stream
+        :param obj:
+        :param relationships:
+        :return:
+        """
+
+        self._rels_cache.add_supplemental_rels(obj, relationships)
+
+        # if isinstance(obj, str) or isinstance(obj, Uri):
+        #     obj = self.get_object_by_identifier(obj)
+        #     obj_ident = get_obj_identifier(obj)
+        # else:
+        #     obj_ident = get_obj_identifier(obj)
+        # if obj_ident not in self.additional_rels:
+        #     self.additional_rels[obj_ident] = []
+
+        # self.additional_rels[obj_ident] = self.additional_rels[obj_ident] + relationships
+
+    def rels_to_h5_file(self, obj: Any, h5_path: str) -> Relationship:
+        """
+        Creates in the epc file, a Relation (in the object .rels file) to link a h5 external file.
+        Usually this function is used to link an ExternalPartReference to a h5 file.
+        :param obj:
+        :param h5_path:
+        :return: the Relationship added to the rels cache
+        """
+        # obj_ident = get_obj_identifier(obj)
+        # if obj_ident not in self.additional_rels:
+        #     self.additional_rels[obj_ident] = []
+
+        nb_current_file = len(self.get_h5_file_paths(obj))
+
+        rel = create_h5_external_relationship(h5_path=h5_path, current_idx=nb_current_file)
+        # self.additional_rels[obj_ident].append(rel)
+        self._rels_cache.add_supplemental_rels(obj, rel)
+        return rel
+
     def get_obj_rels(self, obj: Union[str, Uri, Any]) -> List[Relationship]:
         """
         Get the relationships for a given energyml object using the cache.
@@ -929,6 +991,22 @@ class Epc(EnergymlStorageInterface):
 
         # Get relationships from cache (includes computed + supplemental rels)
         return self._rels_cache.get_object_rels(obj)
+
+    def update_rels_cache(self) -> None:
+        """Update the relationships cache for all objects. This should be called after any modification to the energyml objects to keep the cache consistent."""
+        if self._rels_cache is None:
+            self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
+        self._rels_cache.recompute_cache()
+
+    def clean_rels_cache(self, obj: Any = None) -> None:
+        """Clean relationships for a specific object in the cache. If no object is provided, clean all relationships in the cache. This will remove duplicates and ensure consistency between computed and supplemental relationships."""
+        if self._rels_cache is not None:
+            self._rels_cache.clean_rels(obj)
+
+    def clear_rels_cache(self) -> None:
+        """Clear the relationships cache. This will remove all computed and supplemental relationships, forcing a full recomputation on next access."""
+        if self._rels_cache is not None:
+            self._rels_cache.clear_cache()
 
     def compute_rels(self, force_recompute_object_rels: bool = False) -> Dict[str, Relationships]:
         """
@@ -949,15 +1027,9 @@ class Epc(EnergymlStorageInterface):
         # all energyml objects - get relationships from cache
         for obj in self.energyml_objects:
             obj_file_rels_path = gen_rels_path(obj, export_version=self.export_version)
-            obj_id = get_obj_identifier(obj)
 
             # Get relationships from cache (includes computed + supplemental)
             cached_rels = self._rels_cache.get_object_rels(obj)
-
-            # Add legacy additional_rels if any (for backward compatibility)
-            for supplemental_rel in self.additional_rels.get(obj_id, []):
-                if supplemental_rel not in cached_rels:
-                    cached_rels.append(supplemental_rel)
 
             result[obj_file_rels_path] = Relationships(relationship=cached_rels)
 
@@ -989,129 +1061,7 @@ class Epc(EnergymlStorageInterface):
 
         return result
 
-    def rels_to_h5_file(self, obj: Any, h5_path: str) -> Relationship:
-        """
-        Creates in the epc file, a Relation (in the object .rels file) to link a h5 external file.
-        Usually this function is used to link an ExternalPartReference to a h5 file.
-        In practice, the Relation object is added to the "additional_rels" of the current epc file.
-        :param obj:
-        :param h5_path:
-        :return: the Relationship added to the epc.additional_rels dict
-        """
-        obj_ident = get_obj_identifier(obj)
-        if obj_ident not in self.additional_rels:
-            self.additional_rels[obj_ident] = []
-
-        nb_current_file = len(self.get_h5_file_paths(obj))
-
-        rel = create_h5_external_relationship(h5_path=h5_path, current_idx=nb_current_file)
-        self.additional_rels[obj_ident].append(rel)
-        return rel
-
-    def get_h5_file_paths(self, obj: Any) -> List[str]:
-        """
-        Get all HDF5 file paths referenced in the EPC file (from rels to external resources)
-        :return: list of HDF5 file paths
-        """
-
-        if self.force_h5_path is not None:
-            return [self.force_h5_path]
-
-        is_uri = (isinstance(obj, str) and parse_uri(obj) is not None) or isinstance(obj, Uri)
-        if is_uri:
-            obj = self.get_object_by_identifier(obj)
-
-        h5_paths = set()
-
-        if isinstance(obj, str):
-            obj = self.get_object_by_identifier(obj)
-        for rels in self.additional_rels.get(get_obj_identifier(obj), []):
-            if rels.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
-                h5_paths.add(rels.target)
-
-        if len(h5_paths) == 0:
-            # search if an h5 file has the same name than the epc file
-            epc_folder = self.get_epc_file_folder()
-            if epc_folder is not None and self.epc_file_path is not None:
-                epc_file_name = os.path.basename(self.epc_file_path)
-                epc_file_base, _ = os.path.splitext(epc_file_name)
-                possible_h5_path = os.path.join(epc_folder, epc_file_base + ".h5")
-                if os.path.exists(possible_h5_path):
-                    h5_paths.add(possible_h5_path)
-        return list(h5_paths)
-
-    def get_object_as_dor(self, identifier: str, dor_qualified_type) -> Optional[Any]:
-        """
-        Search an object by its identifier and returns a DOR
-        :param identifier:
-        :param dor_qualified_type: the qualified type of the DOR (e.g. resqml22.DataObjectReference)
-        :return:
-        """
-        obj = self.get_object_by_identifier(identifier=identifier)
-        # if obj is None:
-
-        return as_dor(obj_or_identifier=obj or identifier, dor_qualified_type=dor_qualified_type)
-
-    def get_object_by_uuid(self, uuid: str) -> List[Any]:
-        """
-        Search all objects with the uuid :param:`uuid`.
-        :param uuid:
-        :return:
-        """
-        return self.energyml_objects.get_by_uuid(uuid)
-
-    def get_object_by_identifier(self, identifier: Union[str, Uri]) -> Optional[Any]:
-        """
-        Search an object by its identifier.
-        :param identifier: given by the function :func:`get_obj_identifier`, or a URI (or its str representation)
-        :return:
-        """
-        # Use the O(1) dict lookup from the collection
-        return self.energyml_objects.get_by_identifier(identifier)
-
-    def get_object(self, identifier: Union[str, Uri]) -> Optional[Any]:
-        return self.get_object_by_identifier(identifier)
-
-    def add_object(self, obj: Any) -> bool:
-        """
-        Add an energyml object to the EPC stream (calls put_object for consistency)
-        :param obj:
-        :return:
-        """
-        return self.put_object(obj) is not None
-
-    def remove_object(self, identifier: Union[str, Uri]) -> None:
-        """
-        Remove an energyml object from the EPC stream by its identifier (calls delete_object for consistency)
-        :param identifier:
-        :return:
-        """
-        self.delete_object(identifier)
-
-    def __len__(self) -> int:
-        return len(self.energyml_objects)
-
-    def add_rels_for_object(
-        self,
-        obj: Any,
-        relationships: List[Relationship],
-    ) -> None:
-        """
-        Add relationships to an object in the EPC stream
-        :param obj:
-        :param relationships:
-        :return:
-        """
-
-        if isinstance(obj, str) or isinstance(obj, Uri):
-            obj = self.get_object_by_identifier(obj)
-            obj_ident = get_obj_identifier(obj)
-        else:
-            obj_ident = get_obj_identifier(obj)
-        if obj_ident not in self.additional_rels:
-            self.additional_rels[obj_ident] = []
-
-        self.additional_rels[obj_ident] = self.additional_rels[obj_ident] + relationships
+    # === Array functions ===
 
     def get_epc_file_folder(self) -> Optional[str]:
         if self.epc_file_path is not None and len(self.epc_file_path) > 0:
@@ -1257,7 +1207,236 @@ class Epc(EnergymlStorageInterface):
         logging.error(f"Failed to write array to any available file paths: {file_paths}")
         return False
 
+    def get_array_metadata(
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: Optional[str] = None,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
+    ) -> Union[DataArrayMetadata, List[DataArrayMetadata], None]:
+        """
+        Get metadata for data array(s) without loading the full array data.
+        Supports RESQML v2.2 sub-array selection metadata.
+
+        :param proxy: The object identifier/URI or the object itself that references the array
+        :param path_in_external: Optional specific path. If None, returns all array metadata for the object
+        :param start_indices: Optional start index for each dimension (RESQML v2.2 StartIndex)
+        :param counts: Optional count of elements for each dimension (RESQML v2.2 Count)
+        :return: DataArrayMetadata if path specified, List[DataArrayMetadata] if no path, or None if not found
+        """
+        obj = proxy
+        if isinstance(proxy, str) or isinstance(proxy, Uri):
+            obj = self.get_object_by_identifier(proxy)
+
+        # Get possible file paths for this object
+        file_paths = self.get_h5_file_paths(obj)
+        if not file_paths or len(file_paths) == 0:
+            file_paths = self.external_files_path
+
+        if not file_paths:
+            logging.warning(f"No external file paths found for proxy: {proxy}")
+            return None
+
+        # Get the file handler registry
+        handler_registry = get_handler_registry()
+
+        for file_path in file_paths:
+            # Get the appropriate handler for this file type
+            handler = handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                logging.debug(f"No handler found for file: {file_path}")
+                continue
+
+            try:
+                # Use handler to get metadata without loading full array
+                metadata_dict = handler.get_array_metadata(file_path, path_in_external, start_indices, counts)
+
+                if metadata_dict is None:
+                    continue
+
+                # Convert dict(s) to DataArrayMetadata
+                if isinstance(metadata_dict, list):
+                    return [
+                        DataArrayMetadata(
+                            path_in_resource=m.get("path"),
+                            array_type=m.get("dtype", "unknown"),
+                            dimensions=m.get("shape", []),
+                            start_indices=start_indices,
+                            custom_data={"size": m.get("size", 0)},
+                        )
+                        for m in metadata_dict
+                    ]
+                else:
+                    return DataArrayMetadata(
+                        path_in_resource=metadata_dict.get("path"),
+                        array_type=metadata_dict.get("dtype", "unknown"),
+                        dimensions=metadata_dict.get("shape", []),
+                        start_indices=start_indices,
+                        custom_data={"size": metadata_dict.get("size", 0)},
+                    )
+            except Exception as e:
+                logging.debug(f"Failed to get metadata from file {file_path}: {e}")
+
+        return None
+
+    def get_h5_file_paths(self, obj: Any) -> List[str]:
+        """
+        Get all HDF5 file paths referenced in the EPC file (from rels to external resources)
+        :return: list of HDF5 file paths
+        """
+
+        if self.force_h5_path is not None:
+            return [self.force_h5_path]
+
+        is_uri = (isinstance(obj, str) and parse_uri(obj) is not None) or isinstance(obj, Uri)
+        if is_uri:
+            obj = self.get_object_by_identifier(obj)
+
+        h5_paths = set()
+
+        if isinstance(obj, str):
+            obj = self.get_object_by_identifier(obj)
+        # for rels in self.additional_rels.get(get_obj_identifier(obj), []):
+        for rels in self._rels_cache.get_supplemental_rels(obj):
+            if rels.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
+                h5_paths.add(rels.target)
+
+        if len(h5_paths) == 0:
+            # search if an h5 file has the same name than the epc file
+            epc_folder = self.get_epc_file_folder()
+            if epc_folder is not None and self.epc_file_path is not None:
+                epc_file_name = os.path.basename(self.epc_file_path)
+                epc_file_base, _ = os.path.splitext(epc_file_name)
+                possible_h5_path = os.path.join(epc_folder, epc_file_base + ".h5")
+                if os.path.exists(possible_h5_path):
+                    h5_paths.add(possible_h5_path)
+        return list(h5_paths)
+
+    def get_object_as_dor(self, identifier: str, dor_qualified_type) -> Optional[Any]:
+        """
+        Search an object by its identifier and returns a DOR
+        :param identifier:
+        :param dor_qualified_type: the qualified type of the DOR (e.g. resqml22.DataObjectReference)
+        :return:
+        """
+        obj = self.get_object_by_identifier(identifier=identifier)
+        # if obj is None:
+
+        return as_dor(obj_or_identifier=obj or identifier, dor_qualified_type=dor_qualified_type)
+
+    def get_object_by_uuid(self, uuid: str) -> List[Any]:
+        """
+        Search all objects with the uuid :param:`uuid`.
+        :param uuid:
+        :return:
+        """
+        return self.energyml_objects.get_by_uuid(uuid)
+
+    def get_object_by_identifier(self, identifier: Union[str, Uri]) -> Optional[Any]:
+        """
+        Search an object by its identifier.
+        :param identifier: given by the function :func:`get_obj_identifier`, or a URI (or its str representation)
+        :return:
+        """
+        # Use the O(1) dict lookup from the collection
+        return self.energyml_objects.get_by_identifier(identifier)
+
+    def get_object(self, identifier: Union[str, Uri]) -> Optional[Any]:
+        return self.get_object_by_identifier(identifier)
+
+    def add_object(self, obj: Any) -> bool:
+        """
+        Add an energyml object to the EPC stream (calls put_object for consistency)
+        :param obj:
+        :return:
+        """
+        return self.put_object(obj) is not None
+
+    def remove_object(self, identifier: Union[str, Uri]) -> None:
+        """
+        Remove an energyml object from the EPC stream by its identifier (calls delete_object for consistency)
+        :param identifier:
+        :return:
+        """
+        self.delete_object(identifier)
+
+    def __len__(self) -> int:
+        return len(self.energyml_objects)
+
+    def list_objects(self, dataspace: str | None = None, object_type: str | None = None) -> List[ResourceMetadata]:
+        result = []
+        for obj in self.energyml_objects:
+            if (dataspace is None or get_obj_type(get_obj_usable_class(obj)) == dataspace) and (
+                object_type is None or get_qualified_type_from_class(type(obj)) == object_type
+            ):
+                res_meta = ResourceMetadata(
+                    uri=str(get_obj_uri(obj)),
+                    uuid=get_obj_uuid(obj),
+                    title=get_object_attribute(obj, "citation.title") or "",
+                    object_type=type(obj).__name__,
+                    version=get_obj_version(obj),
+                    content_type=get_content_type_from_class(type(obj)) or "",
+                )
+                result.append(res_meta)
+        return result
+
+    def put_object(self, obj: Any, dataspace: str | None = None) -> str | None:
+        """
+        Add or update an energyml object in the EPC stream.
+        :param obj: The energyml object to add
+        :param dataspace: Optional dataspace parameter (for interface compatibility)
+        :return: The URI of the added object, or None if failed
+        """
+        self.energyml_objects.append(obj)
+
+        # Update relationships cache
+        if self._rels_cache is None:
+            self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
+        self._rels_cache.update_cache_for_object(obj)
+
+        return str(get_obj_uri(obj))
+
+    def delete_object(self, identifier: Union[str, Any]) -> bool:
+        """
+        Delete an energyml object from the EPC stream.
+        :param identifier: The object identifier/URI or the object itself
+        :return: True if object was deleted, False otherwise
+        """
+        obj = self.get_object_by_identifier(identifier)
+        if obj is not None:
+            # Remove from collection
+            self.energyml_objects.remove(obj)
+
+            # Update relationships cache
+            if self._rels_cache is None:
+                self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
+            self._rels_cache._remove_object_from_cache(obj)
+
+            return True
+        return False
+
+    def dumps_epc_content_and_files_lists(self) -> str:
+        """
+        Dumps the EPC content and files lists for debugging purposes.
+        :return: A string representation of the EPC content and files lists.
+        """
+        content_list = [
+            f"{get_obj_identifier(obj)} ({get_qualified_type_from_class(type(obj))})" for obj in self.energyml_objects
+        ]
+        raw_files_list = [raw_file.path for raw_file in self.raw_files]
+
+        return "EPC Content:\n" + "\n".join(content_list) + "\n\nRaw Files:\n" + "\n".join(raw_files_list)
+
+    def close(self) -> None:
+        """
+        Close the EPC file and release any resources.
+        :return:
+        """
+        pass
+
+    # ==============
     # Class methods
+    # ==============
 
     @classmethod
     # @log_timestamp
@@ -1292,7 +1471,7 @@ class Epc(EnergymlStorageInterface):
             _read_files = []
             obj_list = []
             raw_file_list = []
-            additional_rels = {}
+            # additional_rels = {}
             core_props = None
             # Store rels files separately for potential cache population
             rels_files_to_load = {}  # {obj_path: Relationships}
@@ -1376,24 +1555,24 @@ class Epc(EnergymlStorageInterface):
                                 obj_path = obj_folder + obj_file_name
                                 if obj_path in path_to_obj:
                                     try:
-                                        additional_rels_key = get_obj_identifier(path_to_obj[obj_path])
 
                                         # Store all rels for potential cache population
                                         if read_rels_from_files:
                                             rels_files_to_load[obj_path] = rels_file
 
-                                        # Keep only non-computable rels in additional_rels (legacy support)
-                                        for rel in rels_file.relationship:
-                                            # logging.debug(f"\t\t{rel.type_value}")
-                                            if (
-                                                rel.type_value != EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
-                                                and rel.type_value != EPCRelsRelationshipType.SOURCE_OBJECT.get_type()
-                                                and rel.type_value
-                                                != EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES.get_type()
-                                            ):  # not a computable relation
-                                                if additional_rels_key not in additional_rels:
-                                                    additional_rels[additional_rels_key] = []
-                                                additional_rels[additional_rels_key].append(rel)
+                                        # additional_rels_key = get_obj_identifier(path_to_obj[obj_path])
+                                        # # Keep only non-computable rels in additional_rels (legacy support)
+                                        # for rel in rels_file.relationship:
+                                        #     # logging.debug(f"\t\t{rel.type_value}")
+                                        #     if (
+                                        #         rel.type_value != EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
+                                        #         and rel.type_value != EPCRelsRelationshipType.SOURCE_OBJECT.get_type()
+                                        #         and rel.type_value
+                                        #         != EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES.get_type()
+                                        #     ):  # not a computable relation
+                                        #         if additional_rels_key not in additional_rels:
+                                        #             additional_rels[additional_rels_key] = []
+                                        #         additional_rels[additional_rels_key].append(rel)
                                     except AttributeError:
                                         logging.error(traceback.format_exc())
                                         pass  # 'CoreProperties' object has no attribute 'object_version'
@@ -1411,7 +1590,7 @@ class Epc(EnergymlStorageInterface):
                 energyml_objects=EnergymlObjectCollection(obj_list),
                 raw_files=raw_file_list,
                 core_props=core_props,
-                additional_rels=additional_rels,
+                # additional_rels=additional_rels,
             )
 
             # Populate rels cache from loaded rels files if requested
@@ -1433,149 +1612,6 @@ class Epc(EnergymlStorageInterface):
 
         return None
 
-    def list_objects(self, dataspace: str | None = None, object_type: str | None = None) -> List[ResourceMetadata]:
-        result = []
-        for obj in self.energyml_objects:
-            if (dataspace is None or get_obj_type(get_obj_usable_class(obj)) == dataspace) and (
-                object_type is None or get_qualified_type_from_class(type(obj)) == object_type
-            ):
-                res_meta = ResourceMetadata(
-                    uri=str(get_obj_uri(obj)),
-                    uuid=get_obj_uuid(obj),
-                    title=get_object_attribute(obj, "citation.title") or "",
-                    object_type=type(obj).__name__,
-                    version=get_obj_version(obj),
-                    content_type=get_content_type_from_class(type(obj)) or "",
-                )
-                result.append(res_meta)
-        return result
-
-    def put_object(self, obj: Any, dataspace: str | None = None) -> str | None:
-        """
-        Add or update an energyml object in the EPC stream.
-        :param obj: The energyml object to add
-        :param dataspace: Optional dataspace parameter (for interface compatibility)
-        :return: The URI of the added object, or None if failed
-        """
-        self.energyml_objects.append(obj)
-
-        # Update relationships cache
-        if self._rels_cache is None:
-            self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
-        self._rels_cache.update_cache_for_object(obj)
-
-        return str(get_obj_uri(obj))
-
-    def delete_object(self, identifier: Union[str, Any]) -> bool:
-        """
-        Delete an energyml object from the EPC stream.
-        :param identifier: The object identifier/URI or the object itself
-        :return: True if object was deleted, False otherwise
-        """
-        obj = self.get_object_by_identifier(identifier)
-        if obj is not None:
-            # Remove from collection
-            self.energyml_objects.remove(obj)
-
-            # Update relationships cache
-            if self._rels_cache is None:
-                self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
-            self._rels_cache._remove_object_from_cache(obj)
-
-            return True
-        return False
-
-    def get_array_metadata(
-        self,
-        proxy: Union[str, Uri, Any],
-        path_in_external: Optional[str] = None,
-        start_indices: Optional[List[int]] = None,
-        counts: Optional[List[int]] = None,
-    ) -> Union[DataArrayMetadata, List[DataArrayMetadata], None]:
-        """
-        Get metadata for data array(s) without loading the full array data.
-        Supports RESQML v2.2 sub-array selection metadata.
-
-        :param proxy: The object identifier/URI or the object itself that references the array
-        :param path_in_external: Optional specific path. If None, returns all array metadata for the object
-        :param start_indices: Optional start index for each dimension (RESQML v2.2 StartIndex)
-        :param counts: Optional count of elements for each dimension (RESQML v2.2 Count)
-        :return: DataArrayMetadata if path specified, List[DataArrayMetadata] if no path, or None if not found
-        """
-        obj = proxy
-        if isinstance(proxy, str) or isinstance(proxy, Uri):
-            obj = self.get_object_by_identifier(proxy)
-
-        # Get possible file paths for this object
-        file_paths = self.get_h5_file_paths(obj)
-        if not file_paths or len(file_paths) == 0:
-            file_paths = self.external_files_path
-
-        if not file_paths:
-            logging.warning(f"No external file paths found for proxy: {proxy}")
-            return None
-
-        # Get the file handler registry
-        handler_registry = get_handler_registry()
-
-        for file_path in file_paths:
-            # Get the appropriate handler for this file type
-            handler = handler_registry.get_handler_for_file(file_path)
-            if handler is None:
-                logging.debug(f"No handler found for file: {file_path}")
-                continue
-
-            try:
-                # Use handler to get metadata without loading full array
-                metadata_dict = handler.get_array_metadata(file_path, path_in_external, start_indices, counts)
-
-                if metadata_dict is None:
-                    continue
-
-                # Convert dict(s) to DataArrayMetadata
-                if isinstance(metadata_dict, list):
-                    return [
-                        DataArrayMetadata(
-                            path_in_resource=m.get("path"),
-                            array_type=m.get("dtype", "unknown"),
-                            dimensions=m.get("shape", []),
-                            start_indices=start_indices,
-                            custom_data={"size": m.get("size", 0)},
-                        )
-                        for m in metadata_dict
-                    ]
-                else:
-                    return DataArrayMetadata(
-                        path_in_resource=metadata_dict.get("path"),
-                        array_type=metadata_dict.get("dtype", "unknown"),
-                        dimensions=metadata_dict.get("shape", []),
-                        start_indices=start_indices,
-                        custom_data={"size": metadata_dict.get("size", 0)},
-                    )
-            except Exception as e:
-                logging.debug(f"Failed to get metadata from file {file_path}: {e}")
-
-        return None
-
-    def dumps_epc_content_and_files_lists(self) -> str:
-        """
-        Dumps the EPC content and files lists for debugging purposes.
-        :return: A string representation of the EPC content and files lists.
-        """
-        content_list = [
-            f"{get_obj_identifier(obj)} ({get_qualified_type_from_class(type(obj))})" for obj in self.energyml_objects
-        ]
-        raw_files_list = [raw_file.path for raw_file in self.raw_files]
-
-        return "EPC Content:\n" + "\n".join(content_list) + "\n\nRaw Files:\n" + "\n".join(raw_files_list)
-
-    def close(self) -> None:
-        """
-        Close the EPC file and release any resources.
-        :return:
-        """
-        pass
-
 
 #     ______                                      __   ____                 __  _
 #    / ____/___  ___  _________ ___  ______ ___  / /  / __/_  ______  _____/ /_(_)___  ____  _____
@@ -1589,7 +1625,9 @@ class Epc(EnergymlStorageInterface):
 from .epc_utils import (
     create_default_core_properties,
     create_default_types,
+    create_external_relationship,
     gen_rels_path_from_obj_path,
+    get_dor_or_external_uris_from_obj,
     get_dor_uris_from_obj,
     get_epc_content_type_rels_path,
     get_rels_dor_type,

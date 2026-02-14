@@ -39,7 +39,7 @@ def reexport_in_memory(filepath: str, output_folder: Optional[str] = None):
     if output_folder:
         os.makedirs(output_folder, exist_ok=True)
         path_in_memory = f"{output_folder}/{path_in_memory.split('/')[-1]}"
-    epc = Epc.read_file(filepath)
+    epc = Epc.read_file(epc_file_path=filepath, read_rels_from_files=False)
 
     if os.path.exists(path_in_memory):
         os.remove(path_in_memory)
@@ -120,8 +120,13 @@ if __name__ == "__main__":
     update_prop_kind_dict_cache()
 
     time_comparison(
-        filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/80wells_surf.epc", output_folder="rc/performance_results"
+        filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/testingPackageCpp22.epc",
+        output_folder="rc/performance_results",
     )
+
+    # time_comparison(
+    #     filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/80wells_surf.epc", output_folder="rc/performance_results"
+    # )
 
     # time_comparison(
     #     filepath=sys.argv[1] if len(sys.argv) > 1 else "wip/failingData/fix/sample_mini_firp_201_norels_with_media.epc",
