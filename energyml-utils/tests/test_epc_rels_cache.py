@@ -36,7 +36,7 @@ from energyml.utils.epc import (
     as_dor,
     EpcExportVersion,
 )
-from energyml.utils.epc_utils import gen_rels_path, gen_energyml_object_path, relationships_equal
+from energyml.utils.epc_utils import gen_energyml_object_path, gen_energyml_object_path, relationships_equal
 from energyml.utils.introspection import (
     epoch_to_date,
     epoch,
@@ -176,7 +176,7 @@ class TestRelationshipComputation:
         assert len(dest_rels) >= 1
 
         # Verify target is horizon_interp
-        horizon_path = gen_rels_path(sample_objects["horizon_interp"], EpcExportVersion.CLASSIC)
+        horizon_path = gen_energyml_object_path(sample_objects["horizon_interp"], EpcExportVersion.CLASSIC)
         assert any(horizon_path in r.target for r in dest_rels)
 
     def test_trset_has_ml_to_external_part_proxy(self, sample_objects):
@@ -200,7 +200,7 @@ class TestRelationshipComputation:
         assert len(ml_to_proxy_rels) >= 1
 
         # Verify target is external_ref
-        external_path = gen_rels_path(sample_objects["external_ref"], EpcExportVersion.CLASSIC)
+        external_path = gen_energyml_object_path(sample_objects["external_ref"], EpcExportVersion.CLASSIC)
         assert any(external_path in r.target for r in ml_to_proxy_rels)
 
     def test_external_ref_has_proxy_to_ml(self, sample_objects):
@@ -224,7 +224,7 @@ class TestRelationshipComputation:
         assert len(proxy_to_ml_rels) >= 1
 
         # Verify target is trset20
-        trset_path = gen_rels_path(sample_objects["trset20"], EpcExportVersion.CLASSIC)
+        trset_path = gen_energyml_object_path(sample_objects["trset20"], EpcExportVersion.CLASSIC)
         assert any(trset_path in r.target for r in proxy_to_ml_rels)
 
     def test_horizon_has_source_from_trset(self, sample_objects):
@@ -245,7 +245,7 @@ class TestRelationshipComputation:
         assert len(source_rels) >= 1
 
         # Verify source is trset20
-        trset_path = gen_rels_path(sample_objects["trset20"], EpcExportVersion.CLASSIC)
+        trset_path = gen_energyml_object_path(sample_objects["trset20"], EpcExportVersion.CLASSIC)
         assert any(trset_path in r.target for r in source_rels)
 
     def test_compute_rels_parallel(self, sample_objects):
@@ -268,8 +268,8 @@ class TestRelationshipComputation:
         assert len(trset_rels) >= 2  # At least horizon_interp and external_ref
 
         # Verify each relationship has correct type and target
-        horizon_path = gen_rels_path(sample_objects["horizon_interp"], EpcExportVersion.CLASSIC)
-        external_path = gen_rels_path(sample_objects["external_ref"], EpcExportVersion.CLASSIC)
+        horizon_path = gen_energyml_object_path(sample_objects["horizon_interp"], EpcExportVersion.CLASSIC)
+        external_path = gen_energyml_object_path(sample_objects["external_ref"], EpcExportVersion.CLASSIC)
 
         # Find DESTINATION_OBJECT rel to horizon_interp
         dest_rels = [
@@ -293,7 +293,7 @@ class TestRelationshipComputation:
         horizon_uri = get_obj_uri(sample_objects["horizon_interp"])
         horizon_rels = cache.get_object_rels(horizon_uri)
 
-        trset_path = gen_rels_path(sample_objects["trset20"], EpcExportVersion.CLASSIC)
+        trset_path = gen_energyml_object_path(sample_objects["trset20"], EpcExportVersion.CLASSIC)
         source_rels = [
             r
             for r in horizon_rels
@@ -404,7 +404,7 @@ class TestLateArrivalScenario:
         assert len(source_rels) >= 1
 
         # Verify reverse rel points to trset
-        trset_path = gen_rels_path(sample_objects["trset20"], EpcExportVersion.CLASSIC)
+        trset_path = gen_energyml_object_path(sample_objects["trset20"], EpcExportVersion.CLASSIC)
         assert any(trset_path in r.target for r in source_rels)
 
     def test_incremental_update_with_late_arrival(self, sample_objects):

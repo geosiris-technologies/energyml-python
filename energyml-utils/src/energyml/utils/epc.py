@@ -266,10 +266,11 @@ class EpcRelsCache:
 
     """
 
-    def __init__(self, epc_or_collection, export_version, error_policy=EpcRelsCacheErrorPolicy.LOG):
+    def __init__(self, epc_or_collection, export_version=None, error_policy=EpcRelsCacheErrorPolicy.LOG):
         """
         Initialize the EpcRelsCache.
         :param epc_or_collection: Epc instance or EnergymlObjectCollection
+        :param export_version: EPC export version. If None and epc_or_collection is Epc, uses epc.export_version
         :param export_version: EPC export version (for rels path/target generation)
         :param error_policy: EpcRelsCacheErrorPolicy enum value for error handling
         """
@@ -278,18 +279,26 @@ class EpcRelsCache:
             # Allow legacy string for backward compatibility
             error_policy = EpcRelsCacheErrorPolicy(error_policy.lower())
         self._error_policy = error_policy
-        self._export_version = export_version
         # Accept Epc or EnergymlObjectCollection
         if isinstance(epc_or_collection, Epc):
             self._objects = epc_or_collection.energyml_objects
             self._epc = epc_or_collection
+            self._export_version_fallback = export_version or epc_or_collection.export_version
         else:
             self._objects = epc_or_collection
             self._epc = None
+            self._export_version_fallback = export_version or EpcExportVersion.CLASSIC
         # Internal caches
         self._computed_rels = {}  # {Uri: List[Relationship]}
         self._supplemental_rels = {}  # {Uri: List[Relationship]}
         self._reverse_index: Dict[Uri, Set[Uri]] = {}  # {target_uri: {source_uris}}
+
+    @property
+    def export_version(self) -> EpcExportVersion:
+        """Get the current export version, using Epc's version if available."""
+        if self._epc is not None:
+            return self._epc.export_version
+        return self._export_version_fallback
 
     def _uri_from_any(self, obj_or_id: Any) -> "Uri":
         """
@@ -320,7 +329,8 @@ class EpcRelsCache:
         """Attach relationships loaded from a .rels file to the given object."""
         uri = self._uri_from_any(obj)
         with self._lock:
-            self._supplemental_rels[uri] = list(rels.relationship) if hasattr(rels, "relationship") else list(rels)
+            self._computed_rels[uri] = list(rels.relationship) if hasattr(rels, "relationship") else list(rels)
+            # self._supplemental_rels[uri] = list(rels.relationship) if hasattr(rels, "relationship") else list(rels)
 
     def add_supplemental_rels(self, obj: Any, rels: Union["Relationship", List["Relationship"]]) -> None:
         """Add supplemental relationships for an object."""
@@ -378,9 +388,9 @@ class EpcRelsCache:
         # Second pass: build forward and reverse relationships
         rels_map = collections.defaultdict(list)  # {Uri: List[Relationship]}
         for src_uri, dor_uris in results:
-            src_path = gen_rels_path(src_uri, export_version=self._export_version)
+            src_path = gen_energyml_object_path(src_uri, export_version=self.export_version)
             for tgt_uri in dor_uris:
-                tgt_path = gen_rels_path(tgt_uri, export_version=self._export_version)
+                tgt_path = gen_energyml_object_path(tgt_uri, export_version=self.export_version)
                 # Forward rel (src -> tgt)
                 rels_map[src_uri].append(
                     Relationship(
@@ -443,10 +453,10 @@ class EpcRelsCache:
 
             # Compute forward relationships for this object
             forward_rels = []
-            src_path = gen_rels_path(uri, export_version=self._export_version)
+            src_path = gen_energyml_object_path(uri, export_version=self.export_version)
 
             for tgt_uri in dor_uris:
-                tgt_path = gen_rels_path(tgt_uri, export_version=self._export_version)
+                tgt_path = gen_energyml_object_path(tgt_uri, export_version=self.export_version)
                 # Forward rel (this object -> target)
                 forward_rels.append(
                     Relationship(
@@ -474,8 +484,8 @@ class EpcRelsCache:
             reverse_rels = []
             for src_uri in self._reverse_index.get(uri, set()):
                 if src_uri != uri:  # Avoid self-references
-                    src_path = gen_rels_path(src_uri, export_version=self._export_version)
-                    tgt_path = gen_rels_path(uri, export_version=self._export_version)
+                    src_path = gen_energyml_object_path(src_uri, export_version=self.export_version)
+                    tgt_path = gen_energyml_object_path(uri, export_version=self.export_version)
                     reverse_rels.append(
                         Relationship(
                             target=src_path,
@@ -598,7 +608,7 @@ class EpcRelsCache:
             for other_uri, other_rels in self._computed_rels.items():
                 if other_uri != uri:
                     # Filter out relationships targeting the removed object
-                    uri_path = gen_rels_path(uri, export_version=self._export_version)
+                    uri_path = gen_energyml_object_path(uri, export_version=self.export_version)
                     self._computed_rels[other_uri] = [
                         rel for rel in other_rels if getattr(rel, "target", None) != uri_path
                     ]
@@ -679,7 +689,9 @@ def log_timestamp(func):
 @dataclass
 class Epc(EnergymlStorageInterface):
     """
-    A class that represent an EPC file content
+    A class that represent an EPC file content. Creating an isntance of this class with a file path will not directly load the file content if it exists.
+    To read an existing file, use the @read_file or @read_stream functions.
+    Moreover, you must explicitly call @export_file or @export_io functions to save the content of the instance.
     """
 
     # content_type: List[str] = field(
@@ -712,8 +724,12 @@ class Epc(EnergymlStorageInterface):
 
     force_h5_path: Optional[str] = field(default=None)
 
+    """ Relationships cache for efficient rels computation and management """
+    _rels_cache: Optional[EpcRelsCache] = field(default=None, init=False, repr=False)
+
     """
-    Additional rels for objects. Key is the object (same than in @energyml_objects) and value is a list of
+    Additional rels for objects (DEPRECATED - use _rels_cache.add_supplemental_rels instead).
+    Key is the object (same than in @energyml_objects) and value is a list of
     RelationShip. This can be used to link an HDF5 to an ExternalPartReference in resqml 2.0.1
     Key is a value returned by @get_obj_identifier
     """
@@ -723,6 +739,11 @@ class Epc(EnergymlStorageInterface):
     Epc file path. Used when loaded from a local file or for export
     """
     epc_file_path: Optional[str] = field(default=None)
+
+    def __post_init__(self):
+        """Initialize the relationships cache after dataclass initialization."""
+        if self._rels_cache is None:
+            self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
 
     def __str__(self):
         return (
@@ -825,7 +846,9 @@ class Epc(EnergymlStorageInterface):
         return ct
 
     # @log_timestamp
-    def export_file(self, path: Optional[str] = None, allowZip64: bool = True) -> None:
+    def export_file(
+        self, path: Optional[str] = None, allowZip64: bool = True, force_recompute_object_rels: bool = True
+    ) -> None:
         """
         Export the epc file. If :param:`path` is None, the epc 'self.epc_file_path' is used
         :param path:
@@ -841,9 +864,11 @@ class Epc(EnergymlStorageInterface):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
 
         with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED, allowZip64=allowZip64) as zip_file:
-            self._export_io(zip_file=zip_file, allowZip64=allowZip64)
+            self._export_io(
+                zip_file=zip_file, allowZip64=allowZip64, force_recompute_object_rels=force_recompute_object_rels
+            )
 
-    def export_io(self, allowZip64: bool = True) -> BytesIO:
+    def export_io(self, allowZip64: bool = True, force_recompute_object_rels: bool = True) -> BytesIO:
         """
         Export the epc file into a :class:`BytesIO` instance. The result is an 'in-memory' zip file.
         :return:
@@ -851,11 +876,15 @@ class Epc(EnergymlStorageInterface):
         zip_buffer = BytesIO()
 
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED, allowZip64=allowZip64) as zip_file:
-            self._export_io(zip_file=zip_file, allowZip64=allowZip64)
+            self._export_io(
+                zip_file=zip_file, allowZip64=allowZip64, force_recompute_object_rels=force_recompute_object_rels
+            )
 
         return zip_buffer
 
-    def _export_io(self, zip_file: zipfile.ZipFile, allowZip64: bool = True) -> None:
+    def _export_io(
+        self, zip_file: zipfile.ZipFile, allowZip64: bool = True, force_recompute_object_rels: bool = True
+    ) -> None:
         """
         Export the epc file into a :class:`BytesIO` instance. The result is an 'in-memory' zip file.
         :return:
@@ -872,7 +901,7 @@ class Epc(EnergymlStorageInterface):
             zip_file.writestr(e_path, serialize_xml(e_obj))
 
         # Rels
-        for rels_path, rels in self.compute_rels().items():
+        for rels_path, rels in self.compute_rels(force_recompute_object_rels=force_recompute_object_rels).items():
             zip_file.writestr(rels_path, serialize_xml(rels))
 
         # Other files:
@@ -884,74 +913,53 @@ class Epc(EnergymlStorageInterface):
 
     def get_obj_rels(self, obj: Union[str, Uri, Any]) -> List[Relationship]:
         """
-        Get the relationships for a given energyml object
+        Get the relationships for a given energyml object using the cache.
         :param obj: The object identifier/URI or the object itself
         :return: List of Relationship objects
         """
+        # Ensure cache is initialized
+        if self._rels_cache is None:
+            self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
+
         # Convert identifier to object if needed
         if isinstance(obj, str) or isinstance(obj, Uri):
             obj = self.get_object_by_identifier(obj)
             if obj is None:
                 return []
 
-        rels_path = gen_rels_path(
-            energyml_object=obj,
-            export_version=self.export_version,
-        )
-        all_rels = self.compute_rels()
-        if rels_path in all_rels:
-            return all_rels[rels_path].relationship if all_rels[rels_path].relationship else []
-        return []
+        # Get relationships from cache (includes computed + supplemental rels)
+        return self._rels_cache.get_object_rels(obj)
 
-    def compute_rels(self) -> Dict[str, Relationships]:
+    def compute_rels(self, force_recompute_object_rels: bool = False) -> Dict[str, Relationships]:
+        """
+        Compute all relationships in the EPC file.
+        :param force_recompute_object_rels: If True, recompute all object relationships from scratch
+        :return: Dictionary mapping rels file paths to Relationships objects
+        """
+        # Ensure cache is initialized
+        if self._rels_cache is None:
+            self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
+
+        # Recompute cache if requested
+        if force_recompute_object_rels:
+            self._rels_cache.recompute_cache()
+
         result = {}
 
-        # all energyml objects
+        # all energyml objects - get relationships from cache
         for obj in self.energyml_objects:
-            obj_file_path = gen_energyml_object_path(obj, export_version=self.export_version)
             obj_file_rels_path = gen_rels_path(obj, export_version=self.export_version)
             obj_id = get_obj_identifier(obj)
-            obj_rels = Relationships(relationship=[])
 
-            dor_uris = get_dor_uris_from_obj(obj)
+            # Get relationships from cache (includes computed + supplemental)
+            cached_rels = self._rels_cache.get_object_rels(obj)
 
-            for target_uri in dor_uris:
-                # if "propertykind" in target_uri.object_type.lower():
-                #     if get_property_kind_by_uuid(target_uri.uuid) is not None:
-                #         # we can ignore prop kind from official dictionary
-                #         continue
+            # Add legacy additional_rels if any (for backward compatibility)
+            for supplemental_rel in self.additional_rels.get(obj_id, []):
+                if supplemental_rel not in cached_rels:
+                    cached_rels.append(supplemental_rel)
 
-                # if self.get_object(target_uri) is None:
-                #     logging.warning(
-                #         f"Object with identifier {target_uri} is referenced in DOR but not found in energyml_objects."
-                #     )
-
-                target_path = gen_energyml_object_path(target_uri, export_version=self.export_version)
-                target_rels_path = gen_rels_path(target_uri, export_version=self.export_version)
-                if target_path != obj_file_path:
-                    dest_rel = Relationship(
-                        target=target_path,
-                        type_value=get_rels_dor_type(dor_target=target_path, in_dor_owner_rels_file=True),
-                        id=f"_{gen_uuid()}",
-                    )
-                    obj_rels.relationship.append(dest_rel)
-
-                    if target_rels_path not in result:
-                        result[target_rels_path] = Relationships(relationship=[])
-
-                    result[target_rels_path].relationship.append(
-                        Relationship(
-                            target=obj_file_path,
-                            type_value=get_rels_dor_type(dor_target=target_path, in_dor_owner_rels_file=False),
-                            id=f"_{gen_uuid()}",
-                        )
-                    )
-
-            # additional rels
-            for supplemental_rels in self.additional_rels.get(obj_id, []):
-                obj_rels.relationship.append(supplemental_rels)
-
-            result[obj_file_rels_path] = obj_rels
+            result[obj_file_rels_path] = Relationships(relationship=cached_rels)
 
         # CoreProps
         core_props = self.core_props or create_default_core_properties()
@@ -980,77 +988,6 @@ class Epc(EnergymlStorageInterface):
         )
 
         return result
-
-    def compute_rels_old(self) -> Dict[str, Relationships]:
-        """
-        Returns a dict containing for each objet, the rels xml file path as key and the RelationShips object as value
-        :return:
-        """
-        dor_relation = get_reverse_dor_list(self.energyml_objects)
-
-        # destObject
-        rels = {
-            obj_id: [
-                Relationship(
-                    target=gen_energyml_object_path(target_obj, self.export_version),
-                    type_value=get_rels_dor_type(
-                        gen_energyml_object_path(self.get_object(obj_id), self.export_version),
-                        in_dor_owner_rels_file=False,
-                    ),
-                    id=f"_{obj_id}_{get_obj_type(get_obj_usable_class(target_obj))}_{get_obj_identifier(target_obj)}",
-                )
-                for target_obj in target_obj_list
-                if self.get_object(obj_id) is not None
-            ]
-            for obj_id, target_obj_list in dor_relation.items()
-        }
-        # sourceObject
-        for obj in self.energyml_objects:
-            obj_id = get_obj_identifier(obj)
-            if obj_id not in rels:
-                rels[obj_id] = []
-            for target_obj in get_direct_dor_list(obj):
-                try:
-                    rels[obj_id].append(
-                        Relationship(
-                            target=gen_energyml_object_path(target_obj, self.export_version),
-                            type_value=get_rels_dor_type(
-                                gen_energyml_object_path(target_obj, self.export_version), in_dor_owner_rels_file=True
-                            ),
-                            id=f"_{obj_id}_{get_obj_type(get_obj_usable_class(target_obj))}_{get_obj_identifier(target_obj)}",
-                        )
-                    )
-                except Exception:
-                    logging.error(f'Failed to create rels for "{obj_id}" with target {target_obj}')
-
-        # filtering non-accessible objects from DOR
-        rels = {k: v for k, v in rels.items() if self.get_object_by_identifier(k) is not None}
-
-        map_obj_id_to_obj = {get_obj_identifier(obj): obj for obj in self.energyml_objects}
-
-        obj_rels = {
-            gen_rels_path(
-                energyml_object=map_obj_id_to_obj.get(obj_id),
-                export_version=self.export_version,
-            ): Relationships(
-                relationship=obj_rels + (self.additional_rels[obj_id] if obj_id in self.additional_rels else []),
-            )
-            for obj_id, obj_rels in rels.items()
-        }
-
-        # CoreProps
-        if self.core_props is not None:
-            obj_rels[gen_rels_path(self.core_props)] = Relationships(
-                relationship=[
-                    Relationship(
-                        target=gen_core_props_path(),
-                        type_value=EPCRelsRelationshipType.CORE_PROPERTIES.get_type(),
-                        id="CoreProperties",
-                    )
-                ]
-            )
-
-        return obj_rels
 
     def rels_to_h5_file(self, obj: Any, h5_path: str) -> Relationship:
         """
@@ -1137,22 +1074,19 @@ class Epc(EnergymlStorageInterface):
 
     def add_object(self, obj: Any) -> bool:
         """
-        Add an energyml object to the EPC stream
+        Add an energyml object to the EPC stream (calls put_object for consistency)
         :param obj:
         :return:
         """
-        self.energyml_objects.append(obj)
-        return True
+        return self.put_object(obj) is not None
 
     def remove_object(self, identifier: Union[str, Uri]) -> None:
         """
-        Remove an energyml object from the EPC stream by its identifier
+        Remove an energyml object from the EPC stream by its identifier (calls delete_object for consistency)
         :param identifier:
         :return:
         """
-        obj = self.get_object_by_identifier(identifier)
-        if obj is not None:
-            self.energyml_objects.remove(obj)
+        self.delete_object(identifier)
 
     def __len__(self) -> int:
         return len(self.energyml_objects)
@@ -1327,17 +1261,31 @@ class Epc(EnergymlStorageInterface):
 
     @classmethod
     # @log_timestamp
-    def read_file(cls, epc_file_path: str) -> "Epc":
+    def read_file(cls, epc_file_path: str, read_rels_from_files: bool = True, recompute_rels: bool = False) -> "Epc":
+        """
+        Read an EPC file from disk.
+        :param epc_file_path: Path to the EPC file
+        :param read_rels_from_files: If True, populate cache from .rels files in the EPC
+        :param recompute_rels: If True, recompute all relationships after loading
+        :return: Epc instance
+        """
         with open(epc_file_path, "rb") as f:
-            epc = cls.read_stream(BytesIO(f.read()))
+            epc = cls.read_stream(
+                BytesIO(f.read()), read_rels_from_files=read_rels_from_files, recompute_rels=recompute_rels
+            )
             epc.epc_file_path = epc_file_path
             return epc
         raise IOError(f"Failed to open EPC file {epc_file_path}")
 
     @classmethod
-    def read_stream(cls, epc_file_io: BytesIO):  # returns an Epc instance
+    def read_stream(
+        cls, epc_file_io: BytesIO, read_rels_from_files: bool = True, recompute_rels: bool = False
+    ):  # returns an Epc instance
         """
-        :param epc_file_io:
+        Read an EPC file from a BytesIO stream.
+        :param epc_file_io: BytesIO containing the EPC file
+        :param read_rels_from_files: If True, populate cache from .rels files in the EPC
+        :param recompute_rels: If True, recompute all relationships after loading
         :return: an :class:`EPC` instance
         """
         try:
@@ -1346,6 +1294,10 @@ class Epc(EnergymlStorageInterface):
             raw_file_list = []
             additional_rels = {}
             core_props = None
+            # Store rels files separately for potential cache population
+            rels_files_to_load = {}  # {obj_path: Relationships}
+            path_to_obj = {}
+
             with zipfile.ZipFile(epc_file_io, "r", zipfile.ZIP_DEFLATED) as epc_file:
                 content_type_file_name = get_epc_content_type_path()
                 content_type_info = None
@@ -1363,7 +1315,6 @@ class Epc(EnergymlStorageInterface):
                     logging.error(f"No {content_type_file_name} file found")
                 else:
                     content_type_obj: Types = read_energyml_xml_bytes(epc_file.read(content_type_file_name))
-                    path_to_obj = {}
                     for ov in content_type_obj.override:
                         ov_ct = ov.content_type
                         ov_path = ov.part_name
@@ -1426,6 +1377,12 @@ class Epc(EnergymlStorageInterface):
                                 if obj_path in path_to_obj:
                                     try:
                                         additional_rels_key = get_obj_identifier(path_to_obj[obj_path])
+
+                                        # Store all rels for potential cache population
+                                        if read_rels_from_files:
+                                            rels_files_to_load[obj_path] = rels_file
+
+                                        # Keep only non-computable rels in additional_rels (legacy support)
                                         for rel in rels_file.relationship:
                                             # logging.debug(f"\t\t{rel.type_value}")
                                             if (
@@ -1450,12 +1407,27 @@ class Epc(EnergymlStorageInterface):
                                         f" of a lack of a dependency module) "
                                     )
 
-            return Epc(
+            epc = Epc(
                 energyml_objects=EnergymlObjectCollection(obj_list),
                 raw_files=raw_file_list,
                 core_props=core_props,
                 additional_rels=additional_rels,
             )
+
+            # Populate rels cache from loaded rels files if requested
+            if read_rels_from_files and rels_files_to_load:
+                for obj_path, rels_file in rels_files_to_load.items():
+                    if obj_path in path_to_obj:
+                        obj = path_to_obj[obj_path]
+                        # Only set rels for energyml objects (skip CoreProperties and other OPC objects)
+                        if obj in obj_list:
+                            epc._rels_cache.set_rels_from_file(obj, rels_file)
+
+            # Recompute relationships if requested
+            if recompute_rels:
+                epc._rels_cache.recompute_cache()
+
+            return epc
         except zipfile.BadZipFile as error:
             logging.error(error)
 
@@ -1479,14 +1451,37 @@ class Epc(EnergymlStorageInterface):
         return result
 
     def put_object(self, obj: Any, dataspace: str | None = None) -> str | None:
-        if self.add_object(obj):
-            return str(get_obj_uri(obj))
-        return None
+        """
+        Add or update an energyml object in the EPC stream.
+        :param obj: The energyml object to add
+        :param dataspace: Optional dataspace parameter (for interface compatibility)
+        :return: The URI of the added object, or None if failed
+        """
+        self.energyml_objects.append(obj)
+
+        # Update relationships cache
+        if self._rels_cache is None:
+            self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
+        self._rels_cache.update_cache_for_object(obj)
+
+        return str(get_obj_uri(obj))
 
     def delete_object(self, identifier: Union[str, Any]) -> bool:
+        """
+        Delete an energyml object from the EPC stream.
+        :param identifier: The object identifier/URI or the object itself
+        :return: True if object was deleted, False otherwise
+        """
         obj = self.get_object_by_identifier(identifier)
         if obj is not None:
-            self.remove_object(identifier)
+            # Remove from collection
+            self.energyml_objects.remove(obj)
+
+            # Update relationships cache
+            if self._rels_cache is None:
+                self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
+            self._rels_cache._remove_object_from_cache(obj)
+
             return True
         return False
 
