@@ -1,0 +1,258 @@
+import logging
+from typing import List, Optional
+import numpy as np
+from energyml.utils.data.helper import _ARRAY_NAMES_, read_array
+from energyml.utils.data.mesh import AbstractMesh, SurfaceMesh, PolylineSetMesh, read_mesh_object
+from energyml.utils.storage_interface import EnergymlStorageInterface
+from energyml.utils.epc import Epc
+
+from energyml.resqml.v2_2.resqmlv2 import Point3DLatticeArray
+
+from energyml.utils.serialization import read_energyml_xml_str, serialize_json
+
+
+xml_Point3DLatticeArray = """
+<resqml:Point3dLatticeArray  xmlns:eml="http://www.energistics.org/energyml/data/commonv2" xmlns:prodml="http://www.energistics.org/energyml/data/prodmlv2" xmlns:witsml="http://www.energistics.org/energyml/data/witsmlv2" xmlns:resqml="http://www.energistics.org/energyml/data/resqmlv2"  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="resqml:Point3dLatticeArray">
+    <resqml:Origin>
+    <resqml:Coordinate1>0.0</resqml:Coordinate1>
+    <resqml:Coordinate2>0.0</resqml:Coordinate2>
+    <resqml:Coordinate3>0.0</resqml:Coordinate3>
+    </resqml:Origin>
+    <resqml:Dimension>
+    <resqml:Direction>
+        <resqml:Coordinate1>0.0</resqml:Coordinate1>
+        <resqml:Coordinate2>1.0</resqml:Coordinate2>
+        <resqml:Coordinate3>0.0</resqml:Coordinate3>
+    </resqml:Direction>
+    <resqml:Spacing xsi:type="eml:FloatingPointConstantArray">
+        <eml:Value>1.0</eml:Value>
+        <eml:Count>99</eml:Count>
+    </resqml:Spacing>
+    </resqml:Dimension>
+    <resqml:Dimension>
+    <resqml:Direction>
+        <resqml:Coordinate1>1.0</resqml:Coordinate1>
+        <resqml:Coordinate2>0.0</resqml:Coordinate2>
+        <resqml:Coordinate3>0.0</resqml:Coordinate3>
+    </resqml:Direction>
+    <resqml:Spacing xsi:type="eml:FloatingPointConstantArray">
+        <eml:Value>1.0</eml:Value>
+        <eml:Count>49</eml:Count>
+    </resqml:Spacing>
+    </resqml:Dimension>
+</resqml:Point3dLatticeArray>
+"""
+
+
+grid_2D = """<?xml version="1.0" encoding="UTF-8"?>
+<resqml:Grid2dRepresentation xmlns:eml="http://www.energistics.org/energyml/data/commonv2" xmlns:prodml="http://www.energistics.org/energyml/data/prodmlv2" xmlns:witsml="http://www.energistics.org/energyml/data/witsmlv2" xmlns:resqml="http://www.energistics.org/energyml/data/resqmlv2" uuid="4e56b0e4-2cd1-4efa-97dd-95f72bcf9f80" schemaVersion="22">
+  <eml:Citation>
+    <eml:Title>100x10 grid 2d for continuous color map</eml:Title>
+    <eml:Originator>phili</eml:Originator>
+    <eml:Creation>2026-02-13T16:55:42Z</eml:Creation>
+    <eml:Format>F2I-CONSULTING:FESAPI Example:2.14.1.0</eml:Format>
+  </eml:Citation>
+  <resqml:RepresentedObject>
+    <eml:Uuid>34b69c81-6cfa-4531-be5b-f6bd9b74802f</eml:Uuid>
+    <eml:QualifiedType>resqml22.HorizonInterpretation</eml:QualifiedType>
+    <eml:Title>Horizon interpretation for continuous color map</eml:Title>
+  </resqml:RepresentedObject>
+  <resqml:SurfaceRole>map</resqml:SurfaceRole>
+  <resqml:FastestAxisCount>50</resqml:FastestAxisCount>
+  <resqml:SlowestAxisCount>100</resqml:SlowestAxisCount>
+  <resqml:Geometry>
+    <resqml:LocalCrs>
+      <eml:Uuid>5c0703c5-3806-424e-86cf-8f59c8bb39fa</eml:Uuid>
+      <eml:QualifiedType>eml23.LocalEngineeringCompoundCrs</eml:QualifiedType>
+      <eml:Title>Default local CRS</eml:Title>
+    </resqml:LocalCrs>
+    <resqml:Points xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="resqml:Point3dLatticeArray">
+      <resqml:Origin>
+        <resqml:Coordinate1>0.0</resqml:Coordinate1>
+        <resqml:Coordinate2>0.0</resqml:Coordinate2>
+        <resqml:Coordinate3>0.0</resqml:Coordinate3>
+      </resqml:Origin>
+      <resqml:Dimension>
+        <resqml:Direction>
+          <resqml:Coordinate1>0.0</resqml:Coordinate1>
+          <resqml:Coordinate2>1.0</resqml:Coordinate2>
+          <resqml:Coordinate3>0.0</resqml:Coordinate3>
+        </resqml:Direction>
+        <resqml:Spacing xsi:type="eml:FloatingPointConstantArray">
+          <eml:Value>1.0</eml:Value>
+          <eml:Count>99</eml:Count>
+        </resqml:Spacing>
+      </resqml:Dimension>
+      <resqml:Dimension>
+        <resqml:Direction>
+          <resqml:Coordinate1>1.0</resqml:Coordinate1>
+          <resqml:Coordinate2>0.0</resqml:Coordinate2>
+          <resqml:Coordinate3>0.0</resqml:Coordinate3>
+        </resqml:Direction>
+        <resqml:Spacing xsi:type="eml:FloatingPointConstantArray">
+          <eml:Value>1.0</eml:Value>
+          <eml:Count>49</eml:Count>
+        </resqml:Spacing>
+      </resqml:Dimension>
+    </resqml:Points>
+  </resqml:Geometry>
+</resqml:Grid2dRepresentation>
+"""
+
+polyline_rep = """<?xml version="1.0" encoding="UTF-8"?>
+<resqml:PolylineRepresentation xmlns:eml="http://www.energistics.org/energyml/data/commonv2" xmlns:prodml="http://www.energistics.org/energyml/data/prodmlv2" xmlns:witsml="http://www.energistics.org/energyml/data/witsmlv2" xmlns:resqml="http://www.energistics.org/energyml/data/resqmlv2" uuid="47f86668-27c4-4b28-a19e-bd0355321ecc" schemaVersion="22">
+  <eml:Citation>
+    <eml:Title>Horizon1 Interp1 SinglePolylineRep</eml:Title>
+    <eml:Originator>phili</eml:Originator>
+    <eml:Creation>2026-02-13T16:55:39Z</eml:Creation>
+    <eml:Format>F2I-CONSULTING:FESAPI Example:2.14.1.0</eml:Format>
+  </eml:Citation>
+  <resqml:RepresentedObject>
+    <eml:Uuid>ac12dc12-4951-459b-b585-90f48aa88a5a</eml:Uuid>
+    <eml:QualifiedType>resqml22.HorizonInterpretation</eml:QualifiedType>
+    <eml:Title>Horizon1 Interp1</eml:Title>
+  </resqml:RepresentedObject>
+  <resqml:IsClosed>false</resqml:IsClosed>
+  <resqml:NodePatchGeometry>
+    <resqml:LocalCrs>
+      <eml:Uuid>5c0703c5-3806-424e-86cf-8f59c8bb39fa</eml:Uuid>
+      <eml:QualifiedType>eml23.LocalEngineeringCompoundCrs</eml:QualifiedType>
+      <eml:Title>Default local CRS</eml:Title>
+    </resqml:LocalCrs>
+    <resqml:Points xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="resqml:Point3dExternalArray">
+      <resqml:Coordinates>
+        <eml:ExternalDataArrayPart>
+          <eml:Count>12</eml:Count>
+          <eml:PathInExternalFile>/resqml22/47f86668-27c4-4b28-a19e-bd0355321ecc/points_patch0</eml:PathInExternalFile>
+          <eml:StartIndex>0</eml:StartIndex>
+          <eml:URI>testingPackageCpp22.h5</eml:URI>
+          <eml:MimeType>application/x-hdf5</eml:MimeType>
+        </eml:ExternalDataArrayPart>
+      </resqml:Coordinates>
+    </resqml:Points>
+    <resqml:SeismicCoordinates xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="resqml:Seismic2dCoordinates">
+      <resqml:SeismicSupport>
+        <eml:Uuid>5a371b9e-7202-42de-83a0-1b996d20586b</eml:Uuid>
+        <eml:QualifiedType>resqml22.PolylineRepresentation</eml:QualifiedType>
+        <eml:Title>Seismic line Rep</eml:Title>
+      </resqml:SeismicSupport>
+      <resqml:LineAbscissa xsi:type="eml:FloatingPointExternalArray">
+        <eml:ArrayFloatingPointType>arrayOfFloat32LE</eml:ArrayFloatingPointType>
+        <eml:CountPerValue>1</eml:CountPerValue>
+        <eml:Values>
+          <eml:ExternalDataArrayPart>
+            <eml:Count>4</eml:Count>
+            <eml:PathInExternalFile>/resqml22/47f86668-27c4-4b28-a19e-bd0355321ecc/lineAbscissa_patch0</eml:PathInExternalFile>
+            <eml:StartIndex>0</eml:StartIndex>
+            <eml:URI>testingPackageCpp22.h5</eml:URI>
+            <eml:MimeType>application/x-hdf5</eml:MimeType>
+          </eml:ExternalDataArrayPart>
+        </eml:Values>
+      </resqml:LineAbscissa>
+    </resqml:SeismicCoordinates>
+  </resqml:NodePatchGeometry>
+</resqml:PolylineRepresentation>
+"""
+
+
+def read_grid() -> List[AbstractMesh]:
+    point3d_lattice_array = read_energyml_xml_str(xml_Point3DLatticeArray)
+    # print(point3d_lattice_array)
+    # point3d_lattice_array.value
+    if "DerivedElement" in str(type(point3d_lattice_array)):
+        point3d_lattice_array = point3d_lattice_array.value
+    print(serialize_json(point3d_lattice_array, check_obj_prefixed_classes=False))
+
+    print(np.array(read_array(point3d_lattice_array, None)))
+
+    grid_2d = read_energyml_xml_str(grid_2D)
+    if "DerivedElement" in str(type(grid_2d)):
+        grid_2d = grid_2d.value
+
+    meshes = read_mesh_object(grid_2d)
+    return meshes
+
+
+def read_polyline() -> List[AbstractMesh]:
+    # polyline_representation = read_energyml_xml_str(polyline_rep)
+    # if "DerivedElement" in str(type(polyline_representation)):
+    #     polyline_representation = polyline_representation.value
+
+    # meshes = read_mesh_object(polyline_representation)
+    # return meshes
+
+    epc = Epc.read_file("rc/epc/testingPackageCpp22.epc", read_rels_from_files=False, recompute_rels=False)
+
+    polyline0 = epc.get_object_by_uuid("a54b8399-d3ba-4d4b-b215-8d4f8f537e66")[0]
+    # polyline0 = epc.get_object_by_uuid("65c59595-bf48-451e-94aa-120ebdf28d8b")[0]
+    # polyline0 = epc.get_object_by_uuid("47f86668-27c4-4b28-a19e-bd0355321ecc")[0]
+    print(polyline0)
+    print(epc.get_h5_file_paths(polyline0))
+
+    meshes = read_mesh_object(energyml_object=polyline0, workspace=epc)
+
+    return meshes
+
+
+def read_wellbore_frame_repr(
+    epc_path: str = "rc/epc/testingPackageCpp22.epc",
+    well_uuid: str = "d873e243-d893-41ab-9a3e-d20b851c099f",
+) -> List[AbstractMesh]:
+    epc = Epc.read_file(f"{epc_path}", read_rels_from_files=False, recompute_rels=False)
+
+    frame_repr = epc.get_object_by_uuid(well_uuid)[0]
+    # print(frame_repr)
+    # print(epc.get_h5_file_paths(frame_repr))
+
+    meshes = read_mesh_object(energyml_object=frame_repr, workspace=epc)
+
+    # Previous result :
+    # points:
+    #     [[   0.    0.    0.]
+    #     [   0.    0.  250.]
+    #     [   0.    0.  500.]
+    #     [   0.    0.  750.]
+    #     [   0.    0. 1000.]]
+    # line indices:
+    #     [[0 1]
+    #     [1 2]
+    #     [2 3]
+    #     [3 4]]
+
+    return meshes
+
+
+def read_representation_set_representation() -> List[AbstractMesh]:
+    epc = Epc.read_file("rc/epc/testingPackageCpp22.epc", read_rels_from_files=False, recompute_rels=False)
+
+    rep_set_rep = epc.get_object_by_uuid("6b992199-5b47-4624-a62c-b70857133cda")[0]
+    # print(rep_set_rep)
+    print(epc.get_h5_file_paths(rep_set_rep))
+
+    return read_mesh_object(energyml_object=rep_set_rep, workspace=epc)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+
+    # meshes = read_grid()
+    # meshes = read_polyline()
+    # meshes = read_wellbore_frame_repr()
+    meshes = read_representation_set_representation()
+
+    for m in meshes:
+        print("=" * 40)
+        print(f"Mesh identifier: {m.identifier}")
+        print("points:")
+        print(np.array(m.point_list))
+
+        if isinstance(m, SurfaceMesh):
+            print("face indices:")
+            print(np.array(m.faces_indices))
+        elif isinstance(m, PolylineSetMesh):
+            print("line indices:")
+            try:
+                print(np.array(m.line_indices))
+            except Exception as e:
+                print(m.line_indices)
+                raise e

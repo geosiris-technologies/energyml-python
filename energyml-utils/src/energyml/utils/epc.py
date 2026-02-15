@@ -1122,7 +1122,10 @@ class Epc(EnergymlStorageInterface):
             obj = self.get_object_by_identifier(proxy)
 
         # Determine which external files to use
-        file_paths = [external_uri] if external_uri else self.get_h5_file_paths(obj)
+        file_paths = self.get_h5_file_paths(obj)
+        if external_uri:
+            file_paths.insert(0, self.make_path_relative_to_epc(external_uri))
+
         if not file_paths or len(file_paths) == 0:
             file_paths = self.external_files_path
 
@@ -1177,7 +1180,7 @@ class Epc(EnergymlStorageInterface):
             obj = self.get_object_by_identifier(proxy)
 
         # Determine which external files to use
-        file_paths = [external_uri] if external_uri else self.get_h5_file_paths(obj)
+        file_paths = [self.make_path_relative_to_epc(external_uri)] if external_uri else self.get_h5_file_paths(obj)
         if not file_paths or len(file_paths) == 0:
             file_paths = self.external_files_path
 
@@ -1310,7 +1313,23 @@ class Epc(EnergymlStorageInterface):
                 possible_h5_path = os.path.join(epc_folder, epc_file_base + ".h5")
                 if os.path.exists(possible_h5_path):
                     h5_paths.add(possible_h5_path)
-        return list(h5_paths)
+
+        return self.make_path_relative_to_epc_list(list(h5_paths))
+
+    def make_path_relative_to_epc(self, path: str) -> str:
+        # make the relative path absolute regarding to the epc file path
+        if self.epc_file_path is not None:
+            if isinstance(path, str):
+                epc_folder = self.get_epc_file_folder() or ""
+                if not os.path.isabs(path):
+                    return os.path.normpath(os.path.join(epc_folder, path))
+                else:
+                    return path
+        else:
+            return path
+
+    def make_path_relative_to_epc_list(self, paths: List[str]) -> List[str]:
+        return [self.make_path_relative_to_epc(path) for path in paths]
 
     def get_object_as_dor(self, identifier: str, dor_qualified_type) -> Optional[Any]:
         """

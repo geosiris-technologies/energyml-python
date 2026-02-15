@@ -3,13 +3,13 @@
 import inspect
 import logging
 import sys
-from typing import Any, Optional, Callable, List, Union
+from typing import Any, Literal, Optional, Callable, List, Tuple, Union
 
 from energyml.utils.storage_interface import EnergymlStorageInterface
 import numpy as np
 
 from .datasets_io import read_external_dataset_array
-from ..constants import flatten_concatenation, path_last_attribute
+from ..constants import flatten_concatenation, path_last_attribute, path_parent_attribute
 from ..exception import ObjectNotFoundNotError
 from energyml.utils.introspection import (
     get_obj_uri,
@@ -123,10 +123,12 @@ def get_vertical_epsg_code(crs_object: Any):
             vertical_epsg_code = get_object_attribute_rgx(
                 crs_object, "OriginProjectedCrs.AbstractProjectedCrs.EpsgCode"
             )
+            if vertical_epsg_code is None:
+                vertical_epsg_code = get_object_attribute_rgx(crs_object, "abstract_vertical_crs.epsg_code")
     return vertical_epsg_code
 
 
-def get_projected_epsg_code(crs_object: Any, workspace: Optional[EnergymlStorageInterface] = None):
+def get_projected_epsg_code(crs_object: Any, workspace: Optional[EnergymlStorageInterface] = None) -> Optional[str]:
     if crs_object is not None:  # LocalDepth3dCRS
         projected_epsg_code = get_object_attribute_rgx(crs_object, "ProjectedCrs.EpsgCode")
         if projected_epsg_code is None:  # LocalEngineering2DCrs
@@ -154,6 +156,125 @@ def get_projected_uom(crs_object: Any, workspace: Optional[EnergymlStorageInterf
             )
         return projected_epsg_uom
     return None
+
+
+def get_crs_offsets_and_angle(
+    crs_object: Any, workspace: Optional[EnergymlStorageInterface] = None
+) -> Tuple[float, float, float, Tuple[float, str]]:
+    """Return the CRS offsets (X, Y, Z) and the areal rotation angle (value and uom) if they exist in the CRS object."""
+    if crs_object is None:
+        return 0.0, 0.0, 0.0, (0.0, "rad")
+
+    # eml23.LocalEngineering2DCrs
+    _tmpx = get_object_attribute_rgx(crs_object, "OriginProjectedCoordinate1")
+    _tmpy = get_object_attribute_rgx(crs_object, "OriginProjectedCoordinate2")
+    _tmp_azimuth = get_object_attribute_rgx(crs_object, "azimuth.value")
+    _tmp_azimuth_uom = str(get_object_attribute_rgx(crs_object, "azimuth.uom") or "")
+    if _tmpx is not None and _tmpy is not None:
+        try:
+            return (
+                float(_tmpx),
+                float(_tmpy),
+                0.0,
+                (float(_tmp_azimuth) if _tmp_azimuth is not None else 0.0, _tmp_azimuth_uom),
+            )  # Z offset is not defined in 2D CRS, it is defined in eml23.LocalEngineeringCompoundCrs
+        except Exception as e:
+            logging.info(f"ERR reading crs offset {e}")
+
+    # resqml20.ObjLocalDepth3DCrs
+    _tmpx = get_object_attribute_rgx(crs_object, "XOffset")
+    _tmpy = get_object_attribute_rgx(crs_object, "YOffset")
+    _tmpz = get_object_attribute_rgx(crs_object, "ZOffset")
+    _tmp_azimuth = get_object_attribute_rgx(crs_object, "ArealRotation.value")
+    _tmp_azimuth_uom = str(get_object_attribute_rgx(crs_object, "ArealRotation.uom") or "")
+    if _tmpx is not None and _tmpy is not None:
+        try:
+            return (
+                float(_tmpx),
+                float(_tmpy),
+                float(_tmpz),
+                (float(_tmp_azimuth) if _tmp_azimuth is not None else 0.0, _tmp_azimuth_uom),
+            )
+        except Exception as e:
+            logging.info(f"ERR reading crs offset {e}")
+
+    # eml23.LocalEngineeringCompoundCrs
+    _tmp_z = get_object_attribute_rgx(crs_object, "OriginVerticalCoordinate")
+
+    local_engineering2d_crs_dor = get_object_attribute_rgx(crs_object, "localEngineering2DCrs")
+    if local_engineering2d_crs_dor is not None and workspace is not None:
+        local_engineering2d_crs_uri = get_obj_uri(local_engineering2d_crs_dor)
+        _tmp_x, _tmp_y, _, (azimuth, azimuth_uom) = get_crs_offsets_and_angle(
+            workspace.get_object(local_engineering2d_crs_uri), workspace
+        )
+        return _tmp_x, _tmp_y, float(_tmp_z) if _tmp_z is not None else 0.0, (azimuth, azimuth_uom)
+
+    if _tmp_z is not None:
+        try:
+            return 0.0, 0.0, float(_tmp_z), (0.0, "rad")
+        except Exception as e:
+            logging.info(f"ERR reading crs offset {e}")
+
+    return 0.0, 0.0, 0.0, (0.0, "rad")
+
+
+def apply_crs_transform(
+    well_points: np.ndarray,
+    x_offset: float = 0.0,
+    y_offset: float = 0.0,
+    z_offset: float = 0.0,
+    areal_rotation: float = 0.0,
+    rotation_uom: str = "rad",
+    z_is_up: bool = True,
+) -> np.ndarray:
+    """
+    Transforms interpolated wellbore points from Local CRS to Global/Project coordinates.
+
+    Args:
+        well_points: A (N, 3) numpy array of interpolated [X, Y, Z] points.
+        x_offset: The X translation value (resqml:XOffset).
+        y_offset: The Y translation value (resqml:YOffset).
+        z_offset: The Z translation value (resqml:ZOffset).
+        areal_rotation: The rotation angle (azimuth of the local CRS grid).
+        rotation_uom: The unit of measure for the rotation ('rad' or 'degr').
+        z_is_up: If True, converts Z values to 'Up is Positive' (negates RESQML Z).
+
+    Returns:
+        A (N, 3) numpy array of transformed coordinates.
+    """
+    # Create a copy to avoid mutating the original input array
+    transformed: np.ndarray = well_points.copy().astype(np.float64)
+
+    # 1. Convert rotation to radians if necessary
+    angle_rad: float = areal_rotation
+    if rotation_uom == "degr":
+        angle_rad = np.radians(areal_rotation)
+
+    # 2. Handle Areal Rotation (Rotation around the Z axis)
+    # Applied before translation as per Energistics standards.
+    # Note: RESQML rotation is typically clockwise.
+    if angle_rad != 0.0:
+        cos_theta = np.cos(angle_rad)
+        sin_theta = np.sin(angle_rad)
+
+        x_orig = transformed[:, 0].copy()
+        y_orig = transformed[:, 1].copy()
+
+        # Standard 2D rotation matrix
+        transformed[:, 0] = x_orig * cos_theta - y_orig * sin_theta
+        transformed[:, 1] = x_orig * sin_theta + y_orig * cos_theta
+
+    # 3. Apply Translation (Offsets)
+    transformed[:, 0] += x_offset
+    transformed[:, 1] += y_offset
+    transformed[:, 2] += z_offset
+
+    # 4. Final Vertical Orientation
+    # Negate Z if the target system is Z-Up (RESQML is natively Z-Down).
+    if z_is_up:
+        transformed[:, 2] = -transformed[:, 2]
+
+    return transformed
 
 
 def get_crs_origin_offset(crs_obj: Any) -> List[float | int]:
@@ -186,6 +307,70 @@ def get_crs_origin_offset(crs_obj: Any) -> List[float | int]:
         logging.info(f"ERR reading crs offset {e}")
 
     return crs_point_offset
+
+
+def get_datum_information(datum_obj: Any, workspace: Optional[EnergymlStorageInterface] = None):
+    "From a ObjMdDatum or a ReferencePointInACrs, return x, y, z, z_increas_downward, projected_epsg_code, vertical_epsg_code"
+    if datum_obj is None:
+        return 0.0, 0.0, 0.0, False, None, None
+
+    t_lw = type(datum_obj).__name__.lower()
+
+    # resqml20.LocalDepth3dCrs
+    if "localdepth3dcrs" in t_lw:
+        x = get_object_attribute_rgx(datum_obj, "XOffset.value")
+        y = get_object_attribute_rgx(datum_obj, "YOffset.value")
+        z = get_object_attribute_rgx(datum_obj, "ZOffset.value")
+        z_increasing_downward = get_object_attribute(datum_obj, "ZIncreasingDownward") or False
+        projected_epsg_code = get_projected_epsg_code(datum_obj, workspace)
+        vertical_epsg_code = get_vertical_epsg_code(datum_obj)
+        return (
+            float(x) if x is not None else 0.0,
+            float(y) if y is not None else 0.0,
+            float(z) if z is not None else 0.0,
+            z_increasing_downward,
+            projected_epsg_code,
+            vertical_epsg_code,
+        )
+    elif "referencepointinacrs" in t_lw:
+        x = get_object_attribute_rgx(datum_obj, "horizontal_coordinates.coordinate1")
+        y = get_object_attribute_rgx(datum_obj, "horizontal_coordinates.coordinate2")
+        z = get_object_attribute_rgx(datum_obj, "vertical_coordinate")
+        z_increasing_downward = get_object_attribute(datum_obj, "ZIncreasingDownward") or False
+        p_crs = get_object_attribute(datum_obj, "horizontal_coordinates.crs")
+        projected_epsg_code = (
+            get_projected_epsg_code(workspace.get_object(get_obj_uri(p_crs)), workspace)
+            if p_crs is not None and workspace is not None
+            else None
+        )
+        v_crs = get_object_attribute(datum_obj, "vertical_crs")
+        vertical_epsg_code = get_vertical_epsg_code(v_crs) if v_crs is not None else None
+        return (
+            float(x) if x is not None else 0.0,
+            float(y) if y is not None else 0.0,
+            float(z) if z is not None else 0.0,
+            z_increasing_downward,
+            projected_epsg_code,
+            vertical_epsg_code,
+        )
+    elif "mddatum" in t_lw:
+        x = get_object_attribute_rgx(datum_obj, "location.coordinate1")
+        y = get_object_attribute_rgx(datum_obj, "location.coordinate2")
+        z = get_object_attribute_rgx(datum_obj, "location.coordinate3")
+        crs = get_object_attribute(datum_obj, "LocalCrs")
+        _, _, _, z_increasing_downward, projected_epsg_code, vertical_epsg_code = get_datum_information(crs, workspace)
+        return (
+            float(x) if x is not None else 0.0,
+            float(y) if y is not None else 0.0,
+            float(z) if z is not None else 0.0,
+            z_increasing_downward,
+            projected_epsg_code,
+            vertical_epsg_code,
+        )
+    return 0.0, 0.0, 0.0, False, None, None
+
+
+# ==================================================
 
 
 def prod_n_tab(val: Union[float, int, str], tab: List[Union[float, int, str]]):
@@ -280,7 +465,8 @@ def get_crs_obj(
                 return crs
 
         if context_obj != root_obj:
-            upper_path = path_in_root[: path_in_root.rindex(".")]
+            upper_path = path_parent_attribute(path_in_root)
+            # upper_path = path_in_root[: path_in_root.rindex(".")]
             if len(upper_path) > 0:
                 return get_crs_obj(
                     context_obj=get_object_attribute(root_obj, upper_path),
@@ -290,6 +476,269 @@ def get_crs_obj(
                 )
 
     return None
+
+
+def linear_interpolation(md_target, md_start, md_end, p_start, p_end):
+    """
+    Calcule la position 3D par interpolation linéaire simple.
+    Utilisé quand Continuity = 0 ou quand les TangentVectors sont absents.
+    """
+    # Calcul du ratio de progression (0 à 1)
+    h = md_end - md_start
+    if h == 0:
+        return p_start
+
+    t = (md_target - md_start) / h
+
+    # Formule : P = P_start + t * (P_end - p_start)
+    p_target = p_start + t * (p_end - p_start)
+
+    return p_target
+
+
+def hermite_interpolation(md_target, md_start, md_end, p_start, p_end, v_start, v_end):
+    """
+    Calcule la position 3D d'un point sur une trajectoire de puits via une Spline d'Hermite.
+
+    Cette fonction est particulièrement adaptée aux objets RESQML de type
+    'ParametricLineGeometry' avec une continuité C1.
+
+    Args:
+        md_target (float): La profondeur mesurée (Measured Depth) cible à interpoler.
+        md_start (float): MD du point de contrôle précédent (Knot i).
+        md_end (float): MD du point de contrôle suivant (Knot i+1).
+        p_start (np.array): Coordonnées [X, Y, Z] au point md_start.
+        p_end (np.array): Coordonnées [X, Y, Z] au point md_end.
+        v_start (np.array): Vecteur tangente unitaire [dx, dy, dz] au point md_start.
+        v_end (np.array): Vecteur tangente unitaire [dx, dy, dz] au point md_end.
+
+    Returns:
+        np.array: Un tableau numpy [X, Y, Z] représentant la position interpolée.
+
+    Raises:
+        ValueError: Si md_start et md_end sont identiques (division par zéro).
+        AssertionError: Si md_target n'est pas compris dans l'intervalle [md_start, md_end].
+    """
+
+    # 1. Vérification de l'intervalle
+    if not (md_start <= md_target <= md_end):
+        # Note : Dans certains cas de forage réel, on peut extrapoler,
+        # mais pour un WellboreFrame, on reste normalement dans les clous.
+        raise AssertionError("Le MD cible doit être compris entre md_start et md_end.")
+
+    # Distance entre les deux points de contrôle
+    h = md_end - md_start
+    if h == 0:
+        raise ValueError("md_start et md_end ne peuvent pas être identiques.")
+
+    # 2. Normalisation du paramètre t (0 <= t <= 1)
+    t = (md_target - md_start) / h
+    t2 = t * t
+    t3 = t2 * t
+
+    # 3. Mise à l'échelle des vecteurs tangentes (scaling par la distance)
+    # En RESQML, les TangentVectors sont souvent unitaires ou normalisés.
+    # Pour l'interpolation cubique, ils doivent représenter la dérivée par rapport à t.
+    T_start = v_start * h
+    T_end = v_end * h
+
+    # 4. Calcul des polynômes de base d'Hermite
+    h00 = 2 * t3 - 3 * t2 + 1  # Coefficient pour p_start
+    h10 = t3 - 2 * t2 + t  # Coefficient pour T_start
+    h01 = -2 * t3 + 3 * t2  # Coefficient pour p_end
+    h11 = t3 - t2  # Coefficient pour T_end
+
+    # 5. Combinaison linéaire pour obtenir la position P(t)
+    p_target = (h00 * p_start) + (h10 * T_start) + (h01 * p_end) + (h11 * T_end)
+
+    return p_target
+
+
+def get_wellbore_points(
+    mds: Optional[np.ndarray],
+    traj_mds: Optional[np.ndarray],
+    traj_points: Optional[np.ndarray],
+    traj_tangents: Optional[np.ndarray],
+    step_meters: float = 5.0,
+) -> np.ndarray:
+    """
+    mds : MDs du WellboreFrame
+    traj_mds : MDs de la trajectoire (ControlPointParameters)
+    traj_points : Points XYZ de la trajectoire
+    traj_tangents : Tangentes XYZ (Optionnel)
+    step_meters : Distance entre chaque point de la trajectoire lisse (Optionnel)
+    """
+    if mds is None or len(mds) == 0:
+        if traj_mds is None or traj_points is None or traj_tangents is None:
+            raise ValueError(
+                "To generate a smooth trajectory, traj_mds, traj_points and traj_tangents must be provided."
+            )
+        return generate_smooth_trajectory(
+            traj_mds=traj_mds, traj_points=traj_points, traj_tangents=traj_tangents, step_meters=step_meters
+        )
+
+    results = []
+
+    for m in mds:
+        # 1. Trouver l'intervalle
+        idx = np.searchsorted(traj_mds, m) - 1
+
+        # Gestion des bords
+        if idx < 0:
+            results.append(traj_points[0])
+            continue
+        if idx >= len(traj_mds) - 1:
+            results.append(traj_points[-1])
+            continue
+
+        # 2. Extraire les bornes
+        p_s, p_e = traj_points[idx], traj_points[idx + 1]
+        m_s, m_e = traj_mds[idx], traj_mds[idx + 1]
+
+        # 3. Choisir la méthode
+        if traj_tangents is not None:
+            # Cas ParametricLineGeometry C1+
+            v_s, v_e = traj_tangents[idx], traj_tangents[idx + 1]
+            p_3d = hermite_interpolation(m, m_s, m_e, p_s, p_e, v_s, v_e)
+        else:
+            # Cas Linear ou PointGeometry
+            p_3d = linear_interpolation(m, m_s, m_e, p_s, p_e)
+
+        results.append(p_3d)
+
+    return np.array(results)
+
+
+def generate_smooth_trajectory(
+    traj_mds: np.ndarray, traj_points: np.ndarray, traj_tangents: np.ndarray, step_meters: float = 5.0
+) -> np.ndarray:
+    """
+    Generates a high-resolution polyline for the trajectory by sampling
+    it at a regular interval.
+
+    Args:
+        traj_mds: MDs of control points from HDF5.
+        traj_points: Control points (N, 3) from HDF5.
+        traj_tangents: Tangent vectors (N, 3) from HDF5.
+        step_meters: Desired distance between each point of the final polyline.
+
+    Returns:
+        A (M, 3) numpy array representing the smooth 3D polyline.
+    """
+    # 1. Create a regular MD sampling from min to max MD
+    md_min, md_max = traj_mds[0], traj_mds[-1]
+    # We create a new set of MDs every 'step_meters'
+    sampled_mds = np.arange(md_min, md_max, step_meters)
+
+    # Ensure the last point of the trajectory is included
+    if sampled_mds[-1] < md_max:
+        sampled_mds = np.append(sampled_mds, md_max)
+
+    # 2. Reuse our interpolation logic
+    smooth_points = []
+    for m in sampled_mds:
+        # Find the interval in the original control points
+        idx = np.searchsorted(traj_mds, m) - 1
+        idx = max(0, min(idx, len(traj_mds) - 2))
+
+        p_3d = hermite_interpolation(
+            m,
+            traj_mds[idx],
+            traj_mds[idx + 1],
+            traj_points[idx],
+            traj_points[idx + 1],
+            traj_tangents[idx],
+            traj_tangents[idx + 1],
+        )
+        smooth_points.append(p_3d)
+
+    return np.array(smooth_points)
+
+
+def generate_vertical_well_points(wellbore_mds: np.ndarray, head_x: float, head_y: float, head_z: float) -> np.ndarray:
+    """
+    Generates local 3D coordinates for a perfectly vertical wellbore.
+
+    Args:
+        wellbore_mds: (N,) array of Measured Depths from the WellboreFrame.
+        head_x: The X coordinate of the MdDatum (well head) in Local CRS.
+        head_y: The Y coordinate of the MdDatum (well head) in Local CRS.
+        head_z: The Z coordinate of the MdDatum (well head) in Local CRS.
+
+    Returns:
+        (N, 3) numpy array of points [X, Y, Z] in Local CRS.
+    """
+    num_points = len(wellbore_mds)
+    # Initialize the array with (N, 3)
+    local_points = np.zeros((num_points, 3))
+
+    # In a vertical well, X and Y are constant and equal to the head position
+    local_points[:, 0] = head_x
+    local_points[:, 1] = head_y
+
+    # The MD (Measured Depth) represents the distance traveled from MD 0.
+    # In a vertical well, Z_point = Z_datum + (MD_point - MD_datum_at_0)
+    # Most of the time, MD at head is 0.
+    # If wellbore_mds start at 0, Z starts at head_z.
+    md_start = wellbore_mds[0]
+    local_points[:, 2] = head_z + (wellbore_mds - md_start)
+
+    return local_points
+
+
+def read_parametric_geometry(
+    geometry: Any, workspace: Optional[EnergymlStorageInterface] = None
+) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
+    """Read a ParametricLineGeometry and return the controle point parameters, control points, and tangents."""
+    if geometry is None:
+        raise ValueError("Geometry object is None")
+
+    knot_count = getattr(geometry, "knot_count", None)
+
+    traj_mds = read_array(
+        energyml_array=getattr(geometry, "control_point_parameters"),
+        root_obj=geometry,
+        workspace=workspace,
+    )
+    if not isinstance(traj_mds, np.ndarray):
+        traj_mds = np.array(traj_mds)
+
+    traj_points = read_array(
+        energyml_array=getattr(geometry, "control_points"),
+        root_obj=geometry,
+        workspace=workspace,
+    )
+    if not isinstance(traj_points, np.ndarray):
+        traj_points = np.array(traj_points)
+    traj_points = traj_points.reshape(-1, 3)
+
+    traj_tangents = None
+    try:
+        traj_tangents = read_array(
+            energyml_array=getattr(geometry, "tangent_vectors"),
+            root_obj=geometry,
+            workspace=workspace,
+        )
+    except Exception as e:
+        logging.debug(f"No tangent vectors found for {geometry}, fallback to linear interpolation: {e}")
+
+    if traj_tangents is not None:
+        if not isinstance(traj_tangents, np.ndarray):
+            traj_tangents = np.array(traj_tangents)
+        traj_tangents = traj_tangents.reshape(-1, 3)
+
+    # verif with knot_count if exists
+    if knot_count is not None:
+        if (
+            len(traj_mds) != knot_count
+            or len(traj_points) != knot_count
+            or (traj_tangents is not None and len(traj_tangents) != knot_count)
+        ):
+            logging.warning(
+                f"Mismatch between knot_count ({knot_count}) and actual control points count (mds: {len(traj_mds)}, points: {len(traj_points)}, tangents: {len(traj_tangents) if traj_tangents is not None else 'N/A'})"
+            )
+
+    return traj_mds, traj_points, traj_tangents
 
 
 #     ___
@@ -316,7 +765,7 @@ def _array_name_mapping(array_type_name: str) -> str:
     elif "Jagged" in array_type_name:
         return "JaggedArray"
     elif "Lattice" in array_type_name:
-        if "Integer" in array_type_name or "Double" in array_type_name:
+        if "Integer" in array_type_name or "Double" in array_type_name or "FloatingPoint" in array_type_name:
             return "int_double_lattice_array"
     return array_type_name
 

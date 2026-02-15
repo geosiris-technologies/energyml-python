@@ -15,6 +15,7 @@ from types import ModuleType
 from typing import Any, List, Optional, Union, Dict, Tuple
 
 from .constants import (
+    path_parent_attribute,
     primitives,
     epoch_to_date,
     epoch,
@@ -817,9 +818,10 @@ def search_attribute_in_upper_matching_name(
         return elt_list
 
     if len(current_path) != 0:  # obj != root_obj:
-        upper_path = current_path[: current_path.rindex(".")]
+        upper_path = path_parent_attribute(current_path)
+        # upper_path = current_path[: current_path.rindex(".")]
         # print(f"\t {upper_path} ")
-        if len(upper_path) > 0:
+        if upper_path is not None and len(upper_path) > 0:
             return search_attribute_in_upper_matching_name(
                 obj=get_object_attribute(root_obj, upper_path),
                 name_rgx=name_rgx,

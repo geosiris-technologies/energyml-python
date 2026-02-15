@@ -675,6 +675,10 @@ def path_iter(dot_path: str) -> List[str]:
         return []
 
 
+def path_parent_attribute(dot_path: str) -> Optional[str]:
+    return ".".join(path_iter(dot_path)[:-1]) if dot_path else None
+
+
 # ===================================
 # RESOURCE ACCESS UTILITIES
 # ===================================

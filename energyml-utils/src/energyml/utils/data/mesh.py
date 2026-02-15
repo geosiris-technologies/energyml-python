@@ -14,11 +14,18 @@ from typing import List, Optional, Any, Callable, Dict, Union, Tuple
 
 
 from .helper import (
+    apply_crs_transform,
+    generate_vertical_well_points,
+    get_crs_offsets_and_angle,
+    get_datum_information,
+    get_wellbore_points,
+    hermite_interpolation,
     read_array,
     read_grid2d_patch,
     get_crs_obj,
     get_crs_origin_offset,
     is_z_reversed,
+    read_parametric_geometry,
 )
 from energyml.utils.epc_utils import gen_energyml_object_path
 from energyml.utils.epc_stream import EpcStreamReader
@@ -324,7 +331,18 @@ def read_polyline_representation(
     for patch_path_in_obj, patch in search_attribute_matching_name_with_path(
         energyml_object, "NodePatch"
     ) + search_attribute_matching_name_with_path(energyml_object, r"LinePatch.[\d]+"):
-        points_path, points_obj = search_attribute_matching_name_with_path(patch, "Geometry.Points")[0]
+
+        pts = search_attribute_matching_name_with_path(patch, "Geometry.Points")
+        if pts is None or len(pts) == 0:
+            pts = search_attribute_matching_name_with_path(patch, "Points")
+
+        try:
+            points_path, points_obj = pts[0]
+        except Exception as e:
+            logging.error(f"Cannot find points for patch {patch_path_in_obj} : {e}")
+            logging.error(patch)
+            raise e
+
         points = read_array(
             energyml_array=points_obj,
             root_obj=energyml_object,
@@ -705,138 +723,176 @@ def read_wellbore_frame_representation(
     :param sub_indices: Optional list of indices to filter specific nodes
     :return: List containing a single PolylineSetMesh representing the wellbore
     """
+
     meshes = []
 
     try:
         # Read measured depths (NodeMd)
-        md_array = []
+        wellbore_frame_mds = None
         try:
             node_md_path, node_md_obj = search_attribute_matching_name_with_path(energyml_object, "NodeMd")[0]
-            md_array = read_array(
+            wellbore_frame_mds = read_array(
                 energyml_array=node_md_obj,
                 root_obj=energyml_object,
                 path_in_root=node_md_path,
                 workspace=workspace,
             )
-            if not isinstance(md_array, list):
-                md_array = md_array.tolist() if hasattr(md_array, "tolist") else list(md_array)
+            # Ensure wellbore_frame_mds is a numpy array for filtering operations
+            if not isinstance(wellbore_frame_mds, np.ndarray):
+                wellbore_frame_mds = np.array(wellbore_frame_mds)
         except (IndexError, AttributeError) as e:
             logging.warning(f"Could not read NodeMd from wellbore frame: {e}")
             return meshes
 
-        # Get trajectory reference
-        trajectory_dor = search_attribute_matching_name(obj=energyml_object, name_rgx="Trajectory")[0]
-        trajectory_identifier = get_obj_uri(trajectory_dor)
-        trajectory_obj = workspace.get_object(trajectory_identifier)
-
-        if trajectory_obj is None:
-            logging.error(f"Trajectory {trajectory_identifier} not found")
-            return meshes
-
-        # CRS
-        crs = None
-
         # Get reference point (wellhead location) - try different attribute paths for different versions
-        head_x, head_y, head_z = 0.0, 0.0, 0.0
-        z_is_up = True  # Default assumption
+        md_min = np.min(wellbore_frame_mds) if len(wellbore_frame_mds) > 0 else 0.0
+        md_max = np.max(wellbore_frame_mds) if len(wellbore_frame_mds) > 0 else 0.0
 
         try:
-            # Try to get MdDatum (RESQML 2.0.1) or MdInterval.Datum (RESQML 2.2+)
-            md_datum_dor = None
-            try:
-                md_datum_dor = search_attribute_matching_name(obj=trajectory_obj, name_rgx=r"MdDatum")[0]
-            except IndexError:
-                try:
-                    md_datum_dor = search_attribute_matching_name(obj=trajectory_obj, name_rgx=r"MdInterval.Datum")[0]
-                except IndexError:
-                    pass
+            # Only works for RESQML 2.2+
+            _md_min = get_object_attribute(energyml_object, "md_interval.md_min")
+            if _md_min is not None:
+                md_min = _md_min
+            _md_max = get_object_attribute(energyml_object, "md_interval.md_max")
+            if _md_max is not None:
+                md_max = _md_max
+        except AttributeError:
+            # logging.debug(
+            #     "Could not get md_interval.md_min or md_interval.md_max, using NodeMd min/max instead"
+            # )
+            pass
 
-            if md_datum_dor is not None:
-                md_datum_identifier = get_obj_uri(md_datum_dor)
-                md_datum_obj = workspace.get_object(md_datum_identifier)
+        # remove md values from array if outside of md_min/md_max range (can happen if md_interval is used and NodeMd contains values outside of the interval)
+        wellbore_frame_mds = wellbore_frame_mds[(wellbore_frame_mds >= md_min) & (wellbore_frame_mds <= md_max)]
 
-                if md_datum_obj is not None:
-                    # Try to get coordinates from ReferencePointInACrs
-                    try:
-                        head_x = get_object_attribute_rgx(md_datum_obj, r"HorizontalCoordinates.Coordinate1") or 0.0
-                        head_y = get_object_attribute_rgx(md_datum_obj, r"HorizontalCoordinates.Coordinate2") or 0.0
-                        head_z = get_object_attribute_rgx(md_datum_obj, "VerticalCoordinate") or 0.0
+        # Get trajectory reference
+        trajectory_dor = search_attribute_matching_name(obj=energyml_object, name_rgx="Trajectory")[0]
+        trajectory_obj = workspace.get_object(get_obj_uri(trajectory_dor))
 
-                        # Get vertical CRS to determine z direction
-                        try:
-                            vcrs_dor = search_attribute_matching_name(obj=md_datum_obj, name_rgx="VerticalCrs")[0]
-                            vcrs_identifier = get_obj_uri(vcrs_dor)
-                            vcrs_obj = workspace.get_object(vcrs_identifier)
-
-                            if vcrs_obj is not None:
-                                z_is_up = not is_z_reversed(vcrs_obj)
-                        except (IndexError, AttributeError):
-                            pass
-                    except AttributeError:
-                        pass
-                # Get CRS from trajectory geometry if available
-                try:
-                    geometry_paths = search_attribute_matching_name_with_path(md_datum_obj, r"VerticalCrs")
-                    if len(geometry_paths) > 0:
-                        crs_dor_path, crs_dor = geometry_paths[0]
-                        crs_identifier = get_obj_uri(crs_dor)
-                        crs = workspace.get_object(crs_identifier)
-                except Exception as e:
-                    logging.debug(f"Could not get CRS from trajectory: {e}")
-        except Exception as e:
-            logging.debug(f"Could not get reference point from trajectory: {e}")
-
-        # Build wellbore path points - simple vertical projection from measured depths
-        # Note: This is a simplified representation. For accurate 3D trajectory,
-        # you would need to interpolate along the trajectory's control points.
-        points = []
-        line_indices = []
-
-        for i, md in enumerate(md_array):
-            # Create point at (head_x, head_y, head_z +/- md)
-            # Apply z direction based on CRS
-            z_offset = md if z_is_up else -md
-            points.append([head_x, head_y, head_z + z_offset])
-
-            # Connect consecutive points
-            if i > 0:
-                line_indices.append([i - 1, i])
-
-        # Apply sub_indices filter if provided
-        if sub_indices is not None and len(sub_indices) > 0:
-            filtered_points = []
-            filtered_indices = []
-            index_map = {}
-
-            for new_idx, old_idx in enumerate(sub_indices):
-                if 0 <= old_idx < len(points):
-                    filtered_points.append(points[old_idx])
-                    index_map[old_idx] = new_idx
-
-            for line in line_indices:
-                if line[0] in index_map and line[1] in index_map:
-                    filtered_indices.append([index_map[line[0]], index_map[line[1]]])
-
-            points = filtered_points
-            line_indices = filtered_indices
-
-        if len(points) > 0:
-            meshes.append(
-                PolylineSetMesh(
-                    identifier=f"{get_obj_uri(energyml_object)}_wellbore",
-                    energyml_object=energyml_object,
-                    crs_object=crs,
-                    point_list=points,
-                    line_indices=line_indices,
-                )
-            )
-
+        meshes = read_wellbore_trajectory_representation(
+            energyml_object=trajectory_obj,
+            workspace=workspace,
+            sub_indices=sub_indices,
+            wellbore_frame_mds=wellbore_frame_mds,
+        )
+        for mesh in meshes:
+            mesh.identifier = f"{get_obj_uri(energyml_object)}"
+        return meshes
     except Exception as e:
         logging.error(f"Failed to read wellbore frame representation: {e}")
         import traceback
 
         traceback.print_exc()
 
+    return meshes
+
+
+def read_wellbore_trajectory_representation(
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
+    wellbore_frame_mds: Optional[Union[List[float], np.ndarray]] = None,
+    step_meter: float = 5.0,
+) -> List[PolylineSetMesh]:
+    if energyml_object is None:
+        return []
+
+    if isinstance(energyml_object, list):
+        return [
+            mesh
+            for obj in energyml_object
+            for mesh in read_wellbore_trajectory_representation(
+                obj, workspace, sub_indices, wellbore_frame_mds, step_meter
+            )
+        ]
+
+    # CRS
+    crs = None
+    head_x, head_y, head_z, z_increasing_downward, projected_epsg_code, vertical_epsg_code = (
+        0.0,
+        0.0,
+        0.0,
+        False,
+        None,
+        None,
+    )
+
+    # Get CRS from trajectory geometry if available
+    try:
+        crs = workspace.get_object(get_obj_uri(get_object_attribute(energyml_object, "geometry.LocalCrs")))
+    except Exception as e:
+        logging.debug(f"Could not get CRS from trajectory geometry")
+
+    # ==========
+    # MD Datum
+    # ==========
+    try:
+        # Try to get MdDatum (RESQML 2.0.1) or MdInterval.Datum (RESQML 2.2+)
+        md_datum_dor = None
+        try:
+            md_datum_dor = search_attribute_matching_name(obj=energyml_object, name_rgx=r"MdDatum")[0]
+        except IndexError:
+            try:
+                md_datum_dor = search_attribute_matching_name(obj=energyml_object, name_rgx=r"MdInterval.Datum")[0]
+            except IndexError:
+                pass
+
+        if md_datum_dor is not None:
+            md_datum_identifier = get_obj_uri(md_datum_dor)
+            md_datum_obj = workspace.get_object(md_datum_identifier)
+
+            if md_datum_obj is not None:
+                head_x, head_y, head_z, z_increasing_downward, projected_epsg_code, vertical_epsg_code = (
+                    get_datum_information(md_datum_obj, workspace)
+                )
+    except Exception as e:
+        logging.debug(f"Could not get reference point / Datum from trajectory: {e}")
+
+    # ==========
+    well_points = None
+    try:
+        x_offset, y_offset, z_offset, (azimuth, azimuth_uom) = get_crs_offsets_and_angle(crs, workspace)
+        # Try to read parametric Geometry from the trajectory.
+        traj_mds, traj_points, traj_tangents = read_parametric_geometry(
+            getattr(energyml_object, "geometry", None), workspace
+        )
+        well_points = get_wellbore_points(wellbore_frame_mds, traj_mds, traj_points, traj_tangents, step_meter)
+
+        well_points = apply_crs_transform(
+            well_points,
+            x_offset=x_offset,
+            y_offset=y_offset,
+            z_offset=z_offset,
+            z_is_up=not z_increasing_downward,
+            areal_rotation=azimuth,
+            rotation_uom=azimuth_uom,
+        )
+    except Exception as e:
+        if wellbore_frame_mds is not None:
+            logging.debug(f"Could not read parametric geometry from trajectory. Well is interpreted as vertical: {e}")
+            well_points = generate_vertical_well_points(
+                head_x=head_x,
+                head_y=head_y,
+                head_z=head_z,
+                wellbore_mds=wellbore_frame_mds,
+            )
+        else:
+            raise ValueError(
+                "Cannot read wellbore trajectory representation: no parametric geometry and no measured depth information available to generate points"
+            ) from e
+
+    meshes = []
+    if well_points is not None and len(well_points) > 0:
+
+        meshes.append(
+            PolylineSetMesh(
+                identifier=f"{get_obj_uri(energyml_object)}",
+                energyml_object=energyml_object,
+                crs_object=crs,
+                point_list=well_points,
+                line_indices=[[i, i + 1] for i in range(len(well_points) - 1)],
+            )
+        )
     return meshes
 
 
@@ -892,6 +948,34 @@ def read_sub_representation(
 
     for m in meshes:
         m.identifier = f"sub representation {get_obj_uri(energyml_object)} of {m.identifier}"
+
+    return meshes
+
+
+def read_representation_set_representation(
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+    use_crs_displacement: bool = True,
+    sub_indices: Optional[Union[List[int], np.ndarray]] = None,
+) -> List[AbstractMesh]:
+
+    repr_list = get_object_attribute(energyml_object, "representation")
+    if repr_list is None or not isinstance(repr_list, list):
+        logging.error(
+            f"RepresentationSetRepresentation {get_obj_uri(energyml_object)} has no 'representation' list attribute"
+        )
+        return []
+
+    meshes = []
+    for repr_dor in repr_list:
+        rpr_uri = get_obj_uri(repr_dor)
+        repr_obj = workspace.get_object(rpr_uri)
+        if repr_obj is None:
+            logging.error(f"Representation {rpr_uri} in RepresentationSetRepresentation not found")
+            continue
+        meshes.extend(
+            read_mesh_object(energyml_object=repr_obj, workspace=workspace, use_crs_displacement=use_crs_displacement)
+        )
 
     return meshes
 
