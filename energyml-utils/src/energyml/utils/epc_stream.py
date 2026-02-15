@@ -70,6 +70,8 @@ from energyml.utils.epc_utils import (
     gen_energyml_object_path,
     get_epc_content_type_path,
     gen_core_props_path,
+    make_path_relative_to_filepath_list,
+    make_path_relative_to_other_file,
 )
 
 from energyml.utils.introspection import (
@@ -1353,12 +1355,13 @@ class EpcStreamReader(EnergymlStorageInterface):
         """Get current statistics about the EPC streaming operations."""
         return self.stats
 
-    def get_h5_file_paths(self, obj: Union[str, Uri, Any]) -> List[str]:
+    def get_h5_file_paths(self, obj: Union[str, Uri, Any], make_path_absolute_from_epc_path: bool = True) -> List[str]:
         """
         Get all HDF5 file paths referenced in the EPC file (from rels to external resources).
         Optimized to avoid loading the object when identifier/URI is provided.
 
         :param obj: the object or its identifier/URI
+        :param make_path_absolute_from_epc_path: If True, return paths absolute from the EPC file path, otherwise return relative paths
         :return: list of HDF5 file paths
         """
         if self.force_h5_path is not None:
@@ -1398,7 +1401,11 @@ class EpcStreamReader(EnergymlStorageInterface):
                 possible_h5_path = os.path.join(epc_folder, epc_file_base + ".h5")
                 if os.path.exists(possible_h5_path):
                     h5_paths.add(possible_h5_path)
-        return list(h5_paths)
+
+        if make_path_absolute_from_epc_path:
+            return make_path_relative_to_filepath_list(list(h5_paths), self.epc_file_path)
+        else:
+            return list(h5_paths)
 
     #    ________    ___   __________    __  _________________  ______  ____  _____
     #   / ____/ /   /   | / ___/ ___/   /  |/  / ____/_  __/ / / / __ \/ __ \/ ___/
@@ -1532,7 +1539,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             return []
 
         if len(identifiers) == 0:
-            logging.debug(f"No objects found with UUID: {uuid}")
+            # logging.debug(f"No objects found with UUID: {uuid}")
             return []
 
         # Phase 1: Collect cached objects and prepare list of non-cached identifiers
@@ -1735,22 +1742,10 @@ class EpcStreamReader(EnergymlStorageInterface):
             Numpy array if successful, None otherwise. Returns sub-selected portion if start_indices/counts provided.
         """
         # Get possible file paths for this object
-        file_paths = []
+        file_paths = self.get_h5_file_paths(proxy)
 
-        if external_uri is not None:
-            # Use external_uri if provided (RESQML v2.2)
-            # May need to resolve relative to EPC folder
-            epc_folder = os.path.dirname(self.epc_file_path) if self.epc_file_path else "."
-            if os.path.isabs(external_uri):
-                file_paths = [external_uri]
-            else:
-                file_paths = [os.path.join(epc_folder, external_uri), external_uri]
-        elif self.force_h5_path is not None:
-            # Use forced path if specified
-            file_paths = [self.force_h5_path]
-        else:
-            # Get file paths from relationships
-            file_paths = self.get_h5_file_paths(proxy)
+        if external_uri:
+            file_paths.insert(0, make_path_relative_to_other_file(external_uri, self.epc_file_path))
 
         if not file_paths:
             logging.warning(f"No external file paths found for proxy: {proxy}")

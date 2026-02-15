@@ -1046,7 +1046,7 @@ class TestAdditionalRelsPreservation:
         reader.add_rels_for_object(identifier, [h5_rel])
 
         # Verify the HDF5 path is returned
-        h5_paths_before = reader.get_h5_file_paths(identifier)
+        h5_paths_before = reader.get_h5_file_paths(identifier, False)
         assert "data/test_data.h5" in h5_paths_before
 
         # Update the object (modify its title)
@@ -1054,7 +1054,7 @@ class TestAdditionalRelsPreservation:
         reader.update_object(trset)
 
         # Verify EXTERNAL_RESOURCE relationship is still present
-        h5_paths_after = reader.get_h5_file_paths(identifier)
+        h5_paths_after = reader.get_h5_file_paths(identifier, False)
         assert "data/test_data.h5" in h5_paths_after, "EXTERNAL_RESOURCE relationship was lost after update"
 
         # Also verify by checking rels directly
@@ -1084,7 +1084,7 @@ class TestAdditionalRelsPreservation:
         reader.add_rels_for_object(bf_id, [h5_rel])
 
         # Verify initial state
-        h5_paths_initial = reader.get_h5_file_paths(bf_id)
+        h5_paths_initial = reader.get_h5_file_paths(bf_id, False)
         assert "data/boundary_data.h5" in h5_paths_initial
 
         # Add BoundaryFeatureInterpretation that references the BoundaryFeature
@@ -1093,7 +1093,7 @@ class TestAdditionalRelsPreservation:
         reader.add_object(bfi)
 
         # Verify EXTERNAL_RESOURCE is still present after adding referencing object
-        h5_paths_after = reader.get_h5_file_paths(bf_id)
+        h5_paths_after = reader.get_h5_file_paths(bf_id, False)
         assert "data/boundary_data.h5" in h5_paths_after, "EXTERNAL_RESOURCE lost after adding referencing object"
 
         # Verify rels directly
@@ -1131,7 +1131,7 @@ class TestAdditionalRelsPreservation:
 
         # Reopen and verify
         reader2 = EpcStreamReader(temp_epc_file)
-        h5_paths = reader2.get_h5_file_paths(identifier)
+        h5_paths = reader2.get_h5_file_paths(identifier, False)
         assert "data/test_data.h5" in h5_paths, "EXTERNAL_RESOURCE lost after close in UPDATE_ON_CLOSE mode"
         reader2.close()
 
@@ -1166,7 +1166,7 @@ class TestAdditionalRelsPreservation:
         reader.add_rels_for_object(identifier, h5_rels)
 
         # Verify all are present
-        h5_paths_before = reader.get_h5_file_paths(identifier)
+        h5_paths_before = reader.get_h5_file_paths(identifier, False)
         assert "data/geometry.h5" in h5_paths_before
         assert "data/properties.h5" in h5_paths_before
         assert "data/metadata.h5" in h5_paths_before
@@ -1176,7 +1176,7 @@ class TestAdditionalRelsPreservation:
         reader.update_object(trset)
 
         # Verify all EXTERNAL_RESOURCE relationships are still present
-        h5_paths_after = reader.get_h5_file_paths(identifier)
+        h5_paths_after = reader.get_h5_file_paths(identifier, False)
         assert "data/geometry.h5" in h5_paths_after
         assert "data/properties.h5" in h5_paths_after
         assert "data/metadata.h5" in h5_paths_after
@@ -1208,7 +1208,7 @@ class TestAdditionalRelsPreservation:
         reader.add_rels_for_object(bf_id, [h5_rel])
 
         # Verify initial state
-        h5_paths = reader.get_h5_file_paths(bf_id)
+        h5_paths = reader.get_h5_file_paths(bf_id, False)
         assert "data/bf_data.h5" in h5_paths
 
         # Update intermediate object (bfi)
@@ -1220,7 +1220,7 @@ class TestAdditionalRelsPreservation:
         reader.update_object(trset)
 
         # Verify EXTERNAL_RESOURCE still present after cascade of updates
-        h5_paths_final = reader.get_h5_file_paths(bf_id)
+        h5_paths_final = reader.get_h5_file_paths(bf_id, False)
         assert "data/bf_data.h5" in h5_paths_final, "EXTERNAL_RESOURCE lost after cascade updates"
 
         reader.close()
@@ -1247,7 +1247,7 @@ class TestAdditionalRelsPreservation:
         reader.add_rels_for_object(bfi_id, [h5_rel])
 
         # Verify it exists
-        h5_paths = reader.get_h5_file_paths(bfi_id)
+        h5_paths = reader.get_h5_file_paths(bfi_id, False)
         assert "data/bfi_data.h5" in h5_paths
 
         # Remove bf (which bfi references)
@@ -1258,7 +1258,7 @@ class TestAdditionalRelsPreservation:
         reader.update_object(bfi)
 
         # Verify EXTERNAL_RESOURCE is still there
-        h5_paths_after = reader.get_h5_file_paths(bfi_id)
+        h5_paths_after = reader.get_h5_file_paths(bfi_id, False)
         assert "data/bfi_data.h5" in h5_paths_after, "EXTERNAL_RESOURCE lost after referenced object removal"
 
         reader.close()

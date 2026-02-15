@@ -23,6 +23,8 @@ from energyml.utils.introspection import (
     get_object_attribute,
     get_object_attribute_rgx,
     get_object_attribute_advanced,
+    is_primitive,
+    get_obj_title,
 )
 
 from .datasets_io import get_path_in_external_with_path
@@ -382,18 +384,18 @@ def prod_n_tab(val: Union[float, int, str], tab: List[Union[float, int, str]]):
     """
     if val is None:
         return [None] * len(tab)
-    logging.debug(f"Multiplying list by {val}: {tab}")
+    # logging.debug(f"Multiplying list by {val}: {tab}")
     # Convert to numpy array for vectorized operations, handling None values
     arr = np.array(tab, dtype=object)
-    logging.debug(f"arr: {arr}")
+    # logging.debug(f"arr: {arr}")
     # Create mask for non-None values
     mask = arr != None  # noqa: E711
     # Create result array filled with None
     result = np.full(len(tab), None, dtype=object)
-    logging.debug(f"result before multiplication: {result}")
+    # logging.debug(f"result before multiplication: {result}")
     # Multiply only non-None values
     result[mask] = arr[mask].astype(float) * val
-    logging.debug(f"result after multiplication: {result}")
+    # logging.debug(f"result after multiplication: {result}")
     return result.tolist()
 
 
@@ -453,10 +455,12 @@ def get_crs_obj(
         logging.error("@get_crs_obj no Epc file given")
     else:
         crs_list = search_attribute_matching_name(context_obj, r"\.*Crs", search_in_sub_obj=True, deep_search=False)
-        if crs_list is not None and len(crs_list) > 0:
+        if crs_list is not None and len(crs_list) > 0 and crs_list[0] is not None:
             # logging.debug(crs_list[0])
+            # logging.debug(f"CRS found for {get_obj_title(context_obj)} : {crs_list[0]}")
             crs = workspace.get_object(get_obj_uri(crs_list[0]))
             if crs is None:
+                # logging.debug(f"CRS {crs_list[0]} not found (or not read correctly)")
                 crs = workspace.get_object_by_uuid(get_obj_uuid(crs_list[0]))
             if crs is None:
                 logging.error(f"CRS {crs_list[0]} not found (or not read correctly)")
@@ -755,17 +759,19 @@ def _array_name_mapping(array_type_name: str) -> str:
     :param array_type_name:
     :return:
     """
-    array_type_name = array_type_name.replace("3D", "3d").replace("2D", "2d")
-    if array_type_name.endswith("ConstantArray"):
+    array_type_name = array_type_name.replace("3D", "3d").replace("2D", "2d").lower()
+    # logging.debug(f"=============> Mapping array type name '{array_type_name}' to reader function name...")
+    if array_type_name.endswith("constantarray"):
         return "ConstantArray"
-    elif "External" in array_type_name or "Hdf5" in array_type_name:
+    elif "external" in array_type_name or "hdf5" in array_type_name:
         return "ExternalArray"
-    elif array_type_name.endswith("XmlArray"):
+    elif "xml" in array_type_name:
+        # logging.debug("=============> XML array detected, be careful with the performance !")
         return "XmlArray"
-    elif "Jagged" in array_type_name:
+    elif "jagged" in array_type_name:
         return "JaggedArray"
-    elif "Lattice" in array_type_name:
-        if "Integer" in array_type_name or "Double" in array_type_name or "FloatingPoint" in array_type_name:
+    elif "lattice" in array_type_name:
+        if "integer" in array_type_name or "double" in array_type_name or "floatingpoint" in array_type_name:
             return "int_double_lattice_array"
     return array_type_name
 
@@ -879,7 +885,7 @@ def read_external_array(
             for ext_part in external_parts:
                 start_indices, counts, external_uri = _extract_external_data_array_part_params(ext_part)
                 pief_list = get_path_in_external_with_path(obj=ext_part)
-
+                # logging.debug(f"Pief : {pief_list}")
                 for pief_path_in_obj, pief in pief_list:
                     arr = workspace.read_array(
                         proxy=crs or root_obj,
@@ -890,6 +896,7 @@ def read_external_array(
                     )
                     if arr is not None:
                         array = arr if array is None else np.concatenate((array, arr))
+                    # logging.debug(f"\t ExternalDataArrayPart read successfully. arr : {arr} : array : {array}")
         else:
             # RESQML v2.0.1: Extract count from parent object, no StartIndex or URI
             counts = None
@@ -933,6 +940,7 @@ def read_external_array(
             # Fallback for non-numpy arrays
             array = [array[idx] for idx in sub_indices]
 
+    # logging.debug(f"External array read successfully. => {array}")
     return array
 
 
@@ -964,8 +972,26 @@ def read_array(
     :param sub_indices: for SubRepresentation
     :return:
     """
-    if isinstance(energyml_array, list):
+    if isinstance(energyml_array, np.ndarray):
+        # if isinstance(energyml_array, list):
         return energyml_array
+    elif isinstance(energyml_array, list):
+        # logging.debug("Warning: the array is a list, not a numpy array, be careful with the performance !")
+        # logging.debug(energyml_array)
+        if len(energyml_array) > 0 and is_primitive(energyml_array[0]):
+            return energyml_array
+        else:
+            return [
+                read_array(
+                    energyml_array=elem,
+                    root_obj=root_obj,
+                    path_in_root=path_in_root,
+                    workspace=workspace,
+                    sub_indices=sub_indices,
+                )
+                for elem in energyml_array
+                if elem is not None
+            ]
     array_type_name = _array_name_mapping(type(energyml_array).__name__)
 
     reader_func = get_array_reader_function(array_type_name)
@@ -1030,8 +1056,10 @@ def read_xml_array(
     :param sub_indices:
     :return:
     """
+
     values = get_object_attribute_no_verif(energyml_array, "values")
     # count = get_object_attribute_no_verif(energyml_array, "count_per_value")
+    # logging.debug("values: ", values)
 
     if sub_indices is not None and len(sub_indices) > 0:
         if isinstance(values, np.ndarray):

@@ -1,12 +1,26 @@
 import logging
+from sqlite3 import NotSupportedError
+import traceback
 from typing import List, Optional
 import numpy as np
 from energyml.utils.data.helper import _ARRAY_NAMES_, read_array
-from energyml.utils.data.mesh import AbstractMesh, SurfaceMesh, PolylineSetMesh, read_mesh_object
+from energyml.utils.data.mesh import (
+    AbstractMesh,
+    SurfaceMesh,
+    PolylineSetMesh,
+    read_column_based_table,
+    read_mesh_object,
+    read_property_interpreted_with_cbt,
+    read_property,
+    read_time_series,
+)
 from energyml.utils.storage_interface import EnergymlStorageInterface
 from energyml.utils.epc import Epc
-
+from energyml.utils.epc_stream import EpcStreamReader, RelsUpdateMode
+from energyml.utils.introspection import get_obj_title
 from energyml.resqml.v2_2.resqmlv2 import Point3DLatticeArray
+from energyml.eml.v2_3.commonv2 import TimeSeries
+from energyml.eml.v2_1.commonv2 import TimeSeries as TimeSeries21
 
 from energyml.utils.serialization import read_energyml_xml_str, serialize_json
 
@@ -232,27 +246,107 @@ def read_representation_set_representation() -> List[AbstractMesh]:
     return read_mesh_object(energyml_object=rep_set_rep, workspace=epc)
 
 
+def read_props_and_cbt(
+    epc_path: List[str] = [
+        "rc/epc/testingPackageCpp22.epc",
+        "D:/Geosiris/Clients/BRGM/git/csv-to-energyml/rc/output/full-local/attic/result-out-EpcStream-egis-full.epc",
+    ],
+    p_or_cbt_uuids: List = [
+        "1c5a3e99-e997-4bd7-a94d-c45d7b7405ce",
+        "be17c053-9189-4bc0-9db1-75aa51a026cd",
+        "da73937c-2c60-4e10-8917-5154fde4ded5",
+        "6561b499-82ed-4233-8a83-ea5d5aaf56a9",
+        "0d6aba60-b37e-498c-aedc-334561eb0749",
+        "d64d0ed0-72fa-4495-8e3a-a01175194e25",
+        "5abecfe6-b951-4802-9002-e597169a9923",
+        "49207072-563b-404a-9707-9a9b70168d33",
+    ],
+) -> None:
+
+    epcs = []
+    for path in epc_path:
+        epc = EpcStreamReader(
+            epc_file_path=path,
+            rels_update_mode=RelsUpdateMode.MANUAL,
+        )
+        # epc = Epc.read_file(f"{path}", read_rels_from_files=False, recompute_rels=False)
+        epcs.append(epc)
+
+    for uuid in p_or_cbt_uuids:
+        read = False
+        prop_or_cbt = None
+        for epc in epcs:
+            try:
+                prop_or_cbt_lst = epc.get_object_by_uuid(uuid)
+                if not prop_or_cbt_lst:
+                    continue
+                prop_or_cbt = prop_or_cbt_lst[0]
+                array = None
+                reshaped_array = None
+                if "column" in str(type(prop_or_cbt)).lower():
+                    array = read_column_based_table(prop_or_cbt, workspace=epc)
+                elif "time" in str(type(prop_or_cbt)).lower():
+                    array = read_time_series(prop_or_cbt, workspace=epc)
+                else:
+                    array = read_property(
+                        prop_or_cbt,
+                        workspace=epc,
+                    )
+                    reshaped_array = read_property_interpreted_with_cbt(
+                        prop_or_cbt,
+                        workspace=epc,
+                        _cache_property_arrays=array,
+                        _return_none_if_no_category_lookup=True,
+                    )
+                print("=" * 40)
+                print(f"{type(prop_or_cbt)} : {get_obj_title(prop_or_cbt)} - uuid: {uuid}")
+                print(array)
+
+                if reshaped_array is not None:
+                    print(" # => interpreted array:")
+                    print(reshaped_array)
+
+                print("\n")
+                read = True
+                break
+            # except NotSupportedError as e:
+            #     print(f"Object with uuid {uuid} found but not supported: {e}")
+            except Exception as e:
+                traceback.print_exc()
+                print(f"Error reading object with uuid {uuid}: {e}")
+                pass
+        if not read:
+            print("[E]" + "=" * 40)
+            if prop_or_cbt is not None:
+                print(f"Object with uuid {get_obj_title(prop_or_cbt)} found but could not be read.")
+            else:
+                print(f"Object with uuid {uuid} not found in any EPC file.")
+            print("\n")
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
     # meshes = read_grid()
     # meshes = read_polyline()
     # meshes = read_wellbore_frame_repr()
-    meshes = read_representation_set_representation()
+    # meshes = read_representation_set_representation()
 
-    for m in meshes:
-        print("=" * 40)
-        print(f"Mesh identifier: {m.identifier}")
-        print("points:")
-        print(np.array(m.point_list))
+    # for m in meshes:
+    #     print("=" * 40)
+    #     print(f"Mesh identifier: {m.identifier}")
+    #     print("points:")
+    #     print(np.array(m.point_list))
 
-        if isinstance(m, SurfaceMesh):
-            print("face indices:")
-            print(np.array(m.faces_indices))
-        elif isinstance(m, PolylineSetMesh):
-            print("line indices:")
-            try:
-                print(np.array(m.line_indices))
-            except Exception as e:
-                print(m.line_indices)
-                raise e
+    #     if isinstance(m, SurfaceMesh):
+    #         print("face indices:")
+    #         print(np.array(m.faces_indices))
+    #     elif isinstance(m, PolylineSetMesh):
+    #         print("line indices:")
+    #         try:
+    #             print(np.array(m.line_indices))
+    #         except Exception as e:
+    #             print(m.line_indices)
+    #             raise e
+
+    read_props_and_cbt()

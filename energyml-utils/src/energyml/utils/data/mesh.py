@@ -181,7 +181,7 @@ def crs_displacement(points: List[Point], crs_obj: Any) -> Tuple[List[Point], Po
     return points, crs_point_offset
 
 
-def get_mesh_reader_function(mesh_type_name: str) -> Optional[Callable]:
+def get_object_reader_function(mesh_type_name: str) -> Optional[Callable]:
     """
     Returns the name of the potential appropriate function to read an object with type is named mesh_type_name
     :param mesh_type_name: the initial type name
@@ -191,6 +191,11 @@ def get_mesh_reader_function(mesh_type_name: str) -> Optional[Callable]:
         if name == f"read_{snake_case(mesh_type_name)}":
             return obj
     return None
+
+
+def get_mesh_reader_function(mesh_type_name: str) -> Optional[Callable]:
+    """@deprecated use get_object_reader_function instead"""
+    return get_object_reader_function(mesh_type_name)
 
 
 def _mesh_name_mapping(array_type_name: str) -> str:
@@ -224,7 +229,7 @@ def read_mesh_object(
         return energyml_object
     array_type_name = _mesh_name_mapping(type(energyml_object).__name__)
 
-    reader_func = get_mesh_reader_function(array_type_name)
+    reader_func = get_object_reader_function(array_type_name)
     if reader_func is not None:
         # logging.info(f"using function {reader_func} to read type {array_type_name}")
         surfaces: List[AbstractMesh] = reader_func(
@@ -980,7 +985,315 @@ def read_representation_set_representation(
     return meshes
 
 
-# MESH FILES
+def read_property(
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+) -> np.ndarray:
+    """
+    Read a property or column-based table from an Energyml object.
+
+    Dispatches to the appropriate reader function based on the object's type name.
+    If no specific reader is found, raises a NotSupportedError.
+
+    Args:
+        energyml_object: The Energyml object to read from.
+        workspace: The storage interface for accessing related objects.
+
+    Returns:
+        np.ndarray: The read property or table data.
+
+    Raises:
+        NotSupportedError: If the object type is not supported.
+    """
+    property_type = type(energyml_object).__name__
+    reader_func = get_object_reader_function(property_type)
+    if reader_func is not None:
+        return reader_func(energyml_object=energyml_object, workspace=workspace)
+    else:
+        # logging.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
+        raise NotSupportedError(
+            f"Type {property_type} is not supported\n\tfunction read_{snake_case(property_type)} not found"
+        )
+
+
+def read_property_interpreted_with_cbt(
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+    _cache_property_arrays: Optional[np.ndarray] = None,
+    _return_none_if_no_category_lookup: bool = False,
+) -> Optional[np.ndarray]:
+    """
+    Read a property with category lookup interpretation.
+
+    Reads property arrays and applies category lookup mapping if available.
+    Supports both array and dictionary-based category lookups.
+
+    Args:
+        energyml_object: The Energyml property object.
+        workspace: The storage interface for accessing related objects.
+        _cache_property_arrays: Optional cached property arrays to avoid re-reading.
+        _return_none_if_no_category_lookup: If True, return None when no category lookup is found.
+
+    Returns:
+        Optional[np.ndarray]: The interpreted property values, or None if no lookup and flag is set.
+    """
+
+    result = None
+
+    prop_arrays = (
+        read_property(energyml_object, workspace) if _cache_property_arrays is None else _cache_property_arrays
+    )
+
+    category_lookup_dor = get_object_attribute(energyml_object, "category_lookup")
+    if category_lookup_dor is not None:
+        category_lookup_obj = workspace.get_object(get_obj_uri(category_lookup_dor))
+        if category_lookup_obj is not None:
+            category_lookup_data = read_column_based_table(category_lookup_obj, workspace)
+
+            # print(f"category_lookup_array : {category_lookup_data}")
+            if isinstance(category_lookup_data, list):
+                category_lookup_data = np.array(category_lookup_data)
+            if isinstance(category_lookup_data, np.ndarray):
+                # map props values to category lookup values using prop value as index in category lookup array
+                result = (
+                    np.array(
+                        [
+                            (
+                                category_lookup_data[prop]
+                                if prop is not None and prop < len(category_lookup_data)
+                                else None
+                            )
+                            for prop in prop_arrays
+                        ]
+                    )
+                    if prop_arrays is not None
+                    else None
+                )
+            elif isinstance(category_lookup_data, dict):
+                # Transpose so that each index corresponds to a category (column), not a row
+                category_lookup_matrice = np.array(list(category_lookup_data.values())).T
+                print(f"category_lookup_matrice : {category_lookup_matrice}")
+                # return a matrice with the same shape as prop_arrays but with the values from the category lookup array using the prop value as key in the category lookup array
+                result = (
+                    np.array(
+                        [
+                            [
+                                (
+                                    category_lookup_matrice[prop].tolist()
+                                    if prop is not None and 0 <= prop < len(category_lookup_matrice)
+                                    else None
+                                )
+                                for prop in prop_row
+                            ]
+                            for prop_row in prop_arrays
+                        ]
+                    )
+                    if prop_arrays is not None
+                    else None
+                )
+            else:
+                raise NotSupportedError(
+                    f"Category lookup array type {type(category_lookup_matrice)} is not supported, expected list or dict"
+                )
+
+    return prop_arrays if result is None and not _return_none_if_no_category_lookup else result
+
+
+def read_abstract_values_property(
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+) -> np.ndarray:
+    """
+    Read abstract values property from patches.
+
+    Extracts and concatenates arrays from all 'values_for_patch' attributes.
+
+    Args:
+        energyml_object: The Energyml object containing the property.
+        workspace: The storage interface for accessing arrays.
+
+    Returns:
+        np.ndarray: The concatenated array of property values.
+    """
+    arrays = []
+    for values_for_patch in search_attribute_matching_name_with_path(energyml_object, "values_for_patch"):
+        array = read_array(
+            energyml_array=values_for_patch[1],
+            root_obj=energyml_object,
+            path_in_root=".",
+            workspace=workspace,
+        )
+        if isinstance(array, list):
+            array = np.array(array)
+        arrays.append(array)
+    if len(arrays) == 1:
+        return arrays[0]
+    else:
+        return np.concatenate(arrays)
+
+
+def read_discrete_property(
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+) -> np.ndarray:
+    """
+    Read a discrete property.
+
+    Delegates to read_abstract_values_property for implementation.
+
+    Args:
+        energyml_object: The discrete property object.
+        workspace: The storage interface.
+
+    Returns:
+        np.ndarray: The property values.
+    """
+
+    return read_abstract_values_property(energyml_object, workspace)
+
+
+def read_continuous_property(
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+) -> np.ndarray:
+    """
+    Read a continuous property.
+
+    Delegates to read_abstract_values_property for implementation.
+
+    Args:
+        energyml_object: The continuous property object.
+        workspace: The storage interface.
+
+    Returns:
+        np.ndarray: The property values.
+    """
+
+    return read_abstract_values_property(energyml_object, workspace)
+
+
+def read_categorical_property(
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+) -> np.ndarray:
+    """
+    Read a categorical property.
+
+    Note: Categorical values are returned as integers. Use the property's
+    'code_list' attribute to map to string values.
+
+    Args:
+        energyml_object: The categorical property object.
+        workspace: The storage interface.
+
+    Returns:
+        np.ndarray: The integer-coded property values.
+    """
+    # TODO: the categorical values should be converted to strings using the code list of the property, but for now we keep the integer values and let the user manage the conversion if needed.
+    logging.warning(
+        "CategoricalProperty is read as a continuous property, the categorical values are not converted to strings but kept as integers. Use the 'code_list' attribute of the property to get the list of possible string values corresponding to the integer values in the array"
+    )
+    return read_abstract_values_property(energyml_object, workspace)
+
+
+def read_comment_property(
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+) -> np.ndarray:
+    """
+    Read a comment property.
+
+    Delegates to read_abstract_values_property for implementation.
+
+    Args:
+        energyml_object: The comment property object.
+        workspace: The storage interface.
+
+    Returns:
+        np.ndarray: The comment values.
+    """
+    return read_abstract_values_property(energyml_object, workspace)
+
+
+def read_column_based_table(
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+) -> Dict[str, np.ndarray]:
+    """
+    Read a column-based table.
+
+    Extracts column data into a dictionary keyed by column titles.
+
+    Args:
+        energyml_object: The table object with 'column' attributes.
+        workspace: The storage interface for accessing arrays.
+
+    Returns:
+        Dict[str, np.ndarray]: Dictionary of column names to arrays.
+    """
+    columns = {}
+    for column in get_object_attribute(energyml_object, "column"):
+        column_name = getattr(column, "title", "_")
+        # print(f"Reading column: {column_name} : {column}")
+        # print(f"getattr(column_array, 'values', None): {getattr(column, 'values', None)}")
+        array = read_array(
+            energyml_array=getattr(column, "values", None),
+            root_obj=energyml_object,
+            path_in_root=".",
+            workspace=workspace,
+        )
+        if isinstance(array, list):
+            array = np.array(array)
+        columns[column_name] = array
+    return columns
+
+
+def read_time_series(
+    energyml_object: Any,
+    workspace: EnergymlStorageInterface,
+) -> List[Dict[str, Tuple[str, int]]]:
+    """
+    Read a time series from an Energyml object.
+
+    Extracts date-time values and time step indices, constructing a normalized
+    list of (step_index, datetime) tuples for each time step.
+
+    Args:
+        energyml_object: The Energyml time series object.
+        workspace: The storage interface for accessing related objects.
+
+    Returns:
+        List[Tuple[str, int]]: List of tuples containing (step_index, datetime_string).
+    """
+
+    # 1. Extraction des DateTime
+    times_iso = search_attribute_matching_name(energyml_object, "date_time")
+
+    # 2. Extraction des TimeSteps (v2.2+)
+    steps_indices = []
+    time_step_obj = get_object_attribute(energyml_object, "time_step")
+    if time_step_obj is not None:
+        steps_indices = read_array(time_step_obj, energyml_object, ".", workspace, sub_indices=None)
+    else:
+        # Fallback : on utilise l'index de la liste
+        steps_indices = list(range(len(times_iso)))
+
+    # 3. Construction de la structure normalisée
+    steps_data = []
+    for i in range(len(times_iso)):
+        steps_data.append(
+            (steps_indices[i], times_iso[i])
+            # {"index": i, "datetime": times_iso[i], "step_val": steps_indices[i]}  # L'index utilisé par les propriétés
+        )
+
+    return steps_data
+
+
+#     __  ______________ __  __   _____ __             ____                           __
+#    /  |/  / ____/ ___// / / /  / __(_) /__  _____   / __/___  _________ ___  ____ _/ /_
+#   / /|_/ / __/  \__ \/ /_/ /  / /_/ / / _ \/ ___/  / /_/ __ \/ ___/ __ `__ \/ __ `/ __/
+#  / /  / / /___ ___/ / __  /  / __/ / /  __(__  )  / __/ /_/ / /  / / / / / / /_/ / /_
+# /_/  /_/_____//____/_/ /_/  /_/ /_/_/\___/____/  /_/  \____/_/  /_/ /_/ /_/\__,_/\__/
 
 
 def _recompute_min_max(

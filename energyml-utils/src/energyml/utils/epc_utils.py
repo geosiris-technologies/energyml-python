@@ -5,6 +5,9 @@
 from io import BytesIO
 import json
 import logging
+import os
+import os
+import re
 from typing import Optional, Set, Tuple, Union, Any, List, Dict, Callable
 from pathlib import Path
 import zipfile
@@ -248,6 +251,31 @@ def in_epc_file_path_to_mime_type(path: str) -> Optional[str]:
     # Fallback to inferring from file extension
     ext = path.split(".")[-1]
     return file_extension_to_mime_type(ext)
+
+
+def get_file_folder(path) -> Optional[str]:
+    """Get the folder path from a given file path."""
+    if path is None:
+        return None
+    _path = Path(path) if not isinstance(path, Path) else path
+    return _path.parent.as_posix() if _path.parent != Path(".") else ""
+
+
+def make_path_relative_to_other_file(path: str, ref_path: Optional[Union[str, Path]]) -> str:
+    # make the relative path absolute regarding to the epc file path
+    if ref_path is not None:
+        if isinstance(ref_path, (str, Path)):
+            epc_folder = get_file_folder(ref_path) or ""
+            if not os.path.isabs(path):
+                return os.path.normpath(os.path.join(epc_folder, path))
+            else:
+                return path
+    else:
+        return path
+
+
+def make_path_relative_to_filepath_list(paths: List[str], ref_path: Optional[Union[str, Path]] = None) -> List[str]:
+    return [make_path_relative_to_other_file(path, ref_path) for path in paths]
 
 
 #     __  ____________ ______

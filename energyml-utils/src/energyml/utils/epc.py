@@ -10,7 +10,6 @@ import logging
 import os
 from pathlib import Path
 import random
-import re
 import time
 import traceback
 import zipfile
@@ -23,7 +22,7 @@ import numpy as np
 from enum import Enum
 from xsdata.formats.dataclass.models.generics import DerivedElement
 
-from energyml.opc.opc import CoreProperties, Relationships, Types, Relationship, Override, TargetMode
+from energyml.opc.opc import CoreProperties, Relationships, Types, Relationship, Override
 from energyml.utils.storage_interface import DataArrayMetadata, EnergymlStorageInterface, ResourceMetadata
 from energyml.utils.uri import Uri, parse_uri
 
@@ -65,6 +64,9 @@ from energyml.utils.epc_utils import (
     gen_rels_path,
     get_epc_content_type_path,
     create_h5_external_relationship,
+    get_file_folder,
+    make_path_relative_to_other_file,
+    make_path_relative_to_filepath_list,
 )
 
 
@@ -1064,13 +1066,7 @@ class Epc(EnergymlStorageInterface):
     # === Array functions ===
 
     def get_epc_file_folder(self) -> Optional[str]:
-        if self.epc_file_path is not None and len(self.epc_file_path) > 0:
-            folders_and_name = re.split(r"[\\/]", self.epc_file_path)
-            if len(folders_and_name) > 1:
-                return "/".join(folders_and_name[:-1])
-            else:
-                return ""
-        return None
+        return get_file_folder(self.epc_file_path) if self.epc_file_path else None
 
     def read_external_array(
         self,
@@ -1124,7 +1120,7 @@ class Epc(EnergymlStorageInterface):
         # Determine which external files to use
         file_paths = self.get_h5_file_paths(obj)
         if external_uri:
-            file_paths.insert(0, self.make_path_relative_to_epc(external_uri))
+            file_paths.insert(0, make_path_relative_to_other_file(external_uri, self.epc_file_path))
 
         if not file_paths or len(file_paths) == 0:
             file_paths = self.external_files_path
@@ -1180,7 +1176,11 @@ class Epc(EnergymlStorageInterface):
             obj = self.get_object_by_identifier(proxy)
 
         # Determine which external files to use
-        file_paths = [self.make_path_relative_to_epc(external_uri)] if external_uri else self.get_h5_file_paths(obj)
+        file_paths = (
+            [make_path_relative_to_other_file(external_uri, self.epc_file_path)]
+            if external_uri
+            else self.get_h5_file_paths(obj)
+        )
         if not file_paths or len(file_paths) == 0:
             file_paths = self.external_files_path
 
@@ -1314,22 +1314,7 @@ class Epc(EnergymlStorageInterface):
                 if os.path.exists(possible_h5_path):
                     h5_paths.add(possible_h5_path)
 
-        return self.make_path_relative_to_epc_list(list(h5_paths))
-
-    def make_path_relative_to_epc(self, path: str) -> str:
-        # make the relative path absolute regarding to the epc file path
-        if self.epc_file_path is not None:
-            if isinstance(path, str):
-                epc_folder = self.get_epc_file_folder() or ""
-                if not os.path.isabs(path):
-                    return os.path.normpath(os.path.join(epc_folder, path))
-                else:
-                    return path
-        else:
-            return path
-
-    def make_path_relative_to_epc_list(self, paths: List[str]) -> List[str]:
-        return [self.make_path_relative_to_epc(path) for path in paths]
+        return make_path_relative_to_filepath_list(list(h5_paths), self.epc_file_path)
 
     def get_object_as_dor(self, identifier: str, dor_qualified_type) -> Optional[Any]:
         """

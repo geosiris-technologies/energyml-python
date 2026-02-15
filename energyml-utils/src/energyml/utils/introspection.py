@@ -889,7 +889,7 @@ def search_attribute_matching_name_with_path(
     :param current_path:
     :param deep_search:
     :param search_in_sub_obj:
-    :return:
+    :return: a list of tuple (path, value) for each sub attribute with type matching param "name_rgx". The path is a dot-version like ".Citation.Title"
     """
     # while name_rgx.startswith("."):
     #     name_rgx = name_rgx[1:]
