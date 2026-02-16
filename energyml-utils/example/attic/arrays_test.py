@@ -17,7 +17,12 @@ from energyml.utils.data.mesh import (
 from energyml.utils.storage_interface import EnergymlStorageInterface
 from energyml.utils.epc import Epc
 from energyml.utils.epc_stream import EpcStreamReader, RelsUpdateMode
-from energyml.utils.introspection import get_obj_title, search_attribute_matching_name, get_object_attribute
+from energyml.utils.introspection import (
+    get_obj_title,
+    search_attribute_matching_name,
+    get_object_attribute,
+    search_attribute_matching_name_with_path,
+)
 from energyml.resqml.v2_2.resqmlv2 import Point3DLatticeArray
 from energyml.eml.v2_3.commonv2 import TimeSeries
 from energyml.eml.v2_1.commonv2 import TimeSeries as TimeSeries21
@@ -326,6 +331,51 @@ def read_props_and_cbt(
             print("\n")
 
 
+def read_trset(
+    epc_path: str = "rc/epc/testingPackageCpp22.epc", trset_uuid: str = "6e678338-3b53-49b6-8801-faee493e0c42"
+) -> List[AbstractMesh]:
+    epc = Epc.read_file(f"{epc_path}", read_rels_from_files=False, recompute_rels=False)
+
+    trset = epc.get_object_by_uuid(trset_uuid)[0]
+    # print(trset)
+    # print(epc.get_h5_file_paths(trset))
+
+    meshes = read_mesh_object(energyml_object=trset, workspace=epc)
+
+    return meshes
+
+
+def print_tuple_list(tuple_list: List[tuple]) -> None:
+    for t in tuple_list:
+        print(t)
+
+
+def read_pointset(
+    epc_path: str = "rc/epc/testingPackageCpp22.epc", pointset_uuid: str = "fbc5466c-94cd-46ab-8b48-2ae2162b372f"
+) -> List[AbstractMesh]:
+    # epc = Epc.read_file(f"{epc_path}", read_rels_from_files=False, recompute_rels=False)
+    epc = EpcStreamReader(
+        epc_file_path=epc_path,
+        rels_update_mode=RelsUpdateMode.MANUAL,
+    )
+
+    pointset = epc.get_object_by_uuid(pointset_uuid)[0]
+    # print(pointset)
+    # print(epc.get_h5_file_paths(pointset))
+    # meshes = []
+    meshes = read_mesh_object(energyml_object=pointset, workspace=epc)
+
+    # logging.debug("=" * 40)
+    # print_tuple_list(search_attribute_matching_name_with_path(pointset, r"NodePatch.[\d]+.Geometry.Points"))
+    # logging.debug("=" * 40)
+    # print_tuple_list(
+    #     search_attribute_matching_name_with_path(pointset, r"NodePatchGeometry.[\d]+.Points")
+    # )  # resqml 2.0.1
+    # logging.debug("=" * 40)
+
+    return meshes
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
@@ -333,22 +383,27 @@ if __name__ == "__main__":
     # meshes = read_polyline()
     # meshes = read_wellbore_frame_repr()
     # meshes = read_representation_set_representation()
+    # meshes = read_trset()
+    meshes = read_pointset()
 
-    # for m in meshes:
-    #     print("=" * 40)
-    #     print(f"Mesh identifier: {m.identifier}")
-    #     print("points:")
-    #     print(np.array(m.point_list))
+    print(f"Number of meshes read: {len(meshes)}")
 
-    #     if isinstance(m, SurfaceMesh):
-    #         print("face indices:")
-    #         print(np.array(m.faces_indices))
-    #     elif isinstance(m, PolylineSetMesh):
-    #         print("line indices:")
-    #         try:
-    #             print(np.array(m.line_indices))
-    #         except Exception as e:
-    #             print(m.line_indices)
-    #             raise e
+    if meshes:
+        for m in meshes:
+            print("=" * 40)
+            print(f"Mesh identifier: {m.identifier}")
+            print("points:")
+            print(np.array(m.point_list))
 
-    read_props_and_cbt()
+            if isinstance(m, SurfaceMesh):
+                print("face indices:")
+                print(np.array(m.faces_indices))
+            elif isinstance(m, PolylineSetMesh):
+                print("line indices:")
+                try:
+                    print(np.array(m.line_indices))
+                except Exception as e:
+                    print(m.line_indices)
+                    raise e
+
+    # read_props_and_cbt()

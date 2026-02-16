@@ -397,16 +397,16 @@ def get_all_matching_class_attribute_name(
      Example : "\\w*.Version" --> ["object_version", "ObjectVersion", "obj_version", ...]
      This method doesn't only transform to snake case but search into the obj class attributes (or dict keys)
     """
-    matching_names = []
+    matching_names = set()
     if isinstance(cls, dict):
         for name in cls.keys():
             if snake_case(name) == snake_case(attribute_name):
-                matching_names.append(name)
+                matching_names.add(name)
         pattern = re.compile(attribute_name, flags=re_flags)
         for name in cls.keys():
             if pattern.match(name):
-                matching_names.append(name)
-        return matching_names
+                matching_names.add(name)
+        return list(matching_names)
     else:
         class_fields = get_class_fields(cls)
         try:
@@ -415,7 +415,7 @@ def get_all_matching_class_attribute_name(
                 if snake_case(name) == snake_case(attribute_name) or (
                     hasattr(cf, "metadata") and "name" in cf.metadata and cf.metadata["name"] == attribute_name
                 ):
-                    matching_names.append(name)
+                    matching_names.add(name)
 
             # search regex after to avoid shadowing perfect match
             pattern = re.compile(attribute_name, flags=re_flags)
@@ -424,12 +424,12 @@ def get_all_matching_class_attribute_name(
                 if pattern.match(name) or (
                     hasattr(cf, "metadata") and "name" in cf.metadata and pattern.match(cf.metadata["name"])
                 ):
-                    matching_names.append(name)
+                    matching_names.add(name)
         except Exception as e:
             logging.error(f"Failed to get attribute {attribute_name} from class {cls}")
             logging.error(e)
 
-    return matching_names
+    return list(matching_names)
 
 
 def get_matching_class_attribute_name(
@@ -919,7 +919,7 @@ def search_attribute_matching_name_with_path(
     #     next_match = ".".join(attrib_list[1:])
     current_match, next_match = path_next_attribute(name_rgx)
     if current_match is None:
-        logging.error(f"Attribute name regex '{name_rgx}' is invalid.")
+        # logging.error(f"Attribute name regex '{name_rgx}' is invalid.")
         return []
     res = []
 
@@ -949,15 +949,18 @@ def search_attribute_matching_name_with_path(
             else:
                 not_match_path_and_obj.append((f"{current_path}{k}", s_o))
     elif not is_primitive(obj):
+        current_match = current_match.replace("\\.", ".")
         # logging.debug(f"searching {current_match} in {type(obj)} with path {current_path} and next match {next_match}")
         match_values = get_all_matching_class_attribute_name(obj, current_match, re_flags)
         for match_value in match_values:
+            # logging.debug(f"\tmatch found : {match_value}")
             match_path_and_obj.append(
                 (
                     f"{current_path}{match_value}",
                     get_object_attribute_no_verif(obj, match_value),
                 )
             )
+        # logging.debug("f------")
         for att_name in get_class_attributes(obj):
             if att_name not in match_values:
                 not_match_path_and_obj.append(

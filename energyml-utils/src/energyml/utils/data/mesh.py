@@ -269,14 +269,16 @@ def read_point_representation(
 
     patch_idx = 0
     total_size = 0
-    for (
-        points_path_in_obj,
-        points_obj,
-    ) in search_attribute_matching_name_with_path(
+
+    patches_geom = search_attribute_matching_name_with_path(
         energyml_object, r"NodePatch.[\d]+.Geometry.Points"
     ) + search_attribute_matching_name_with_path(  # resqml 2.0.1
         energyml_object, r"NodePatchGeometry.[\d]+.Points"
-    ):  # resqml 2.2
+    )
+    logging.debug(f"Found {len(patches_geom)} patches for point representation")
+    logging.debug(f"\t=> {patches_geom}")
+
+    for points_path_in_obj, points_obj in patches_geom:
         points = read_array(
             energyml_array=points_obj,
             root_obj=energyml_object,
@@ -644,12 +646,16 @@ def read_triangulated_set_representation(
     point_offset = 0
     patch_idx = 0
     total_size = 0
-    for patch_path, patch in search_attribute_matching_name_with_path(
+
+    patches = search_attribute_matching_name_with_path(
         energyml_object,
-        "\\.*Patch.\\d+",
+        "\\w*Patch.\\d+",
         deep_search=False,
         search_in_sub_obj=False,
-    ):
+    )
+    # logging.debug(f"Found {len(patches)} patches for triangulated set representation")
+
+    for patch_path, patch in patches:
         crs = None
         try:
             crs = get_crs_obj(
