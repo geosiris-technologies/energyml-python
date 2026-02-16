@@ -1178,11 +1178,10 @@ class Epc(EnergymlStorageInterface):
             obj = self.get_object_by_identifier(proxy)
 
         # Determine which external files to use
-        file_paths = (
-            [make_path_relative_to_other_file(external_uri, self.epc_file_path)]
-            if external_uri
-            else self.get_h5_file_paths(obj)
-        )
+        file_paths = self.get_h5_file_paths(obj)
+        if external_uri:
+            file_paths.insert(0, make_path_relative_to_other_file(external_uri, self.epc_file_path))
+
         if not file_paths or len(file_paths) == 0:
             file_paths = self.external_files_path
 
@@ -1284,7 +1283,7 @@ class Epc(EnergymlStorageInterface):
 
         return None
 
-    def get_h5_file_paths(self, obj: Any) -> List[str]:
+    def get_h5_file_paths(self, obj_or_id: Optional[Any] = None) -> List[str]:
         """
         Get all HDF5 file paths referenced in the EPC file (from rels to external resources)
         :return: list of HDF5 file paths
@@ -1292,31 +1291,29 @@ class Epc(EnergymlStorageInterface):
 
         if self.force_h5_path is not None:
             return [self.force_h5_path]
-
-        is_uri = (isinstance(obj, str) and parse_uri(obj) is not None) or isinstance(obj, Uri)
-        if is_uri:
-            obj = self.get_object_by_identifier(obj)
-
         h5_paths = set()
 
-        if isinstance(obj, str):
-            obj = self.get_object_by_identifier(obj)
+        if obj_or_id is None:
+            return [self.epc_file_path.replace(".epc", ".h5")] if self.epc_file_path else []
+
+        obj = self.get_object(obj_or_id) if isinstance(obj_or_id, (str, Uri)) else obj_or_id
+
         # for rels in self.additional_rels.get(get_obj_identifier(obj), []):
         for rels in self._rels_cache.get_supplemental_rels(obj):
             if rels.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
                 h5_paths.add(rels.target)
 
-        if len(h5_paths) == 0:
-            # search if an h5 file has the same name than the epc file
-            epc_folder = self.get_epc_file_folder()
-            if epc_folder is not None and self.epc_file_path is not None:
-                epc_file_name = os.path.basename(self.epc_file_path)
-                epc_file_base, _ = os.path.splitext(epc_file_name)
-                possible_h5_path = os.path.join(epc_folder, epc_file_base + ".h5")
-                if os.path.exists(possible_h5_path):
-                    h5_paths.add(possible_h5_path)
+        h5_paths = set(make_path_relative_to_filepath_list(list(h5_paths), self.epc_file_path))
 
-        return make_path_relative_to_filepath_list(list(h5_paths), self.epc_file_path)
+        if len(h5_paths) == 0:
+            # Collect all .h5 files in the EPC file's folder
+            epc_folder = self.get_epc_file_folder()
+            if epc_folder is not None and os.path.isdir(epc_folder):
+                for fname in os.listdir(epc_folder):
+                    if fname.lower().endswith(".h5"):
+                        h5_paths.add(os.path.join(epc_folder, fname))
+
+        return list(h5_paths)
 
     def get_object_as_dor(self, identifier: str, dor_qualified_type) -> Optional[Any]:
         """

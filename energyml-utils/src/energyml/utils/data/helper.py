@@ -311,10 +311,12 @@ def get_crs_origin_offset(crs_obj: Any) -> List[float | int]:
     return crs_point_offset
 
 
-def get_datum_information(datum_obj: Any, workspace: Optional[EnergymlStorageInterface] = None):
-    "From a ObjMdDatum or a ReferencePointInACrs, return x, y, z, z_increas_downward, projected_epsg_code, vertical_epsg_code"
+def get_datum_information(
+    datum_obj: Any, workspace: Optional[EnergymlStorageInterface] = None
+) -> Tuple[float, float, float, bool, Optional[str], Optional[str], Optional[Any]]:
+    "From a ObjMdDatum or a ReferencePointInACrs, return x, y, z, z_increas_downward, projected_epsg_code, vertical_epsg_code, crs object"
     if datum_obj is None:
-        return 0.0, 0.0, 0.0, False, None, None
+        return 0.0, 0.0, 0.0, False, None, None, None
 
     t_lw = type(datum_obj).__name__.lower()
 
@@ -333,12 +335,18 @@ def get_datum_information(datum_obj: Any, workspace: Optional[EnergymlStorageInt
             z_increasing_downward,
             projected_epsg_code,
             vertical_epsg_code,
+            datum_obj,
         )
     elif "referencepointinacrs" in t_lw:
         x = get_object_attribute_rgx(datum_obj, "horizontal_coordinates.coordinate1")
         y = get_object_attribute_rgx(datum_obj, "horizontal_coordinates.coordinate2")
         z = get_object_attribute_rgx(datum_obj, "vertical_coordinate")
-        z_increasing_downward = get_object_attribute(datum_obj, "ZIncreasingDownward") or False
+        z_increasing_downward = False
+        v_crs_dor = get_object_attribute_rgx(datum_obj, "vertical_crs")
+        if v_crs_dor is not None and workspace is not None:
+            v_crs = workspace.get_object(get_obj_uri(v_crs_dor))
+            if v_crs is not None:
+                z_increasing_downward = is_z_reversed(v_crs)
         p_crs = get_object_attribute(datum_obj, "horizontal_coordinates.crs")
         projected_epsg_code = (
             get_projected_epsg_code(workspace.get_object(get_obj_uri(p_crs)), workspace)
@@ -354,13 +362,16 @@ def get_datum_information(datum_obj: Any, workspace: Optional[EnergymlStorageInt
             z_increasing_downward,
             projected_epsg_code,
             vertical_epsg_code,
+            p_crs,
         )
     elif "mddatum" in t_lw:
         x = get_object_attribute_rgx(datum_obj, "location.coordinate1")
         y = get_object_attribute_rgx(datum_obj, "location.coordinate2")
         z = get_object_attribute_rgx(datum_obj, "location.coordinate3")
         crs = get_object_attribute(datum_obj, "LocalCrs")
-        _, _, _, z_increasing_downward, projected_epsg_code, vertical_epsg_code = get_datum_information(crs, workspace)
+        _, _, _, z_increasing_downward, projected_epsg_code, vertical_epsg_code, _ = get_datum_information(
+            crs, workspace
+        )
         return (
             float(x) if x is not None else 0.0,
             float(y) if y is not None else 0.0,
@@ -368,8 +379,9 @@ def get_datum_information(datum_obj: Any, workspace: Optional[EnergymlStorageInt
             z_increasing_downward,
             projected_epsg_code,
             vertical_epsg_code,
+            crs,
         )
-    return 0.0, 0.0, 0.0, False, None, None
+    return 0.0, 0.0, 0.0, False, None, None, None
 
 
 # ==================================================
@@ -659,7 +671,9 @@ def generate_smooth_trajectory(
     return np.array(smooth_points)
 
 
-def generate_vertical_well_points(wellbore_mds: np.ndarray, head_x: float, head_y: float, head_z: float) -> np.ndarray:
+def generate_vertical_well_points(
+    wellbore_mds: np.ndarray, head_x: float, head_y: float, head_z: float, z_increasing_downward: bool = False
+) -> np.ndarray:
     """
     Generates local 3D coordinates for a perfectly vertical wellbore.
 
@@ -684,8 +698,12 @@ def generate_vertical_well_points(wellbore_mds: np.ndarray, head_x: float, head_
     # In a vertical well, Z_point = Z_datum + (MD_point - MD_datum_at_0)
     # Most of the time, MD at head is 0.
     # If wellbore_mds start at 0, Z starts at head_z.
+    # if z_increasing_downward is False, we add the MD to head_z, otherwise we subtract it.
     md_start = wellbore_mds[0]
-    local_points[:, 2] = head_z + (wellbore_mds - md_start)
+    if z_increasing_downward:
+        local_points[:, 2] = head_z - (wellbore_mds - md_start)
+    else:
+        local_points[:, 2] = head_z + (wellbore_mds - md_start)
 
     return local_points
 

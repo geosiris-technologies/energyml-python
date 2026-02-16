@@ -378,6 +378,40 @@ def read_pointset(
     return meshes
 
 
+def read_wellbore_frame_repr_demo_jfr_02_26(
+    epc_path: str = r"rc/epc/out-galaxy-12-pts.epc",
+    well_uuid: str = "cfad9cb6-99fe-4172-b560-d2feca75dd9f",
+) -> List[AbstractMesh]:
+    epc = Epc.read_file(f"{epc_path}", read_rels_from_files=False, recompute_rels=False)
+
+    frame_repr = epc.get_object_by_uuid(well_uuid)[0]
+    # print(frame_repr)
+    # print(epc.get_h5_file_paths(frame_repr))
+
+    print(epc.get_h5_file_paths())
+
+    print(epc.get_h5_file_paths(frame_repr))
+
+    print("Object type: ", type(frame_repr))
+
+    meshes = read_mesh_object(energyml_object=frame_repr, workspace=epc)
+
+    # Previous result :
+    # points:
+    #     [[   0.    0.    0.]
+    #     [   0.    0.  250.]
+    #     [   0.    0.  500.]
+    #     [   0.    0.  750.]
+    #     [   0.    0. 1000.]]
+    # line indices:
+    #     [[0 1]
+    #     [1 2]
+    #     [2 3]
+    #     [3 4]]
+
+    return meshes
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
@@ -386,7 +420,8 @@ if __name__ == "__main__":
     # meshes = read_wellbore_frame_repr()
     # meshes = read_representation_set_representation()
     # meshes = read_trset()
-    meshes = read_pointset()
+    # meshes = read_pointset()
+    meshes = read_wellbore_frame_repr_demo_jfr_02_26()
 
     print(f"Number of meshes read: {len(meshes)}")
 

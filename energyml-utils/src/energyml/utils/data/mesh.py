@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import sys
+import traceback
 import numpy as np
 from dataclasses import dataclass, field
 from enum import Enum
@@ -780,6 +781,8 @@ def read_wellbore_frame_representation(
         trajectory_dor = search_attribute_matching_name(obj=energyml_object, name_rgx="Trajectory")[0]
         trajectory_obj = workspace.get_object(get_obj_uri(trajectory_dor))
 
+        print(f"Mds {wellbore_frame_mds}")
+
         meshes = read_wellbore_trajectory_representation(
             energyml_object=trajectory_obj,
             workspace=workspace,
@@ -831,8 +834,8 @@ def read_wellbore_trajectory_representation(
     # Get CRS from trajectory geometry if available
     try:
         crs = workspace.get_object(get_obj_uri(get_object_attribute(energyml_object, "geometry.LocalCrs")))
-    except Exception as e:
-        logging.debug(f"Could not get CRS from trajectory geometry")
+    except Exception:
+        logging.debug("Could not get CRS from trajectory geometry")
 
     # ==========
     # MD Datum
@@ -853,14 +856,24 @@ def read_wellbore_trajectory_representation(
             md_datum_obj = workspace.get_object(md_datum_identifier)
 
             if md_datum_obj is not None:
-                head_x, head_y, head_z, z_increasing_downward, projected_epsg_code, vertical_epsg_code = (
+                head_x, head_y, head_z, z_increasing_downward, projected_epsg_code, vertical_epsg_code, crs = (
                     get_datum_information(md_datum_obj, workspace)
                 )
+                # if crs is None:
+                #     crs = get_crs_obj(
+                #         context_obj=md_datum_obj,
+                #         path_in_root=".",
+                #         root_obj=energyml_object,
+                #         workspace=workspace,
+                #     )
     except Exception as e:
         logging.debug(f"Could not get reference point / Datum from trajectory: {e}")
 
     # ==========
     well_points = None
+    logging.debug(
+        f"wellbore mds : {wellbore_frame_mds}\n\tCRs : {crs}\n\thead x,y,z : {head_x}, {head_y}, {head_z}\n\tz increasing downward : {z_increasing_downward}"
+    )
     try:
         x_offset, y_offset, z_offset, (azimuth, azimuth_uom) = get_crs_offsets_and_angle(crs, workspace)
         # Try to read parametric Geometry from the trajectory.
@@ -886,11 +899,13 @@ def read_wellbore_trajectory_representation(
                 head_y=head_y,
                 head_z=head_z,
                 wellbore_mds=wellbore_frame_mds,
+                z_increasing_downward=z_increasing_downward,
             )
         else:
+            traceback.print_exc()
             raise ValueError(
                 "Cannot read wellbore trajectory representation: no parametric geometry and no measured depth information available to generate points"
-            ) from e
+            )
 
     meshes = []
     if well_points is not None and len(well_points) > 0:

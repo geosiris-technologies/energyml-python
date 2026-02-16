@@ -49,6 +49,7 @@ from energyml.utils.epc_utils import (
     in_epc_file_path_to_mime_type,
     is_core_prop_or_extension_path,
     repair_epc_structure_if_not_valid,
+    get_file_folder,
 )
 from energyml.utils.storage_interface import (
     DataArrayMetadata,
@@ -1391,20 +1392,18 @@ class EpcStreamReader(EnergymlStorageInterface):
                 except KeyError:
                     pass
 
-        if len(h5_paths) == 0:
-            # search if an h5 file has the same name than the epc file
-            epc_folder = os.path.dirname(self.epc_file_path)
-            if epc_folder is not None and self.epc_file_path is not None:
-                epc_file_name = os.path.basename(self.epc_file_path)
-                epc_file_base, _ = os.path.splitext(epc_file_name)
-                possible_h5_path = os.path.join(epc_folder, epc_file_base + ".h5")
-                if os.path.exists(possible_h5_path):
-                    h5_paths.add(possible_h5_path)
-
         if make_path_absolute_from_epc_path:
-            return make_path_relative_to_filepath_list(list(h5_paths), self.epc_file_path)
-        else:
-            return list(h5_paths)
+            h5_paths = set(make_path_relative_to_filepath_list(list(h5_paths), self.epc_file_path))
+
+        if len(h5_paths) == 0:
+            # Collect all .h5 files in the EPC file's folder
+            epc_folder = get_file_folder(self.epc_file_path)
+            if epc_folder is not None and os.path.isdir(epc_folder):
+                for fname in os.listdir(epc_folder):
+                    if fname.lower().endswith(".h5"):
+                        h5_paths.add(os.path.join(epc_folder, fname))
+
+        return list(h5_paths)
 
     #    ________    ___   __________    __  _________________  ______  ____  _____
     #   / ____/ /   /   | / ___/ ___/   /  |/  / ____/_  __/ / / / __ \/ __ \/ ___/
