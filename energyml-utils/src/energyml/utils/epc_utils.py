@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import os
-import re
 from typing import Optional, Set, Tuple, Union, Any, List, Dict, Callable
 from pathlib import Path
 import zipfile
@@ -24,6 +23,8 @@ from energyml.opc.opc import (
     Default,
     Override,
 )
+
+from energyml.utils.exception import NotEnoughInformationError
 
 from energyml.utils.constants import (
     CORE_PROPERTIES_FOLDER_NAME,
@@ -65,7 +66,7 @@ from energyml.utils.introspection import (
 from energyml.utils.manager import get_class_pkg
 from energyml.utils.serialization import read_energyml_xml_str, serialize_xml, read_energyml_json_str
 from energyml.utils.uri import Uri, parse_uri
-
+from energyml.utils.storage_interface import ResourceMetadata
 
 #     ____  ___  ________  __
 #    / __ \/   |/_  __/ / / /
@@ -283,6 +284,32 @@ def make_path_relative_to_filepath_list(paths: List[str], ref_path: Optional[Uni
 #   / /|_/ // / \__ \/ /
 #  / /  / // / ___/ / /___
 # /_/  /_/___//____/\____/
+
+
+def as_identifier(identifier: Union[str, Uri, Any]) -> Optional[str]:
+    if identifier is None:
+        return None
+    elif isinstance(identifier, str):
+        if identifier.startswith("eml:///"):
+            return as_identifier(parse_uri(identifier))
+        if OptimizedRegex.UUID.fullmatch(identifier) is not None:
+            raise NotEnoughInformationError(
+                "Simple uuid is not enough to be used as an identifier, please provide a full URI or an object with a valid URI or identifier that contains the version : 'UUID.VERSION' even if VERSION can be an empty string"
+            )
+        else:
+            return identifier
+    elif isinstance(identifier, Uri):
+        return identifier.as_identifier()
+    elif isinstance(identifier, ResourceMetadata):
+        return as_identifier(identifier.identifier)
+    elif hasattr(identifier, "uri"):  # EpcObjectMetadata
+        return as_identifier(identifier.uri)
+    else:
+        # Try to get URI from object
+        obj_uri = get_obj_uri(obj=identifier, dataspace=None)
+        if obj_uri is not None:
+            return obj_uri.as_identifier()
+        return str(identifier)
 
 
 def create_external_relationship(path: str, _id: Optional[str] = None) -> Relationship:

@@ -58,12 +58,10 @@ from energyml.utils.storage_interface import (
 )
 from energyml.utils.uri import Uri, create_uri_from_content_type_or_qualified_type
 from energyml.utils.constants import (
-    CORE_PROPERTIES_FOLDER_NAME,
     EPCRelsRelationshipType,
     EpcExportVersion,
     MimeType,
     OptimizedRegex,
-    file_extension_to_mime_type,
     date_to_datetime,
 )
 from energyml.utils.epc_utils import (
@@ -72,6 +70,7 @@ from energyml.utils.epc_utils import (
     gen_core_props_path,
     make_path_relative_to_filepath_list,
     make_path_relative_to_other_file,
+    as_identifier,
 )
 
 from energyml.utils.introspection import (
@@ -1623,7 +1622,7 @@ class EpcStreamReader(EnergymlStorageInterface):
         identifier = uri.as_identifier()
         existing_metadata = self._metadata_mgr.get_metadata(identifier)
         file_path = gen_energyml_object_path(obj, self._metadata_mgr._export_version)
-        is_update = existing_metadata is not None
+        # is_update = existing_metadata is not None
 
         # Write object data and metadata to EPC
         try:
@@ -2082,38 +2081,23 @@ class EpcStreamReader(EnergymlStorageInterface):
     def _id_from_uri_or_identifier(
         self, identifier: Union[str, Uri, Any], get_first_if_simple_uuid: bool = True
     ) -> Optional[str]:
-        if identifier is None:
-            return None
-        elif isinstance(identifier, str):
-            if OptimizedRegex.UUID.fullmatch(identifier) is not None:
-                if not get_first_if_simple_uuid:
-                    logging.warning(
-                        f"Identifier {identifier} is a simple UUID, but get_first_if_simple_uuid is False, cannot resolve to full identifier"
-                    )
-                    return None
-                # If it's a simple UUID, we need to find the corresponding identifier from metadata
-                t_metadata_identifiers = self._metadata_mgr.get_uuid_identifiers(identifier)
-                if t_metadata_identifiers is not None and len(t_metadata_identifiers) > 0:
-                    return t_metadata_identifiers[
-                        0
-                    ]  # If multiple metadata entries for the same UUID, we take the first one (this should not happen in a well-formed EPC file)
-                else:
-                    logging.warning(f"No metadata found for UUID {identifier}, cannot get relationships")
-                    return None
+        try:
+            return as_identifier(identifier)
+        except Exception:
+            if not get_first_if_simple_uuid:
+                logging.warning(
+                    f"Identifier {identifier} is a simple UUID, but get_first_if_simple_uuid is False, cannot resolve to full identifier"
+                )
+                return None
+            # If it's a simple UUID, we need to find the corresponding identifier from metadata
+            t_metadata_identifiers = self._metadata_mgr.get_uuid_identifiers(identifier)
+            if t_metadata_identifiers is not None and len(t_metadata_identifiers) > 0:
+                return t_metadata_identifiers[
+                    0
+                ]  # If multiple metadata entries for the same UUID, we take the first one (this should not happen in a well-formed EPC file)
             else:
-                return identifier
-        elif isinstance(identifier, Uri):
-            return identifier.as_identifier()
-        elif isinstance(identifier, ResourceMetadata):
-            return self._id_from_uri_or_identifier(identifier.identifier)
-        elif isinstance(identifier, EpcObjectMetadata):
-            return self._id_from_uri_or_identifier(identifier.uri)
-        else:
-            # Try to get URI from object
-            obj_uri = get_obj_uri(obj=identifier, dataspace=None)
-            if obj_uri is not None:
-                return obj_uri.as_identifier()
-            return str(identifier)
+                logging.warning(f"No metadata found for UUID {identifier}, cannot get relationships")
+            return None
 
     def _rebuild_all_rels_sequential(self, clean_first: bool = True) -> Dict[str, int]:
         """

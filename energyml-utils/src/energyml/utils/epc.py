@@ -67,6 +67,7 @@ from energyml.utils.epc_utils import (
     get_file_folder,
     make_path_relative_to_other_file,
     make_path_relative_to_filepath_list,
+    as_identifier,
 )
 
 
@@ -150,7 +151,8 @@ class EnergymlObjectCollection:
     def get_by_identifier(self, identifier: Union[str, Uri]) -> Optional[Any]:
         """Get object by identifier (O(1) lookup)."""
         # Try identifier lookup first
-        obj = self._by_identifier.get(str(identifier))
+        # obj = self._by_identifier.get(str(identifier))
+        obj = self._by_identifier.get(as_identifier(identifier))
         if obj is not None:
             return obj
 

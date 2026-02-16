@@ -275,8 +275,8 @@ def read_point_representation(
     ) + search_attribute_matching_name_with_path(  # resqml 2.0.1
         energyml_object, r"NodePatchGeometry.[\d]+.Points"
     )
-    logging.debug(f"Found {len(patches_geom)} patches for point representation")
-    logging.debug(f"\t=> {patches_geom}")
+    # logging.debug(f"Found {len(patches_geom)} patches for point representation")
+    # logging.debug(f"\t=> {patches_geom}")
 
     for points_path_in_obj, points_obj in patches_geom:
         points = read_array(

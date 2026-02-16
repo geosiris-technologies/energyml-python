@@ -365,6 +365,8 @@ def read_pointset(
     # meshes = []
     meshes = read_mesh_object(energyml_object=pointset, workspace=epc)
 
+    print(epc.get_obj_rels(pointset))
+
     # logging.debug("=" * 40)
     # print_tuple_list(search_attribute_matching_name_with_path(pointset, r"NodePatch.[\d]+.Geometry.Points"))
     # logging.debug("=" * 40)

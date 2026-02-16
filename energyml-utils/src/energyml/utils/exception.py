@@ -48,6 +48,13 @@ class NotSupportedError(Exception):
         super().__init__(msg)
 
 
+class NotEnoughInformationError(Exception):
+    """Exception for not enough information to perform an operation"""
+
+    def __init__(self, msg):
+        super().__init__(msg)
+
+
 # EPC Validation Exceptions
 
 
