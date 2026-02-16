@@ -1072,7 +1072,7 @@ def read_property_interpreted_with_cbt(
             elif isinstance(category_lookup_data, dict):
                 # Transpose so that each index corresponds to a category (column), not a row
                 category_lookup_matrice = np.array(list(category_lookup_data.values())).T
-                print(f"category_lookup_matrice : {category_lookup_matrice}")
+                # logging.debug(f"category_lookup_matrice : {category_lookup_matrice}")
                 # return a matrice with the same shape as prop_arrays but with the values from the category lookup array using the prop value as key in the category lookup array
                 result = (
                     np.array(
@@ -1251,7 +1251,7 @@ def read_column_based_table(
 def read_time_series(
     energyml_object: Any,
     workspace: EnergymlStorageInterface,
-) -> List[Dict[str, Tuple[str, int]]]:
+) -> List[Tuple[str, int]]:
     """
     Read a time series from an Energyml object.
 

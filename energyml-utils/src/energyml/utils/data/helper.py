@@ -759,19 +759,17 @@ def _array_name_mapping(array_type_name: str) -> str:
     :param array_type_name:
     :return:
     """
-    array_type_name = array_type_name.replace("3D", "3d").replace("2D", "2d").lower()
-    # logging.debug(f"=============> Mapping array type name '{array_type_name}' to reader function name...")
-    if array_type_name.endswith("constantarray"):
+    array_type_name = array_type_name.replace("3D", "3d").replace("2D", "2d")
+    if array_type_name.endswith("ConstantArray"):
         return "ConstantArray"
-    elif "external" in array_type_name or "hdf5" in array_type_name:
+    elif "External" in array_type_name or "Hdf5" in array_type_name:
         return "ExternalArray"
-    elif "xml" in array_type_name:
-        # logging.debug("=============> XML array detected, be careful with the performance !")
+    elif "Xml" in array_type_name:
         return "XmlArray"
-    elif "jagged" in array_type_name:
+    elif "Jagged" in array_type_name:
         return "JaggedArray"
-    elif "lattice" in array_type_name:
-        if "integer" in array_type_name or "double" in array_type_name or "floatingpoint" in array_type_name:
+    elif "Lattice" in array_type_name:
+        if "Integer" in array_type_name or "Double" in array_type_name or "Floating" in array_type_name:
             return "int_double_lattice_array"
     return array_type_name
 

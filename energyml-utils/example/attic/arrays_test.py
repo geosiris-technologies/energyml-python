@@ -17,7 +17,7 @@ from energyml.utils.data.mesh import (
 from energyml.utils.storage_interface import EnergymlStorageInterface
 from energyml.utils.epc import Epc
 from energyml.utils.epc_stream import EpcStreamReader, RelsUpdateMode
-from energyml.utils.introspection import get_obj_title
+from energyml.utils.introspection import get_obj_title, search_attribute_matching_name, get_object_attribute
 from energyml.resqml.v2_2.resqmlv2 import Point3DLatticeArray
 from energyml.eml.v2_3.commonv2 import TimeSeries
 from energyml.eml.v2_1.commonv2 import TimeSeries as TimeSeries21
@@ -299,6 +299,8 @@ def read_props_and_cbt(
                         _return_none_if_no_category_lookup=True,
                     )
                 print("=" * 40)
+                # print("TS: ", search_attribute_matching_name(prop_or_cbt, "\\w*.time_series"))
+                # print(f"\t {get_object_attribute(prop_or_cbt, 'time_or_interval_series.time_series')}")
                 print(f"{type(prop_or_cbt)} : {get_obj_title(prop_or_cbt)} - uuid: {uuid}")
                 print(array)
 

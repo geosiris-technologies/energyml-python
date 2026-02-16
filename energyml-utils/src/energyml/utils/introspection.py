@@ -387,6 +387,51 @@ def get_class_attribute_type(cls: Union[type, Any], attribute_name: str):
     return None
 
 
+def get_all_matching_class_attribute_name(
+    cls: Union[type, Any],
+    attribute_name: str,
+    re_flags=re.IGNORECASE,
+) -> List[str]:
+    """
+    From an object and an attribute name, returns all the correct attribute names of the class matching with the attribute_name.
+     Example : "\\w*.Version" --> ["object_version", "ObjectVersion", "obj_version", ...]
+     This method doesn't only transform to snake case but search into the obj class attributes (or dict keys)
+    """
+    matching_names = []
+    if isinstance(cls, dict):
+        for name in cls.keys():
+            if snake_case(name) == snake_case(attribute_name):
+                matching_names.append(name)
+        pattern = re.compile(attribute_name, flags=re_flags)
+        for name in cls.keys():
+            if pattern.match(name):
+                matching_names.append(name)
+        return matching_names
+    else:
+        class_fields = get_class_fields(cls)
+        try:
+            # a search with the exact value
+            for name, cf in class_fields.items():
+                if snake_case(name) == snake_case(attribute_name) or (
+                    hasattr(cf, "metadata") and "name" in cf.metadata and cf.metadata["name"] == attribute_name
+                ):
+                    matching_names.append(name)
+
+            # search regex after to avoid shadowing perfect match
+            pattern = re.compile(attribute_name, flags=re_flags)
+            for name, cf in class_fields.items():
+                # logging.error(f"\t->{name} : {attribute_name} {pattern.match(name)} {('name' in cf.metadata and pattern.match(cf.metadata['name']))}")
+                if pattern.match(name) or (
+                    hasattr(cf, "metadata") and "name" in cf.metadata and pattern.match(cf.metadata["name"])
+                ):
+                    matching_names.append(name)
+        except Exception as e:
+            logging.error(f"Failed to get attribute {attribute_name} from class {cls}")
+            logging.error(e)
+
+    return matching_names
+
+
 def get_matching_class_attribute_name(
     cls: Union[type, Any],
     attribute_name: str,
@@ -397,36 +442,9 @@ def get_matching_class_attribute_name(
     Example : "ObjectVersion" --> object_version.
     This method doesn't only transform to snake case but search into the obj class attributes (or dict keys)
     """
-    if isinstance(cls, dict):
-        for name in cls.keys():
-            if snake_case(name) == snake_case(attribute_name):
-                return name
-        pattern = re.compile(attribute_name, flags=re_flags)
-        for name in cls.keys():
-            if pattern.match(name):
-                return name
-    else:
-        class_fields = get_class_fields(cls)
-        try:
-            # a search with the exact value
-            for name, cf in class_fields.items():
-                if snake_case(name) == snake_case(attribute_name) or (
-                    hasattr(cf, "metadata") and "name" in cf.metadata and cf.metadata["name"] == attribute_name
-                ):
-                    return name
-
-            # search regex after to avoid shadowing perfect match
-            pattern = re.compile(attribute_name, flags=re_flags)
-            for name, cf in class_fields.items():
-                # logging.error(f"\t->{name} : {attribute_name} {pattern.match(name)} {('name' in cf.metadata and pattern.match(cf.metadata['name']))}")
-                if pattern.match(name) or (
-                    hasattr(cf, "metadata") and "name" in cf.metadata and pattern.match(cf.metadata["name"])
-                ):
-                    return name
-        except Exception as e:
-            logging.error(f"Failed to get attribute {attribute_name} from class {cls}")
-            logging.error(e)
-
+    matched = get_all_matching_class_attribute_name(cls, attribute_name, re_flags)
+    if len(matched) > 0:
+        return matched[0]
     return None
 
 
@@ -931,8 +949,9 @@ def search_attribute_matching_name_with_path(
             else:
                 not_match_path_and_obj.append((f"{current_path}{k}", s_o))
     elif not is_primitive(obj):
-        match_value = get_matching_class_attribute_name(obj, current_match.replace("\\.", "."))
-        if match_value is not None:
+        # logging.debug(f"searching {current_match} in {type(obj)} with path {current_path} and next match {next_match}")
+        match_values = get_all_matching_class_attribute_name(obj, current_match, re_flags)
+        for match_value in match_values:
             match_path_and_obj.append(
                 (
                     f"{current_path}{match_value}",
@@ -940,13 +959,14 @@ def search_attribute_matching_name_with_path(
                 )
             )
         for att_name in get_class_attributes(obj):
-            if att_name != match_value:
+            if att_name not in match_values:
                 not_match_path_and_obj.append(
                     (
                         f"{current_path}{att_name}",
                         get_object_attribute_no_verif(obj, att_name),
                     )
                 )
+        # logging.debug(f"\tmatch_path_and_obj: {match_path_and_obj}")
 
     for matched_path, matched in match_path_and_obj:
         if next_match is not None:  # next_match is different, match is not final
