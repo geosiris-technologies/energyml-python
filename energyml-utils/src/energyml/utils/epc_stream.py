@@ -33,7 +33,7 @@ from energyml.opc.opc import (
     Relationship,
 )
 from energyml.utils.data.datasets_io import (
-    FileCacheManager,
+    # FileCacheManager,
     get_handler_registry,
 )
 from energyml.utils.epc_utils import (
@@ -1232,7 +1232,7 @@ class EpcStreamReader(EnergymlStorageInterface):
         self._rels_mgr = _RelationshipManager(self._zip_accessor, self._metadata_mgr, self.stats, rels_update_mode)
 
         # Initialize file cache manager for external array files (HDF5, Parquet, CSV, etc.)
-        self._file_cache = FileCacheManager(max_open_files=3)
+        # self._file_cache = FileCacheManager(max_open_files=3)
         self._handler_registry = get_handler_registry()
 
         # Register atexit handler to ensure cleanup on program shutdown
@@ -1749,54 +1749,76 @@ class EpcStreamReader(EnergymlStorageInterface):
             logging.warning(f"No external file paths found for proxy: {proxy}")
             return None
 
-        # Keep track of which paths we've tried from cache vs from scratch
-        cached_paths = [p for p in file_paths if p in self._file_cache]
-        non_cached_paths = [p for p in file_paths if p not in self._file_cache]
+        # Get the file handler registry
+        handler_registry = get_handler_registry()
 
-        # Try cached files first (most recently used first)
-        for file_path in cached_paths:
-            handler = self._handler_registry.get_handler_for_file(file_path)
+        for file_path in file_paths:
+            # Get the appropriate handler for this file type
+            handler = handler_registry.get_handler_for_file(file_path)
             if handler is None:
                 logging.debug(f"No handler found for file: {file_path}")
                 continue
 
             try:
-                # Get cached file handle
-                file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
-                if file_handle is not None:
-                    # Try to read from cached handle with sub-selection
-                    result = handler.read_array(file_handle, path_in_external, start_indices, counts)
-                    if result is not None:
-                        return result
+                # Use handler to read array with sub-selection support
+                array = handler.read_array(file_path, path_in_external, start_indices, counts)
+                if array is not None:
+                    return array
             except Exception as e:
-                logging.debug(f"Failed to read from cached file {file_path}: {e}")
-                # Remove from cache if it's causing issues
-                self._file_cache.remove(file_path)
-
-        # Try non-cached files
-        for file_path in non_cached_paths:
-            handler = self._handler_registry.get_handler_for_file(file_path)
-            if handler is None:
-                logging.debug(f"No handler found for file: {file_path}")
-                continue
-
-            try:
-                # Try to open and read, which will add to cache if successful
-                file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
-                if file_handle is not None:
-                    result = handler.read_array(file_handle, path_in_external, start_indices, counts)
-                    if result is not None:
-                        return result
-                else:
-                    # Cache failed, try direct read without caching
-                    result = handler.read_array(file_path, path_in_external, start_indices, counts)
-                    if result is not None:
-                        return result
-            except Exception as e:
-                logging.debug(f"Failed to read from file {file_path}: {e}")
+                logging.debug(f"Failed to read dataset from {file_path}: {e}")
+                pass
 
         logging.error(f"Failed to read array from any available file paths: {file_paths}")
         return None
+
+        # # Keep track of which paths we've tried from cache vs from scratch
+        # cached_paths = [p for p in file_paths if p in self._file_cache]
+        # non_cached_paths = [p for p in file_paths if p not in self._file_cache]
+
+        # # Try cached files first (most recently used first)
+        # for file_path in cached_paths:
+        #     handler = self._handler_registry.get_handler_for_file(file_path)
+        #     if handler is None:
+        #         logging.debug(f"No handler found for file: {file_path}")
+        #         continue
+
+        #     try:
+        #         # Get cached file handle
+        #         file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
+        #         if file_handle is not None:
+        #             # Try to read from cached handle with sub-selection
+        #             result = handler.read_array(file_handle, path_in_external, start_indices, counts)
+        #             if result is not None:
+        #                 return result
+        #     except Exception as e:
+        #         logging.debug(f"Failed to read from cached file {file_path}: {e}")
+        #         # Remove from cache if it's causing issues
+        #         self._file_cache.remove(file_path)
+
+        # # Try non-cached files
+        # for file_path in non_cached_paths:
+        #     handler = self._handler_registry.get_handler_for_file(file_path)
+        #     if handler is None:
+        #         logging.debug(f"No handler found for file: {file_path}")
+        #         continue
+
+        #     try:
+        #         # Try to open and read, which will add to cache if successful
+        #         file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
+        #         if file_handle is not None:
+        #             result = handler.read_array(file_handle, path_in_external, start_indices, counts)
+        #             if result is not None:
+        #                 return result
+        #         else:
+        #             # Cache failed, try direct read without caching
+        #             result = handler.read_array(file_path, path_in_external, start_indices, counts)
+        #             if result is not None:
+        #                 return result
+        #     except Exception as e:
+        #         logging.debug(f"Failed to read from file {file_path}: {e}")
+
+        # logging.error(f"Failed to read array from any available file paths: {file_paths}")
+        # return None
 
     def write_array(
         self,
@@ -1845,49 +1867,71 @@ class EpcStreamReader(EnergymlStorageInterface):
             logging.warning(f"No external file paths found for proxy: {proxy}")
             return False
 
+        # Get the file handler registry
+        handler_registry = get_handler_registry()
+
         # Try to write to the first available file
-        # For writes, we prefer cached files first, then non-cached
-        cached_paths = [p for p in file_paths if p in self._file_cache]
-        non_cached_paths = [p for p in file_paths if p not in self._file_cache]
-
-        # Try cached files first
-        for file_path in cached_paths:
-            handler = self._handler_registry.get_handler_for_file(file_path)
+        for file_path in file_paths:
+            # Get the appropriate handler for this file type
+            handler = handler_registry.get_handler_for_file(file_path)
             if handler is None:
+                logging.debug(f"No handler found for file: {file_path}")
                 continue
 
             try:
-                file_handle = self._file_cache.get_or_open(file_path, handler, mode="a")
-                if file_handle is not None:
-                    success = handler.write_array(file_handle, array, path_in_external, start_indices, **kwargs)
-                    if success:
-                        return True
+                # Use handler to write array with optional partial write support
+                success = handler.write_array(file_path, array, path_in_external, start_indices, **kwargs)
+                if success:
+                    return True
             except Exception as e:
-                logging.debug(f"Failed to write to cached file {file_path}: {e}")
-                self._file_cache.remove(file_path)
+                logging.error(f"Failed to write dataset to {file_path}: {e}")
 
-        # Try non-cached files
-        for file_path in non_cached_paths:
-            handler = self._handler_registry.get_handler_for_file(file_path)
-            if handler is None:
-                continue
-
-            try:
-                # Open in append mode and add to cache
-                file_handle = self._file_cache.get_or_open(file_path, handler, mode="a")
-                if file_handle is not None:
-                    success = handler.write_array(file_handle, array, path_in_external, start_indices, **kwargs)
-                    if success:
-                        return True
-                else:
-                    # Cache failed, try direct write
-                    success = handler.write_array(file_path, array, path_in_external, start_indices, **kwargs)
-                    if success:
-                        return True
-            except Exception as e:
-                logging.error(f"Failed to write to file {file_path}: {e}")
-
+        logging.error(f"Failed to write array to any available file paths: {file_paths}")
         return False
+
+        # # Try to write to the first available file
+        # # For writes, we prefer cached files first, then non-cached
+        # cached_paths = [p for p in file_paths if p in self._file_cache]
+        # non_cached_paths = [p for p in file_paths if p not in self._file_cache]
+
+        # # Try cached files first
+        # for file_path in cached_paths:
+        #     handler = self._handler_registry.get_handler_for_file(file_path)
+        #     if handler is None:
+        #         continue
+
+        #     try:
+        #         file_handle = self._file_cache.get_or_open(file_path, handler, mode="a")
+        #         if file_handle is not None:
+        #             success = handler.write_array(file_handle, array, path_in_external, start_indices, **kwargs)
+        #             if success:
+        #                 return True
+        #     except Exception as e:
+        #         logging.debug(f"Failed to write to cached file {file_path}: {e}")
+        #         self._file_cache.remove(file_path)
+
+        # # Try non-cached files
+        # for file_path in non_cached_paths:
+        #     handler = self._handler_registry.get_handler_for_file(file_path)
+        #     if handler is None:
+        #         continue
+
+        #     try:
+        #         # Open in append mode and add to cache
+        #         file_handle = self._file_cache.get_or_open(file_path, handler, mode="a")
+        #         if file_handle is not None:
+        #             success = handler.write_array(file_handle, array, path_in_external, start_indices, **kwargs)
+        #             if success:
+        #                 return True
+        #         else:
+        #             # Cache failed, try direct write
+        #             success = handler.write_array(file_path, array, path_in_external, start_indices, **kwargs)
+        #             if success:
+        #                 return True
+        #     except Exception as e:
+        #         logging.error(f"Failed to write to file {file_path}: {e}")
+
+        # return False
 
     def get_array_metadata(
         self,
@@ -1922,21 +1966,19 @@ class EpcStreamReader(EnergymlStorageInterface):
         if not file_paths:
             logging.warning(f"No external file paths found for proxy: {proxy}")
             return None
+        # Get the file handler registry
+        handler_registry = get_handler_registry()
 
-        # Try cached files first
-        cached_paths = [p for p in file_paths if p in self._file_cache]
-        non_cached_paths = [p for p in file_paths if p not in self._file_cache]
-
-        for file_path in cached_paths + non_cached_paths:
-            handler = self._handler_registry.get_handler_for_file(file_path)
+        for file_path in file_paths:
+            # Get the appropriate handler for this file type
+            handler = handler_registry.get_handler_for_file(file_path)
             if handler is None:
+                logging.debug(f"No handler found for file: {file_path}")
                 continue
 
             try:
-                file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
-                source = file_handle if file_handle is not None else file_path
-
-                metadata_dict = handler.get_array_metadata(source, path_in_external, start_indices, counts)
+                # Use handler to get metadata without loading full array
+                metadata_dict = handler.get_array_metadata(file_path, path_in_external, start_indices, counts)
 
                 if metadata_dict is None:
                     continue
@@ -1965,6 +2007,48 @@ class EpcStreamReader(EnergymlStorageInterface):
                 logging.debug(f"Failed to get metadata from file {file_path}: {e}")
 
         return None
+        # # Try cached files first
+        # cached_paths = [p for p in file_paths if p in self._file_cache]
+        # non_cached_paths = [p for p in file_paths if p not in self._file_cache]
+
+        # for file_path in cached_paths + non_cached_paths:
+        #     handler = self._handler_registry.get_handler_for_file(file_path)
+        #     if handler is None:
+        #         continue
+
+        #     try:
+        #         file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
+        #         source = file_handle if file_handle is not None else file_path
+
+        #         metadata_dict = handler.get_array_metadata(source, path_in_external, start_indices, counts)
+
+        #         if metadata_dict is None:
+        #             continue
+
+        #         # Convert dict(s) to DataArrayMetadata
+        #         if isinstance(metadata_dict, list):
+        #             return [
+        #                 DataArrayMetadata(
+        #                     path_in_resource=m.get("path"),
+        #                     array_type=m.get("dtype", "unknown"),
+        #                     dimensions=m.get("shape", []),
+        #                     start_indices=start_indices,
+        #                     custom_data={"size": m.get("size", 0)},
+        #                 )
+        #                 for m in metadata_dict
+        #             ]
+        #         else:
+        #             return DataArrayMetadata(
+        #                 path_in_resource=metadata_dict.get("path"),
+        #                 array_type=metadata_dict.get("dtype", "unknown"),
+        #                 dimensions=metadata_dict.get("shape", []),
+        #                 start_indices=start_indices,
+        #                 custom_data={"size": metadata_dict.get("size", 0)},
+        #             )
+        #     except Exception as e:
+        #         logging.debug(f"Failed to get metadata from file {file_path}: {e}")
+
+        # return None
 
     def list_objects(
         self, dataspace: Optional[str] = None, object_type: Optional[str] = None

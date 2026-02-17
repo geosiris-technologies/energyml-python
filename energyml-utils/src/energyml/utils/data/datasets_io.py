@@ -729,158 +729,9 @@ def get_proxy_uri_for_path_in_external(obj: Any, dataspace_name_or_uri: Union[st
 # FILE CACHE MANAGER AND HANDLER REGISTRY
 # ===========================================================================================
 
-from collections import OrderedDict
+
 from typing import Callable
 from energyml.utils.data.model import ExternalArrayHandler
-
-
-class FileCacheManager:
-    """
-    Manages a cache of open file handles to avoid reopening overhead.
-
-    Keeps up to `max_open_files` (default 3) files open using an LRU strategy.
-    When a file is accessed, it moves to the front of the cache. When the cache
-    is full, the least recently used file is closed and removed.
-
-    Features:
-    - Thread-safe access to file handles
-    - Automatic cleanup of least-recently-used files
-    - Support for any file type with proper handlers
-    - Explicit close() method for cleanup
-    """
-
-    def __init__(self, max_open_files: int = 3):
-        """
-        Initialize file cache manager.
-
-        Args:
-            max_open_files: Maximum number of files to keep open simultaneously
-        """
-        self.max_open_files = max_open_files
-        self._cache: OrderedDict[str, Any] = OrderedDict()  # file_path -> open file handle
-        self._handlers: Dict[str, ExternalArrayHandler] = {}  # file_path -> handler instance
-
-    def get_or_open(self, file_path: str, handler: ExternalArrayHandler, mode: str = "r") -> Optional[Any]:
-        """
-        Get an open file handle from cache, or open it if not cached.
-
-        Args:
-            file_path: Path to the file
-            handler: Handler instance that knows how to open this file type
-            mode: File open mode ('r', 'a', etc.)
-
-        Returns:
-            Open file handle, or None if opening failed
-        """
-        # Normalize path
-        file_path = os.path.abspath(file_path) if os.path.exists(file_path) else file_path
-
-        # Check cache first
-        if file_path in self._cache:
-            # Move to end (most recently used)
-            self._cache.move_to_end(file_path)
-            return self._cache[file_path]
-
-        # Not in cache - try to open it
-        try:
-            file_handle = self._open_file(file_path, mode)
-            if file_handle is None:
-                return None
-
-            # Add to cache
-            self._cache[file_path] = file_handle
-            self._handlers[file_path] = handler
-            self._cache.move_to_end(file_path)
-
-            # Evict oldest if cache is full
-            if len(self._cache) > self.max_open_files:
-                self._evict_oldest()
-
-            return file_handle
-
-        except Exception as e:
-            logging.debug(f"Failed to open file {file_path}: {e}")
-            return None
-
-    def _open_file(self, file_path: str, mode: str) -> Optional[Any]:
-        """
-        Open a file based on its extension.
-
-        Args:
-            file_path: Path to the file
-            mode: File open mode
-
-        Returns:
-            Open file handle specific to the file type
-        """
-        ext = os.path.splitext(file_path)[1].lower()
-
-        if ext in [".h5", ".hdf5"] and __H5PY_MODULE_EXISTS__:
-            return h5py.File(file_path, mode)  # type: ignore
-        # Add other file types as needed
-        # For now, other types will be opened on-demand by their handlers
-
-        return None
-
-    def _evict_oldest(self) -> None:
-        """Remove the least recently used file from cache."""
-        if not self._cache:
-            return
-
-        # Get oldest (first) item
-        oldest_path, oldest_handle = self._cache.popitem(last=False)
-
-        # Close the file handle
-        try:
-            if hasattr(oldest_handle, "close"):
-                oldest_handle.close()
-        except Exception as e:
-            logging.debug(f"Error closing cached file {oldest_path}: {e}")
-
-        # Remove handler reference
-        if oldest_path in self._handlers:
-            del self._handlers[oldest_path]
-
-    def close_all(self) -> None:
-        """Close all cached file handles."""
-        for file_path, file_handle in list(self._cache.items()):
-            try:
-                if hasattr(file_handle, "close"):
-                    file_handle.close()
-            except Exception as e:
-                logging.debug(f"Error closing file {file_path}: {e}")
-
-        self._cache.clear()
-        self._handlers.clear()
-
-    def remove(self, file_path: str) -> None:
-        """
-        Remove a specific file from cache and close it.
-
-        Args:
-            file_path: Path to the file to remove
-        """
-        file_path = os.path.abspath(file_path) if os.path.exists(file_path) else file_path
-
-        if file_path in self._cache:
-            file_handle = self._cache.pop(file_path)
-            try:
-                if hasattr(file_handle, "close"):
-                    file_handle.close()
-            except Exception as e:
-                logging.debug(f"Error closing file {file_path}: {e}")
-
-        if file_path in self._handlers:
-            del self._handlers[file_path]
-
-    def __len__(self) -> int:
-        """Return number of cached files."""
-        return len(self._cache)
-
-    def __contains__(self, file_path: str) -> bool:
-        """Check if a file is in cache."""
-        file_path = os.path.abspath(file_path) if os.path.exists(file_path) else file_path
-        return file_path in self._cache
 
 
 class FileHandlerRegistry:
@@ -897,11 +748,11 @@ class FileHandlerRegistry:
             array = handler.read_array("data.h5", "/dataset/path")
     """
 
-    def __init__(self):
+    def __init__(self, max_open_files: int = 3):
         self._handlers: Dict[str, Callable[[], ExternalArrayHandler]] = {}
-        self._register_default_handlers()
+        self._register_default_handlers(max_open_files)
 
-    def _register_default_handlers(self) -> None:
+    def _register_default_handlers(self, max_open_files: int) -> None:
         """Register all available handlers based on installed dependencies."""
         # HDF5 Handler
         if __H5PY_MODULE_EXISTS__:
@@ -993,6 +844,17 @@ if __H5PY_MODULE_EXISTS__:
     class HDF5ArrayHandler(ExternalArrayHandler):
         """Handler for HDF5 files (.h5, .hdf5)."""
 
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open an HDF5 file without using the cache."""
+            try:
+                return h5py.File(file_path, mode)  # type: ignore
+            except Exception as e:
+                logging.error(f"Failed to open HDF5 file {file_path}: {e}")
+                return None
+
         def read_array(
             self,
             source: Union[BytesIO, str, Any],
@@ -1012,7 +874,7 @@ if __H5PY_MODULE_EXISTS__:
                     return full_array
                 return None
             else:
-                with h5py.File(source, "r") as f:  # type: ignore
+                with self.file_cache.get_or_open(source, self, "r") as f:  # type: ignore
                     return self.read_array(f, path_in_external_file, start_indices, counts)
 
         def write_array(
@@ -1049,8 +911,16 @@ if __H5PY_MODULE_EXISTS__:
                         dset = target.create_dataset(path_in_external_file, array.shape, dtype or array.dtype)
                         dset[()] = array
                 else:
-                    with h5py.File(target, "a") as f:  # type: ignore
-                        return self.write_array(f, array, path_in_external_file, start_indices, **kwargs)
+                    # with self.file_cache.get_or_open(target, self, "a") as f:  # type: ignore
+                    # return self.write_array(f, array, path_in_external_file, start_indices, **kwargs)
+                    return self.write_array(
+                        self.file_cache.get_or_open(target, self, "a"),
+                        array,
+                        path_in_external_file,
+                        start_indices,
+                        **kwargs,
+                    )
+
                 return True
             except Exception as e:
                 logging.error(f"Failed to write array to HDF5: {e}")
@@ -1087,8 +957,11 @@ if __H5PY_MODULE_EXISTS__:
                         datasets = h5_list_datasets(source)
                         return [self.get_array_metadata(source, ds, start_indices, counts) for ds in datasets]
                 else:
-                    with h5py.File(source, "r") as f:  # type: ignore
-                        return self.get_array_metadata(f, path_in_external_file, start_indices, counts)
+                    # with self.file_cache.get_or_open(source, self, "r") as f:  # type: ignore
+                    #     return self.get_array_metadata(f, path_in_external_file, start_indices, counts)
+                    return self.get_array_metadata(
+                        self.file_cache.get_or_open(source, self, "r"), path_in_external_file, start_indices, counts
+                    )
             except Exception as e:
                 logging.debug(f"Failed to get HDF5 metadata: {e}")
                 return None
@@ -1106,6 +979,13 @@ else:
 
     class MockHDF5ArrayHandler(ExternalArrayHandler):
         """Mock handler when h5py is not installed."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open an HDF5 file without using the cache."""
+            return None
 
         def read_array(
             self,
@@ -1147,6 +1027,17 @@ if __PARQUET_MODULE_EXISTS__:
 
     class ParquetArrayHandler(ExternalArrayHandler):
         """Handler for Parquet files (.parquet, .pq)."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a Parquet file without using the cache."""
+            try:
+                return pq.ParquetFile(file_path)  # type: ignore
+            except Exception as e:
+                logging.error(f"Failed to open Parquet file {file_path}: {e}")
+                return None
 
         def read_array(
             self,
@@ -1279,6 +1170,13 @@ else:
     class MockParquetArrayHandler(ExternalArrayHandler):
         """Mock handler when parquet libraries are not installed."""
 
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a Parquet file without using the cache."""
+            return None
+
         def read_array(
             self,
             source: Union[BytesIO, str, Any],
@@ -1319,6 +1217,17 @@ if __CSV_MODULE_EXISTS__:
 
     class CSVArrayHandler(ExternalArrayHandler):
         """Handler for CSV files (.csv, .txt, .dat)."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a CSV file without using the cache."""
+            try:
+                return open(file_path, mode)
+            except Exception as e:
+                logging.error(f"Failed to open CSV file {file_path}: {e}")
+                return None
 
         def read_array(
             self,
@@ -1399,6 +1308,17 @@ if __LASIO_MODULE_EXISTS__:
 
     class LASArrayHandler(ExternalArrayHandler):
         """Handler for LAS (Log ASCII Standard) files (.las)."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a LAS file without using the cache."""
+            try:
+                return lasio.read(file_path)  # type: ignore
+            except Exception as e:
+                logging.error(f"Failed to open LAS file {file_path}: {e}")
+                return None
 
         def read_array(
             self,
@@ -1597,6 +1517,13 @@ else:
     class MockLASArrayHandler(ExternalArrayHandler):
         """Mock handler when lasio is not installed."""
 
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a LAS file without using the cache."""
+            return None
+
         def read_array(
             self,
             source: Union[BytesIO, str, Any],
@@ -1639,6 +1566,17 @@ if __SEGYIO_MODULE_EXISTS__:
 
     class SEGYArrayHandler(ExternalArrayHandler):
         """Handler for SEG-Y seismic files (.sgy, .segy)."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a SEG-Y file without using the cache."""
+            try:
+                return segyio.open(file_path, mode, ignore_geometry=True)  # type: ignore
+            except Exception as e:
+                logging.error(f"Failed to open SEG-Y file {file_path}: {e}")
+                return None
 
         def read_array(
             self,
@@ -1808,6 +1746,13 @@ else:
 
     class MockSEGYArrayHandler(ExternalArrayHandler):
         """Mock handler when segyio is not installed."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a SEG-Y file without using the cache."""
+            return None
 
         def read_array(
             self,

@@ -2,6 +2,7 @@ import logging
 from sqlite3 import NotSupportedError
 import traceback
 from typing import List, Optional
+from energyml.utils.data.datasets_io import get_handler_registry
 import numpy as np
 from energyml.utils.data.helper import _ARRAY_NAMES_, read_array
 from energyml.utils.data.mesh import (
@@ -412,16 +413,65 @@ def read_wellbore_frame_repr_demo_jfr_02_26(
     return meshes
 
 
+def test_read_write_array(h5_path):
+
+    handler_registry = get_handler_registry()
+
+    h5_handler = handler_registry.get_handler_for_file(h5_path)
+    if h5_handler is None:
+        print(f"No handler found for file {h5_path}")
+        return
+    h5_handler.write_array(
+        array=np.array([[1, 2, 3], [4, 5, 6]]),
+        target=h5_path,
+        path_in_external_file="/test_array",
+    )
+
+    h5_handler.file_cache.close_all()
+
+    print(
+        h5_handler.read_array(
+            source=h5_path,
+            path_in_external_file="/test_array",
+        )
+    )
+
+    success = h5_handler.write_array(
+        array=np.array([[7, 8, 9], [10, 11, 12]]),
+        target=h5_path,
+        path_in_external_file="/test_array2",
+    )
+    print(f"Write success: {success}")
+
+    cached = h5_handler.file_cache.get_or_open(h5_path, h5_handler, "a")
+    # print if file is still opened :
+    print(f"File still opened after write: {cached} is open: {hasattr(cached, 'id') and cached.id.valid}")
+
+    success = h5_handler.write_array(
+        array=np.array([[13, 14, 15], [16, 17, 18]]),
+        target=h5_path,
+        path_in_external_file="/test_array3",
+    )
+    print(f"Write success: {success}")
+
+    print(
+        h5_handler.read_array(
+            source=h5_path,
+            path_in_external_file="/test_array2",
+        )
+    )
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-
+    meshes = []
     # meshes = read_grid()
     # meshes = read_polyline()
     # meshes = read_wellbore_frame_repr()
     # meshes = read_representation_set_representation()
     # meshes = read_trset()
     # meshes = read_pointset()
-    meshes = read_wellbore_frame_repr_demo_jfr_02_26()
+    # meshes = read_wellbore_frame_repr_demo_jfr_02_26()
 
     print(f"Number of meshes read: {len(meshes)}")
 
@@ -444,3 +494,4 @@ if __name__ == "__main__":
                     raise e
 
     # read_props_and_cbt()
+    test_read_write_array("test_array_rw.h5")
