@@ -471,10 +471,13 @@ class _MetadataManager:
         """List metadata for all objects, optionally filtered by type."""
         if qualified_type_filter is None:
             return list(self._metadata.values())
+        # print(f"Filtering metadata for qualified type: {qualified_type_filter} -- {len(self._metadata.values())}")
+        # for identifier in self._metadata.keys():
+        # print(f"{identifier} with qualified type {self._metadata[identifier].uri.get_qualified_type()}")
         return [
             self._metadata[identifier]
             for identifier in self._metadata
-            if self._metadata[identifier].qualified_type == qualified_type_filter
+            if self._metadata[identifier].uri.get_qualified_type() == qualified_type_filter
         ]
 
     def add_metadata(self, metadata: EpcObjectMetadata) -> None:
@@ -690,41 +693,45 @@ class _MetadataManager:
             # => Finally I do it anyway to get the title.
             try:
                 # Read first chunk of XML to extract version, title, and last_changed in one regex search
-                # with self.zip_accessor.get_zip_file() as f:
-                chunk = zf.read(4096)  # 4KB to increase chance of catching citation block
-                self.stats.bytes_read += len(chunk)
-                chunk_str = chunk.decode("utf-8", errors="ignore")
+                with zf.open(file_path) as f:
+                    chunk = f.read()  # 4KB to increase chance of catching citation block
+                    # chunk = f.read(4096)  # 4KB to increase chance of catching citation block
+                    self.stats.bytes_read += len(chunk)
+                    chunk_str = chunk.decode("utf-8", errors="ignore")
 
-                # Single regex with named groups for version, title, and last_changed
-                pattern = re.compile(
-                    r'object[Vv]ersion["\']?\s*[:=]\s*["\'](?P<version>[^"\']+)'  # version attribute
-                    r"|<eml:Title>(?P<title>.*?)</eml:Title>"  # eml:Title tag
-                    r"|<eml:LastUpdate>(?P<last_changed>.*?)</eml:LastUpdate>",
-                    re.DOTALL,
-                )
+                    # Single regex with named groups for version, title, and last_changed
+                    pattern = re.compile(
+                        r'object[Vv]ersion["\']?\s*[:=]\s*["\'](?P<version>[^"\']+)'  # version attribute
+                        r"|<eml:Title>(?P<title>.*?)</eml:Title>"  # eml:Title tag
+                        r"|<eml:LastUpdate>(?P<last_changed>.*?)</eml:LastUpdate>",
+                        re.DOTALL,
+                    )
 
-                # Iterate all matches and assign the first found for each group
-                found = {"version": None, "title": None, "last_changed": None}
-                for match in pattern.finditer(chunk_str):
-                    for key in found:
-                        if found[key] is None and match.group(key) is not None:
-                            found[key] = match.group(key).strip()
-                if version is None and found["version"] is not None:
-                    version = found["version"]
-                if found["title"] is not None:
-                    title = found["title"]
-                if found["last_changed"] is not None:
-                    last_changed = found["last_changed"]
-                    # Try to parse as datetime if possible
-                    try:
-                        last_changed = date_to_datetime(last_changed)
-                    except Exception:
-                        pass
+                    # Iterate all matches and assign the first found for each group
+                    found = {"version": None, "title": None, "last_changed": None}
+                    for match in pattern.finditer(chunk_str):
+                        for key in found:
+                            if found[key] is None and match.group(key) is not None:
+                                found[key] = match.group(key).strip()
+                    if version is None and found["version"] is not None:
+                        version = found["version"]
+                    if found["title"] is not None:
+                        title = found["title"]
+                    if found["last_changed"] is not None:
+                        last_changed = found["last_changed"]
+                        # Try to parse as datetime if possible
+                        try:
+                            last_changed = date_to_datetime(last_changed)
+                        except Exception:
+                            pass
+
             except Exception as e:
                 logging.debug(f"Failed to extract version/title/last_update from XML content for {file_path}: {e}")
 
             if uuid:  # Only process if we successfully extracted UUID
                 uri = create_uri_from_content_type_or_qualified_type(ct_or_qt=content_type, uuid=uuid, version=version)
+
+                # print(f"Loaded metadata for {uri} ({type(uri)}) with title '{title}' and last changed '{last_changed}'")
                 metadata = EpcObjectMetadata(uri=uri, title=title, last_changed=last_changed)
 
                 # Store in indexes
@@ -934,51 +941,6 @@ class _RelationshipManager:
                 current_rels
             ),  # If all relationships are DESTINATION_OBJECT, we can delete the .rels file entirely. If some source rels exists, we keep it to ease potential add of this element later, to avoid parsing all reals to find its sources rels from other object DEST rels
         )
-
-    # def compute_object_rels(self, obj: Any, obj_identifier: str) -> List[Relationship]:
-    #     """
-    #     Compute relationships for a given object (SOURCE relationships).
-    #     This object references other objects through DORs.
-
-    #     Args:
-    #         obj: The EnergyML object
-    #         obj_identifier: The identifier of the object
-
-    #     Returns:
-    #         List of Relationship objects for this object's .rels file
-    #     """
-    #     rels = []
-
-    #     # Get all DORs (Data Object References) in this object
-    #     direct_dors = get_direct_dor_list(obj)
-
-    #     for dor in direct_dors:
-    #         try:
-    #             target_identifier = get_obj_identifier(dor)
-
-    #             # Get target file path from metadata without processing DOR
-    #             # The relationship target should be the object's file path, not its rels path
-    #             if self.metadata_manager.contains(target_identifier):
-    #                 target_metadata = self.metadata_manager.get_metadata(target_identifier)
-    #                 if target_metadata:
-    #                     target_path = target_metadata.file_path
-    #                 else:
-    #                     target_path = gen_energyml_object_path(dor, self._metadata_mgr._export_version)
-    #             else:
-    #                 # Fall back to generating path from DOR if metadata not found
-    #                 target_path = gen_energyml_object_path(dor, self._metadata_mgr._export_version)
-
-    #             # Create SOURCE relationship (this object -> target object)
-    #             rel = Relationship(
-    #                 target=target_path,
-    #                 type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
-    #                 id=f"_{obj_identifier}_{get_obj_type(get_obj_usable_class(dor))}_{target_identifier}",
-    #             )
-    #             rels.append(rel)
-    #         except Exception as e:
-    #             logging.warning(f"Failed to create relationship for DOR in {obj_identifier}: {e}")
-
-    #     return rels
 
     def merge_rels(self, new_rels: List[Relationship], existing_rels: List[Relationship]) -> List[Relationship]:
         """Merge new relationships with existing ones, avoiding duplicates and ensuring unique IDs.
@@ -1786,55 +1748,6 @@ class EpcStreamReader(EnergymlStorageInterface):
         logging.error(f"Failed to read array from any available file paths: {file_paths}")
         return None
 
-        # # Keep track of which paths we've tried from cache vs from scratch
-        # cached_paths = [p for p in file_paths if p in self._file_cache]
-        # non_cached_paths = [p for p in file_paths if p not in self._file_cache]
-
-        # # Try cached files first (most recently used first)
-        # for file_path in cached_paths:
-        #     handler = self._handler_registry.get_handler_for_file(file_path)
-        #     if handler is None:
-        #         logging.debug(f"No handler found for file: {file_path}")
-        #         continue
-
-        #     try:
-        #         # Get cached file handle
-        #         file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
-        #         if file_handle is not None:
-        #             # Try to read from cached handle with sub-selection
-        #             result = handler.read_array(file_handle, path_in_external, start_indices, counts)
-        #             if result is not None:
-        #                 return result
-        #     except Exception as e:
-        #         logging.debug(f"Failed to read from cached file {file_path}: {e}")
-        #         # Remove from cache if it's causing issues
-        #         self._file_cache.remove(file_path)
-
-        # # Try non-cached files
-        # for file_path in non_cached_paths:
-        #     handler = self._handler_registry.get_handler_for_file(file_path)
-        #     if handler is None:
-        #         logging.debug(f"No handler found for file: {file_path}")
-        #         continue
-
-        #     try:
-        #         # Try to open and read, which will add to cache if successful
-        #         file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
-        #         if file_handle is not None:
-        #             result = handler.read_array(file_handle, path_in_external, start_indices, counts)
-        #             if result is not None:
-        #                 return result
-        #         else:
-        #             # Cache failed, try direct read without caching
-        #             result = handler.read_array(file_path, path_in_external, start_indices, counts)
-        #             if result is not None:
-        #                 return result
-        #     except Exception as e:
-        #         logging.debug(f"Failed to read from file {file_path}: {e}")
-
-        # logging.error(f"Failed to read array from any available file paths: {file_paths}")
-        # return None
-
     def write_array(
         self,
         proxy: Union[str, Uri, Any],
@@ -1903,50 +1816,6 @@ class EpcStreamReader(EnergymlStorageInterface):
 
         logging.error(f"Failed to write array to any available file paths: {file_paths}")
         return False
-
-        # # Try to write to the first available file
-        # # For writes, we prefer cached files first, then non-cached
-        # cached_paths = [p for p in file_paths if p in self._file_cache]
-        # non_cached_paths = [p for p in file_paths if p not in self._file_cache]
-
-        # # Try cached files first
-        # for file_path in cached_paths:
-        #     handler = self._handler_registry.get_handler_for_file(file_path)
-        #     if handler is None:
-        #         continue
-
-        #     try:
-        #         file_handle = self._file_cache.get_or_open(file_path, handler, mode="a")
-        #         if file_handle is not None:
-        #             success = handler.write_array(file_handle, array, path_in_external, start_indices, **kwargs)
-        #             if success:
-        #                 return True
-        #     except Exception as e:
-        #         logging.debug(f"Failed to write to cached file {file_path}: {e}")
-        #         self._file_cache.remove(file_path)
-
-        # # Try non-cached files
-        # for file_path in non_cached_paths:
-        #     handler = self._handler_registry.get_handler_for_file(file_path)
-        #     if handler is None:
-        #         continue
-
-        #     try:
-        #         # Open in append mode and add to cache
-        #         file_handle = self._file_cache.get_or_open(file_path, handler, mode="a")
-        #         if file_handle is not None:
-        #             success = handler.write_array(file_handle, array, path_in_external, start_indices, **kwargs)
-        #             if success:
-        #                 return True
-        #         else:
-        #             # Cache failed, try direct write
-        #             success = handler.write_array(file_path, array, path_in_external, start_indices, **kwargs)
-        #             if success:
-        #                 return True
-        #     except Exception as e:
-        #         logging.error(f"Failed to write to file {file_path}: {e}")
-
-        # return False
 
     def get_array_metadata(
         self,
@@ -2022,91 +1891,11 @@ class EpcStreamReader(EnergymlStorageInterface):
                 logging.debug(f"Failed to get metadata from file {file_path}: {e}")
 
         return None
-        # # Try cached files first
-        # cached_paths = [p for p in file_paths if p in self._file_cache]
-        # non_cached_paths = [p for p in file_paths if p not in self._file_cache]
-
-        # for file_path in cached_paths + non_cached_paths:
-        #     handler = self._handler_registry.get_handler_for_file(file_path)
-        #     if handler is None:
-        #         continue
-
-        #     try:
-        #         file_handle = self._file_cache.get_or_open(file_path, handler, mode="r")
-        #         source = file_handle if file_handle is not None else file_path
-
-        #         metadata_dict = handler.get_array_metadata(source, path_in_external, start_indices, counts)
-
-        #         if metadata_dict is None:
-        #             continue
-
-        #         # Convert dict(s) to DataArrayMetadata
-        #         if isinstance(metadata_dict, list):
-        #             return [
-        #                 DataArrayMetadata(
-        #                     path_in_resource=m.get("path"),
-        #                     array_type=m.get("dtype", "unknown"),
-        #                     dimensions=m.get("shape", []),
-        #                     start_indices=start_indices,
-        #                     custom_data={"size": m.get("size", 0)},
-        #                 )
-        #                 for m in metadata_dict
-        #             ]
-        #         else:
-        #             return DataArrayMetadata(
-        #                 path_in_resource=metadata_dict.get("path"),
-        #                 array_type=metadata_dict.get("dtype", "unknown"),
-        #                 dimensions=metadata_dict.get("shape", []),
-        #                 start_indices=start_indices,
-        #                 custom_data={"size": metadata_dict.get("size", 0)},
-        #             )
-        #     except Exception as e:
-        #         logging.debug(f"Failed to get metadata from file {file_path}: {e}")
-
-        # return None
 
     def list_objects(
         self, dataspace: Optional[str] = None, object_type: Optional[str] = None
     ) -> List[ResourceMetadata]:
         return [m.to_resource_metadata() for m in self._metadata_mgr.list_metadata(qualified_type_filter=object_type)]
-
-    def list_objects_parallel(
-        self, dataspace: Optional[str] = None, object_type: Optional[str] = None
-    ) -> List[ResourceMetadata]:
-        # use self._metadata_mgr.list_metadata(qualified_type_filter=object_type) to get the list of metadata,
-        # then get_each object in parallel using get_object and return the list of ResourceMetadata for the objects that were successfully retrieved
-
-        import concurrent.futures
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
-        metadata_list = self._metadata_mgr.list_metadata(qualified_type_filter=object_type)
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            future_to_metadata = {executor.submit(self.get_object, m.identifier): m for m in metadata_list}
-            resource_metadata_list = []
-            for future in as_completed(future_to_metadata):
-                metadata = future_to_metadata[future]
-                try:
-                    obj = future.result()
-                    if obj is not None:
-                        resource_metadata_list.append(metadata.to_resource_metadata())
-                except Exception as e:
-                    logging.debug(f"Failed to get object for metadata {metadata.identifier}: {e}")
-        return resource_metadata_list
-
-    def list_objects_seq(
-        self, dataspace: Optional[str] = None, object_type: Optional[str] = None
-    ) -> List[ResourceMetadata]:
-        metadata_list = self._metadata_mgr.list_metadata(qualified_type_filter=object_type)
-        resource_metadata_list = []
-        for metadata in metadata_list:
-            try:
-                obj = self.get_object(metadata.identifier)
-                if obj is not None:
-                    resource_metadata_list.append(metadata.to_resource_metadata())
-            except Exception as e:
-                logging.debug(f"Failed to get object for metadata {metadata.identifier}: {e}")
-
-        return resource_metadata_list
 
     def get_obj_rels(self, obj: Union[str, Uri, Any]) -> List[Relationship]:
         _id = self._id_from_uri_or_identifier(obj)

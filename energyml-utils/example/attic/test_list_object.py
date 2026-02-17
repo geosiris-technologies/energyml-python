@@ -7,41 +7,44 @@ def list_epc_classical(epc_file):
     epc = EpcStreamReader(epc_file, rels_update_mode=RelsUpdateMode.MANUAL)
 
     time_start = datetime.now()
-    for obj in epc.list_objects():
-        print(f"Object: {obj}")
-    print(len(epc.list_objects()))
+    # for obj in epc.list_objects():
+    #     print(f"Object: {obj}")
+    print(len(epc.list_objects(object_type="eml23.DataobjectCollection")))
+
+    for obj in epc.list_objects(object_type="eml23.DataobjectCollection"):
+        print(f"DataobjectCollection: {obj}")
     time_end = datetime.now()
     print(f"Time taken: {time_end - time_start}")
 
 
-def list_epc_fast(epc_file):
-    """List contents of an EPC file using fast method."""
-    epc = EpcStreamReader(
-        epc_file,
-        rels_update_mode=RelsUpdateMode.MANUAL,
-    )
+# def list_epc_fast(epc_file):
+#     """List contents of an EPC file using fast method."""
+#     epc = EpcStreamReader(
+#         epc_file,
+#         rels_update_mode=RelsUpdateMode.MANUAL,
+#     )
 
-    time_start = datetime.now()
-    # for obj in epc.list_objects_parallel():
-    # print(f"Object: {obj}")
-    print(len(epc.list_objects_parallel()))
-    time_end = datetime.now()
-    print(f"Time taken: {time_end - time_start}")
+#     time_start = datetime.now()
+#     # for obj in epc.list_objects_parallel():
+#     # print(f"Object: {obj}")
+#     print(len(epc.list_objects_parallel()))
+#     time_end = datetime.now()
+#     print(f"Time taken: {time_end - time_start}")
 
 
-def list_epc_seq(epc_file):
-    """List contents of an EPC file using sequential method."""
-    epc = EpcStreamReader(
-        epc_file,
-        rels_update_mode=RelsUpdateMode.MANUAL,
-    )
+# def list_epc_seq(epc_file):
+#     """List contents of an EPC file using sequential method."""
+#     epc = EpcStreamReader(
+#         epc_file,
+#         rels_update_mode=RelsUpdateMode.MANUAL,
+#     )
 
-    time_start = datetime.now()
-    # for obj in epc.list_objects_seq():
-    # print(f"Object: {obj}")
-    print(len(epc.list_objects_seq()))
-    time_end = datetime.now()
-    print(f"Time taken: {time_end - time_start}")
+#     time_start = datetime.now()
+#     # for obj in epc.list_objects_seq():
+#     # print(f"Object: {obj}")
+#     print(len(epc.list_objects_seq()))
+#     time_end = datetime.now()
+#     print(f"Time taken: {time_end - time_start}")
 
 
 if __name__ == "__main__":
