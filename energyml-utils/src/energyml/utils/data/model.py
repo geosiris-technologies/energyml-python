@@ -70,7 +70,7 @@ class FileCacheManager:
                 self._cache.move_to_end(file_path)
                 return cached_handle
             # Otherwise, close and reopen with new mode
-            logging.debug(f"Mode change for cached file {file_path}: {cached_mode} -> {mode}. Reopening.")
+            # logging.debug(f"Mode change for cached file {file_path}: {cached_mode} -> {mode}. Reopening.")
             try:
                 if hasattr(cached_handle, "close"):
                     cached_handle.close()
@@ -173,7 +173,7 @@ class FileCacheManager:
         rw_modes = {"r+", "a"}
         destructive_modes = {"w", "w+", "x"}
 
-        logging.debug(f"Checking mode compatibility: cached_mode={cached_mode}, requested_mode={requested_mode}")
+        # logging.debug(f"Checking mode compatibility: cached_mode={cached_mode}, requested_mode={requested_mode}")
 
         result = False
 
@@ -184,7 +184,7 @@ class FileCacheManager:
         if cached_mode in rw_modes and (requested_mode in rw_modes or requested_mode in readonly_modes):
             result = True
 
-        logging.debug(f"\tMode compatibility result: {result}")
+        # logging.debug(f"\tMode compatibility result: {result}")
 
         return result
 
