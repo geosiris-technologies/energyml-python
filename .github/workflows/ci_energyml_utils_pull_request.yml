@@ -32,9 +32,9 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install dependencies
+      - name: Install dependencies (all extras)
         run: |
-          poetry install
+          poetry install --all-extras
 
       - name: Run pytest
         run: |
