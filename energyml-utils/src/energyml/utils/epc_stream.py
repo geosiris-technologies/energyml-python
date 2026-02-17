@@ -680,37 +680,52 @@ class _MetadataManager:
         file_path = override.part_name.lstrip("/")
         content_type = override.content_type
 
+        uuid, version, title, last_changed = None, None, None, None
+
         try:
             # First try to extract UUID and version from file path (works for EXPANDED mode)
             uuid, version = extract_uuid_and_version_from_obj_path(file_path)
 
             # For CLASSIC mode, version is not in the path, so we need to extract it from XML content
-            if uuid and version is None:
-                try:
-                    # Read first chunk of XML to extract version without full parsing
-                    with zf.open(file_path) as f:
-                        chunk = f.read(2048)  # 2KB should be enough for root element
-                        self.stats.bytes_read += len(chunk)
-                        chunk_str = chunk.decode("utf-8", errors="ignore")
+            # => Finally I do it anyway to get the title.
+            try:
+                # Read first chunk of XML to extract version, title, and last_changed in one regex search
+                # with self.zip_accessor.get_zip_file() as f:
+                chunk = zf.read(4096)  # 4KB to increase chance of catching citation block
+                self.stats.bytes_read += len(chunk)
+                chunk_str = chunk.decode("utf-8", errors="ignore")
 
-                        # Extract version if present
-                        version_patterns = [
-                            r'object[Vv]ersion["\']?\s*[:=]\s*["\']([^"\']+)',
-                        ]
+                # Single regex with named groups for version, title, and last_changed
+                pattern = re.compile(
+                    r'object[Vv]ersion["\']?\s*[:=]\s*["\'](?P<version>[^"\']+)'  # version attribute
+                    r"|<eml:Title>(?P<title>.*?)</eml:Title>"  # eml:Title tag
+                    r"|<eml:LastUpdate>(?P<last_changed>.*?)</eml:LastUpdate>",
+                    re.DOTALL,
+                )
 
-                        for pattern in version_patterns:
-                            version_match = re.search(pattern, chunk_str)
-                            if version_match:
-                                version = version_match.group(1)
-                                if not isinstance(version, str):
-                                    version = str(version)
-                                break
-                except Exception as e:
-                    logging.debug(f"Failed to extract version from XML content for {file_path}: {e}")
+                # Iterate all matches and assign the first found for each group
+                found = {"version": None, "title": None, "last_changed": None}
+                for match in pattern.finditer(chunk_str):
+                    for key in found:
+                        if found[key] is None and match.group(key) is not None:
+                            found[key] = match.group(key).strip()
+                if version is None and found["version"] is not None:
+                    version = found["version"]
+                if found["title"] is not None:
+                    title = found["title"]
+                if found["last_changed"] is not None:
+                    last_changed = found["last_changed"]
+                    # Try to parse as datetime if possible
+                    try:
+                        last_changed = date_to_datetime(last_changed)
+                    except Exception:
+                        pass
+            except Exception as e:
+                logging.debug(f"Failed to extract version/title/last_update from XML content for {file_path}: {e}")
 
             if uuid:  # Only process if we successfully extracted UUID
                 uri = create_uri_from_content_type_or_qualified_type(ct_or_qt=content_type, uuid=uuid, version=version)
-                metadata = EpcObjectMetadata(uri=uri)
+                metadata = EpcObjectMetadata(uri=uri, title=title, last_changed=last_changed)
 
                 # Store in indexes
                 identifier = metadata.identifier
@@ -2054,6 +2069,44 @@ class EpcStreamReader(EnergymlStorageInterface):
         self, dataspace: Optional[str] = None, object_type: Optional[str] = None
     ) -> List[ResourceMetadata]:
         return [m.to_resource_metadata() for m in self._metadata_mgr.list_metadata(qualified_type_filter=object_type)]
+
+    def list_objects_parallel(
+        self, dataspace: Optional[str] = None, object_type: Optional[str] = None
+    ) -> List[ResourceMetadata]:
+        # use self._metadata_mgr.list_metadata(qualified_type_filter=object_type) to get the list of metadata,
+        # then get_each object in parallel using get_object and return the list of ResourceMetadata for the objects that were successfully retrieved
+
+        import concurrent.futures
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        metadata_list = self._metadata_mgr.list_metadata(qualified_type_filter=object_type)
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            future_to_metadata = {executor.submit(self.get_object, m.identifier): m for m in metadata_list}
+            resource_metadata_list = []
+            for future in as_completed(future_to_metadata):
+                metadata = future_to_metadata[future]
+                try:
+                    obj = future.result()
+                    if obj is not None:
+                        resource_metadata_list.append(metadata.to_resource_metadata())
+                except Exception as e:
+                    logging.debug(f"Failed to get object for metadata {metadata.identifier}: {e}")
+        return resource_metadata_list
+
+    def list_objects_seq(
+        self, dataspace: Optional[str] = None, object_type: Optional[str] = None
+    ) -> List[ResourceMetadata]:
+        metadata_list = self._metadata_mgr.list_metadata(qualified_type_filter=object_type)
+        resource_metadata_list = []
+        for metadata in metadata_list:
+            try:
+                obj = self.get_object(metadata.identifier)
+                if obj is not None:
+                    resource_metadata_list.append(metadata.to_resource_metadata())
+            except Exception as e:
+                logging.debug(f"Failed to get object for metadata {metadata.identifier}: {e}")
+
+        return resource_metadata_list
 
     def get_obj_rels(self, obj: Union[str, Uri, Any]) -> List[Relationship]:
         _id = self._id_from_uri_or_identifier(obj)
