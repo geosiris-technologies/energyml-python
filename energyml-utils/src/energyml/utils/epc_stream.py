@@ -1332,7 +1332,9 @@ class EpcStreamReader(EnergymlStorageInterface):
         """Get current statistics about the EPC streaming operations."""
         return self.stats
 
-    def get_h5_file_paths(self, obj: Union[str, Uri, Any], make_path_absolute_from_epc_path: bool = True) -> List[str]:
+    def get_h5_file_paths(
+        self, obj_or_id: Union[str, Uri, Any] = None, make_path_absolute_from_epc_path: bool = True
+    ) -> List[str]:
         """
         Get all HDF5 file paths referenced in the EPC file (from rels to external resources).
         Optimized to avoid loading the object when identifier/URI is provided.
@@ -1347,7 +1349,7 @@ class EpcStreamReader(EnergymlStorageInterface):
 
         rels_path = None
 
-        _id = self._id_from_uri_or_identifier(identifier=obj, get_first_if_simple_uuid=True)
+        _id = self._id_from_uri_or_identifier(identifier=obj_or_id, get_first_if_simple_uuid=True)
         if _id is not None:
             rels_path = self._metadata_mgr.gen_rels_path_from_identifier(_id)
 
@@ -1372,13 +1374,13 @@ class EpcStreamReader(EnergymlStorageInterface):
         if make_path_absolute_from_epc_path:
             h5_paths = set(make_path_relative_to_filepath_list(list(h5_paths), self.epc_file_path))
 
-        if len(h5_paths) == 0:
-            # Collect all .h5 files in the EPC file's folder
-            epc_folder = get_file_folder(self.epc_file_path)
-            if epc_folder is not None and os.path.isdir(epc_folder):
-                for fname in os.listdir(epc_folder):
-                    if fname.lower().endswith(".h5"):
-                        h5_paths.add(os.path.join(epc_folder, fname))
+        # if len(h5_paths) == 0:
+        # Collect all .h5 files in the EPC file's folder
+        epc_folder = get_file_folder(self.epc_file_path)
+        if epc_folder is not None and os.path.isdir(epc_folder):
+            for fname in os.listdir(epc_folder):
+                if fname.lower().endswith(".h5"):
+                    h5_paths.add(os.path.join(epc_folder, fname))
 
         return list(h5_paths)
 

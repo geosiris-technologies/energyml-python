@@ -1305,13 +1305,13 @@ class Epc(EnergymlStorageInterface):
 
         h5_paths = set(make_path_relative_to_filepath_list(list(h5_paths), self.epc_file_path))
 
-        if len(h5_paths) == 0:
-            # Collect all .h5 files in the EPC file's folder
-            epc_folder = self.get_epc_file_folder()
-            if epc_folder is not None and os.path.isdir(epc_folder):
-                for fname in os.listdir(epc_folder):
-                    if fname.lower().endswith(".h5"):
-                        h5_paths.add(os.path.join(epc_folder, fname))
+        # if len(h5_paths) == 0:
+        # Collect all .h5 files in the EPC file's folder
+        epc_folder = self.get_epc_file_folder()
+        if epc_folder is not None and os.path.isdir(epc_folder):
+            for fname in os.listdir(epc_folder):
+                if fname.lower().endswith(".h5"):
+                    h5_paths.add(os.path.join(epc_folder, fname))
 
         return list(h5_paths)
 

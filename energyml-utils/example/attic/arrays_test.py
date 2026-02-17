@@ -383,7 +383,8 @@ def read_wellbore_frame_repr_demo_jfr_02_26(
     epc_path: str = r"rc/epc/out-galaxy-12-pts.epc",
     well_uuid: str = "cfad9cb6-99fe-4172-b560-d2feca75dd9f",
 ) -> List[AbstractMesh]:
-    epc = Epc.read_file(f"{epc_path}", read_rels_from_files=False, recompute_rels=False)
+    # epc = Epc.read_file(f"{epc_path}", read_rels_from_files=False, recompute_rels=False)
+    epc = EpcStreamReader(f"{epc_path}", rels_update_mode=RelsUpdateMode.MANUAL)
 
     frame_repr = epc.get_object_by_uuid(well_uuid)[0]
     # print(frame_repr)
@@ -471,7 +472,7 @@ if __name__ == "__main__":
     # meshes = read_representation_set_representation()
     # meshes = read_trset()
     # meshes = read_pointset()
-    # meshes = read_wellbore_frame_repr_demo_jfr_02_26()
+    meshes = read_wellbore_frame_repr_demo_jfr_02_26()
 
     print(f"Number of meshes read: {len(meshes)}")
 
@@ -494,4 +495,4 @@ if __name__ == "__main__":
                     raise e
 
     # read_props_and_cbt()
-    test_read_write_array("test_array_rw.h5")
+    # test_read_write_array("test_array_rw.h5")
