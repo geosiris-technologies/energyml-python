@@ -27,6 +27,12 @@ def test_default_handler_from_registry_is_h5():
     assert isinstance(handler, HDF5ArrayHandler), "Default handler for .h5 should be HDF5ArrayHandler"
 
 
+def test_default_dat_handler_from_registry_is_h5():
+    """Test that the default handler for .h5 is HDF5ArrayHandler."""
+    handler = get_handler_registry().get_handler_for_file(".dat")  # no extension, should return default .h5 handler
+    assert isinstance(handler, HDF5ArrayHandler), "Default handler for .h5 should be HDF5ArrayHandler"
+
+
 def test_hdf5_array_handler_read_write():
     """Test HDF5ArrayHandler read/write and file closure."""
     arr = np.arange(6).reshape(2, 3)

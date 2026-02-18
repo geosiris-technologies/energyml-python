@@ -600,9 +600,7 @@ def read_dataset(
         isinstance(source, str) and (source.lower().endswith(".parquet") or source.lower().endswith(".pqt"))
     ):
         file_reader = ParquetFileReader()
-    elif "csv" in mimetype or (
-        isinstance(source, str) and (source.lower().endswith(".csv") or source.lower().endswith(".dat"))
-    ):
+    elif "csv" in mimetype or (isinstance(source, str) and (source.lower().endswith(".csv"))):
         file_reader = CSVFileReader()
     else:
         file_reader = HDF5FileReader()  # default is hdf5
@@ -756,11 +754,9 @@ class FileHandlerRegistry:
         """Register all available handlers based on installed dependencies."""
         # HDF5 Handler
         if __H5PY_MODULE_EXISTS__:
-            self.register_handler([".h5", ".hdf5", ".dat"], lambda: HDF5ArrayHandler())  # dat for Galaxy compatibility
+            self.register_handler([".h5", ".hdf5"], lambda: HDF5ArrayHandler())  # dat for Galaxy compatibility
         else:
-            self.register_handler(
-                [".h5", ".hdf5", ".dat"], lambda: MockHDF5ArrayHandler()
-            )  # dat for Galaxy compatibility
+            self.register_handler([".h5", ".hdf5"], lambda: MockHDF5ArrayHandler())  # dat for Galaxy compatibility
 
         # Parquet Handler
         if __PARQUET_MODULE_EXISTS__:
@@ -770,7 +766,7 @@ class FileHandlerRegistry:
 
         # CSV Handler - always available (uses Python's csv module)
         if __CSV_MODULE_EXISTS__:
-            self.register_handler([".csv", ".txt", ".dat"], lambda: CSVArrayHandler())
+            self.register_handler([".csv", ".txt"], lambda: CSVArrayHandler())
 
         # LAS Handler
         if __LASIO_MODULE_EXISTS__:
@@ -980,7 +976,7 @@ if __H5PY_MODULE_EXISTS__:
         def can_handle_file(self, file_path: str) -> bool:
             """Check if this handler can process the file."""
             ext = os.path.splitext(file_path)[1].lower()
-            return ext in [".h5", ".hdf5", ".dat"]  # dat for Galaxy compatibility
+            return ext in [".h5", ".hdf5"]  # dat for Galaxy compatibility
 
 else:
 
@@ -1026,7 +1022,7 @@ else:
             raise MissingExtraInstallation(extra_name="hdf5")
 
         def can_handle_file(self, file_path: str) -> bool:
-            return os.path.splitext(file_path)[1].lower() in [".h5", ".hdf5", ".dat"]  # dat for Galaxy compatibility
+            return os.path.splitext(file_path)[1].lower() in [".h5", ".hdf5"]  # dat for Galaxy compatibility
 
 
 # Parquet Handler
@@ -1223,7 +1219,7 @@ else:
 if __CSV_MODULE_EXISTS__:
 
     class CSVArrayHandler(ExternalArrayHandler):
-        """Handler for CSV files (.csv, .txt, .dat)."""
+        """Handler for CSV files (.csv, .txt)."""
 
         def __init__(self, max_open_files: int = 3):
             super().__init__(max_open_files=max_open_files)
@@ -1307,7 +1303,7 @@ if __CSV_MODULE_EXISTS__:
         def can_handle_file(self, file_path: str) -> bool:
             """Check if this handler can process the file."""
             ext = os.path.splitext(file_path)[1].lower()
-            return ext in [".csv", ".txt", ".dat"]
+            return ext in [".csv", ".txt"]
 
 
 # LAS Handler
