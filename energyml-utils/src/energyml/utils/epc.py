@@ -707,6 +707,37 @@ def log_timestamp(func):
     return wrapper
 
 
+# --- HELPER FUNCTIONS (HORS CLASSE) ---
+
+
+def _parallel_xml_read(xml_data: bytes, content_type: str):
+    try:
+
+        target_class = get_class_from_content_type(content_type)
+        obj = read_energyml_xml_bytes(xml_data, target_class)
+
+        if isinstance(obj, DerivedElement):
+            obj = obj.value
+        return obj
+    except Exception as e:
+        return e
+
+
+def _parallel_rels_read(rels_bytes: bytes):
+    try:
+        return read_energyml_xml_bytes(rels_bytes, Relationships)
+    except Exception as e:
+        return e
+
+
+def _parallel_xml_serialize(obj):
+    """Sérialise un objet Python en XML bytes dans un processus séparé."""
+    try:
+        return serialize_xml(obj)
+    except Exception as e:
+        return e
+
+
 @dataclass
 class Epc(EnergymlStorageInterface):
     """
@@ -839,98 +870,6 @@ class Epc(EnergymlStorageInterface):
             self.energyml_objects.append(obj)
         else:
             logging.error(f"unsupported type {str(type(obj))}")
-
-    # EXPORT functions
-
-    def gen_opc_content_type(self) -> Types:
-        """
-        Generates a :class:`Types` instance and fill it with energyml objects :class:`Override` values
-        :return:
-        """
-        ct = create_default_types()
-
-        for e_obj in self.energyml_objects:
-            ct.override.append(
-                Override(
-                    content_type=get_content_type_from_class(type(e_obj)),
-                    part_name=gen_energyml_object_path(e_obj, self.export_version),
-                )
-            )
-
-        for rf in self.raw_files:
-            # file_extension = os.path.splitext(file_path)[1].lstrip(".").lower()
-            mime_type = in_epc_file_path_to_mime_type(rf.path)
-            if mime_type:
-                override = Override(content_type=mime_type, part_name=f"{rf.path}")
-                ct.override.append(override)
-
-        return ct
-
-    # @log_timestamp
-    def export_file(
-        self, path: Optional[str] = None, allowZip64: bool = True, force_recompute_object_rels: bool = True
-    ) -> None:
-        """
-        Export the epc file. If :param:`path` is None, the epc 'self.epc_file_path' is used
-        :param path:
-        :return:
-        """
-        if path is None:
-            path = self.epc_file_path
-
-        if path is None:
-            raise ValueError("No path provided and epc_file_path is not set")
-
-        # Ensure directory exists
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-
-        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED, allowZip64=allowZip64) as zip_file:
-            self._export_io(
-                zip_file=zip_file, allowZip64=allowZip64, force_recompute_object_rels=force_recompute_object_rels
-            )
-
-    def export_io(self, allowZip64: bool = True, force_recompute_object_rels: bool = True) -> BytesIO:
-        """
-        Export the epc file into a :class:`BytesIO` instance. The result is an 'in-memory' zip file.
-        :return:
-        """
-        zip_buffer = BytesIO()
-
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED, allowZip64=allowZip64) as zip_file:
-            self._export_io(
-                zip_file=zip_file, allowZip64=allowZip64, force_recompute_object_rels=force_recompute_object_rels
-            )
-
-        return zip_buffer
-
-    def _export_io(
-        self, zip_file: zipfile.ZipFile, allowZip64: bool = True, force_recompute_object_rels: bool = True
-    ) -> None:
-        """
-        Export the epc file into a :class:`BytesIO` instance. The result is an 'in-memory' zip file.
-        :return:
-        """
-        # CoreProps
-        if self.core_props is None:
-            self.core_props = create_default_core_properties()
-
-        zip_file.writestr(gen_core_props_path(self.export_version), serialize_xml(self.core_props))
-
-        #  Energyml objects
-        for e_obj in self.energyml_objects:
-            e_path = gen_energyml_object_path(e_obj, self.export_version)
-            zip_file.writestr(e_path, serialize_xml(e_obj))
-
-        # Rels
-        for rels_path, rels in self.compute_rels(force_recompute_object_rels=force_recompute_object_rels).items():
-            zip_file.writestr(rels_path, serialize_xml(rels))
-
-        # Other files:
-        for raw in self.raw_files:
-            zip_file.writestr(raw.path, raw.content.read())
-
-        # ContentType
-        zip_file.writestr(get_epc_content_type_path(), serialize_xml(self.gen_opc_content_type()))
 
     # === Relationships management functions ===
 
@@ -1437,24 +1376,190 @@ class Epc(EnergymlStorageInterface):
         """
         pass
 
+    # EXPORT functions
+
+    def gen_opc_content_type(self) -> Types:
+        """
+        Generates a :class:`Types` instance and fill it with energyml objects :class:`Override` values
+        :return:
+        """
+        ct = create_default_types()
+
+        for e_obj in self.energyml_objects:
+            ct.override.append(
+                Override(
+                    content_type=get_content_type_from_class(type(e_obj)),
+                    part_name=gen_energyml_object_path(e_obj, self.export_version),
+                )
+            )
+
+        for rf in self.raw_files:
+            # file_extension = os.path.splitext(file_path)[1].lstrip(".").lower()
+            mime_type = in_epc_file_path_to_mime_type(rf.path)
+            if mime_type:
+                override = Override(content_type=mime_type, part_name=f"{rf.path}")
+                ct.override.append(override)
+
+        return ct
+
+    # @log_timestamp
+    def export_file(
+        self,
+        path: Optional[str] = None,
+        allowZip64: bool = True,
+        force_recompute_object_rels: bool = True,
+        parallel: bool = False,
+    ) -> None:
+        """
+        Export the epc file. If :param:`path` is None, the epc 'self.epc_file_path' is used
+        :param path:
+        :return:
+        """
+        if path is None:
+            path = self.epc_file_path
+
+        if path is None:
+            raise ValueError("No path provided and epc_file_path is not set")
+
+        # Ensure directory exists
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED, allowZip64=allowZip64) as zip_file:
+            if parallel:
+                self._export_io_ultra_fast(zip_file=zip_file, force_recompute_object_rels=force_recompute_object_rels)
+            else:
+                self._export_io(
+                    zip_file=zip_file, allowZip64=allowZip64, force_recompute_object_rels=force_recompute_object_rels
+                )
+
+    def export_io(self, allowZip64: bool = True, force_recompute_object_rels: bool = True) -> BytesIO:
+        """
+        Export the epc file into a :class:`BytesIO` instance. The result is an 'in-memory' zip file.
+        :return:
+        """
+        zip_buffer = BytesIO()
+
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED, allowZip64=allowZip64) as zip_file:
+            self._export_io(
+                zip_file=zip_file, allowZip64=allowZip64, force_recompute_object_rels=force_recompute_object_rels
+            )
+
+        return zip_buffer
+
+    def _export_io(
+        self, zip_file: zipfile.ZipFile, allowZip64: bool = True, force_recompute_object_rels: bool = True
+    ) -> None:
+        """
+        Export the epc file into a :class:`BytesIO` instance. The result is an 'in-memory' zip file.
+        :return:
+        """
+        # CoreProps
+        if self.core_props is None:
+            self.core_props = create_default_core_properties()
+
+        zip_file.writestr(gen_core_props_path(self.export_version), serialize_xml(self.core_props))
+
+        #  Energyml objects
+        for e_obj in self.energyml_objects:
+            e_path = gen_energyml_object_path(e_obj, self.export_version)
+            zip_file.writestr(e_path, serialize_xml(e_obj))
+
+        # Rels
+        for rels_path, rels in self.compute_rels(force_recompute_object_rels=force_recompute_object_rels).items():
+            zip_file.writestr(rels_path, serialize_xml(rels))
+
+        # Other files:
+        for raw in self.raw_files:
+            zip_file.writestr(raw.path, raw.content.read())
+
+        # ContentType
+        zip_file.writestr(get_epc_content_type_path(), serialize_xml(self.gen_opc_content_type()))
+
+    def _export_io_ultra_fast(self, zip_file: zipfile.ZipFile, force_recompute_object_rels: bool = True) -> None:
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        # 1. Préparation des données
+        if self.core_props is None:
+            self.core_props = create_default_core_properties()
+
+        # On prépare la liste des objets à sérialiser
+        # Format: { future: (path_dans_le_zip) }
+        serialization_tasks = {}
+
+        cpus = multiprocessing.cpu_count()
+        with ProcessPoolExecutor(max_workers=cpus) as executor:
+
+            # A. On lance la sérialisation des objets EnergyML
+            for e_obj in self.energyml_objects:
+                e_path = gen_energyml_object_path(e_obj, self.export_version)
+                future = executor.submit(_parallel_xml_serialize, e_obj)
+                serialization_tasks[future] = e_path
+
+            # B. On lance la sérialisation des Rels
+            # Note: on compute les rels dans le thread principal car c'est souvent
+            # une opération de logique métier sur le graphe d'objets.
+            computed_rels = self.compute_rels(force_recompute_object_rels=force_recompute_object_rels)
+            for rels_path, rels_obj in computed_rels.items():
+                future = executor.submit(_parallel_xml_serialize, rels_obj)
+                serialization_tasks[future] = rels_path
+
+            # C. Cas particuliers (souvent rapides, mais autant les paralléliser)
+            core_path = gen_core_props_path(self.export_version)
+            future_core = executor.submit(_parallel_xml_serialize, self.core_props)
+            serialization_tasks[future_core] = core_path
+
+            ct_path = get_epc_content_type_path()
+            future_ct = executor.submit(_parallel_xml_serialize, self.gen_opc_content_type())
+            serialization_tasks[future_ct] = ct_path
+
+            # 2. Récupération et Écriture I/O (Séquentielle mais rapide)
+            # On écrit dans le ZIP au fur et à mesure que les sérialisations se terminent
+            for future in as_completed(serialization_tasks):
+                path = serialization_tasks[future]
+                xml_bytes = future.result()
+
+                if isinstance(xml_bytes, Exception):
+                    logging.error(f"Erreur sérialisation sur {path}: {xml_bytes}")
+                else:
+                    zip_file.writestr(path, xml_bytes)
+
+        # 3. Fichiers bruts (Raw files)
+        # Ils sont déjà en bytes (BytesIO), donc pas besoin de paralléliser
+        for raw in self.raw_files:
+            raw.content.seek(0)  # Reset du curseur par sécurité
+            zip_file.writestr(raw.path, raw.content.read())
+
     # ==============
     # Class methods
     # ==============
 
     @classmethod
     # @log_timestamp
-    def read_file(cls, epc_file_path: str, read_rels_from_files: bool = True, recompute_rels: bool = False) -> "Epc":
+    def read_file(
+        cls,
+        epc_file_path: str,
+        read_rels_from_files: bool = True,
+        recompute_rels: bool = False,
+        read_parallel: bool = False,
+    ) -> "Epc":
         """
         Read an EPC file from disk.
         :param epc_file_path: Path to the EPC file
         :param read_rels_from_files: If True, populate cache from .rels files in the EPC
         :param recompute_rels: If True, recompute all relationships after loading
+        :param read_parallel: If True, read the EPC file in parallel
         :return: Epc instance
         """
         with open(epc_file_path, "rb") as f:
-            epc = cls.read_stream(
-                BytesIO(f.read()), read_rels_from_files=read_rels_from_files, recompute_rels=recompute_rels
-            )
+            if read_parallel:
+                epc = cls.read_stream_ultra_fast(
+                    BytesIO(f.read()), read_rels_from_files=read_rels_from_files, recompute_rels=recompute_rels
+                )
+            else:
+                epc = cls.read_stream(
+                    BytesIO(f.read()), read_rels_from_files=read_rels_from_files, recompute_rels=recompute_rels
+                )
             epc.epc_file_path = epc_file_path
             return epc
         raise IOError(f"Failed to open EPC file {epc_file_path}")
@@ -1462,7 +1567,7 @@ class Epc(EnergymlStorageInterface):
     @classmethod
     def read_stream(
         cls, epc_file_io: BytesIO, read_rels_from_files: bool = True, recompute_rels: bool = False
-    ):  # returns an Epc instance
+    ) -> Optional["Epc"]:  # returns an Epc instance
         """
         Read an EPC file from a BytesIO stream.
         :param epc_file_io: BytesIO containing the EPC file
@@ -1614,6 +1719,99 @@ class Epc(EnergymlStorageInterface):
             logging.error(error)
 
         return None
+
+    @classmethod
+    def read_stream_ultra_fast(
+        cls, epc_file_io: BytesIO, read_rels_from_files: bool = True, recompute_rels: bool = False
+    ) -> Optional["Epc"]:
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+        import multiprocessing
+
+        obj_to_process = {}
+        rels_to_process = {}
+        raw_files = []
+        core_props = None
+
+        # 1. Lecture rapide et extraction des bytes du ZIP
+        with zipfile.ZipFile(epc_file_io, "r") as epc_file:
+            ct_path = get_epc_content_type_path()
+            content_type_obj = read_energyml_xml_bytes(epc_file.read(ct_path))
+
+            # Identification des types via le ContentTypes
+            energyml_paths = {}
+            for ov in content_type_obj.override:
+                path = ov.part_name.lstrip("/\\")
+                if is_energyml_content_type(ov.content_type):
+                    energyml_paths[path] = ov.content_type
+                elif get_class_from_content_type(ov.content_type) == CoreProperties:
+                    core_props = read_energyml_xml_bytes(epc_file.read(path), CoreProperties)
+
+            # Extraction des contenus bruts
+            for info in epc_file.infolist():
+                fname = info.filename
+                if fname in energyml_paths:
+                    obj_to_process[fname] = (epc_file.read(fname), energyml_paths[fname])
+                elif read_rels_from_files and fname.lower().endswith(".rels") and fname != "_rels/.rels":
+                    rels_to_process[fname] = epc_file.read(fname)
+                elif (
+                    not fname.lower().endswith(".rels")
+                    and not fname.lower().endswith(gen_core_props_path().lower())
+                    and fname not in energyml_paths
+                    and fname != ct_path
+                ):
+                    raw_files.append(RawFile(path=fname, content=BytesIO(epc_file.read(fname))))
+
+        # 2. Exécution Parallèle (Objets ET Rels)
+        path_to_obj = {}
+        obj_list = []
+        rels_content_map = {}  # {obj_path: Relationships_Object}
+
+        cpus = multiprocessing.cpu_count()
+        with ProcessPoolExecutor(max_workers=cpus) as executor:
+            # A. On lance les objets
+            obj_futures = {
+                executor.submit(_parallel_xml_read, data, ct): path for path, (data, ct) in obj_to_process.items()
+            }
+
+            # B. On lance les rels
+            rel_futures = {
+                executor.submit(_parallel_rels_read, r_data): r_path for r_path, r_data in rels_to_process.items()
+            }
+
+            # C. Récupération des objets
+            for future in as_completed(obj_futures):
+                path = obj_futures[future]
+                res = future.result()
+                if not isinstance(res, Exception):
+                    path_to_obj[path] = res
+                    obj_list.append(res)
+                else:
+                    logging.error(f"Erreur objet {path}: {res}")
+
+            # D. Récupération des rels
+            for future in as_completed(rel_futures):
+                r_path = rel_futures[future]
+                res = future.result()
+                if not isinstance(res, Exception):
+                    # Mapping rel_path -> obj_path
+                    o_path = str(Path(r_path).parent.parent / Path(r_path).stem).replace("\\", "/")
+                    rels_content_map[o_path] = res
+                else:
+                    logging.error(f"Erreur rels {r_path}: {res}")
+
+        # 3. Assemblage final dans le processus parent
+        epc = Epc(energyml_objects=EnergymlObjectCollection(obj_list), raw_files=raw_files, core_props=core_props)
+
+        if read_rels_from_files:
+            for obj_path, rels_obj in rels_content_map.items():
+                if obj_path in path_to_obj:
+                    target_obj = path_to_obj[obj_path]
+                    epc._rels_cache.set_rels_from_file(target_obj, rels_obj)
+
+        if recompute_rels:
+            epc._rels_cache.recompute_cache()
+
+        return epc
 
 
 #     ______                                      __   ____                 __  _

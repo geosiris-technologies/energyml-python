@@ -756,9 +756,11 @@ class FileHandlerRegistry:
         """Register all available handlers based on installed dependencies."""
         # HDF5 Handler
         if __H5PY_MODULE_EXISTS__:
-            self.register_handler([".h5", ".hdf5"], lambda: HDF5ArrayHandler())
+            self.register_handler([".h5", ".hdf5", ".dat"], lambda: HDF5ArrayHandler())  # dat for Galaxy compatibility
         else:
-            self.register_handler([".h5", ".hdf5"], lambda: MockHDF5ArrayHandler())
+            self.register_handler(
+                [".h5", ".hdf5", ".dat"], lambda: MockHDF5ArrayHandler()
+            )  # dat for Galaxy compatibility
 
         # Parquet Handler
         if __PARQUET_MODULE_EXISTS__:
@@ -802,13 +804,18 @@ class FileHandlerRegistry:
             file_path: Path to the file
 
         Returns:
-            Handler instance, or None if no handler registered for this extension
+            Handler instance, or h5 handler if extension not found but h5 handler is available and not mock, else None
         """
         ext = os.path.splitext(file_path)[1].lower()
 
         if ext in self._handlers:
             return self._handlers[ext]()
 
+        # search for h5 handler if not mock and return it by default
+        if ".h5" in self._handlers:
+            h = self._handlers[".h5"]()
+            if "mock" not in h.__class__.__name__.lower():
+                return self._handlers[".h5"]()
         return None
 
     def supports_extension(self, extension: str) -> bool:
@@ -973,7 +980,7 @@ if __H5PY_MODULE_EXISTS__:
         def can_handle_file(self, file_path: str) -> bool:
             """Check if this handler can process the file."""
             ext = os.path.splitext(file_path)[1].lower()
-            return ext in [".h5", ".hdf5"]
+            return ext in [".h5", ".hdf5", ".dat"]  # dat for Galaxy compatibility
 
 else:
 
@@ -1019,7 +1026,7 @@ else:
             raise MissingExtraInstallation(extra_name="hdf5")
 
         def can_handle_file(self, file_path: str) -> bool:
-            return os.path.splitext(file_path)[1].lower() in [".h5", ".hdf5"]
+            return os.path.splitext(file_path)[1].lower() in [".h5", ".hdf5", ".dat"]  # dat for Galaxy compatibility
 
 
 # Parquet Handler

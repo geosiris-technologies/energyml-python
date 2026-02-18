@@ -241,7 +241,7 @@ def read_mesh_object(
         ):  # WellboreFrameRep has allready the displacement applied
             # TODO: the displacement should be done in each reader function to manage specific cases
             for s in surfaces:
-                print("CRS : ", s.crs_object.uuid if s.crs_object is not None else "None")
+                logging.debug(f"CRS : {s.crs_object.uuid if s.crs_object is not None else 'None'}")
                 crs_displacement(s.point_list, s.crs_object)
         return surfaces
     else:
@@ -833,7 +833,11 @@ def read_wellbore_trajectory_representation(
 
     # Get CRS from trajectory geometry if available
     try:
-        crs = workspace.get_object(get_obj_uri(get_object_attribute(energyml_object, "geometry.LocalCrs")))
+        crs_attr = get_object_attribute(energyml_object, "geometry.LocalCrs")
+        if crs_attr is not None:
+            crs = workspace.get_object(get_obj_uri(crs_attr))
+        else:
+            raise ObjectNotFoundNotError("LocalCrs attribute not found in trajectory geometry")
     except Exception:
         logging.debug("Could not get CRS from trajectory geometry")
 

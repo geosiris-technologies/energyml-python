@@ -591,6 +591,22 @@ class TestRelationships:
         # After reload, relationships are stored in additional_rels
         assert len(epc2) == 2
 
+    def test_relationships_in_exported_file_parallel(self, temp_epc_file, sample_objects):
+        """Test that relationships are correctly written to exported file."""
+        epc = Epc()
+        bf = sample_objects["bf"]
+        bfi = sample_objects["bfi"]
+
+        epc.add_object(bf)
+        epc.add_object(bfi)
+        epc.export_file(temp_epc_file)
+
+        # Reload and check relationships
+        epc2 = Epc.read_file(temp_epc_file, read_parallel=True)
+
+        # After reload, relationships are stored in additional_rels
+        assert len(epc2) == 2
+
 
 class TestDORCreation:
     """Test DataObjectReference creation."""
@@ -872,6 +888,67 @@ class TestAdditionalRels:
         h5_paths = epc.get_h5_file_paths(trset)
         assert "data/geometry.h5" in h5_paths
 
+    # Test persistance of additional relationships through export and reload
+    def test_additional_rels_persistence(self, temp_epc_file, sample_objects):
+        """Test that additional relationships persist through export and reload."""
+        from energyml.opc.opc import Relationship
+
+        epc = Epc()
+        bf = sample_objects["bf"]
+        epc.add_object(bf)
+
+        identifier = get_obj_uri(bf)
+
+        # Add external resource relationship
+        h5_rel = Relationship(
+            target="data/external.h5",
+            type_value=str(EPCRelsRelationshipType.EXTERNAL_RESOURCE),
+            id=f"_external_{identifier}",
+        )
+
+        epc.add_rels_for_object(identifier, [h5_rel])
+
+        # Export
+        epc.export_file(temp_epc_file)
+
+        # Reload
+        epc2 = Epc.read_file(temp_epc_file)
+
+        # Check that additional rels are still present
+        assert identifier in epc2._rels_cache._supplemental_rels
+        assert len(epc2._rels_cache._supplemental_rels[identifier]) == 1
+        assert epc2._rels_cache._supplemental_rels[identifier][0].target == "data/external.h5"
+
+    def test_additional_rels_persistence_parallel(self, temp_epc_file, sample_objects):
+        """Test that additional relationships persist through export and reload with parallel reading."""
+        from energyml.opc.opc import Relationship
+
+        epc = Epc()
+        bf = sample_objects["bf"]
+        epc.add_object(bf)
+
+        identifier = get_obj_uri(bf)
+
+        # Add external resource relationship
+        h5_rel = Relationship(
+            target="data/external.h5",
+            type_value=str(EPCRelsRelationshipType.EXTERNAL_RESOURCE),
+            id=f"_external_{identifier}",
+        )
+
+        epc.add_rels_for_object(identifier, [h5_rel])
+
+        # Export
+        epc.export_file(temp_epc_file)
+
+        # Reload with parallel reading
+        epc2 = Epc.read_file(temp_epc_file, read_parallel=True)
+
+        # Check that additional rels are still present
+        assert identifier in epc2._rels_cache._supplemental_rels
+        assert len(epc2._rels_cache._supplemental_rels[identifier]) == 1
+        assert epc2._rels_cache._supplemental_rels[identifier][0].target == "data/external.h5"
+
 
 class TestEdgeCases:
     """Test edge cases and error handling."""
@@ -967,6 +1044,23 @@ class TestCoreProperties:
 
         # Reload and verify
         epc2 = Epc.read_file(temp_epc_file)
+        assert epc2.core_props is not None
+
+    def test_custom_core_props_parallel(self, temp_epc_file, sample_objects):
+        """Test setting custom core properties."""
+        from energyml.opc.opc import CoreProperties, Creator
+
+        core_props = CoreProperties(
+            creator=Creator(any_element="Test Creator"),
+        )
+
+        epc = Epc(core_props=core_props)
+        epc.add_object(sample_objects["bf"])
+
+        epc.export_file(temp_epc_file)
+
+        # Reload and verify
+        epc2 = Epc.read_file(temp_epc_file, read_parallel=True)
         assert epc2.core_props is not None
 
 

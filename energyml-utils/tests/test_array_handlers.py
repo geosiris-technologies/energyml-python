@@ -9,6 +9,7 @@ from energyml.utils.data.datasets_io import (
     CSVArrayHandler,
     LASArrayHandler,
     SEGYArrayHandler,
+    get_handler_registry,
 )
 
 
@@ -18,6 +19,12 @@ def is_h5py_file_closed(h5file):
         return not getattr(h5file, "id", None) or not h5file.id.valid
     except Exception:
         return True
+
+
+def test_default_handler_from_registry_is_h5():
+    """Test that the default handler for .h5 is HDF5ArrayHandler."""
+    handler = get_handler_registry().get_handler_for_file("")  # no extension, should return default .h5 handler
+    assert isinstance(handler, HDF5ArrayHandler), "Default handler for .h5 should be HDF5ArrayHandler"
 
 
 def test_hdf5_array_handler_read_write():

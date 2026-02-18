@@ -39,14 +39,31 @@ def reexport_in_memory(filepath: str, output_folder: Optional[str] = None):
     if output_folder:
         os.makedirs(output_folder, exist_ok=True)
         path_in_memory = f"{output_folder}/{path_in_memory.split('/')[-1]}"
-    epc = Epc.read_file(epc_file_path=filepath, read_rels_from_files=False)
+    epc = Epc.read_file(epc_file_path=filepath, read_rels_from_files=False, recompute_rels=False)
 
     if os.path.exists(path_in_memory):
         os.remove(path_in_memory)
     epc.export_file(path_in_memory)
 
 
-def time_comparison(filepath: str, output_folder: Optional[str] = None, skip_sequential: bool = True):
+def reexport_in_memory_par_read(filepath: str, output_folder: Optional[str] = None):
+    path_in_memory = filepath.replace(".epc", "_in_memory_par_read.epc")
+    if output_folder:
+        os.makedirs(output_folder, exist_ok=True)
+        path_in_memory = f"{output_folder}/{path_in_memory.split('/')[-1]}"
+    epc = Epc.read_file(epc_file_path=filepath, read_rels_from_files=False, read_parallel=True, recompute_rels=False)
+
+    if os.path.exists(path_in_memory):
+        os.remove(path_in_memory)
+    epc.export_file(path_in_memory, parallel=True)
+
+
+def time_comparison(
+    filepath: str,
+    output_folder: Optional[str] = None,
+    skip_sequential_stream: bool = True,
+    skip_parallel_stream: bool = True,
+):
     """Compare performance of different EPC reexport methods."""
     print(f"\n{'=' * 70}")
     print(f"Performance Comparison: {filepath.split('/')[-1]}")
@@ -62,7 +79,15 @@ def time_comparison(filepath: str, output_folder: Optional[str] = None, skip_seq
     results.append(("In-Memory (Epc)", elapsed_inmem))
     print(f"   ✓ Completed in {elapsed_inmem:.3f}s\n")
 
-    if not skip_sequential:
+    # Test 1b: In-Memory with Parallel Read
+    print("⏳ Testing In-Memory EPC processing with Parallel Read...")
+    start = time.perf_counter()
+    reexport_in_memory_par_read(filepath, output_folder)
+    elapsed_inmem_par = time.perf_counter() - start
+    results.append(("In-Memory (Epc) Parallel Read", elapsed_inmem_par))
+    print(f"   ✓ Completed in {elapsed_inmem_par:.3f}s\n")
+
+    if not skip_sequential_stream:
         # Test 2: Streaming Sequential
         print("⏳ Testing Streaming Sequential processing...")
         start = time.perf_counter()
@@ -72,12 +97,13 @@ def time_comparison(filepath: str, output_folder: Optional[str] = None, skip_seq
         print(f"   ✓ Completed in {elapsed_seq:.3f}s\n")
 
     # Test 3: Streaming Parallel
-    print("⏳ Testing Streaming Parallel processing...")
-    start = time.perf_counter()
-    reexport_stream_parallel(filepath, output_folder)
-    elapsed_parallel = time.perf_counter() - start
-    results.append(("Stream Parallel", elapsed_parallel))
-    print(f"   ✓ Completed in {elapsed_parallel:.3f}s\n")
+    if not skip_parallel_stream:
+        print("⏳ Testing Streaming Parallel processing...")
+        start = time.perf_counter()
+        reexport_stream_parallel(filepath, output_folder)
+        elapsed_parallel = time.perf_counter() - start
+        results.append(("Stream Parallel", elapsed_parallel))
+        print(f"   ✓ Completed in {elapsed_parallel:.3f}s\n")
 
     # Calculate speedups
     results_sorted = sorted(results, key=lambda x: x[1])
@@ -119,14 +145,14 @@ if __name__ == "__main__":
 
     update_prop_kind_dict_cache()
 
-    time_comparison(
-        filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/testingPackageCpp22.epc",
-        output_folder="rc/performance_results",
-    )
-
     # time_comparison(
-    #     filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/80wells_surf.epc", output_folder="rc/performance_results"
+    #     filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/testingPackageCpp22.epc",
+    #     output_folder="rc/performance_results",
     # )
+
+    time_comparison(
+        filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/80wells_surf.epc", output_folder="rc/performance_results"
+    )
 
     # time_comparison(
     #     filepath=sys.argv[1] if len(sys.argv) > 1 else "wip/failingData/fix/sample_mini_firp_201_norels_with_media.epc",
