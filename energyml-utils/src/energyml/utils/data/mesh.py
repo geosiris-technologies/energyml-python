@@ -784,7 +784,7 @@ def read_wellbore_frame_representation(
         trajectory_dor = search_attribute_matching_name(obj=energyml_object, name_rgx="Trajectory")[0]
         trajectory_obj = workspace.get_object(get_obj_uri(trajectory_dor))
 
-        print(f"Mds {wellbore_frame_mds}")
+        # print(f"Mds {wellbore_frame_mds}")
 
         meshes = read_wellbore_trajectory_representation(
             energyml_object=trajectory_obj,
