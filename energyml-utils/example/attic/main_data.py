@@ -11,11 +11,11 @@ from energyml.eml.v2_3.commonv2 import (
 )
 from energyml.utils.data.export import export_obj
 
-from src.energyml.utils.data.helper import (
+from energyml.utils.data.helper import (
     get_array_reader_function,
     read_array,
 )
-from src.energyml.utils.data.mesh import (
+from energyml.utils.data.mesh import (
     GeoJsonGeometryType,
     MeshFileFormat,
     _create_shape,
@@ -24,29 +24,29 @@ from src.energyml.utils.data.mesh import (
     export_off,
     read_mesh_object,
 )
-from src.energyml.utils.epc import gen_energyml_object_path
-from src.energyml.utils.introspection import (
+from energyml.utils.epc import gen_energyml_object_path
+from energyml.utils.introspection import (
     get_object_attribute,
     is_abstract,
     get_obj_uuid,
     search_attribute_matching_name_with_path,
 )
-from src.energyml.utils.manager import get_sub_classes
-from src.energyml.utils.serialization import (
+from energyml.utils.manager import get_sub_classes
+from energyml.utils.serialization import (
     read_energyml_xml_file,
     read_energyml_xml_str,
     read_energyml_xml_bytes,
     read_energyml_xml_tree,
 )
-from src.energyml.utils.validation import validate_epc
-from src.energyml.utils.xml import get_tree
-from src.energyml.utils.data.datasets_io import (
+from energyml.utils.validation import validate_epc
+from energyml.utils.xml import get_tree
+from energyml.utils.data.datasets_io import (
     HDF5FileReader,
     get_path_in_external_with_path,
     get_external_file_path_from_external_path,
 )
 from energyml.utils.epc import Epc
-from src.energyml.utils.data.mesh import (
+from energyml.utils.data.mesh import (
     read_polyline_representation,
     read_point_representation,
     read_grid2d_representation,
@@ -165,7 +165,8 @@ def read_h5_polyline():
 
 
 def read_h5_grid2d_bis():
-    path = "../rc/obj_Grid2dRepresentation_7c43bad9-4cad-4ab0-bb50-9afb24a4b883.xml"
+    path = "rc/obj_Grid2dRepresentation_7c43bad9-4cad-4ab0-bb50-9afb24a4b883.xml"
+    # path = "../rc/obj_Grid2dRepresentation_7c43bad9-4cad-4ab0-bb50-9afb24a4b883.xml"
 
     xml_content = ""
     with open(path, "r") as f:
@@ -179,12 +180,12 @@ def read_h5_grid2d_bis():
     )
     uuid = get_obj_uuid(grid)
     print("Exporting")
-    with open(f"result/grid2d_{uuid}.obj", "wb") as f:
+    with open(f"rc/result/grid2d_{uuid}.obj", "wb") as f:
         export_obj(
             mesh_list=grid_list,
             out=f,
         )
-    with open(f"result/grid2d_{uuid}_bis.off", "wb") as f:
+    with open(f"rc/result/grid2d_{uuid}_bis.off", "wb") as f:
         export_off(
             mesh_list=grid_list,
             out=f,
@@ -206,12 +207,12 @@ def read_h5_grid2d_ter():
     )
     uuid = get_obj_uuid(grid)
     print("Exporting")
-    with open(f"result/grid2d_{uuid}.obj", "wb") as f:
+    with open(f"rc/result/grid2d_{uuid}.obj", "wb") as f:
         export_obj(
             mesh_list=grid_list,
             out=f,
         )
-    with open(f"result/grid2d_{uuid}_bis.off", "wb") as f:
+    with open(f"rc/result/grid2d_{uuid}_bis.off", "wb") as f:
         export_off(
             mesh_list=grid_list,
             out=f,
@@ -248,12 +249,12 @@ def read_h5_grid2d():
         # keep_holes=False
     )
     print("Exporting")
-    with open(f"result/grid2d_{uuid}.obj", "wb") as f:
+    with open(f"rc/result/grid2d_{uuid}.obj", "wb") as f:
         export_obj(
             mesh_list=grid_list,
             out=f,
         )
-    with open(f"result/grid2d_{uuid}.off", "wb") as f:
+    with open(f"rc/result/grid2d_{uuid}.off", "wb") as f:
         export_off(
             mesh_list=grid_list,
             out=f,
@@ -272,12 +273,12 @@ def read_meshes():
         workspace=epc22,
     )
     print("Exporting")
-    with open(f"result/{gen_energyml_object_path(energyml_obj)}.obj", "wb") as f:
+    with open(f"rc/result/{gen_energyml_object_path(energyml_obj)}.obj", "wb") as f:
         export_obj(
             mesh_list=mesh_list,
             out=f,
         )
-    with open(f"result/{gen_energyml_object_path(energyml_obj)}.off", "wb") as f:
+    with open(f"rc/result/{gen_energyml_object_path(energyml_obj)}.off", "wb") as f:
         export_off(
             mesh_list=mesh_list,
             out=f,

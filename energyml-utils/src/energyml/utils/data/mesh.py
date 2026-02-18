@@ -241,8 +241,11 @@ def read_mesh_object(
         ):  # WellboreFrameRep has allready the displacement applied
             # TODO: the displacement should be done in each reader function to manage specific cases
             for s in surfaces:
-                logging.debug(f"CRS : {s.crs_object.uuid if s.crs_object is not None else 'None'}")
-                crs_displacement(s.point_list, s.crs_object)
+                logging.debug(f"CRS : {s.crs_object}")
+                crs_displacement(
+                    s.point_list,
+                    s.crs_object[0] if isinstance(s.crs_object, list) and len(s.crs_object) > 0 else s.crs_object,
+                )
         return surfaces
     else:
         # logging.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")

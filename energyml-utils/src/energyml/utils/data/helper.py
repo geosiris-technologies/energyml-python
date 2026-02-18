@@ -473,7 +473,8 @@ def get_crs_obj(
             crs = workspace.get_object(get_obj_uri(crs_list[0]))
             if crs is None:
                 # logging.debug(f"CRS {crs_list[0]} not found (or not read correctly)")
-                crs = workspace.get_object_by_uuid(get_obj_uuid(crs_list[0]))
+                _crs_list = workspace.get_object_by_uuid(get_obj_uuid(crs_list[0]))
+                crs = _crs_list[0] if _crs_list is not None and len(_crs_list) > 0 else None
             if crs is None:
                 logging.error(f"CRS {crs_list[0]} not found (or not read correctly)")
                 raise ObjectNotFoundNotError(get_obj_uri(crs_list[0]))
@@ -883,12 +884,16 @@ def read_external_array(
     """
     array = None
     if workspace is not None:
-        crs = get_crs_obj(
-            context_obj=root_obj,
-            root_obj=root_obj,
-            path_in_root=path_in_root,
-            workspace=workspace,
-        )
+        crs = None
+        try:
+            get_crs_obj(
+                context_obj=root_obj,
+                root_obj=root_obj,
+                path_in_root=path_in_root,
+                workspace=workspace,
+            )
+        except ObjectNotFoundNotError as e:
+            logging.debug(f"CRS not found for {get_obj_title(root_obj)}: {e}")
 
         # Search for ExternalDataArrayPart type objects (RESQML v2.2)
         external_parts = search_attribute_matching_type(
