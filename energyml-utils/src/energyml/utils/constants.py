@@ -49,7 +49,7 @@ ENERGYML_NAMESPACES_PACKAGE = {
 
 ENERGYML_MODULES_NAMES = ["eml", "prodml", "witsml", "resqml"]
 
-RELATED_MODULES = [
+_RELATED_MODULES = [
     ["energyml.eml.v2_0.commonv2", "energyml.resqml.v2_0_1.resqmlv2"],
     [
         "energyml.eml.v2_1.commonv2",
@@ -64,6 +64,11 @@ RELATED_MODULES = [
         "energyml.witsml.v2_1.witsmlv2",
     ],
 ]
+
+RELATED_MODULES_MAP = {}
+for group in _RELATED_MODULES:
+    for module in group:
+        RELATED_MODULES_MAP[module] = group
 
 # ===================================
 # REGEX PATTERN STRINGS (for reference)
@@ -213,7 +218,8 @@ RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
 RELS_FOLDER_NAME = "_rels"
 CORE_PROPERTIES_FOLDER_NAME = "docProps"
 
-primitives = (bool, str, int, float, type(None))
+# primitives = (bool, str, int, float, type(None))
+primitives = {bool, str, int, float, bytes, type(None)}
 
 
 class MimeType(Enum):

@@ -1,5 +1,6 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
+from functools import lru_cache
 import importlib
 import inspect
 import logging
@@ -9,7 +10,7 @@ from typing import Union, Any, Dict, List, Optional
 
 from energyml.utils.constants import (
     ENERGYML_MODULES_NAMES,
-    RELATED_MODULES,
+    RELATED_MODULES_MAP,
     RGX_ENERGYML_MODULE_NAME,
     RGX_PROJECT_VERSION,
 )
@@ -22,15 +23,16 @@ def get_related_energyml_modules_name(cls: Union[type, Any]) -> List[str]:
     :param cls:
     :return:
     """
-    if isinstance(cls, type):
-        for related in RELATED_MODULES:
-            if cls.__module__ in related:
-                return related
+    if isinstance(cls, str):
+        return RELATED_MODULES_MAP.get(cls, [])
+    elif isinstance(cls, type):
+        return RELATED_MODULES_MAP.get(str(cls.__module__), [])
     else:
         return get_related_energyml_modules_name(type(cls))
     return []
 
 
+@lru_cache(maxsize=None)
 def dict_energyml_modules() -> Dict:
     """
     List all accessible energyml python modules

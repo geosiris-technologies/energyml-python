@@ -246,6 +246,7 @@ def test_is_abstract():
 
     assert is_abstract(AbstractPoint3DArray)
     assert not is_abstract(Point3DExternalArray)
+    assert not is_abstract(int)
 
 
 # =============================================================================

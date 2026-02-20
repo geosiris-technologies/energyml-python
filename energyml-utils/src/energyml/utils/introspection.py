@@ -8,6 +8,7 @@ import random
 import re
 import sys
 import traceback
+import operator
 import typing
 from dataclasses import Field, field
 from enum import Enum
@@ -31,7 +32,6 @@ from .manager import (
     class_has_parent_with_name,
     get_class_pkg,
     get_class_pkg_version,
-    RELATED_MODULES,
     get_related_energyml_modules_name,
     get_sub_classes,
     get_classes_matching_name,
@@ -53,15 +53,53 @@ def is_enum(cls: Union[type, Any]):
     return is_enum(type(cls))
 
 
-def is_primitive(cls: Union[type, Any]) -> bool:
+@lru_cache(maxsize=2048)
+def _is_primitive_type(obj_type: type) -> bool:
     """
-    Returns True if :param:`cls` is a primitiv type or extends Enum
-    :param cls:
-    :return: bool
+    Returns True if :param:`obj_type` is a primitive type or extends Enum
     """
-    if isinstance(cls, type):
-        return cls in primitives or Enum in cls.__bases__
-    return is_primitive(type(cls))
+    if obj_type in primitives:
+        return True
+    try:
+        return issubclass(obj_type, Enum)
+    except TypeError:
+        return False
+
+
+def is_primitive(cls: type) -> bool:
+    """
+    Returns True if :param:`cls` is a primitive type or extends Enum
+    """
+    t = cls if isinstance(cls, type) else type(cls)
+    return _is_primitive_type(t)
+
+
+@lru_cache(maxsize=None)
+def _is_abstract_cls(cls: type) -> bool:
+    # 1. Gestion du cache pour les instances (on récupère le type)
+    if not isinstance(cls, type):
+        return is_abstract(type(cls))
+
+    # 2. Les primitives ne sont jamais abstraites
+    if is_primitive(cls):
+        return False
+
+    # 3. Critère de nom (très commun dans Energyml)
+    if cls.__name__.startswith("Abstract"):
+        return True
+
+    # 4. Critère des champs (pour les Dataclasses)
+    # On vérifie explicitement si c'est une dataclass
+    fields = getattr(cls, "__dataclass_fields__", None)
+    has_no_fields = fields is not None and len(fields) == 0
+
+    # 5. Critère des méthodes
+    # Ta classe 'Test' a une méthode 'hello', donc len(...) == 1
+    methods = get_class_methods(cls)
+    has_no_methods = len(methods) == 0
+
+    # Une classe est "abstraite" ici si elle est vide (pas de champs, pas de méthodes)
+    return has_no_fields and has_no_methods
 
 
 def is_abstract(cls: Union[type, Any]) -> bool:
@@ -70,16 +108,8 @@ def is_abstract(cls: Union[type, Any]) -> bool:
     :param cls:
     :return: bool
     """
-    if isinstance(cls, type):
-        return (
-            not is_primitive(cls)
-            and (
-                cls.__name__.startswith("Abstract")
-                or (hasattr(cls, "__dataclass_fields__") and len(cls.__dataclass_fields__)) == 0
-            )
-            and len(get_class_methods(cls)) == 0
-        )
-    return is_abstract(type(cls))
+    t = cls if isinstance(cls, type) else type(cls)
+    return _is_abstract_cls(t)
 
 
 def get_module_classes_from_name(mod_name: str) -> List:
@@ -87,22 +117,65 @@ def get_module_classes_from_name(mod_name: str) -> List:
 
 
 @lru_cache(maxsize=None)
-def get_module_classes(mod: ModuleType) -> List:
-    return inspect.getmembers(mod, inspect.isclass)
+def get_module_metadata_map(module_name: str) -> dict:
+    """
+    Crée un index : {NomMeta: Classe, NomPython: Classe}
+    pour une recherche instantanée.
+    """
+    mapping = {}
+    for cls_name, cls in get_module_classes_from_name(module_name):
+        # On indexe par le nom de classe Python
+        mapping[cls_name] = cls
+
+        # On indexe par le nom dans Meta (spécifique à Energyml/xsdata)
+        meta = getattr(cls, "Meta", None)
+        if meta and hasattr(meta, "name"):
+            mapping[meta.name] = cls
+
+    return mapping
 
 
-def find_class_in_module(module_name, class_name):
+def find_class_in_module(module_name: str, class_name: str):
+    # 1. Tentative rapide via sys.modules (O(1))
+    mod = sys.modules.get(module_name)
+    if not mod:
+        return None
+
     try:
-        return getattr(sys.modules[module_name], class_name)
-    except:
-        for cls_name, cls in get_module_classes_from_name(module_name):
-            try:
-                if cls_name == class_name or cls.Meta.name == class_name:
-                    return cls
-            except Exception:
-                pass
+        return getattr(mod, class_name)
+    except AttributeError:
+        # 2. Recherche via le mapping Meta pré-calculé (O(1) après premier appel)
+        mapping = get_module_metadata_map(module_name)
+        cls = mapping.get(class_name)
+
+        if cls:
+            return cls
+
     logging.error(f"Not Found : {module_name}; {class_name}")
     return None
+
+
+@lru_cache(maxsize=None)
+def get_module_classes(mod: Union[ModuleType, str]) -> List[Tuple[str, type]]:
+    if isinstance(mod, str):
+        mod = sys.modules.get(mod)
+        if not mod:
+            return []
+
+    mod_name = mod.__name__
+    return [
+        (name, value)
+        for name, value in mod.__dict__.items()
+        if isinstance(value, type) and value.__module__ == mod_name
+    ]
+
+
+@lru_cache(maxsize=None)
+def _get_module_search_index(module_name: str) -> List[Tuple[str, type]]:
+    """Retourne une liste de tuples (nom_en_minuscule, classe) pour le module."""
+    classes = get_module_classes_from_name(module_name)
+    # On pré-calcule le .lower() pour ne le faire qu'une seule fois par module
+    return [(cls_name.lower(), cls) for cls_name, cls in classes]
 
 
 def search_class_in_module_from_partial_name(module_name: str, class_partial_name: str) -> Optional[List[type]]:
@@ -114,27 +187,58 @@ def search_class_in_module_from_partial_name(module_name: str, class_partial_nam
 
     """
     try:
-        import_module(module_name)
-        # module = import_module(module_name)
-        classes = get_module_classes_from_name(module_name)
-        matching_classes = [cls for cls_name, cls in classes if class_partial_name.lower() in cls_name.lower()]
+        import_related_module(module_name)
+
+        # 2. Récupération de l'index pré-calculé (O(1) grâce au cache)
+        search_index = _get_module_search_index(module_name)
+
+        # 3. Recherche floue
+        search_term = class_partial_name.lower()
+        matching_classes = [cls for name_lower, cls in search_index if search_term in name_lower]
+
         return matching_classes
-    except ImportError as e:
-        logging.error(f"Module '{module_name}' not found: {e}")
+    except Exception as e:
+        logging.error(f"Error searching in module '{module_name}': {e}")
     return None
 
 
+@lru_cache(maxsize=None)
+def _get_class_methods(cls: Union[type, Any]) -> List[str]:
+    """
+    Return a list of method names defined directly in the given class (not inherited).
+
+    Args:
+        cls: The class or instance to inspect.
+
+    Returns:
+        List of method names defined in the class (excluding dunder methods).
+
+    Notes:
+        - Always works on the type for caching efficiency.
+        - Uses __dict__ to scan only methods defined in THIS class (not inherited).
+          If you want inherited methods, use dir(), but __dict__ is ~10x faster for EnergyML classes.
+        - Only checks if the attribute is a function or routine (more precise than callable(),
+          which includes the class itself).
+    """
+    # Always work on the type for cache efficiency
+    if not isinstance(cls, type):
+        return _get_class_methods(type(cls))
+
+    methods = []
+    # Use __dict__ to scan only methods defined in THIS class
+    for name, attr in cls.__dict__.items():
+        if name.startswith("__"):
+            continue
+        # Only check if it's a function or routine (not just callable)
+        if inspect.isroutine(attr):
+            methods.append(name)
+
+    return methods
+
+
 def get_class_methods(cls: Union[type, Any]) -> List[str]:
-    """
-    Returns the list of the methods names for a specific class.
-    :param cls:
-    :return:
-    """
-    return [
-        func
-        for func in dir(cls)
-        if callable(getattr(cls, func)) and not func.startswith("__") and not isinstance(getattr(cls, func), type)
-    ]
+    t = cls if isinstance(cls, type) else type(cls)
+    return _get_class_methods(t)
 
 
 def get_class_from_name(class_name_and_module: str) -> Optional[type]:
@@ -188,23 +292,7 @@ def get_class_from_name(class_name_and_module: str) -> Optional[type]:
     return None
 
 
-def get_energyml_module_dev_version(pkg: str, current_version: str):
-    accessible_modules = dict_energyml_modules()
-    if not current_version.startswith("v"):
-        current_version = "v" + current_version
-
-    current_version = current_version.replace("-", "_").replace(".", "_")
-    res = []
-    if pkg in accessible_modules:
-        # logging.debug("\t", pkg, current_version)
-        for am_pkg_version in accessible_modules[pkg]:
-            if am_pkg_version != current_version and am_pkg_version.startswith(current_version):
-                # logging.debug("\t\t", am_pkg_version)
-                res.append(get_module_name(pkg, am_pkg_version))
-
-    return res
-
-
+@lru_cache(maxsize=None)
 def get_energyml_class_in_related_dev_pkg(cls: type):
     class_name = cls.__name__
     class_pkg = get_class_pkg(cls)
@@ -219,6 +307,23 @@ def get_energyml_class_in_related_dev_pkg(cls: type):
             logging.error(f"FAILED {dev_module_name}.{class_name}")
             logging.error(e)
             pass
+
+    return res
+
+
+def get_energyml_module_dev_version(pkg: str, current_version: str):
+    accessible_modules = dict_energyml_modules()
+    if not current_version.startswith("v"):
+        current_version = "v" + current_version
+
+    current_version = current_version.replace("-", "_").replace(".", "_")
+    res = []
+    if pkg in accessible_modules:
+        # logging.debug("\t", pkg, current_version)
+        for am_pkg_version in accessible_modules[pkg]:
+            if am_pkg_version != current_version and am_pkg_version.startswith(current_version):
+                # logging.debug("\t\t", am_pkg_version)
+                res.append(get_module_name(pkg, am_pkg_version))
 
     return res
 
@@ -296,21 +401,20 @@ _FAILED_IMPORT_MODULES = set()
 
 def import_related_module(energyml_module_name: str) -> None:
     """
-    Import related modules for a specific energyml module. (See. :const:`RELATED_MODULES`)
+    Import related modules for a specific energyml module. (See. :const:`RELATED_MODULES_MAP`)
     :param energyml_module_name:
     :return:
     """
-    for related in RELATED_MODULES:
-        if energyml_module_name in related:
-            for m in related:
-                try:
-                    import_module(m)
-                except Exception as e:
-                    # Only log once per unique module
-                    if m not in _FAILED_IMPORT_MODULES:
-                        _FAILED_IMPORT_MODULES.add(m)
-                        logging.debug(f"Could not import related module {m}: {e}")
-                    # logging.error(e)
+    group = get_related_energyml_modules_name(energyml_module_name)
+    for m in group:
+        try:
+            import_module(m)
+        except Exception as e:
+            # Only log once per unique module
+            if m not in _FAILED_IMPORT_MODULES:
+                _FAILED_IMPORT_MODULES.add(m)
+                logging.debug(f"Could not import related module {m}: {e}")
+            # logging.error(e)
 
 
 def list_function_parameters_with_types(func, is_class_function: bool = False) -> Dict[str, Any]:
@@ -635,7 +739,8 @@ def get_object_attribute_no_verif(obj: Any, attr_name: str, default: Optional[An
         else:
             raise AttributeError(obj, name=attr_name)
     else:
-        res = getattr(obj, attr_name)
+        res = operator.attrgetter(attr_name)(obj)
+        # res = getattr(obj, attr_name)
         if res is None:  # we did not used the "default" of getattr to keep raising AttributeError
             return default
         return res

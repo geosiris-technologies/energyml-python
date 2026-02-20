@@ -20,12 +20,18 @@ __ENV__IMPROVEMENT__ = "__ENV__IMPROVEMENT__"
 """
 
 import logging
+import operator
 import os
 import sys
 import time
 from typing import Optional
 
 from energyml.utils.epc import Epc
+from energyml.utils.introspection import (
+    search_class_in_module_from_partial_name,
+)
+from energyml.utils.manager import get_related_energyml_modules_name
+from energyml.utils.serialization import read_energyml_xml_file, serialize_json
 
 
 def reexport_in_memory_par_read(filepath: str, output_folder: Optional[str] = None):
@@ -110,3 +116,38 @@ if __name__ == "__main__":
     #     filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/80wells_surf.epc",
     #     output_folder="results",
     # )
+    # class Test:
+    #     def __init__(self):
+    #         self.geometry = 1
+
+    #     def hello(self):
+    #         print("Hello")
+
+
+if __name__ == "__main__2":
+
+    grid = read_energyml_xml_file("rc/Grid2dRepresentation_78bf01c0-d5bb-46d3-aa70-9cc4ee5c8230.xml")
+
+    print(serialize_json(grid))
+
+    # print(operator.attrgetter("geometry.points.zvalues.values.external_data_array_part.0")(grid))
+
+    test_dict = {"geometry": {"points": {"zvalues": {"values": {"external_data_array_part": ["test"]}}}}}
+
+    print(operator.attrgetter("geometry.points.zvalues.values.external_data_array_part.0")(test_dict))
+
+
+if __name__ == "__main__":
+
+    # print(is_abstract(Test))
+
+    # print(len(get_module_classes("energyml.resqml.v2_2.resqmlv2")))
+    # print(get_module_classes_old("energyml.resqml.v2_2.resqmlv2"))
+
+    # tr = TriangulatedSetRepresentation()
+    # print(get_class_methods(Epc))*
+
+    # print(RELATED_MODULES_MAP)
+    # print(get_related_energyml_modules_name("energyml.resqml.v2_2.resqmlv2"))
+
+    print(len(search_class_in_module_from_partial_name("energyml.resqml.v2_2.resqmlv2", "Representation")))
