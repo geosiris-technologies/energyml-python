@@ -1,5 +1,6 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
+from functools import lru_cache
 import inspect
 import json
 import logging
@@ -85,6 +86,7 @@ def get_module_classes_from_name(mod_name: str) -> List:
     return get_module_classes(sys.modules[mod_name])
 
 
+@lru_cache(maxsize=None)
 def get_module_classes(mod: ModuleType) -> List:
     return inspect.getmembers(mod, inspect.isclass)
 

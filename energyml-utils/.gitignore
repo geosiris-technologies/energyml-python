@@ -75,3 +75,7 @@ rc/**/*.hdf5
 src/energyml/utils/wip*
 scripts
 rc/camunda
+
+
+# code profiling
+*.prof

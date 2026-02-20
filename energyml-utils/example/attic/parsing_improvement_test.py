@@ -34,6 +34,8 @@ def reexport_in_memory_par_read(filepath: str, output_folder: Optional[str] = No
     suffix = "opti" if is_opti else "std"
     if os.environ.get("__ENV__IMPROVEMENT_LXML__", "0") == "1":
         suffix += "_lxml"
+    if os.environ.get("__ENV__IMPROVEMENT__GET_MEMBER__", "0") == "1":
+        suffix += "_get_member"
 
     path_in_memory = filepath.replace(".epc", f"_parsing_imp_xml_{suffix}.epc")
     if output_folder:
@@ -46,17 +48,20 @@ def reexport_in_memory_par_read(filepath: str, output_folder: Optional[str] = No
     epc.export_file(path_in_memory, parallel=True)
 
 
+# ===================================
+
+
 def time_test(f: callable, **kwargs):
-    print(f"⏳ Testing {f.__name__}...")
+    print(f" Testing {f.__name__}...")
     start = time.perf_counter()
     f(**kwargs)
     elapsed_inmem = time.perf_counter() - start
     # results.append(("In-Memory (Epc)", elapsed_inmem))
-    print(f"   ✓ Completed in {elapsed_inmem:.3f}s\n")
+    print(f"    Completed in {elapsed_inmem:.3f}s\n")
     return ("In-Memory (Epc)", elapsed_inmem)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__xmlcontext__":
     logging.basicConfig(level=logging.DEBUG)
 
     os.environ["__ENV__IMPROVEMENT__"] = "0"
@@ -82,3 +87,26 @@ if __name__ == "__main__":
         filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/80wells_surf.epc",
         output_folder="results",
     )
+
+if __name__ == "__main__":
+    from energyml.resqml.v2_2.resqmlv2 import TriangulatedSetRepresentation
+
+    print(TriangulatedSetRepresentation.__class__.__module__)
+    print(TriangulatedSetRepresentation.__dataclass_fields__.keys())
+
+    # logging.basicConfig(level=logging.DEBUG)
+
+    # os.environ["__ENV__IMPROVEMENT__GET_MEMBER__"] = "0"
+
+    time_test(
+        reexport_in_memory_par_read,
+        filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/80wells_surf.epc",
+        output_folder="results",
+    )
+
+    # os.environ["__ENV__IMPROVEMENT__GET_MEMBER__"] = "1"
+    # time_test(
+    #     reexport_in_memory_par_read,
+    #     filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/80wells_surf.epc",
+    #     output_folder="results",
+    # )

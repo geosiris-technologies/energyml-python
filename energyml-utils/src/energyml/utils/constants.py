@@ -415,8 +415,21 @@ def file_extension_to_mime_type(extension: str) -> Optional[str]:
 # OPTIMIZED UTILITY FUNCTIONS
 # ===================================
 
+_SNAKE_CASE_PATTERNS = [
+    (re.compile(r"(.)([A-Z][a-z]+)"), r"\1_\2"),
+    (re.compile(r"__([A-Z])"), r"_\1"),
+    (re.compile(r"([a-z0-9])([A-Z])"), r"\1_\2"),
+]
+
 
 def snake_case(string: str) -> str:
+    """Transform a string into snake_case (optimized with pre-compiled regexes)"""
+    for pattern, repl in _SNAKE_CASE_PATTERNS:
+        string = pattern.sub(repl, string)
+    return string.lower()
+
+
+def snake_case_old(string: str) -> str:
     """Transform a string into snake_case"""
     string = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", string)
     string = re.sub("__([A-Z])", r"_\1", string)
