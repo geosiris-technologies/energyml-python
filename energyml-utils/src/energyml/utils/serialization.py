@@ -42,6 +42,13 @@ from .xml import (
     ENERGYML_NAMESPACES,
 )
 
+from xsdata.formats.dataclass.parsers.handlers import LxmlEventHandler
+
+GLOBAL_XML_CONTEXT = XmlContext(
+    # element_name_generator=text.camel_case,
+    # attribute_name_generator=text.kebab_case
+)
+
 
 class JSON_VERSION(Enum):
     XSDATA = "XSDATA"
@@ -65,7 +72,7 @@ def _read_energyml_xml_bytes_as_class(
         fail_on_unknown_attributes=fail_on_unknown_attributes,
         # process_xinclude=True,
     )
-    parser = XmlParser(config=config)
+    parser = XmlParser(config=config, context=GLOBAL_XML_CONTEXT, handler=LxmlEventHandler)
     try:
         return parser.from_bytes(file, obj_class)
     except ParserError as e:
@@ -81,11 +88,6 @@ def _read_energyml_xml_bytes_as_class(
 
 
 def read_energyml_xml_tree(file: etree, obj_type: Optional[type] = None) -> Any:
-    # if obj_type is None:
-    #     obj_type = get_class_from_name(get_class_name_from_xml(file))
-    # parser = XmlParser(handler=XmlEventHandler)
-    # # parser = XmlParser(handler=LxmlEventHandler)
-    # return parser.parse(file, obj_type)
     return read_energyml_xml_bytes(etree.tostring(file, encoding="utf8"))
 
 
@@ -155,7 +157,7 @@ def _read_energyml_json_bytes_as_class(file: bytes, json_version: JSON_VERSION, 
             # fail_on_unknown_attributes=False,
             # process_xinclude=True,
         )
-        parser = JsonParser(config=config)
+        parser = JsonParser(config=config, context=GLOBAL_XML_CONTEXT)
         try:
             return parser.from_bytes(file, obj_class)
         except ParserError as e:
@@ -269,12 +271,8 @@ def serialize_xml(obj, check_obj_prefixed_classes: bool = True) -> str:
     # logging.debug(f"[1] Serializing object of type {type(obj)}")
     obj = as_obj_prefixed_class_if_possible(obj) if check_obj_prefixed_classes else obj
     # logging.debug(f"[2] Serializing object of type {type(obj)}")
-    context = XmlContext(
-        # element_name_generator=text.camel_case,
-        # attribute_name_generator=text.kebab_case
-    )
     serializer_config = SerializerConfig(indent="  ")
-    serializer = XmlSerializer(context=context, config=serializer_config)
+    serializer = XmlSerializer(context=GLOBAL_XML_CONTEXT, config=serializer_config)
     # res = serializer.render(obj)
     res = serializer.render(obj, ns_map=ENERGYML_NAMESPACES)
     # logging.debug(f"[3] Serialized XML with meta namespace : {obj.Meta.namespace}: {serialize_json(obj)}")
@@ -286,12 +284,8 @@ def serialize_json(
 ) -> str:
     obj = as_obj_prefixed_class_if_possible(obj) if check_obj_prefixed_classes else obj
     if json_version == JSON_VERSION.XSDATA:
-        context = XmlContext(
-            # element_name_generator=text.camel_case,
-            # attribute_name_generator=text.kebab_case
-        )
         serializer_config = SerializerConfig(indent="  ")
-        serializer = JsonSerializer(context=context, config=serializer_config)
+        serializer = JsonSerializer(context=GLOBAL_XML_CONTEXT, config=serializer_config)
         return serializer.render(obj)
     elif json_version == JSON_VERSION.OSDU_OFFICIAL:
         return json.dumps(to_json_dict(obj), indent=4, sort_keys=True)

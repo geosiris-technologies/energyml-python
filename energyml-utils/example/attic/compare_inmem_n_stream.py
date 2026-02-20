@@ -140,6 +140,13 @@ def time_comparison(
     print(f"   • Overall speedup: {speedup_factor:.2f}x faster\n")
 
 
+def recompute_rels(epc_file_path: str):
+    with EpcStreamReader(
+        epc_file_path=epc_file_path, enable_parallel_rels=True, rels_update_mode=RelsUpdateMode.UPDATE_ON_CLOSE
+    ) as reader:
+        pass  # Just open and close to trigger rels computation on close
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
@@ -150,11 +157,13 @@ if __name__ == "__main__":
     #     output_folder="rc/performance_results",
     # )
 
-    time_comparison(
-        filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/80wells_surf.epc", output_folder="rc/performance_results"
-    )
+    # time_comparison(
+    #     filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/80wells_surf.epc", output_folder="rc/performance_results"
+    # )
 
     # time_comparison(
     #     filepath=sys.argv[1] if len(sys.argv) > 1 else "wip/failingData/fix/sample_mini_firp_201_norels_with_media.epc",
     #     output_folder="rc/performance_results",
     # )
+
+    recompute_rels("C:/Users/Cryptaro/Downloads/Galaxy384-[[Output] EPC file pointset extraction].epc")
