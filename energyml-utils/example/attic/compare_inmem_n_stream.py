@@ -40,19 +40,19 @@ def reexport_in_memory(filepath: str, output_folder: Optional[str] = None):
         os.makedirs(output_folder, exist_ok=True)
         path_in_memory = f"{output_folder}/{path_in_memory.split('/')[-1]}"
     epc = Epc.read_file(epc_file_path=filepath, read_rels_from_files=False, recompute_rels=False)
-
+    print(len(epc.list_objects()))
     if os.path.exists(path_in_memory):
         os.remove(path_in_memory)
     epc.export_file(path_in_memory)
 
 
 def reexport_in_memory_par_read(filepath: str, output_folder: Optional[str] = None):
-    path_in_memory = filepath.replace(".epc", "_in_memory_par_read.epc")
+    path_in_memory = filepath.replace(".epc", f"_in_memory_par_read_v{os.environ['EPC_FAST_V2']}.epc")
     if output_folder:
         os.makedirs(output_folder, exist_ok=True)
         path_in_memory = f"{output_folder}/{path_in_memory.split('/')[-1]}"
     epc = Epc.read_file(epc_file_path=filepath, read_rels_from_files=False, read_parallel=True, recompute_rels=False)
-
+    print(len(epc.list_objects()))
     if os.path.exists(path_in_memory):
         os.remove(path_in_memory)
     epc.export_file(path_in_memory, parallel=True)
@@ -80,11 +80,21 @@ def time_comparison(
     print(f"   ✓ Completed in {elapsed_inmem:.3f}s\n")
 
     # Test 1b: In-Memory with Parallel Read
+    os.environ["EPC_FAST_V2"] = "0"
     print("⏳ Testing In-Memory EPC processing with Parallel Read...")
     start = time.perf_counter()
     reexport_in_memory_par_read(filepath, output_folder)
     elapsed_inmem_par = time.perf_counter() - start
     results.append(("In-Memory (Epc) Parallel Read", elapsed_inmem_par))
+    print(f"   ✓ Completed in {elapsed_inmem_par:.3f}s\n")
+
+    # Test 1b: In-Memory with Parallel Read v2
+    os.environ["EPC_FAST_V2"] = "1"
+    print("⏳ Testing In-Memory EPC processing with Parallel Read v2...")
+    start = time.perf_counter()
+    reexport_in_memory_par_read(filepath, output_folder)
+    elapsed_inmem_par = time.perf_counter() - start
+    results.append(("In-Memory (Epc) Parallel Read v2", elapsed_inmem_par))
     print(f"   ✓ Completed in {elapsed_inmem_par:.3f}s\n")
 
     if not skip_sequential_stream:
@@ -157,13 +167,13 @@ if __name__ == "__main__":
     #     output_folder="rc/performance_results",
     # )
 
-    # time_comparison(
-    #     filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/80wells_surf.epc", output_folder="rc/performance_results"
-    # )
+    time_comparison(
+        filepath=sys.argv[1] if len(sys.argv) > 1 else "rc/epc/80wells_surf.epc", output_folder="rc/performance_results"
+    )
 
     # time_comparison(
     #     filepath=sys.argv[1] if len(sys.argv) > 1 else "wip/failingData/fix/sample_mini_firp_201_norels_with_media.epc",
     #     output_folder="rc/performance_results",
     # )
 
-    recompute_rels("C:/Users/Cryptaro/Downloads/Galaxy384-[[Output] EPC file pointset extraction].epc")
+    # recompute_rels("C:/Users/Cryptaro/Downloads/Galaxy384-[[Output] EPC file pointset extraction].epc")

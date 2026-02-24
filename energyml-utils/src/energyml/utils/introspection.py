@@ -909,7 +909,8 @@ def search_attribute_matching_type_with_path(
     elif not is_primitive(obj):
         for att_name in get_class_attributes(obj):
             res = res + search_attribute_matching_type_with_path(
-                obj=get_object_attribute_rgx(obj, att_name),
+                obj=get_object_attribute_no_verif(obj, att_name),
+                # obj=get_object_attribute_rgx(obj, att_name),
                 type_rgx=type_rgx,
                 re_flags=re_flags,
                 return_self=True,

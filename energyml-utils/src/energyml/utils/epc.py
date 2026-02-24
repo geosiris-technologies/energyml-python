@@ -1553,15 +1553,22 @@ class Epc(EnergymlStorageInterface):
         """
         with open(epc_file_path, "rb") as f:
             if read_parallel:
-                epc = cls.read_stream_ultra_fast(
-                    BytesIO(f.read()), read_rels_from_files=read_rels_from_files, recompute_rels=recompute_rels
+                epc = (
+                    cls.read_stream_ultra_fast(
+                        BytesIO(f.read()), read_rels_from_files=read_rels_from_files, recompute_rels=recompute_rels
+                    )
+                    if not os.environ.get("EPC_FAST_V2", "0") == "1"
+                    else cls.read_stream_ultra_fast_v2(
+                        BytesIO(f.read()), read_rels_from_files=read_rels_from_files, recompute_rels=recompute_rels
+                    )
                 )
             else:
                 epc = cls.read_stream(
                     BytesIO(f.read()), read_rels_from_files=read_rels_from_files, recompute_rels=recompute_rels
                 )
-            epc.epc_file_path = epc_file_path
-            return epc
+            if epc is not None:
+                epc.epc_file_path = epc_file_path
+                return epc
         raise IOError(f"Failed to open EPC file {epc_file_path}")
 
     @classmethod
@@ -1575,6 +1582,7 @@ class Epc(EnergymlStorageInterface):
         :param recompute_rels: If True, recompute all relationships after loading
         :return: an :class:`EPC` instance
         """
+        print("Reading EPC file seq...")
         try:
             _read_files = []
             obj_list = []
@@ -1727,6 +1735,8 @@ class Epc(EnergymlStorageInterface):
         from concurrent.futures import ProcessPoolExecutor, as_completed
         import multiprocessing
 
+        print("Reading EPC file parrallel v1...")
+
         obj_to_process = {}
         rels_to_process = {}
         raw_files = []
@@ -1810,6 +1820,87 @@ class Epc(EnergymlStorageInterface):
 
         if recompute_rels:
             epc._rels_cache.recompute_cache()
+
+        return epc
+
+    @classmethod
+    def read_stream_ultra_fast_v2(
+        cls, epc_file_io: BytesIO, read_rels_from_files: bool = True, recompute_rels: bool = False
+    ) -> Optional["Epc"]:
+        from concurrent.futures import ThreadPoolExecutor  # Passage au ThreadPool
+
+        print("Reading EPC file parrallel v2...")
+
+        obj_list = []
+        path_to_obj = {}
+        rels_content_map = {}
+        raw_files = []
+        core_props = None
+
+        # On utilise un ThreadPool pour éviter le coût de sérialisation Pickle
+        # lxml libère le GIL, donc c'est très efficace
+        with ThreadPoolExecutor() as executor:
+            futures = []
+
+            with zipfile.ZipFile(epc_file_io, "r") as epc_file:
+                # On récupère l'index d'abord
+                ct_path = get_epc_content_type_path()
+                content_type_obj = read_energyml_xml_bytes(epc_file.read(ct_path))
+
+                # Identification des types via le ContentTypes
+                energyml_paths = {}
+                for ov in content_type_obj.override:
+                    path = ov.part_name.lstrip("/\\")
+                    if is_energyml_content_type(ov.content_type):
+                        energyml_paths[path] = ov.content_type
+                    elif get_class_from_content_type(ov.content_type) == CoreProperties:
+                        core_props = read_energyml_xml_bytes(epc_file.read(path), CoreProperties)
+
+                for info in epc_file.infolist():
+                    fname = info.filename
+
+                    # STREAMING : On lance la tâche dès qu'on a les bytes
+                    if fname in energyml_paths:
+                        data = epc_file.read(fname)
+                        f = executor.submit(_parallel_xml_read, data, energyml_paths[fname])
+                        futures.append((f, "OBJ", fname))
+
+                    elif read_rels_from_files and fname.lower().endswith(".rels"):
+                        data = epc_file.read(fname)
+                        f = executor.submit(_parallel_rels_read, data)
+                        futures.append((f, "REL", fname))
+                    elif (
+                        not fname.lower().endswith(".rels")
+                        and not fname.lower().endswith(gen_core_props_path().lower())
+                        and fname not in energyml_paths
+                        and fname != ct_path
+                    ):
+                        raw_files.append(RawFile(path=fname, content=BytesIO(epc_file.read(fname))))
+
+            # 2. Récupération des résultats (pendant que le ZIP continue d'être lu si possible)
+            for future, kind, path in futures:
+                res = future.result()
+                if isinstance(res, Exception):
+                    continue
+
+                if kind == "OBJ":
+                    path_to_obj[path] = res
+                    obj_list.append(res)
+                else:
+                    o_path = str(Path(path).parent.parent / Path(path).stem).replace("\\", "/")
+                    rels_content_map[o_path] = res
+
+        # 3. Assemblage final dans le processus parent
+        epc = Epc(energyml_objects=EnergymlObjectCollection(obj_list), raw_files=raw_files, core_props=core_props)
+
+        if read_rels_from_files:
+            for obj_path, rels_obj in rels_content_map.items():
+                if obj_path in path_to_obj:
+                    target_obj = path_to_obj[obj_path]
+                    epc._rels_cache.set_rels_from_file(target_obj, rels_obj)  # type: ignore
+
+        if recompute_rels:
+            epc._rels_cache.recompute_cache()  # type: ignore
 
         return epc
 
