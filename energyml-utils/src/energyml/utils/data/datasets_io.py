@@ -1024,6 +1024,9 @@ else:
         def can_handle_file(self, file_path: str) -> bool:
             return os.path.splitext(file_path)[1].lower() in [".h5", ".hdf5"]  # dat for Galaxy compatibility
 
+    # Alias so the public name is always importable
+    HDF5ArrayHandler = MockHDF5ArrayHandler
+
 
 # Parquet Handler
 if __PARQUET_MODULE_EXISTS__:
@@ -1213,6 +1216,9 @@ else:
 
         def can_handle_file(self, file_path: str) -> bool:
             return os.path.splitext(file_path)[1].lower() in [".parquet", ".pq"]
+
+    # Alias so the public name is always importable
+    ParquetArrayHandler = MockParquetArrayHandler
 
 
 # CSV Handler
@@ -1563,6 +1569,9 @@ else:
             ext = os.path.splitext(file_path)[1].lower()
             return ext == ".las"
 
+    # Alias so the public name is always importable
+    LASArrayHandler = MockLASArrayHandler
+
 
 # SEG-Y Handler
 if __SEGYIO_MODULE_EXISTS__:
@@ -1792,3 +1801,6 @@ else:
             """Check if this handler can process the file."""
             ext = os.path.splitext(file_path)[1].lower()
             return ext in [".sgy", ".segy"]
+
+    # Alias so the public name is always importable
+    SEGYArrayHandler = MockSEGYArrayHandler

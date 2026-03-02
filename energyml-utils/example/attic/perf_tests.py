@@ -1,9 +1,23 @@
 # Benchmark de performance pour get_obj_uuid
 import time
 import re
-from types import SimpleNamespace
 
 UUID_RGX: re.Pattern = re.compile(r"[Uu]u?id|UUID")
+
+
+# Version dot
+def get_obj_uuid_pointe(obj):
+    try:
+        return obj.uuid
+    except AttributeError:
+        try:
+            return obj.uid
+        except AttributeError:
+            if isinstance(obj, dict):
+                for k in obj.keys():
+                    if UUID_RGX.match(k):
+                        return obj[k]
+    return None
 
 
 # Version originale
@@ -54,5 +68,12 @@ for obj in objs:
     assert get_obj_uuid_fast(obj) == obj.uuid
 elapsed_fast = time.perf_counter() - start
 
+# Test version pointe
+start = time.perf_counter()
+for obj in objs:
+    assert get_obj_uuid_pointe(obj) == obj.uuid
+elapsed_point = time.perf_counter() - start
+
 print(f"Original version: {elapsed_original:.6f} s for {N} calls")
 print(f"Optimized version: {elapsed_fast:.6f} s for {N} calls")
+print(f"Point version: {elapsed_point:.6f} s for {N} calls")
