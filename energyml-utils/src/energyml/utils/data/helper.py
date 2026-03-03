@@ -279,10 +279,15 @@ def apply_crs_transform(
     return transformed
 
 
-def get_crs_origin_offset(crs_obj: Any) -> List[float | int]:
+def get_crs_origin_offset(crs_obj: Any) -> np.ndarray:
     """
-    Return a list [X,Y,Z] corresponding to the crs Offset [XOffset/OriginProjectedCoordinate1, ... ] depending on the
-    crs energyml version.
+    Return a ``(3,) float64`` numpy array ``[X, Y, Z]`` corresponding to the
+    CRS origin offset (``XOffset``/``OriginProjectedCoordinate1``, …) depending
+    on the energyml version.
+
+    Returning an ndarray instead of a plain list avoids the ``np.asarray()``
+    call in callers such as :func:`mesh_numpy.crs_displacement_np`.
+
     :param crs_obj:
     :return:
     """
@@ -298,17 +303,18 @@ def get_crs_origin_offset(crs_obj: Any) -> List[float | int]:
     if tmp_offset_z is None:
         tmp_offset_z = get_object_attribute_rgx(crs_obj, "OriginProjectedCoordinate3")
 
-    crs_point_offset = [0.0, 0.0, 0.0]
     try:
-        crs_point_offset = [
-            float(tmp_offset_x) if tmp_offset_x is not None else 0.0,
-            float(tmp_offset_y) if tmp_offset_y is not None else 0.0,
-            float(tmp_offset_z) if tmp_offset_z is not None else 0.0,
-        ]
+        return np.array(
+            [
+                float(tmp_offset_x) if tmp_offset_x is not None else 0.0,
+                float(tmp_offset_y) if tmp_offset_y is not None else 0.0,
+                float(tmp_offset_z) if tmp_offset_z is not None else 0.0,
+            ],
+            dtype=np.float64,
+        )
     except Exception as e:
         logging.info(f"ERR reading crs offset {e}")
-
-    return crs_point_offset
+        return np.zeros(3, dtype=np.float64)
 
 
 def get_datum_information(
@@ -1037,9 +1043,15 @@ def read_constant_array(
     path_in_root: Optional[str] = None,
     workspace: Optional[EnergymlStorageInterface] = None,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
-) -> List[Any]:
+) -> Union[np.ndarray, List[Any]]:
     """
-    Read a constant array ( BooleanConstantArray, DoubleConstantArray, FloatingPointConstantArray, IntegerConstantArray ...)
+    Read a constant array (BooleanConstantArray, DoubleConstantArray,
+    FloatingPointConstantArray, IntegerConstantArray …).
+
+    For numeric (int / float / bool) values a ``numpy.ndarray`` is returned
+    via :func:`numpy.full`, avoiding a Python-list allocation.  String values
+    fall back to a plain list because numpy object arrays add no benefit.
+
     :param energyml_array:
     :param root_obj:
     :param path_in_root:
@@ -1047,8 +1059,6 @@ def read_constant_array(
     :param sub_indices:
     :return:
     """
-    # logging.debug(f"Reading constant array\n\t{energyml_array}")
-
     value = get_object_attribute_no_verif(energyml_array, "value")
     count = (
         len(sub_indices)
@@ -1056,9 +1066,10 @@ def read_constant_array(
         else get_object_attribute_no_verif(energyml_array, "count")
     )
 
-    # logging.debug(f"\tValue : {[value for i in range(0, count)]}")
-
-    return [value] * count
+    if isinstance(value, (int, float, bool, np.integer, np.floating)):
+        return np.full(int(count), value)
+    # Non-numeric (e.g. string) — keep as Python list.
+    return [value] * int(count)
 
 
 def read_xml_array(
@@ -1402,12 +1413,13 @@ def read_point3d_lattice_array(
                 # Add slowest offsets where i > 0
                 result_arr[1:, :, :] += slowest_cumsum[:-1, np.newaxis, :]
 
-            # Flatten to list of points
-            result = result_arr.reshape(-1, 3).tolist()
+            # Return the (N, 3) float64 numpy array directly — no .tolist().
+            result = result_arr.reshape(-1, 3)
 
         except (ValueError, TypeError) as e:
-            # Fallback to original implementation if NumPy conversion fails
+            # Fallback to original implementation if NumPy conversion fails.
             logging.warning(f"NumPy vectorization failed ({e}), falling back to iterative approach")
+            fallback: List = []
             for i in range(slowest_size):
                 for j in range(fastest_size):
                     previous_value = origin
@@ -1415,31 +1427,31 @@ def read_point3d_lattice_array(
                     if j > 0:
                         if i > 0:
                             line_idx = i * fastest_size
-                            previous_value = result[line_idx + j - 1]
+                            previous_value = fallback[line_idx + j - 1]
                         else:
-                            previous_value = result[j - 1]
+                            previous_value = fallback[j - 1]
                         if zincreasing_downward:
-                            result.append(sum_lists(previous_value, slowest_table[i - 1]))
+                            fallback.append(sum_lists(previous_value, slowest_table[i - 1]))
                         else:
-                            result.append(sum_lists(previous_value, fastest_table[j - 1]))
+                            fallback.append(sum_lists(previous_value, fastest_table[j - 1]))
                     else:
                         if i > 0:
                             prev_line_idx = (i - 1) * fastest_size
-                            previous_value = result[prev_line_idx]
+                            previous_value = fallback[prev_line_idx]
                             if zincreasing_downward:
-                                result.append(sum_lists(previous_value, fastest_table[j - 1]))
+                                fallback.append(sum_lists(previous_value, fastest_table[j - 1]))
                             else:
-                                result.append(sum_lists(previous_value, slowest_table[i - 1]))
+                                fallback.append(sum_lists(previous_value, slowest_table[i - 1]))
                         else:
-                            result.append(previous_value)
+                            fallback.append(previous_value)
+            # Convert fallback list to ndarray to keep the return type consistent.
+            result = np.array(fallback, dtype=np.float64).reshape(-1, 3)
     else:
         raise Exception(f"{type(energyml_array)} read with an offset of length {len(offset)} is not supported")
 
     if sub_indices is not None and len(sub_indices) > 0:
-        if isinstance(result, np.ndarray):
-            result = result[sub_indices].tolist()
-        else:
-            result = [result[idx] for idx in sub_indices]
+        # result is always an ndarray here; index directly without .tolist().
+        result = result[np.asarray(sub_indices, dtype=np.int64)]
 
     return result
 

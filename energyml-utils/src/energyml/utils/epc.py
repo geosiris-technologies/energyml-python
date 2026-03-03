@@ -1092,6 +1092,50 @@ class Epc(EnergymlStorageInterface):
         logging.error(f"Failed to read array from any available file paths: {file_paths}")
         return None
 
+    def read_array_view(
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: str,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
+        external_uri: Optional[str] = None,
+    ) -> Optional[np.ndarray]:
+        """Best-effort zero-copy variant of :meth:`read_array`.
+
+        Delegates to ``handler.read_array_view`` when available (HDF5), which
+        returns a numpy array backed by the file buffer for contiguous,
+        uncompressed datasets.  Falls back transparently to a copy for chunked
+        or compressed data.
+        """
+        obj = proxy
+        if isinstance(proxy, str) or isinstance(proxy, Uri):
+            obj = self.get_object_by_identifier(proxy)
+
+        file_paths = self.get_h5_file_paths(obj)
+        if external_uri:
+            file_paths.insert(0, make_path_relative_to_other_file(external_uri, self.epc_file_path))
+        if not file_paths or len(file_paths) == 0:
+            file_paths = self.external_files_path
+        if not file_paths:
+            return None
+
+        handler_registry = get_handler_registry()
+        for file_path in file_paths:
+            handler = handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                continue
+            try:
+                read_view_fn = getattr(handler, "read_array_view", None)
+                if read_view_fn is not None:
+                    array = read_view_fn(file_path, path_in_external, start_indices, counts)
+                else:
+                    array = handler.read_array(file_path, path_in_external, start_indices, counts)
+                if array is not None:
+                    return array
+            except Exception as e:
+                logging.debug(f"Failed to read_array_view from {file_path}: {e}")
+        return None
+
     def write_array(
         self,
         proxy: Union[str, Uri, Any],

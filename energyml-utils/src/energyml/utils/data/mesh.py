@@ -172,7 +172,7 @@ def crs_displacement(points: List[Point], crs_obj: Any) -> Tuple[List[Point], Po
     crs_point_offset = get_crs_origin_offset(crs_obj=crs_obj)
     zincreasing_downward = is_z_reversed(crs_obj)
 
-    if crs_point_offset != [0, 0, 0]:
+    if np.any(crs_point_offset):
         for p in points:
             for xyz in range(len(p)):
                 p[xyz] = (p[xyz] + crs_point_offset[xyz]) if p[xyz] is not None else None
@@ -241,7 +241,7 @@ def read_mesh_object(
         ):  # WellboreFrameRep has allready the displacement applied
             # TODO: the displacement should be done in each reader function to manage specific cases
             for s in surfaces:
-                logging.debug(f"CRS : {s.crs_object}")
+                # logging.debug(f"CRS : {s.crs_object}")
                 crs_displacement(
                     s.point_list,
                     s.crs_object[0] if isinstance(s.crs_object, list) and len(s.crs_object) > 0 else s.crs_object,

@@ -304,6 +304,40 @@ class EnergymlStorageInterface(ABC):
         """
         pass
 
+    def read_array_view(
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: str,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
+        external_uri: Optional[str] = None,
+    ) -> Optional[np.ndarray]:
+        """
+        Read a data array as a zero-copy view when possible.
+
+        For HDF5 datasets that are contiguous and uncompressed, returns a numpy array
+        backed directly by the memory-mapped file buffer (no copy). For chunked or
+        compressed datasets it transparently falls back to a copy, identical to
+        :meth:`read_array`.
+
+        The caller **must not mutate** the returned array; use ``arr.copy()`` first if
+        in-place modification is required.
+
+        Default implementation delegates to :meth:`read_array` so that any third-party
+        subclass that does not override this method retains correct behaviour.
+
+        Args:
+            proxy: The object identifier/URI or the object itself that references the array
+            path_in_external: Path within the HDF5 file (e.g., 'values/0')
+            start_indices: Optional start index for each dimension (RESQML v2.2 StartIndex)
+            counts: Optional count of elements for each dimension (RESQML v2.2 Count)
+            external_uri: Optional URI to override default file path (RESQML v2.2 URI)
+
+        Returns:
+            The data array as a numpy array (view if possible, copy otherwise), or None if not found.
+        """
+        return self.read_array(proxy, path_in_external, start_indices, counts, external_uri)
+
     @abstractmethod
     def write_array(
         self,

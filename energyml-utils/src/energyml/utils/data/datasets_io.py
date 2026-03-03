@@ -616,7 +616,7 @@ def read_external_dataset_array(
 ):
     if additional_sources is None:
         additional_sources = []
-    result_array = []
+    result_array = None
 
     for path_in_obj, path_in_external in get_path_in_external_with_path(energyml_array):
         succeed = False
@@ -630,10 +630,15 @@ def read_external_dataset_array(
         )
         for s in sources:
             try:
-                # TODO: take care of the "Counts" and "Starts" list in ExternalDataArrayPart to fill array correctly
-                result_array = result_array + read_dataset(
-                    source=s, path_in_external_file=path_in_external, mimetype=mimetype
-                )
+                if result_array is None:
+                    result_array = read_dataset(
+                        source=s, path_in_external_file=path_in_external, mimetype=mimetype
+                    )
+                else:
+                    # TODO: take care of the "Counts" and "Starts" list in ExternalDataArrayPart to fill array correctly
+                    result_array = result_array + read_dataset(
+                        source=s, path_in_external_file=path_in_external, mimetype=mimetype
+                    )
                 succeed = True
                 break  # stop after the first read success
             except MissingExtraInstallation as mei:
@@ -855,7 +860,7 @@ if __H5PY_MODULE_EXISTS__:
             try:
                 return h5py.File(file_path, mode)  # type: ignore
             except Exception as e:
-                logging.error(f"Failed to open HDF5 file {file_path}: {e}")
+                logging.debug(f"Failed to open HDF5 file {file_path}: {e}")
                 return None
 
         def read_array(
@@ -879,6 +884,41 @@ if __H5PY_MODULE_EXISTS__:
             else:
                 with self.file_cache.get_or_open(source, self, "r") as f:  # type: ignore
                     return self.read_array(f, path_in_external_file, start_indices, counts)
+
+        def read_array_view(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            """Read array from HDF5 with best-effort zero-copy semantics.
+
+            For contiguous, uncompressed datasets the returned array is backed
+            by the memory-mapped file buffer (no copy).  For chunked or
+            compressed datasets h5py transparently falls back to a copy, but
+            sub-selection is done by h5py in C before the data reaches Python
+            (avoids loading the full dataset then slicing in Python).
+
+            The caller **must not mutate** the returned array.
+            """
+            if isinstance(source, h5py.File):  # type: ignore
+                if not path_in_external_file:
+                    return None
+                d_group = source[path_in_external_file]
+                if start_indices is not None and counts is not None:
+                    # h5py reads only the required chunks/slabs from disk
+                    slices = tuple(
+                        slice(start, start + count) for start, count in zip(start_indices, counts)
+                    )
+                    return d_group[slices]  # type: ignore
+                # np.array with copy=False returns a view for contiguous datasets
+                # Note: copy= kwarg on np.asarray requires numpy >=2.0;
+                # np.array(x, copy=False) works on all numpy versions.
+                return np.array(d_group, copy=False)  # type: ignore
+            else:
+                with self.file_cache.get_or_open(source, self, "r") as f:  # type: ignore
+                    return self.read_array_view(f, path_in_external_file, start_indices, counts)
 
         def write_array(
             self,
