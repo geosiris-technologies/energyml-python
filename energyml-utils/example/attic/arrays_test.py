@@ -1,5 +1,4 @@
 import logging
-from sqlite3 import NotSupportedError
 import traceback
 from typing import List, Optional
 from energyml.utils.data.datasets_io import get_handler_registry
@@ -24,8 +23,9 @@ from energyml.utils.introspection import (
     get_object_attribute,
     search_attribute_matching_name_with_path,
 )
-from energyml.resqml.v2_2.resqmlv2 import Point3DLatticeArray
-from energyml.eml.v2_3.commonv2 import TimeSeries
+from energyml.resqml.v2_2.resqmlv2 import VerticalCRS
+from energyml.resqml.v2_0_1.resqmlv2 import DiscreteProperty as DiscreteProperty201, ContinuousProperty as ContinuousProperty201
+from energyml.eml.v2_3.commonv2 import TimeSeries, ColumnBasedTable
 from energyml.eml.v2_1.commonv2 import TimeSeries as TimeSeries21
 
 from energyml.utils.serialization import read_energyml_xml_str, serialize_json

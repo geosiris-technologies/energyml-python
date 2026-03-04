@@ -28,6 +28,7 @@ from energyml.utils.introspection import (
 )
 
 from .datasets_io import get_path_in_external_with_path
+from .crs import CrsInfo, extract_crs_info  # noqa: F401  (re-exported for convenience)
 
 _ARRAY_NAMES_ = [
     "BooleanArrayFromDiscretePropertyArray",
@@ -85,139 +86,45 @@ def _point_as_array(point: Any) -> List:
 
 def is_z_reversed(crs: Optional[Any]) -> bool:
     """
-    Returns True if the Z axe is reverse (ZIncreasingDownward=='True' or VerticalAxis.Direction=='down')
+    Returns True if the Z axis increases downward
+    (``ZIncreasingDownward==True`` or ``VerticalAxis.Direction=='down'``).
+
+    Delegates to :func:`extract_crs_info`.
+
     :param crs: a CRS object
-    :return: By default, False is returned (if 'crs' is None)
+    :return: By default, ``False`` is returned when *crs* is ``None``.
     """
-    reverse_z_values = False
-    if crs is not None:
-        if "VerticalCrs" in type(crs).__name__:
-            vert_axis = search_attribute_matching_name(crs, "Direction")
-            if len(vert_axis) > 0:
-                vert_axis_str = str(vert_axis[0])
-                if "." in vert_axis_str:
-                    vert_axis_str = vert_axis_str.split(".")[-1]
-
-                reverse_z_values = vert_axis_str.lower() == "down"
-        else:
-            # resqml 201
-            zincreasing_downward = search_attribute_matching_name(crs, "ZIncreasingDownward")
-            if len(zincreasing_downward) > 0:
-                reverse_z_values = zincreasing_downward[0]
-
-            # resqml >= 22
-            vert_axis = search_attribute_matching_name(crs, "VerticalAxis.Direction")
-            if len(vert_axis) > 0:
-                vert_axis_str = str(vert_axis[0])
-                if "." in vert_axis_str:
-                    vert_axis_str = vert_axis_str.split(".")[-1]
-
-                reverse_z_values = vert_axis_str.lower() == "down"
-    logging.debug(f"is_z_reversed: {reverse_z_values}")
-    return reverse_z_values
+    result = extract_crs_info(crs).z_increasing_downward
+    logging.debug(f"is_z_reversed: {result}")
+    return result
 
 
-def get_vertical_epsg_code(crs_object: Any):
-    vertical_epsg_code = None
-    if crs_object is not None:  # LocalDepth3dCRS
-        vertical_epsg_code = get_object_attribute_rgx(crs_object, "VerticalCrs.EpsgCode")
-        if vertical_epsg_code is None:  # LocalEngineering2DCrs
-            vertical_epsg_code = get_object_attribute_rgx(
-                crs_object, "OriginProjectedCrs.AbstractProjectedCrs.EpsgCode"
-            )
-            if vertical_epsg_code is None:
-                vertical_epsg_code = get_object_attribute_rgx(crs_object, "abstract_vertical_crs.epsg_code")
-    return vertical_epsg_code
+def get_vertical_epsg_code(crs_object: Any) -> Optional[int]:
+    """Return the EPSG code of the vertical CRS.  Delegates to :func:`extract_crs_info`."""
+    return extract_crs_info(crs_object).vertical_epsg_code
 
 
-def get_projected_epsg_code(crs_object: Any, workspace: Optional[EnergymlStorageInterface] = None) -> Optional[str]:
-    if crs_object is not None:  # LocalDepth3dCRS
-        projected_epsg_code = get_object_attribute_rgx(crs_object, "ProjectedCrs.EpsgCode")
-        if projected_epsg_code is None:  # LocalEngineering2DCrs
-            projected_epsg_code = get_object_attribute_rgx(
-                crs_object, "OriginProjectedCrs.AbstractProjectedCrs.EpsgCode"
-            )
-
-        if projected_epsg_code is None and workspace is not None:
-            return get_projected_epsg_code(
-                workspace.get_object_by_uuid(get_object_attribute_rgx(crs_object, "LocalEngineering2[dD]Crs.Uuid"))
-            )
-        return projected_epsg_code
-    return None
+def get_projected_epsg_code(crs_object: Any, workspace: Optional[EnergymlStorageInterface] = None) -> Optional[int]:
+    """Return the EPSG code of the projected (horizontal) CRS.  Delegates to :func:`extract_crs_info`."""
+    return extract_crs_info(crs_object, workspace).projected_epsg_code
 
 
-def get_projected_uom(crs_object: Any, workspace: Optional[EnergymlStorageInterface] = None):
-    if crs_object is not None:
-        projected_epsg_uom = get_object_attribute_rgx(crs_object, "ProjectedUom")
-        if projected_epsg_uom is None:
-            projected_epsg_uom = get_object_attribute_rgx(crs_object, "HorizontalAxes.ProjectedUom")
-
-        if projected_epsg_uom is None and workspace is not None:
-            return get_projected_uom(
-                workspace.get_object_by_uuid(get_object_attribute_rgx(crs_object, "LocalEngineering2[dD]Crs.Uuid"))
-            )
-        return projected_epsg_uom
-    return None
+def get_projected_uom(crs_object: Any, workspace: Optional[EnergymlStorageInterface] = None) -> Optional[str]:
+    """Return the UOM string for the projected (horizontal) CRS.  Delegates to :func:`extract_crs_info`."""
+    return extract_crs_info(crs_object, workspace).projected_uom
 
 
 def get_crs_offsets_and_angle(
     crs_object: Any, workspace: Optional[EnergymlStorageInterface] = None
 ) -> Tuple[float, float, float, Tuple[float, str]]:
-    """Return the CRS offsets (X, Y, Z) and the areal rotation angle (value and uom) if they exist in the CRS object."""
-    if crs_object is None:
-        return 0.0, 0.0, 0.0, (0.0, "rad")
+    """
+    Return the CRS offsets (X, Y, Z) and the areal rotation angle ``(value, uom)``.
 
-    # eml23.LocalEngineering2DCrs
-    _tmpx = get_object_attribute_rgx(crs_object, "OriginProjectedCoordinate1")
-    _tmpy = get_object_attribute_rgx(crs_object, "OriginProjectedCoordinate2")
-    _tmp_azimuth = get_object_attribute_rgx(crs_object, "azimuth.value")
-    _tmp_azimuth_uom = str(get_object_attribute_rgx(crs_object, "azimuth.uom") or "")
-    if _tmpx is not None and _tmpy is not None:
-        try:
-            return (
-                float(_tmpx),
-                float(_tmpy),
-                0.0,
-                (float(_tmp_azimuth) if _tmp_azimuth is not None else 0.0, _tmp_azimuth_uom),
-            )  # Z offset is not defined in 2D CRS, it is defined in eml23.LocalEngineeringCompoundCrs
-        except Exception as e:
-            logging.info(f"ERR reading crs offset {e}")
-
-    # resqml20.ObjLocalDepth3DCrs
-    _tmpx = get_object_attribute_rgx(crs_object, "XOffset")
-    _tmpy = get_object_attribute_rgx(crs_object, "YOffset")
-    _tmpz = get_object_attribute_rgx(crs_object, "ZOffset")
-    _tmp_azimuth = get_object_attribute_rgx(crs_object, "ArealRotation.value")
-    _tmp_azimuth_uom = str(get_object_attribute_rgx(crs_object, "ArealRotation.uom") or "")
-    if _tmpx is not None and _tmpy is not None:
-        try:
-            return (
-                float(_tmpx),
-                float(_tmpy),
-                float(_tmpz),
-                (float(_tmp_azimuth) if _tmp_azimuth is not None else 0.0, _tmp_azimuth_uom),
-            )
-        except Exception as e:
-            logging.info(f"ERR reading crs offset {e}")
-
-    # eml23.LocalEngineeringCompoundCrs
-    _tmp_z = get_object_attribute_rgx(crs_object, "OriginVerticalCoordinate")
-
-    local_engineering2d_crs_dor = get_object_attribute_rgx(crs_object, "localEngineering2DCrs")
-    if local_engineering2d_crs_dor is not None and workspace is not None:
-        local_engineering2d_crs_uri = get_obj_uri(local_engineering2d_crs_dor)
-        _tmp_x, _tmp_y, _, (azimuth, azimuth_uom) = get_crs_offsets_and_angle(
-            workspace.get_object(local_engineering2d_crs_uri), workspace
-        )
-        return _tmp_x, _tmp_y, float(_tmp_z) if _tmp_z is not None else 0.0, (azimuth, azimuth_uom)
-
-    if _tmp_z is not None:
-        try:
-            return 0.0, 0.0, float(_tmp_z), (0.0, "rad")
-        except Exception as e:
-            logging.info(f"ERR reading crs offset {e}")
-
-    return 0.0, 0.0, 0.0, (0.0, "rad")
+    Delegates to :func:`extract_crs_info` and unpacks the result back into the
+    original ``(x, y, z, (angle, uom))`` tuple format for backward compatibility.
+    """
+    info = extract_crs_info(crs_object, workspace)
+    return info.x_offset, info.y_offset, info.z_offset, (info.areal_rotation_value, info.areal_rotation_uom)
 
 
 def apply_crs_transform(
