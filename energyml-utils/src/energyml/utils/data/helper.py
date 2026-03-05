@@ -161,7 +161,10 @@ def apply_crs_transform(
 
     # 2. Handle Areal Rotation (Rotation around the Z axis)
     # Applied before translation as per Energistics standards.
-    # Note: RESQML rotation is typically clockwise.
+    # RESQML ArealRotation / Azimuth is a CLOCKWISE angle (not the standard
+    # CCW mathematical convention).  The correct CW rotation matrix is:
+    #   x' = x·cos θ + y·sin θ
+    #   y' = −x·sin θ + y·cos θ
     if angle_rad != 0.0:
         cos_theta = np.cos(angle_rad)
         sin_theta = np.sin(angle_rad)
@@ -169,9 +172,9 @@ def apply_crs_transform(
         x_orig = transformed[:, 0].copy()
         y_orig = transformed[:, 1].copy()
 
-        # Standard 2D rotation matrix
-        transformed[:, 0] = x_orig * cos_theta - y_orig * sin_theta
-        transformed[:, 1] = x_orig * sin_theta + y_orig * cos_theta
+        # Clockwise rotation (RESQML convention)
+        transformed[:, 0] = x_orig * cos_theta + y_orig * sin_theta
+        transformed[:, 1] = -x_orig * sin_theta + y_orig * cos_theta
 
     # 3. Apply Translation (Offsets)
     transformed[:, 0] += x_offset
@@ -382,8 +385,8 @@ def get_crs_obj(
         crs_list = search_attribute_matching_name(context_obj, r"\.*Crs", search_in_sub_obj=True, deep_search=False)
         if crs_list is not None and len(crs_list) > 0 and crs_list[0] is not None:
             # logging.debug(crs_list[0])
-            # logging.debug(f"CRS found for {get_obj_title(context_obj)} : {crs_list[0]}")
             crs = workspace.get_object(get_obj_uri(crs_list[0]))
+            logging.debug(f"CRS found for {get_obj_title(context_obj)} ({type(context_obj).__name__}): {crs}")
             if crs is None:
                 # logging.debug(f"CRS {crs_list[0]} not found (or not read correctly)")
                 _crs_list = workspace.get_object_by_uuid(get_obj_uuid(crs_list[0]))
@@ -393,6 +396,8 @@ def get_crs_obj(
                 raise ObjectNotFoundNotError(get_obj_uri(crs_list[0]))
             if crs is not None:
                 return crs
+        else:
+            logging.debug(f"No CRS found for {get_obj_title(context_obj)} with type {type(context_obj).__name__}")
 
         if context_obj != root_obj:
             upper_path = path_parent_attribute(path_in_root)
@@ -1064,23 +1069,49 @@ def read_int_double_lattice_array(
     :param sub_indices:
     :return:
     """
-    start_value = get_object_attribute_no_verif(energyml_array, "start_value")
+    start_value = int(get_object_attribute_no_verif(energyml_array, "start_value"))
     offset = get_object_attribute_no_verif(energyml_array, "offset")
 
-    result = []
+    if len(offset) == 0:
+        raise Exception(f"{type(energyml_array)} has no offset — cannot generate indices")
 
     if len(offset) == 1:
-        # 1D lattice array: offset is a single DoubleConstantArray or IntegerConstantArray
+        # 1D lattice: start_value, start_value+v, start_value+2v, …  (count+1 values)
         offset_obj = offset[0]
-
-        # Get the offset value and count from the ConstantArray
         offset_value = get_object_attribute_no_verif(offset_obj, "value")
-        count = get_object_attribute_no_verif(offset_obj, "count")
-
-        # Generate the 1D array: start_value + i * offset_value for i in range(count)
-        result = [start_value + i * offset_value for i in range(count)]
+        count = int(get_object_attribute_no_verif(offset_obj, "count"))
+        result = [start_value + i * offset_value for i in range(count + 1)]
     else:
-        raise Exception(f"{type(energyml_array)} read with an offset of length {len(offset)} is not supported")
+        # N-D lattice (N ≥ 2) — used for NodeIndicesOnSupportingRepresentation.
+        #
+        # Each Offset[k] is an IntegerConstantArray with:
+        #   Count  = number of *steps* along axis k  →  grid size = Count+1
+        #   Value  = stride multiplier for axis k
+        #
+        # Flat index formula (C/row-major order):
+        #   flat_idx(i0, i1, …) = StartValue
+        #                        + i0 * Value[0] * (Count[1]+1) * (Count[2]+1) * …
+        #                        + i1 * Value[1] * (Count[2]+1) * …
+        #                        + …
+        #                        + iN-1 * Value[N-1]
+        #
+        # i.e.  stride[k] = Value[k] * prod(Count[m]+1 for m in range(k+1, N))
+        N = len(offset)
+        counts = [int(get_object_attribute_no_verif(off, "count")) for off in offset]
+        values = [int(get_object_attribute_no_verif(off, "value")) for off in offset]
+
+        strides = []
+        for k in range(N):
+            s = values[k]
+            for m in range(k + 1, N):
+                s *= counts[m] + 1
+            strides.append(s)
+
+        # np.indices gives shape (N, d0, d1, …)
+        shape = tuple(c + 1 for c in counts)
+        idx_grids = np.indices(shape)  # (N, *shape)
+        flat_indices = start_value + sum(idx_grids[k] * strides[k] for k in range(N))
+        result = flat_indices.ravel().tolist()
 
     return result
 
@@ -1153,9 +1184,23 @@ def read_point3d_from_representation_lattice_array(
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ):
     """
-    Read a Point3DFromRepresentationLatticeArray.
+    Read a ``Point3DFromRepresentationLatticeArray``.
 
-    Note: Only works for Grid2DRepresentation.
+    The XY(Z) positions are borrowed from a *supporting* ``Grid2DRepresentation``
+    by selecting its nodes via the flat indices described in
+    ``NodeIndicesOnSupportingRepresentation`` (an ``IntegerLatticeArray``).
+
+    The index formula for an N-dimensional ``IntegerLatticeArray`` is row-major:
+
+        stride[k] = Value[k] * prod(Count[m]+1 for m in range(k+1, N))
+        flat_idx(i, j, …) = StartValue + i*stride[0] + j*stride[1] + …
+
+    Example — supporting rep 2×4, ``Offset[0]={Count=1, Value=1}``,
+    ``Offset[1]={Count=3, Value=1}``:
+        stride[0] = 1 * 4 = 4,  stride[1] = 1
+        flat_idx(i, j) = 4i + j  →  [0,1,2,3,4,5,6,7]
+
+    Note: Only ``Grid2DRepresentation`` supporting reps are currently supported.
 
     :param energyml_array:
     :param root_obj:
@@ -1164,25 +1209,88 @@ def read_point3d_from_representation_lattice_array(
     :param sub_indices:
     :return:
     """
-    supporting_rep_identifier = get_obj_uri(get_object_attribute_no_verif(energyml_array, "supporting_representation"))
-    # logging.debug(f"energyml_array : {energyml_array}\n\t{supporting_rep_identifier}")
+    supporting_rep_dor = get_object_attribute_no_verif(energyml_array, "supporting_representation")
+    supporting_rep_identifier = get_obj_uri(supporting_rep_dor)
     supporting_rep = workspace.get_object(supporting_rep_identifier) if workspace is not None else None
 
-    # TODO chercher un pattern \.*patch\.*.[d]+ pour trouver le numero du patch dans le path_in_root puis lire le patch
-    # logging.debug(f"path_in_root {path_in_root}")
+    if supporting_rep is None and workspace is not None:
+        from energyml.utils.introspection import get_obj_uuid
+        candidates = workspace.get_object_by_uuid(get_obj_uuid(supporting_rep_dor))
+        supporting_rep = candidates[0] if candidates else None
 
-    result = []
-    if "grid2d" in str(type(supporting_rep)).lower():
-        patch_path, patch = search_attribute_matching_name_with_path(supporting_rep, "Grid2dPatch")[0]
-        points = read_grid2d_patch(
-            patch=patch, grid2d=supporting_rep, path_in_root=patch_path, workspace=workspace, sub_indices=sub_indices
+    if supporting_rep is None:
+        raise Exception(
+            f"Supporting representation {supporting_rep_identifier} not found in workspace"
         )
-        # TODO: take the points by there indices from the NodeIndicesOnSupportingRepresentation
-        result = points
 
+    if "grid2d" not in str(type(supporting_rep)).lower():
+        raise Exception(
+            f"Unsupported supporting rep type {type(supporting_rep).__name__} "
+            f"for {type(energyml_array).__name__}"
+        )
+
+    # ── 1. Read ALL points from the supporting representation ────────────────
+    # RESQML 2.0.1 uses Grid2dPatch; RESQML 2.2 stores geometry directly.
+    all_sup_points: Optional[np.ndarray] = None
+
+    patch_matches = search_attribute_matching_name_with_path(supporting_rep, "Grid2dPatch")
+    if patch_matches:
+        patch_path, patch = patch_matches[0]
+        all_sup_points = read_grid2d_patch(
+            patch=patch,
+            grid2d=supporting_rep,
+            path_in_root=patch_path,
+            workspace=workspace,
+        )
     else:
-        raise Exception(f"Not supported type {type(energyml_array)} for object {type(root_obj)}")
-    # pour trouver les infos qu'il faut
+        # RESQML 2.2: geometry is directly on the representation
+        geom_points_matches = search_attribute_matching_name_with_path(
+            supporting_rep, "Geometry.Points"
+        )
+        if not geom_points_matches:
+            raise Exception(
+                f"Cannot find points in supporting rep {type(supporting_rep).__name__}"
+            )
+        geom_path, geom_points_obj = geom_points_matches[0]
+        all_sup_points = read_array(
+            energyml_array=geom_points_obj,
+            root_obj=supporting_rep,
+            path_in_root=geom_path,
+            workspace=workspace,
+        )
+
+    if not isinstance(all_sup_points, np.ndarray):
+        all_sup_points = np.array(all_sup_points, dtype=float)
+    all_sup_points = all_sup_points.reshape(-1, 3)
+
+    # ── 2. Generate the node index list from the IntegerLatticeArray ─────────
+    node_idx_arr = get_object_attribute_no_verif(
+        energyml_array, "node_indices_on_supporting_representation"
+    )
+    if node_idx_arr is None:
+        node_idx_arr = get_object_attribute_rgx(energyml_array, "NodeIndices")
+
+    if node_idx_arr is not None:
+        node_indices = read_array(
+            energyml_array=node_idx_arr,
+            root_obj=root_obj,
+            path_in_root=path_in_root,
+            workspace=workspace,
+        )
+        node_indices = np.asarray(node_indices, dtype=np.int64)
+        result = all_sup_points[node_indices]
+    else:
+        # No index array: use all points in order (identity mapping)
+        logging.debug(
+            "Point3DFromRepresentationLatticeArray: no NodeIndices found, "
+            "using all supporting rep points in order"
+        )
+        result = all_sup_points
+
+    # ── 3. Optional sub-selection (SubRepresentation) ────────────────────────
+    if sub_indices is not None and len(sub_indices) > 0:
+        result = result[np.asarray(sub_indices, dtype=np.int64)]
+
     return result
 
 
@@ -1214,7 +1322,9 @@ def read_point3d_lattice_array(
     """
     Read a Point3DLatticeArray.
 
-    Note: If a CRS is found and its 'ZIncreasingDownward' is set to true or its
+    Accumulates origin + cumulative slowest/fastest offset vectors into an
+    (N, 3) float64 array.  CRS transforms (z-flip, offsets, rotation) are the
+    responsibility of the caller — this function is CRS-neutral.
 
     :param energyml_array:
     :param root_obj:
@@ -1245,19 +1355,6 @@ def read_point3d_lattice_array(
             current_path=path_in_root or "",
         )
 
-        crs = None
-        try:
-            crs = get_crs_obj(
-                context_obj=energyml_array,
-                path_in_root=path_in_root,
-                root_obj=root_obj,
-                workspace=workspace,
-            )
-        except ObjectNotFoundNotError:
-            logging.error("No CRS found, not able to check zIncreasingDownward")
-
-        zincreasing_downward = is_z_reversed(crs)
-
         slowest_vec = _point_as_array(get_object_attribute_rgx(slowest, "offset|direction"))
         slowest_spacing = read_array(get_object_attribute_no_verif(slowest, "spacing"))
         slowest_table = list(map(lambda x: prod_n_tab(x, slowest_vec), slowest_spacing))
@@ -1271,7 +1368,7 @@ def read_point3d_lattice_array(
 
         logging.debug(f"slowest vector: {slowest_vec}, spacing: {slowest_spacing}, size: {slowest_size}")
         logging.debug(f"fastest vector: {fastest_vec}, spacing: {fastest_spacing}, size: {fastest_size}")
-        logging.debug(f"origin: {origin}, zincreasing_downward: {zincreasing_downward}")
+        logging.debug(f"origin: {origin}")
 
         if crs_sa_count is not None and len(crs_sa_count) > 0 and crs_fa_count is not None and len(crs_fa_count) > 0:
             if (crs_sa_count[0] == fastest_size and crs_fa_count[0] == slowest_size) or (
@@ -1294,31 +1391,32 @@ def read_point3d_lattice_array(
         try:
             # Convert tables to NumPy arrays
             origin_arr = np.array(origin, dtype=float)
-            slowest_arr = np.array(slowest_table, dtype=float)  # shape: (slowest_size, 3)
-            fastest_arr = np.array(fastest_table, dtype=float)  # shape: (fastest_size, 3)
+            slowest_arr = np.array(slowest_table, dtype=float)  # shape: (slowest_size-1, 3)
+            fastest_arr = np.array(fastest_table, dtype=float)  # shape: (fastest_size-1, 3)
 
-            # Compute cumulative sums
-            slowest_cumsum = np.cumsum(slowest_arr, axis=0)  # cumulative offset along slowest axis
-            fastest_cumsum = np.cumsum(fastest_arr, axis=0)  # cumulative offset along fastest axis
+            # Sanity: spacing arrays must have exactly (size-1) rows.
+            # For well-formed RESQML data this is always true; bail out to the
+            # iterative fallback if someone passes malformed data.
+            if slowest_arr.shape[0] != slowest_size - 1 or fastest_arr.shape[0] != fastest_size - 1:
+                raise ValueError(
+                    f"Spacing array length mismatch: "
+                    f"slowest={slowest_arr.shape[0]} expected {slowest_size - 1}, "
+                    f"fastest={fastest_arr.shape[0]} expected {fastest_size - 1}"
+                )
 
-            # Create meshgrid indices
-            i_indices, j_indices = np.meshgrid(np.arange(slowest_size), np.arange(fastest_size), indexing="ij")
+            # Compute cumulative sums (shape: (size-1, 3))
+            slowest_cumsum = np.cumsum(slowest_arr, axis=0)
+            fastest_cumsum = np.cumsum(fastest_arr, axis=0)
 
             # Initialize result array
             result_arr = np.zeros((slowest_size, fastest_size, 3), dtype=float)
             result_arr[:, :, :] = origin_arr  # broadcast origin to all positions
 
-            # Add offsets based on zincreasing_downward
-            if zincreasing_downward:
-                # Add slowest offsets where i > 0
-                result_arr[1:, :, :] += slowest_cumsum[:-1, np.newaxis, :]
-                # Add fastest offsets where j > 0
-                result_arr[:, 1:, :] += fastest_cumsum[np.newaxis, :-1, :]
-            else:
-                # Add fastest offsets where j > 0
-                result_arr[:, 1:, :] += fastest_cumsum[np.newaxis, :-1, :]
-                # Add slowest offsets where i > 0
-                result_arr[1:, :, :] += slowest_cumsum[:-1, np.newaxis, :]
+            # Accumulate offsets:
+            #   result_arr[:, j, :] += fastest_cumsum[j-1]  for j in 1..fastest_size-1
+            #   result_arr[i, :, :] += slowest_cumsum[i-1]  for i in 1..slowest_size-1
+            result_arr[:, 1:, :] += fastest_cumsum[np.newaxis, :, :]  # (1, fast-1, 3)
+            result_arr[1:, :, :] += slowest_cumsum[:, np.newaxis, :]  # (slow-1, 1, 3)
 
             # Return the (N, 3) float64 numpy array directly — no .tolist().
             result = result_arr.reshape(-1, 3)
@@ -1337,18 +1435,12 @@ def read_point3d_lattice_array(
                             previous_value = fallback[line_idx + j - 1]
                         else:
                             previous_value = fallback[j - 1]
-                        if zincreasing_downward:
-                            fallback.append(sum_lists(previous_value, slowest_table[i - 1]))
-                        else:
-                            fallback.append(sum_lists(previous_value, fastest_table[j - 1]))
+                        fallback.append(sum_lists(previous_value, fastest_table[j - 1]))
                     else:
                         if i > 0:
                             prev_line_idx = (i - 1) * fastest_size
                             previous_value = fallback[prev_line_idx]
-                            if zincreasing_downward:
-                                fallback.append(sum_lists(previous_value, fastest_table[j - 1]))
-                            else:
-                                fallback.append(sum_lists(previous_value, slowest_table[i - 1]))
+                            fallback.append(sum_lists(previous_value, slowest_table[i - 1]))
                         else:
                             fallback.append(previous_value)
             # Convert fallback list to ndarray to keep the return type consistent.

@@ -24,10 +24,9 @@ from .helper import (
     read_array,
     read_grid2d_patch,
     get_crs_obj,
-    get_crs_origin_offset,
-    is_z_reversed,
     read_parametric_geometry,
 )
+from .crs import extract_crs_info, apply_from_crs_info
 from energyml.utils.epc_utils import gen_energyml_object_path
 from energyml.utils.epc_stream import EpcStreamReader
 from energyml.utils.exception import NotSupportedError, ObjectNotFoundNotError
@@ -162,26 +161,6 @@ class SurfaceMesh(AbstractMesh):
         return self.faces_indices
 
 
-def crs_displacement(points: List[Point], crs_obj: Any) -> Tuple[List[Point], Point]:
-    """
-    Transform a point list with CRS information (XYZ offset and ZIncreasingDownward)
-    :param points: in/out : the list is directly modified
-    :param crs_obj:
-    :return: The translated points and the crs offset vector.
-    """
-    crs_point_offset = get_crs_origin_offset(crs_obj=crs_obj)
-    zincreasing_downward = is_z_reversed(crs_obj)
-
-    if np.any(crs_point_offset):
-        for p in points:
-            for xyz in range(len(p)):
-                p[xyz] = (p[xyz] + crs_point_offset[xyz]) if p[xyz] is not None else None
-            if zincreasing_downward and len(p) >= 3:
-                p[2] = -p[2]
-
-    return points, crs_point_offset
-
-
 def get_object_reader_function(mesh_type_name: str) -> Optional[Callable]:
     """
     Returns the name of the potential appropriate function to read an object with type is named mesh_type_name
@@ -214,15 +193,15 @@ def _mesh_name_mapping(array_type_name: str) -> str:
 def read_mesh_object(
     energyml_object: Any,
     workspace: Optional[EnergymlStorageInterface] = None,
-    use_crs_displacement: bool = False,
+    use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[AbstractMesh]:
     """
     Read and "meshable" object. If :param:`energyml_object` is not supported, an exception will be raised.
     :param energyml_object:
     :param workspace:
-    :param use_crs_displacement: If true the :py:function:`crs_displacement <energyml.utils.mesh.crs_displacement>`
-    is used to translate the data with the CRS offsets
+    :param use_crs_displacement: If true :func:`apply_from_crs_info` is used to apply the full CRS
+    transform (rotation, offsets, Z-flip, axis-order swap) to the mesh points
     :return:
     """
 
@@ -234,18 +213,31 @@ def read_mesh_object(
     if reader_func is not None:
         # logging.info(f"using function {reader_func} to read type {array_type_name}")
         surfaces: List[AbstractMesh] = reader_func(
-            energyml_object=energyml_object, workspace=workspace, sub_indices=sub_indices
+            energyml_object=energyml_object, workspace=workspace, sub_indices=sub_indices,
+            use_crs_displacement=use_crs_displacement,
         )
+        _tn = array_type_name.lower()
         if (
-            use_crs_displacement and "wellbore" not in array_type_name.lower()
-        ):  # WellboreFrameRep has allready the displacement applied
-            # TODO: the displacement should be done in each reader function to manage specific cases
+            use_crs_displacement
+            and "wellbore" not in _tn
+            and "triangulated" not in _tn      # per-patch CRS applied inside reader
+            and "point" not in _tn             # per-patch CRS applied inside reader
+            and "polyline" not in _tn          # per-patch CRS applied inside reader
+            and "representationset" not in _tn  # each sub-mesh already had CRS applied by its own reader
+            and "subrepresentation" not in _tn  # delegates entirely to inner read_mesh_object call
+        ):
             for s in surfaces:
-                # logging.debug(f"CRS : {s.crs_object}")
-                crs_displacement(
-                    s.point_list,
-                    s.crs_object[0] if isinstance(s.crs_object, list) and len(s.crs_object) > 0 else s.crs_object,
+                crs = (
+                    s.crs_object[0]
+                    if isinstance(s.crs_object, list) and s.crs_object
+                    else s.crs_object
                 )
+                if crs is None:
+                    continue
+                logging.debug(f"Applying CRS transform to surface {s.identifier}")
+                pts_arr = np.asarray(s.point_list, dtype=np.float64).reshape(-1, 3)
+                apply_from_crs_info(pts_arr, extract_crs_info(crs, workspace), inplace=True)
+                s.point_list = pts_arr.tolist()
         return surfaces
     else:
         # logging.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
@@ -257,6 +249,7 @@ def read_mesh_object(
 def read_ijk_grid_representation(
     energyml_object: Any,
     workspace: EnergymlStorageInterface,
+    use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[Any]:
     raise NotSupportedError("IJKGrid representation reading is not supported yet.")
@@ -265,6 +258,7 @@ def read_ijk_grid_representation(
 def read_point_representation(
     energyml_object: Any,
     workspace: EnergymlStorageInterface,
+    use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[PointSetMesh]:
     # pt_geoms = search_attribute_matching_type(point_set, "AbstractGeometry")
@@ -313,6 +307,13 @@ def read_point_representation(
         # else:
         #     total_size = total_size + len(points)
 
+        # Apply full CRS transform per patch; crs_object kept on mesh for reference
+        # but the outer dispatcher is guarded to skip crs_displacement for this type.
+        if use_crs_displacement and crs is not None and points is not None and len(points) > 0:
+            pts_arr = np.asarray(points, dtype=np.float64).reshape(-1, 3)
+            apply_from_crs_info(pts_arr, extract_crs_info(crs, workspace), inplace=True)
+            points = pts_arr.tolist()
+
         if points is not None:
             meshes.append(
                 PointSetMesh(
@@ -331,6 +332,7 @@ def read_point_representation(
 def read_polyline_representation(
     energyml_object: Any,
     workspace: EnergymlStorageInterface,
+    use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[PolylineSetMesh]:
     # pt_geoms = search_attribute_matching_type(point_set, "AbstractGeometry")
@@ -429,6 +431,13 @@ def read_polyline_representation(
             point_indices = new_indices
         else:
             total_size = total_size + len(point_indices)
+
+        # Apply full CRS transform per patch; crs_object kept on mesh for reference
+        # but the outer dispatcher is guarded to skip crs_displacement for this type.
+        if use_crs_displacement and crs is not None and len(points) > 0:
+            pts_arr = np.asarray(points, dtype=np.float64).reshape(-1, 3)
+            apply_from_crs_info(pts_arr, extract_crs_info(crs, workspace), inplace=True)
+            points = pts_arr.tolist()
 
         if len(points) > 0:
             meshes.append(
@@ -551,7 +560,8 @@ def gen_surface_grid_geometry(
 def read_grid2d_representation(
     energyml_object: Any,
     workspace: Optional[EnergymlStorageInterface] = None,
-    keep_holes=False,
+    use_crs_displacement: bool = True,
+    keep_holes: bool = False,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[SurfaceMesh]:
     # h5_reader = HDF5FileReader()
@@ -565,6 +575,8 @@ def read_grid2d_representation(
 
     # Resqml 201
     for patch_path, patch in search_attribute_matching_name_with_path(energyml_object, "Grid2dPatch"):
+        logging.debug("Trying to read Grid2d representation with Resqml 2.0.1 schema (Grid2dPatch)")
+        logging.debug(f" > {get_obj_uri(energyml_object)}Found patch at path {patch_path} with object {patch}")
         crs = None
         try:
             crs = get_crs_obj(
@@ -601,6 +613,7 @@ def read_grid2d_representation(
 
     # Resqml 22
     if hasattr(energyml_object, "geometry"):
+        logging.debug("Trying to read Grid2d representation with Resqml 2.2 schema (geometry attribute on the representation)")
         crs = None
         try:
             crs = get_crs_obj(
@@ -643,6 +656,7 @@ def read_grid2d_representation(
 def read_triangulated_set_representation(
     energyml_object: Any,
     workspace: EnergymlStorageInterface,
+    use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[SurfaceMesh]:
     meshes = []
@@ -683,6 +697,18 @@ def read_triangulated_set_representation(
                 _array = _array.tolist()
 
             point_list = point_list + _array
+
+        # Apply full CRS transform (rotation + offsets + z-flip + axis-swap) per patch.
+        # Setting crs_object=None on the resulting mesh prevents the outer
+        # read_mesh_object dispatcher from calling crs_displacement() a second time.
+        logging.debug(f"Applying use_crs_displacement {use_crs_displacement} with crs {crs} on patch {patch_path} with {len(point_list)} points for triangulated set representation {get_obj_uri(energyml_object)}")
+        if use_crs_displacement and crs is not None and point_list:
+            logging.debug(f"Original points sample: {point_list[0:5]}")
+            pts_arr = np.asarray(point_list, dtype=np.float64).reshape(-1, 3)
+            crs_info = extract_crs_info(crs, workspace)
+            apply_from_crs_info(pts_arr, crs_info, inplace=True)
+            logging.debug(f"Transformed points sample: {pts_arr[0:5]}")
+            point_list = pts_arr.tolist()
 
         triangles_list: List[List[int]] = []
         for (
@@ -728,6 +754,7 @@ def read_triangulated_set_representation(
 def read_wellbore_frame_representation(
     energyml_object: Any,
     workspace: EnergymlStorageInterface,
+    use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[PolylineSetMesh]:
     """
@@ -789,6 +816,7 @@ def read_wellbore_frame_representation(
         meshes = read_wellbore_trajectory_representation(
             energyml_object=trajectory_obj,
             workspace=workspace,
+            use_crs_displacement=use_crs_displacement,
             sub_indices=sub_indices,
             wellbore_frame_mds=wellbore_frame_mds,
         )
@@ -807,6 +835,7 @@ def read_wellbore_frame_representation(
 def read_wellbore_trajectory_representation(
     energyml_object: Any,
     workspace: EnergymlStorageInterface,
+    use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
     wellbore_frame_mds: Optional[Union[List[float], np.ndarray]] = None,
     step_meter: float = 5.0,
@@ -819,7 +848,7 @@ def read_wellbore_trajectory_representation(
             mesh
             for obj in energyml_object
             for mesh in read_wellbore_trajectory_representation(
-                obj, workspace, sub_indices, wellbore_frame_mds, step_meter
+                obj, workspace, use_crs_displacement, sub_indices, wellbore_frame_mds, step_meter
             )
         ]
 
@@ -882,22 +911,17 @@ def read_wellbore_trajectory_representation(
         f"wellbore mds : {wellbore_frame_mds}\n\tCRs : {crs}\n\thead x,y,z : {head_x}, {head_y}, {head_z}\n\tz increasing downward : {z_increasing_downward}"
     )
     try:
-        x_offset, y_offset, z_offset, (azimuth, azimuth_uom) = get_crs_offsets_and_angle(crs, workspace)
+        crs_info = extract_crs_info(crs, workspace)
         # Try to read parametric Geometry from the trajectory.
         traj_mds, traj_points, traj_tangents = read_parametric_geometry(
             getattr(energyml_object, "geometry", None), workspace
         )
         well_points = get_wellbore_points(wellbore_frame_mds, traj_mds, traj_points, traj_tangents, step_meter)
-
-        well_points = apply_crs_transform(
-            well_points,
-            x_offset=x_offset,
-            y_offset=y_offset,
-            z_offset=z_offset,
-            z_is_up=not z_increasing_downward,
-            areal_rotation=azimuth,
-            rotation_uom=azimuth_uom,
-        )
+        if use_crs_displacement:
+            well_points = apply_from_crs_info(
+                np.asarray(well_points, dtype=np.float64),
+                crs_info,
+            )
     except Exception as e:
         if wellbore_frame_mds is not None:
             logging.debug(f"Could not read parametric geometry from trajectory. Well is interpreted as vertical: {e}")
@@ -932,6 +956,7 @@ def read_wellbore_trajectory_representation(
 def read_sub_representation(
     energyml_object: Any,
     workspace: EnergymlStorageInterface,
+    use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
 ) -> List[AbstractMesh]:
     supporting_rep_dor = search_attribute_matching_name(
@@ -976,6 +1001,7 @@ def read_sub_representation(
     meshes = read_mesh_object(
         energyml_object=supporting_rep,
         workspace=workspace,
+        use_crs_displacement=use_crs_displacement,
         sub_indices=all_indices,
     )
 

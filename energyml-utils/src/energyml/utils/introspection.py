@@ -760,15 +760,36 @@ def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:
 
     # unescape Dot
     current_attrib_name = current_attrib_name.replace("\\.", ".")
+    if isinstance(obj, list):
+        # current_attrib may be a regex for list index.
+        # first, test if it's a simple int
+        # print("TRY INDEX", current_attrib_name, obj)
+        try:
+            idx = int(current_attrib_name)
+            if idx < len(obj) and idx >= 0:
+                return obj[idx]
+            else:
+                raise AttributeError(obj, name=current_attrib_name)
+        except ValueError:
+            accumulator = []
+            for i in range(len(obj)):
+                if re.match(current_attrib_name, str(i)):
+                    accumulator.append(obj[i])
+            # print("ACCUMULATOR", accumulator)
+            if accumulator:
+                if len(attrib_list) > 1:
+                    return [get_object_attribute_rgx(v, attr_dot_path_rgx[len(current_attrib_name) + 1 :]) for v in accumulator]
+                else:
+                    return accumulator
+    else:
+        real_attrib_name = get_matching_class_attribute_name(obj, current_attrib_name)
+        if real_attrib_name is not None:
+            value = get_object_attribute_no_verif(obj, real_attrib_name)
 
-    real_attrib_name = get_matching_class_attribute_name(obj, current_attrib_name)
-    if real_attrib_name is not None:
-        value = get_object_attribute_no_verif(obj, real_attrib_name)
-
-        if len(attrib_list) > 1:
-            return get_object_attribute_rgx(value, attr_dot_path_rgx[len(current_attrib_name) + 1 :])
-        else:
-            return value
+            if len(attrib_list) > 1:
+                return get_object_attribute_rgx(value, attr_dot_path_rgx[len(current_attrib_name) + 1 :])
+            else:
+                return value
     return None
 
 

@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 
 # Run $env:PYTHONPATH="src" if it fails to be executed from the project root.
@@ -76,15 +76,23 @@ def _resolve_crs_from_grid(grid_obj: Any, epc: Epc) -> Optional[Any]:
     """
     Walk from a representation object to its CRS document.
 
-    Tries the common path ``local_crs`` (or nested in ``grid2d_patch.geometry``
-    for v2.0.1 ``Grid2DRepresentation``). Returns the resolved CRS object or
-    ``None``.
+    The CRS DOR is always present in ``LocalCrs`` — the difference between
+    RESQML versions is the depth of the path:
+
+    * **v2.2** : ``Geometry.LocalCrs``  (``PointGeometry`` sits directly on the object)
+    * **v2.0.1**: ``Grid2dPatch.Geometry.LocalCrs``  (geometry is inside a patch sub-object)
+
+    ``get_object_attribute_rgx`` resolves dot-delimited paths at exactly the
+    depth specified, so we try the shallower v2.2 path first, then fall back
+    to the deeper v2.0.1 path.
+
+    Returns the resolved CRS object or ``None``.
     """
-    # Direct attribute (v2.0.1 and many v2.2 envelopes)
-    dor = get_object_attribute_rgx(grid_obj, "[Ll]ocal[_]?[Cc]rs")
+    # v2.2: Geometry.LocalCrs (PointGeometry directly on the object)
+    dor = get_object_attribute_rgx(grid_obj, "[Gg]eometry.[Ll]ocal[_]?[Cc]rs")
 
     if dor is None:
-        # Nested path used by Grid2DRepresentation v2.0.1
+        # v2.0.1: Grid2dPatch.Geometry.LocalCrs (geometry wrapped in a patch)
         dor = get_object_attribute_rgx(
             grid_obj,
             "[Gg]rid2[Dd][Pp]atch.[Gg]eometry.[Ll]ocal[_]?[Cc]rs",
@@ -99,6 +107,31 @@ def _resolve_crs_from_grid(grid_obj: Any, epc: Epc) -> Optional[Any]:
 
     candidates = epc.get_object_by_uuid(uuid)
     return candidates[0] if candidates else None
+
+
+def resolve_crs_from_triangulated_set(triangulated_obj: Any, epc: Epc) -> List[Optional[Any]]:
+    """
+    Walk from a TriangulatedSetRepresentation to its CRS document.
+
+    Each patch of a TriangulatedSetRepresentation may reference a CRS via its
+    ``local_crs`` attribute.  This function tries to resolve the first patch's CRS.
+    """
+    dor = get_object_attribute_rgx(triangulated_obj, "triangle_patch.\d+.geometry.local_crs")
+    # print(f"  Found DOR for TriangulatedSetRepresentation patch CRS: {dor}")
+    if dor is None:
+        return []
+    
+    if isinstance(dor, list):
+        candidates = []
+        for d in dor:
+            uuid = get_obj_uuid(d)
+            if uuid:
+                obj_candidates = epc.get_object_by_uuid(uuid)
+                print(f"  Found DOR for TriangulatedSetRepresentation patch CRS: {d} → candidates: {len(obj_candidates)}")
+                candidates.append(obj_candidates[0] if obj_candidates else None)
+        return candidates
+
+    return None
 
 
 # ===========================================================================
@@ -124,7 +157,9 @@ check("y_offset", 0.1, info.y_offset, approx=True)
 check("z_offset", 15.0, info.z_offset, approx=True)
 check("projected_uom (raw from xsdata enum)", "M", info.projected_uom)
 check("vertical_uom  (raw from xsdata enum)", "M", info.vertical_uom)
-check("z_increasing_downward", False, info.z_increasing_downward)
+# ZIncreasingDownward=true in the file; VerticalUnknownCrs sub-object carries
+# no direction field, so the sentinel correctly preserves the top-level value.
+check("z_increasing_downward", True, info.z_increasing_downward)
 check("areal_rotation_value", 0.0, info.areal_rotation_value, approx=True)
 check("projected_epsg_code", None, info.projected_epsg_code)
 check("vertical_epsg_code", None, info.vertical_epsg_code)
@@ -141,9 +176,9 @@ check("source_type", "LocalDepth3DCrs", info.source_type)
 check("projected_epsg_code", 23031, info.projected_epsg_code)
 check("projected_uom", "M", info.projected_uom)
 check("vertical_uom", "M", info.vertical_uom)
-# This particular depth CRS has z_increasing_downward=False in the file
-# (the VerticalCrs it references has no direction set or direction=up)
-check("z_increasing_downward", False, info.z_increasing_downward)
+# ZIncreasingDownward=true in the raw file; the linked VerticalUnknownCrs
+# carries no direction field, so the sentinel correctly preserves the value.
+check("z_increasing_downward", True, info.z_increasing_downward)
 check("x_offset", 0.0, info.x_offset, approx=True)
 check("y_offset", 0.0, info.y_offset, approx=True)
 check("z_offset", 0.0, info.z_offset, approx=True)
@@ -215,13 +250,16 @@ if resolved_crs:
     info = extract_crs_info(resolved_crs, workspace=epc20)
     check("  projected_epsg_code", 23031, info.projected_epsg_code)
     check("  projected_uom", "M", info.projected_uom)
-    check("  z_increasing_downward", False, info.z_increasing_downward)
+    # Same LocalDepth3DCrs — ZIncreasingDownward=true in the raw file.
+    check("  z_increasing_downward", True, info.z_increasing_downward)
 
 # Grid 4e56b0e4 → also LocalDepth3DCrs (same uuid)
 grid_depth2 = epc20.get_object_by_uuid("4e56b0e4-2cd1-4efa-97dd-95f72bcf9f80")[0]
 resolved_crs = _resolve_crs_from_grid(grid_depth2, epc20)
 check("Grid 4e56b0e4 resolved CRS uuid", "0ae56ef3-fc79-405b-8deb-6942e0f2e77c",
       getattr(resolved_crs, "uuid", None))
+
+
 
 # ===========================================================================
 # RESQML v2.2 / EML v2.3  —  testingPackageCpp22.epc
@@ -321,21 +359,19 @@ check("vertical_uom", "M", info.vertical_uom)
 check("z_increasing_downward", True, info.z_increasing_downward)
 
 # ── Grid2D v2.2 — CRS note ────────────────────────────────────────────────
-section("v2.2 · Grid2DRepresentation  — CRS resolution note")
+section("v2.2 · Grid2DRepresentation  — CRS resolution")
 print("""
-  In RESQML v2.2, Grid2DRepresentation does not embed a local_crs DOR
-  in its geometry patch the same way v2.0.1 does.  Instead the CRS is
-  referenced via the containing LocalEngineeringCompoundCrs or through
-  the representation's own schema-level CRS association.
+  In RESQML v2.2, Grid2DRepresentation DOES embed a LocalCrs DOR, but at
+  a shallower path than v2.0.1:
 
-  The canonical way to obtain CRS info from a v2.2 representation is to:
-    1. Retrieve all LocalEngineeringCompoundCrs objects from the EPC.
-    2. Match the one that logically covers your representation (by
-       consulting interpretation / framework associations).
-  or use the helper ``get_crs_obj(repr_obj, workspace=epc)`` which walks
-  the object hierarchy.
+    v2.2  : Geometry.LocalCrs  (PointGeometry sits directly on the object)
+    v2.0.1: Grid2dPatch.Geometry.LocalCrs  (geometry is wrapped in a patch sub-object)
 
-  Direct example — iterate all compound CRS objects and extract info:
+  Both paths are resolved by trying the shallower v2.2 path first with
+  ``get_object_attribute_rgx``, then falling back to the deeper v2.0.1 path.
+  No indirect lookup through framework associations is needed.
+
+  All LocalEngineeringCompoundCrs objects in this EPC:
 """)
 
 for obj in epc22.energyml_objects:
@@ -345,6 +381,51 @@ for obj in epc22.energyml_objects:
         print(f"    projected_epsg={info.projected_epsg_code}  projected_uom={info.projected_uom}")
         print(f"    vertical_uom={info.vertical_uom}  z_down={info.z_increasing_downward}")
         print(f"    offsets: x={info.x_offset}  y={info.y_offset}  z={info.z_offset}")
+
+# ── Grid2DRepresentation v2.2 → CRS via Geometry.LocalCrs ─────────────────
+
+section("v2.2 · Grid2DRepresentation (uuid 4e56b0e4) → CRS via Geometry.LocalCrs")
+
+grid22 = epc22.get_object_by_uuid("4e56b0e4-2cd1-4efa-97dd-95f72bcf9f80")
+if grid22:
+    grid22 = grid22[0]
+    resolved_crs22 = _resolve_crs_from_grid(grid22, epc22)
+    check("resolved CRS type", "LocalEngineeringCompoundCrs",
+          type(resolved_crs22).__name__ if resolved_crs22 else None)
+    check("resolved CRS uuid", "6a18c177-93be-41ac-9084-f84bbb31f46d",
+          getattr(resolved_crs22, "uuid", None))
+    if resolved_crs22:
+        info = extract_crs_info(resolved_crs22, workspace=epc22)
+        check("  projected_epsg_code", 23031, info.projected_epsg_code)
+        check("  projected_uom", "M", info.projected_uom)
+        check("  vertical_uom", "M", info.vertical_uom)
+        check("  z_increasing_downward", True, info.z_increasing_downward)
+        check("  x_offset", 0.0, info.x_offset, approx=True)
+        check("  y_offset", 0.0, info.y_offset, approx=True)
+        check("  z_offset", 0.0, info.z_offset, approx=True)
+else:
+    print("  [SKIP] Grid 4e56b0e4 not found in testingPackageCpp22.epc")
+
+
+# TriangulatedSetRepresentation 1a4112fa → LocalEngineeringCompoundCrs (6a18c177)
+triangulated_set = epc22.get_object_by_uuid("1a4112fa-c4ef-4c8d-aed0-47d9273bebc5")[0]
+resolved_crs_list = resolve_crs_from_triangulated_set(triangulated_set, epc22)
+check("TriangulatedSetRepresentation resolved CRS uuid", 5,
+      len(resolved_crs_list))
+
+for i, resolved_crs in enumerate(resolved_crs_list):
+    check(f"{i})  patch {i} resolved CRS type", "LocalEngineeringCompoundCrs",
+          type(resolved_crs).__name__ if resolved_crs else None)
+    if resolved_crs:
+        info = extract_crs_info(resolved_crs, workspace=epc22)
+        check("        projected_epsg_code (resolved)", 23031, info.projected_epsg_code)
+        check("        projected_uom", "M", info.projected_uom)
+        check("        vertical_uom", "M", info.vertical_uom)
+        check("        z_increasing_downward", True, info.z_increasing_downward)
+        check("        x_offset", 0.0, info.x_offset, approx=True)
+        check("        y_offset", 0.0, info.y_offset, approx=True)
+        check("        z_offset", 0.0, info.z_offset, approx=True)
+        check("        azimuth_reference", "grid north", info.azimuth_reference)
 
 # ===========================================================================
 # Convenience helpers (delegates in helper.py)
@@ -361,7 +442,8 @@ from energyml.utils.data.helper import (
 )
 
 depth_crs = epc20.get_object_by_uuid("0ae56ef3-fc79-405b-8deb-6942e0f2e77c")[0]
-check("is_z_reversed(LocalDepth3DCrs)", False, is_z_reversed(depth_crs))
+# ZIncreasingDownward=true in the raw file → is_z_reversed returns True.
+check("is_z_reversed(LocalDepth3DCrs)", True, is_z_reversed(depth_crs))
 check("get_projected_epsg_code", 23031, get_projected_epsg_code(depth_crs))
 check("get_projected_uom", "M", get_projected_uom(depth_crs))
 

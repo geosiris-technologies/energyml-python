@@ -130,7 +130,7 @@ class TestCrsInfoDto:
         assert kwargs["z_offset"] == -50.0
         assert kwargs["areal_rotation"] == 0.5
         assert kwargs["rotation_uom"] == "rad"
-        assert kwargs["z_is_up"] is False  # z_increasing_downward=True → z_is_up=False
+        assert kwargs["z_is_up"] is True   # z_increasing_downward=True → z_is_up=True (negate to z-up output)
 
     def test_none_returns_default(self):
         info = extract_crs_info(None)
@@ -161,7 +161,11 @@ class TestUomToStr:
 class TestV201LocalTime3DCrs:
     """
     LocalTime3DCrs  uuid=dbd637d5-4528-4145-908b-5f7136824f6d
-    xoffset=1.0  yoffset=0.1  zoffset=15.0  projected_uom=M  z_down=False
+    xoffset=1.0  yoffset=0.1  zoffset=15.0  projected_uom=M  z_down=True
+
+    ZIncreasingDownward=true in the raw file.  The linked VerticalCrs is an
+    inline ``VerticalUnknownCrs`` placeholder that carries no direction field,
+    so the sentinel (None) correctly leaves the top-level value unchanged.
     """
 
     UUID = "dbd637d5-4528-4145-908b-5f7136824f6d"
@@ -189,7 +193,9 @@ class TestV201LocalTime3DCrs:
         assert info.vertical_uom.lower() == "m"
 
     def test_z_increasing_downward(self, info):
-        assert info.z_increasing_downward is False
+        # ZIncreasingDownward=true in the raw file; VerticalUnknownCrs has no
+        # direction field so the sentinel leaves the parent value unchanged.
+        assert info.z_increasing_downward is True
 
     def test_no_epsg(self, info):
         assert info.projected_epsg_code is None
@@ -202,7 +208,11 @@ class TestV201LocalTime3DCrs:
 class TestV201LocalDepth3DCrs:
     """
     LocalDepth3DCrs  uuid=0ae56ef3-fc79-405b-8deb-6942e0f2e77c
-    projected_epsg=23031  projected_uom=M  z_down=False  offsets all zero
+    projected_epsg=23031  projected_uom=M  z_down=True  offsets all zero
+
+    ZIncreasingDownward=true in the raw file.  The linked VerticalCrs is an
+    inline ``VerticalUnknownCrs`` placeholder that carries no direction field,
+    so the sentinel (None) correctly leaves the top-level value unchanged.
     """
 
     UUID = "0ae56ef3-fc79-405b-8deb-6942e0f2e77c"
@@ -223,8 +233,9 @@ class TestV201LocalDepth3DCrs:
         assert info.projected_uom.lower() == "m"
 
     def test_z_increasing_downward(self, info):
-        # The linked VerticalCrs has direction=up (or not set) in this fixture
-        assert info.z_increasing_downward is False
+        # ZIncreasingDownward=true in the raw file; VerticalUnknownCrs has no
+        # direction field so the sentinel leaves the parent value unchanged.
+        assert info.z_increasing_downward is True
 
     def test_offsets_zero(self, info):
         assert info.x_offset == pytest.approx(0.0)
@@ -545,9 +556,11 @@ class TestDelegateFunctions:
     Uses LocalDepth3DCrs (0ae56ef3) and LocalTime3DCrs (dbd637d5) from epc20.
     """
 
-    def test_is_z_reversed_depth_crs_false(self, epc20):
+    def test_is_z_reversed_depth_crs_true(self, epc20):
+        # LocalDepth3DCrs has ZIncreasingDownward=true; VerticalUnknownCrs sub-object
+        # carries no direction so the sentinel leaves the top-level value intact.
         crs = epc20.get_object_by_uuid("0ae56ef3-fc79-405b-8deb-6942e0f2e77c")[0]
-        assert is_z_reversed(crs) is False
+        assert is_z_reversed(crs) is True
 
     def test_is_z_reversed_compound_crs_true(self, epc20):
         # CompoundCrs 95330cec has z_increasing_downward=True
@@ -592,4 +605,197 @@ class TestDelegateFunctions:
         assert angle == 0.0
         assert uom == "rad"
 
+
+# ---------------------------------------------------------------------------
+# Tests for apply_axis_order_swap
+# ---------------------------------------------------------------------------
+
+
+import numpy as np
+from energyml.utils.data.crs import apply_axis_order_swap, apply_from_crs_info
+
+
+class TestApplyAxisOrderSwap:
+    """Unit tests for :func:`apply_axis_order_swap`."""
+
+    def _pts(self) -> np.ndarray:
+        return np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float64)
+
+    def test_none_axis_order_no_swap(self):
+        pts = self._pts()
+        result = apply_axis_order_swap(pts, None)
+        np.testing.assert_array_equal(result[:, 0], [1.0, 4.0])
+        np.testing.assert_array_equal(result[:, 1], [2.0, 5.0])
+
+    def test_easting_northing_no_swap(self):
+        pts = self._pts()
+        result = apply_axis_order_swap(pts, "easting northing")
+        np.testing.assert_array_equal(result[:, 0], [1.0, 4.0])
+        np.testing.assert_array_equal(result[:, 1], [2.0, 5.0])
+
+    def test_northing_easting_swaps_xy(self):
+        pts = self._pts()
+        result = apply_axis_order_swap(pts, "northing easting")
+        np.testing.assert_array_equal(result[:, 0], [2.0, 5.0])
+        np.testing.assert_array_equal(result[:, 1], [1.0, 4.0])
+        np.testing.assert_array_equal(result[:, 2], [3.0, 6.0])
+
+    def test_north_east_swaps_xy(self):
+        pts = self._pts()
+        result = apply_axis_order_swap(pts, "north east")
+        np.testing.assert_array_equal(result[:, 0], [2.0, 5.0])
+        np.testing.assert_array_equal(result[:, 1], [1.0, 4.0])
+
+    def test_latitude_longitude_swaps_xy(self):
+        pts = self._pts()
+        result = apply_axis_order_swap(pts, "latitude longitude")
+        np.testing.assert_array_equal(result[:, 0], [2.0, 5.0])
+        np.testing.assert_array_equal(result[:, 1], [1.0, 4.0])
+
+    def test_inplace_modification(self):
+        pts = self._pts()
+        original_id = id(pts)
+        result = apply_axis_order_swap(pts, "northing easting")
+        assert id(result) == original_id  # same array object
+
+    def test_z_column_untouched(self):
+        pts = self._pts()
+        apply_axis_order_swap(pts, "northing easting")
+        np.testing.assert_array_equal(pts[:, 2], [3.0, 6.0])
+
+
+# ---------------------------------------------------------------------------
+# Tests for apply_from_crs_info
+# ---------------------------------------------------------------------------
+
+
+class TestApplyFromCrsInfo:
+    """Unit tests for :func:`apply_from_crs_info`."""
+
+    def _pts(self, x=1.0, y=2.0, z=3.0) -> np.ndarray:
+        return np.array([[x, y, z]], dtype=np.float64)
+
+    # --- Translation -------------------------------------------------------
+
+    def test_translation_only(self):
+        # Translation is applied in the local z-down space, then Z is negated
+        # to produce z-up output (z_increasing_downward=True → flip).
+        info = CrsInfo(x_offset=10.0, y_offset=20.0, z_offset=5.0, z_increasing_downward=True)
+        pts = self._pts(1.0, 2.0, 3.0)
+        result = apply_from_crs_info(pts, info)
+        assert result[0, 0] == pytest.approx(11.0)
+        assert result[0, 1] == pytest.approx(22.0)
+        assert result[0, 2] == pytest.approx(-8.0)  # 3+5=8, then flipped to z-up
+
+    # --- Z-flip ------------------------------------------------------------
+
+    def test_no_z_flip_when_z_up_input(self):
+        """z_increasing_downward=False means the input is already z-up: no flip needed."""
+        info = CrsInfo(z_increasing_downward=False)
+        pts = self._pts(0.0, 0.0, 5.0)
+        result = apply_from_crs_info(pts, info)
+        assert result[0, 2] == pytest.approx(5.0)
+
+    def test_z_flip_when_z_down_input(self):
+        """z_increasing_downward=True means input is depth-positive: negate to z-up output."""
+        info = CrsInfo(z_increasing_downward=True)
+        pts = self._pts(0.0, 0.0, 5.0)
+        result = apply_from_crs_info(pts, info)
+        assert result[0, 2] == pytest.approx(-5.0)
+
+    # --- Clockwise rotation ------------------------------------------------
+
+    def test_rotation_90_degrees_cw(self):
+        """90° CW rotation: (1, 0) → (0, -1)  [y' = -x·sin + y·cos]."""
+        info = CrsInfo(areal_rotation_value=90.0, areal_rotation_uom="degr", z_increasing_downward=True)
+        pts = self._pts(1.0, 0.0, 0.0)
+        result = apply_from_crs_info(pts, info)
+        # CW 90°: x' = x·cos(90) + y·sin(90) = 0 + 0 = 0
+        #          y' = -x·sin(90) + y·cos(90) = -1 + 0 = -1
+        assert result[0, 0] == pytest.approx(0.0, abs=1e-10)
+        assert result[0, 1] == pytest.approx(-1.0, abs=1e-10)
+
+    def test_rotation_45_degrees_cw(self):
+        """45° CW rotation of (1, 1) → (√2, 0) in depth z convention."""
+        info = CrsInfo(areal_rotation_value=45.0, areal_rotation_uom="degr", z_increasing_downward=True)
+        pts = self._pts(1.0, 1.0, 0.0)
+        result = apply_from_crs_info(pts, info)
+        sqrt2 = math.sqrt(2.0)
+        assert result[0, 0] == pytest.approx(sqrt2, abs=1e-10)
+        assert result[0, 1] == pytest.approx(0.0, abs=1e-10)
+
+    def test_zero_rotation_no_change(self):
+        info = CrsInfo(areal_rotation_value=0.0, z_increasing_downward=True)
+        pts = self._pts(3.0, 4.0, 0.0)
+        result = apply_from_crs_info(pts, info)
+        assert result[0, 0] == pytest.approx(3.0)
+        assert result[0, 1] == pytest.approx(4.0)
+
+    # --- Axis-order swap ---------------------------------------------------
+
+    def test_northing_first_axis_order_swaps_xy(self):
+        info = CrsInfo(projected_axis_order="northing easting", z_increasing_downward=True)
+        pts = self._pts(10.0, 20.0, 0.0)
+        result = apply_from_crs_info(pts, info)
+        assert result[0, 0] == pytest.approx(20.0)
+        assert result[0, 1] == pytest.approx(10.0)
+
+    # --- inplace=False ----------------------------------------------------
+
+    def test_inplace_false_returns_copy(self):
+        info = CrsInfo(x_offset=5.0, z_increasing_downward=True)
+        pts = self._pts(1.0, 2.0, 3.0)
+        original = pts.copy()
+        result = apply_from_crs_info(pts, info, inplace=False)
+        # Original must be unchanged
+        np.testing.assert_array_equal(pts, original)
+        # Result must be translated
+        assert result[0, 0] == pytest.approx(6.0)
+
+    # --- AzimuthReference warning -----------------------------------------
+
+    def test_true_north_azimuth_reference_warns(self, caplog):
+        import logging
+        info = CrsInfo(azimuth_reference="true north", z_increasing_downward=True)
+        pts = self._pts()
+        with caplog.at_level(logging.WARNING, logger="energyml.utils.data.crs"):
+            apply_from_crs_info(pts, info)
+        assert any("true north" in r.message.lower() for r in caplog.records)
+
+    def test_magnetic_north_azimuth_reference_warns(self, caplog):
+        import logging
+        info = CrsInfo(azimuth_reference="magnetic north", z_increasing_downward=True)
+        pts = self._pts()
+        with caplog.at_level(logging.WARNING, logger="energyml.utils.data.crs"):
+            apply_from_crs_info(pts, info)
+        assert any("magnetic north" in r.message.lower() for r in caplog.records)
+
+    def test_grid_north_no_warning(self, caplog):
+        import logging
+        info = CrsInfo(azimuth_reference="grid north", z_increasing_downward=True)
+        pts = self._pts()
+        with caplog.at_level(logging.WARNING, logger="energyml.utils.data.crs"):
+            apply_from_crs_info(pts, info)
+        assert not any("north" in r.message.lower() for r in caplog.records)
+
+    # --- Full pipeline order verification ---------------------------------
+
+    def test_pipeline_order_rotation_then_translation(self):
+        """Rotation must be applied BEFORE translation.
+
+        Rotate (0, 1) by 90° CW → (1, 0), then translate by (10, 0):
+        result should be (11, 0), NOT (0, -1 + 10) = (0, 9).
+        """
+        info = CrsInfo(
+            areal_rotation_value=90.0,
+            areal_rotation_uom="degr",
+            x_offset=10.0,
+            z_increasing_downward=True,
+        )
+        pts = np.array([[0.0, 1.0, 0.0]], dtype=np.float64)
+        result = apply_from_crs_info(pts, info)
+        # CW 90°: x' = 0*cos90 + 1*sin90 = 1, then +10 → 11
+        # y' = -0*sin90 + 1*cos90 = 0, then +0 → 0
+        assert result[0, 0] == pytest.approx(11.0, abs=1e-10)
+        assert result[0, 1] == pytest.approx(0.0, abs=1e-10)
 
