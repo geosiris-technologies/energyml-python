@@ -91,7 +91,7 @@ from energyml.utils.validation import (
     validate_epc,
     correct_dor,
 )
-from energyml.utils.xml import (
+from energyml.utils.xml_utils import (
     find_schema_version_in_element,
     get_class_name_from_xml,
     get_root_namespace,

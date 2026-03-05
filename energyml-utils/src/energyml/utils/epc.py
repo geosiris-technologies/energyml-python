@@ -57,7 +57,7 @@ from energyml.utils.serialization import (
     read_energyml_json_bytes,
     JSON_VERSION,
 )
-from energyml.utils.xml import is_energyml_content_type
+from energyml.utils.xml_utils import is_energyml_content_type
 from energyml.utils.epc_utils import (
     gen_core_props_path,
     gen_energyml_object_path,
@@ -1590,7 +1590,7 @@ class Epc(EnergymlStorageInterface):
         """
         Read an EPC file from disk.
         :param epc_file_path: Path to the EPC file
-        :param read_rels_from_files: If True, populate cache from .rels files in the EPC
+        :param read_rels_from_files: If True, populate cache from energyml.utils.rels files in the EPC
         :param recompute_rels: If True, recompute all relationships after loading
         :param read_parallel: If True, read the EPC file in parallel
         :return: Epc instance
@@ -1622,7 +1622,7 @@ class Epc(EnergymlStorageInterface):
         """
         Read an EPC file from a BytesIO stream.
         :param epc_file_io: BytesIO containing the EPC file
-        :param read_rels_from_files: If True, populate cache from .rels files in the EPC
+        :param read_rels_from_files: If True, populate cache from energyml.utils.rels files in the EPC
         :param recompute_rels: If True, recompute all relationships after loading
         :return: an :class:`EPC` instance
         """
@@ -1958,7 +1958,7 @@ class Epc(EnergymlStorageInterface):
 
 # Backward compatibility: re-export functions that were moved to epc_utils
 # This allows existing code that imports these functions from epc.py to continue working
-from .epc_utils import (
+from energyml.utils.epc_utils import (
     create_default_core_properties,
     create_default_types,
     create_external_relationship,
@@ -1980,7 +1980,7 @@ from .epc_utils import (
 )
 
 # Also export the cache dict for backward compatibility
-from .epc_utils import __CACHE_PROP_KIND_DICT__
+from energyml.utils.epc_utils import __CACHE_PROP_KIND_DICT__
 
 __all__ = [
     "Epc",

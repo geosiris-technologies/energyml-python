@@ -14,7 +14,7 @@ from io import BytesIO
 from typing import List, Optional, Any, Callable, Dict, Union, Tuple
 
 
-from .helper import (
+from energyml.utils.data.helper import (
     apply_crs_transform,
     generate_vertical_well_points,
     get_crs_offsets_and_angle,
@@ -26,7 +26,7 @@ from .helper import (
     get_crs_obj,
     read_parametric_geometry,
 )
-from .crs import extract_crs_info, apply_from_crs_info
+from energyml.utils.data.crs import extract_crs_info, apply_from_crs_info
 from energyml.utils.epc_utils import gen_energyml_object_path
 from energyml.utils.epc_stream import EpcStreamReader
 from energyml.utils.exception import NotSupportedError, ObjectNotFoundNotError
@@ -42,7 +42,7 @@ from energyml.utils.storage_interface import EnergymlStorageInterface
 
 
 # Import export functions from new export module for backward compatibility
-from .export import export_obj as _export_obj_new
+from energyml.utils.data.export import export_obj as _export_obj_new
 
 _FILE_HEADER: bytes = b"# file exported by energyml-utils python module (Geosiris)\n"
 
@@ -213,25 +213,23 @@ def read_mesh_object(
     if reader_func is not None:
         # logging.info(f"using function {reader_func} to read type {array_type_name}")
         surfaces: List[AbstractMesh] = reader_func(
-            energyml_object=energyml_object, workspace=workspace, sub_indices=sub_indices,
+            energyml_object=energyml_object,
+            workspace=workspace,
+            sub_indices=sub_indices,
             use_crs_displacement=use_crs_displacement,
         )
         _tn = array_type_name.lower()
         if (
             use_crs_displacement
             and "wellbore" not in _tn
-            and "triangulated" not in _tn      # per-patch CRS applied inside reader
-            and "point" not in _tn             # per-patch CRS applied inside reader
-            and "polyline" not in _tn          # per-patch CRS applied inside reader
+            and "triangulated" not in _tn  # per-patch CRS applied inside reader
+            and "point" not in _tn  # per-patch CRS applied inside reader
+            and "polyline" not in _tn  # per-patch CRS applied inside reader
             and "representationset" not in _tn  # each sub-mesh already had CRS applied by its own reader
             and "subrepresentation" not in _tn  # delegates entirely to inner read_mesh_object call
         ):
             for s in surfaces:
-                crs = (
-                    s.crs_object[0]
-                    if isinstance(s.crs_object, list) and s.crs_object
-                    else s.crs_object
-                )
+                crs = s.crs_object[0] if isinstance(s.crs_object, list) and s.crs_object else s.crs_object
                 if crs is None:
                     continue
                 logging.debug(f"Applying CRS transform to surface {s.identifier}")
@@ -376,10 +374,7 @@ def read_polyline_representation(
 
         close_poly = None
         try:
-            (
-                close_poly_path,
-                close_poly_obj,
-            ) = search_attribute_matching_name_with_path(
+            (close_poly_path, close_poly_obj,) = search_attribute_matching_name_with_path(
                 patch, "ClosedPolylines"
             )[0]
             close_poly = read_array(
@@ -393,10 +388,7 @@ def read_polyline_representation(
 
         point_indices = []
         try:
-            (
-                node_count_per_poly_path_in_obj,
-                node_count_per_poly,
-            ) = search_attribute_matching_name_with_path(
+            (node_count_per_poly_path_in_obj, node_count_per_poly,) = search_attribute_matching_name_with_path(
                 patch, "NodeCountPerPolyline"
             )[0]
             node_counts_list = read_array(
@@ -613,7 +605,9 @@ def read_grid2d_representation(
 
     # Resqml 22
     if hasattr(energyml_object, "geometry"):
-        logging.debug("Trying to read Grid2d representation with Resqml 2.2 schema (geometry attribute on the representation)")
+        logging.debug(
+            "Trying to read Grid2d representation with Resqml 2.2 schema (geometry attribute on the representation)"
+        )
         crs = None
         try:
             crs = get_crs_obj(
@@ -701,7 +695,9 @@ def read_triangulated_set_representation(
         # Apply full CRS transform (rotation + offsets + z-flip + axis-swap) per patch.
         # Setting crs_object=None on the resulting mesh prevents the outer
         # read_mesh_object dispatcher from calling crs_displacement() a second time.
-        logging.debug(f"Applying use_crs_displacement {use_crs_displacement} with crs {crs} on patch {patch_path} with {len(point_list)} points for triangulated set representation {get_obj_uri(energyml_object)}")
+        logging.debug(
+            f"Applying use_crs_displacement {use_crs_displacement} with crs {crs} on patch {patch_path} with {len(point_list)} points for triangulated set representation {get_obj_uri(energyml_object)}"
+        )
         if use_crs_displacement and crs is not None and point_list:
             logging.debug(f"Original points sample: {point_list[0:5]}")
             pts_arr = np.asarray(point_list, dtype=np.float64).reshape(-1, 3)
@@ -892,9 +888,15 @@ def read_wellbore_trajectory_representation(
             md_datum_obj = workspace.get_object(md_datum_identifier)
 
             if md_datum_obj is not None:
-                head_x, head_y, head_z, z_increasing_downward, projected_epsg_code, vertical_epsg_code, crs = (
-                    get_datum_information(md_datum_obj, workspace)
-                )
+                (
+                    head_x,
+                    head_y,
+                    head_z,
+                    z_increasing_downward,
+                    projected_epsg_code,
+                    vertical_epsg_code,
+                    crs,
+                ) = get_datum_information(md_datum_obj, workspace)
                 # if crs is None:
                 #     crs = get_crs_obj(
                 #         context_obj=md_datum_obj,

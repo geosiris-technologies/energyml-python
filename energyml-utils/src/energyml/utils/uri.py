@@ -5,7 +5,7 @@ from typing import Optional
 from dataclasses import dataclass, field
 
 from energyml.utils.exception import ContentTypeValidationError, NotUriError
-from .constants import (
+from energyml.utils.constants import (
     RGX_CT_ENERGYML_DOMAIN,
     RGX_CT_TOKEN_TYPE,
     RGX_CT_TOKEN_VERSION,

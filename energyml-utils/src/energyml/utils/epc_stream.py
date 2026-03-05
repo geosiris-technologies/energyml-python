@@ -88,7 +88,7 @@ from energyml.utils.introspection import (
 )
 from energyml.utils.serialization import read_energyml_xml_bytes, serialize_xml
 
-from energyml.utils.xml import is_energyml_content_type
+from energyml.utils.xml_utils import is_energyml_content_type
 
 
 def get_dor_identifiers_from_obj(obj: Any) -> Set[str]:
@@ -771,7 +771,7 @@ class _RelationshipManager:
     Internal helper class for managing relationships between objects.
 
     This class handles:
-    - Reading relationships from .rels files
+    - Reading relationships from energyml.utils.rels files
     - Writing relationship updates
     - Supporting 3 update modes (UPDATE_AT_MODIFICATION, UPDATE_ON_CLOSE, MANUAL)
     - Preserving EXTERNAL_RESOURCE relationships
@@ -1149,7 +1149,6 @@ class _RelationshipManager:
 
 
 class EpcStreamReader(EnergymlStorageInterface):
-
     def __init__(
         self,
         epc_file_path: Union[str, Path],

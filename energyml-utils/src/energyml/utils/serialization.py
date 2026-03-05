@@ -20,8 +20,8 @@ from xsdata.formats.dataclass.serializers import JsonSerializer
 from xsdata.formats.dataclass.serializers import XmlSerializer
 from xsdata.formats.dataclass.serializers.config import SerializerConfig
 
-from .exception import UnknownTypeFromQualifiedType, NotParsableType
-from .introspection import (
+from energyml.utils.exception import UnknownTypeFromQualifiedType, NotParsableType
+from energyml.utils.introspection import (
     as_obj_prefixed_class_if_possible,
     get_class_from_name,
     get_energyml_class_in_related_dev_pkg,
@@ -35,7 +35,7 @@ from .introspection import (
     get_matching_class_attribute_name,
     is_enum,
 )
-from .xml import (
+from energyml.utils.xml_utils import (
     get_class_name_from_xml,
     get_tree,
     get_xml_encoding,

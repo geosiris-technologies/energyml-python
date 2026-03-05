@@ -24,8 +24,8 @@ from energyml.opc.opc import CoreProperties, Override, Relationship, Relationshi
 from xsdata.formats.dataclass.parsers import XmlParser
 from xsdata.exceptions import ParserError
 
-from .constants import RELS_CONTENT_TYPE, EpcExportVersion
-from .exception import (
+from energyml.utils.constants import RELS_CONTENT_TYPE, EpcExportVersion
+from energyml.utils.exception import (
     ContentTypeValidationError,
     CorePropertiesValidationError,
     EpcValidationError,

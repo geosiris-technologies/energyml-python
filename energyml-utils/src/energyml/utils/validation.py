@@ -7,14 +7,14 @@ from enum import Enum
 import traceback
 from typing import Any, Dict, List, Optional, Union
 
-from .epc import (
+from energyml.utils.epc import (
     Epc,
 )
-from .epc_utils import (
+from energyml.utils.epc_utils import (
     get_obj_identifier,
     get_property_kind_by_uuid,
 )
-from .introspection import (
+from energyml.utils.introspection import (
     get_class_fields,
     get_object_attribute,
     is_primitive,
@@ -96,7 +96,6 @@ class ValidationObjectInfo(ValidationObjectError):
 
 @dataclass
 class MandatoryError(ValidationObjectError):
-
     @property
     def msg(self) -> str:
         return f"Mandatory value is None for {get_obj_identifier(self.target_obj)} : '{self.attribute_dot_path}'"

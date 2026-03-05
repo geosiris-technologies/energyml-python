@@ -39,7 +39,7 @@ from energyml.utils.serialization import (
     read_energyml_xml_tree,
 )
 from energyml.utils.validation import validate_epc
-from energyml.utils.xml import get_tree
+from energyml.utils.xml_utils import get_tree
 from energyml.utils.data.datasets_io import (
     HDF5FileReader,
     get_path_in_external_with_path,

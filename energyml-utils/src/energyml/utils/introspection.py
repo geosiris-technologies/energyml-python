@@ -16,7 +16,7 @@ from importlib import import_module
 from types import ModuleType
 from typing import Any, List, Optional, Union, Dict, Tuple
 
-from .constants import (
+from energyml.utils.constants import (
     path_parent_attribute,
     primitives,
     epoch_to_date,
@@ -28,7 +28,7 @@ from .constants import (
     path_next_attribute,
     OptimizedRegex,
 )
-from .manager import (
+from energyml.utils.manager import (
     class_has_parent_with_name,
     get_class_pkg,
     get_class_pkg_version,
@@ -38,8 +38,8 @@ from .manager import (
     dict_energyml_modules,
     reshape_version_from_regex_match,
 )
-from .uri import Uri, parse_uri
-from .constants import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
+from energyml.utils.uri import Uri, parse_uri
+from energyml.utils.constants import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
 
 
 def is_enum(cls: Union[type, Any]):
@@ -778,7 +778,10 @@ def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:
             # print("ACCUMULATOR", accumulator)
             if accumulator:
                 if len(attrib_list) > 1:
-                    return [get_object_attribute_rgx(v, attr_dot_path_rgx[len(current_attrib_name) + 1 :]) for v in accumulator]
+                    return [
+                        get_object_attribute_rgx(v, attr_dot_path_rgx[len(current_attrib_name) + 1 :])
+                        for v in accumulator
+                    ]
                 else:
                     return accumulator
     else:

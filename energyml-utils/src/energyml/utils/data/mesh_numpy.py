@@ -44,7 +44,7 @@ from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
 
-from .helper import (
+from energyml.utils.data.helper import (
     apply_crs_transform,
     generate_vertical_well_points,
     get_crs_offsets_and_angle,
@@ -57,7 +57,7 @@ from .helper import (
     read_parametric_geometry,
     get_wellbore_points,
 )
-from .crs import extract_crs_info, apply_from_crs_info
+from energyml.utils.data.crs import extract_crs_info, apply_from_crs_info
 from energyml.utils.exception import NotSupportedError, ObjectNotFoundNotError
 from energyml.utils.introspection import (
     get_obj_uri,
@@ -284,7 +284,7 @@ def _build_vtk_lines_from_segments(n_points: int) -> np.ndarray:
     if n_points < 2:
         return np.empty(0, dtype=np.int64)
     idx = np.arange(n_points - 1, dtype=np.int64)
-    pairs = np.column_stack([idx, idx + 1])          # (n-1, 2)
+    pairs = np.column_stack([idx, idx + 1])  # (n-1, 2)
     counts = np.full((n_points - 1, 1), 2, dtype=np.int64)
     return np.concatenate([counts, pairs], axis=1).ravel()
 
@@ -371,10 +371,9 @@ def read_numpy_point_representation(
     patch_idx = 0
     total_size = 0
 
-    patches_geom = (
-        search_attribute_matching_name_with_path(energyml_object, r"NodePatch.[\d]+.Geometry.Points")
-        + search_attribute_matching_name_with_path(energyml_object, r"NodePatchGeometry.[\d]+.Points")
-    )
+    patches_geom = search_attribute_matching_name_with_path(
+        energyml_object, r"NodePatch.[\d]+.Geometry.Points"
+    ) + search_attribute_matching_name_with_path(energyml_object, r"NodePatchGeometry.[\d]+.Points")
 
     for points_path_in_obj, points_obj in patches_geom:
         raw = _read_array_np(points_obj, energyml_object, points_path_in_obj, ws)
@@ -427,10 +426,9 @@ def read_numpy_polyline_representation(
     patch_idx = 0
     total_size = 0
 
-    for patch_path_in_obj, patch in (
-        search_attribute_matching_name_with_path(energyml_object, "NodePatch")
-        + search_attribute_matching_name_with_path(energyml_object, r"LinePatch.[\d]+")
-    ):
+    for patch_path_in_obj, patch in search_attribute_matching_name_with_path(
+        energyml_object, "NodePatch"
+    ) + search_attribute_matching_name_with_path(energyml_object, r"LinePatch.[\d]+"):
         # --- Points ---
         pts_list = search_attribute_matching_name_with_path(patch, "Geometry.Points")
         if not pts_list:
@@ -660,13 +658,11 @@ def read_numpy_grid2d_representation(
             pts = pts.reshape(-1, 3)
 
         # Grid dimensions
-        fa_count = (
-            search_attribute_matching_name(patch, "FastestAxisCount")
-            or search_attribute_matching_name(energyml_object, "FastestAxisCount")
+        fa_count = search_attribute_matching_name(patch, "FastestAxisCount") or search_attribute_matching_name(
+            energyml_object, "FastestAxisCount"
         )
-        sa_count = (
-            search_attribute_matching_name(patch, "SlowestAxisCount")
-            or search_attribute_matching_name(energyml_object, "SlowestAxisCount")
+        sa_count = search_attribute_matching_name(patch, "SlowestAxisCount") or search_attribute_matching_name(
+            energyml_object, "SlowestAxisCount"
         )
         if not fa_count or not sa_count:
             return None
@@ -831,9 +827,7 @@ def read_numpy_wellbore_trajectory_representation(
         traj_mds, traj_points, traj_tangents = read_parametric_geometry(
             getattr(energyml_object, "geometry", None), workspace
         )
-        well_points_list = get_wellbore_points(
-            wellbore_frame_mds, traj_mds, traj_points, traj_tangents, step_meter
-        )
+        well_points_list = get_wellbore_points(wellbore_frame_mds, traj_mds, traj_points, traj_tangents, step_meter)
         if use_crs_displacement:
             well_points_list = apply_from_crs_info(
                 np.asarray(well_points_list, dtype=np.float64),
@@ -907,9 +901,7 @@ def read_numpy_wellbore_frame_representation(
     except AttributeError:
         pass
 
-    wellbore_frame_mds = wellbore_frame_mds[
-        (wellbore_frame_mds >= md_min) & (wellbore_frame_mds <= md_max)
-    ]
+    wellbore_frame_mds = wellbore_frame_mds[(wellbore_frame_mds >= md_min) & (wellbore_frame_mds <= md_max)]
 
     trajectory_dor = search_attribute_matching_name(obj=energyml_object, name_rgx="Trajectory")[0]
     trajectory_obj = workspace.get_object(get_obj_uri(trajectory_dor))
@@ -941,19 +933,16 @@ def read_numpy_sub_representation(
 
     total_size = 0
     all_indices: Optional[np.ndarray] = None
-    for patch_path, patch_indices in (
-        search_attribute_matching_name_with_path(
-            obj=energyml_object,
-            name_rgx=r"SubRepresentationPatch.\d+.ElementIndices.\d+.Indices",
-            deep_search=False,
-            search_in_sub_obj=False,
-        )
-        + search_attribute_matching_name_with_path(
-            obj=energyml_object,
-            name_rgx=r"SubRepresentationPatch.\d+.Indices",
-            deep_search=False,
-            search_in_sub_obj=False,
-        )
+    for patch_path, patch_indices in search_attribute_matching_name_with_path(
+        obj=energyml_object,
+        name_rgx=r"SubRepresentationPatch.\d+.ElementIndices.\d+.Indices",
+        deep_search=False,
+        search_in_sub_obj=False,
+    ) + search_attribute_matching_name_with_path(
+        obj=energyml_object,
+        name_rgx=r"SubRepresentationPatch.\d+.Indices",
+        deep_search=False,
+        search_in_sub_obj=False,
     ):
         arr = _read_array_np(patch_indices, energyml_object, patch_path, ws).astype(np.int64).ravel()
         if sub_indices is not None and len(sub_indices) > 0:
@@ -1080,18 +1069,14 @@ def read_numpy_mesh_object(
     if (
         use_crs_displacement
         and "wellbore" not in _tn
-        and "triangulated" not in _tn       # per-patch CRS applied inside reader
-        and "point" not in _tn              # per-patch CRS applied inside reader
-        and "polyline" not in _tn           # per-patch CRS applied inside reader
+        and "triangulated" not in _tn  # per-patch CRS applied inside reader
+        and "point" not in _tn  # per-patch CRS applied inside reader
+        and "polyline" not in _tn  # per-patch CRS applied inside reader
         and "representationset" not in _tn  # each sub-mesh already had CRS applied by its own reader
         and "subrepresentation" not in _tn  # delegates entirely to inner read_numpy_mesh_object call
     ):
         for m in meshes:
-            crs = (
-                m.crs_object[0]
-                if isinstance(m.crs_object, list) and m.crs_object
-                else m.crs_object
-            )
+            crs = m.crs_object[0] if isinstance(m.crs_object, list) and m.crs_object else m.crs_object
             if crs is not None and len(m.points) > 0:
                 crs_displacement_np(m.points, crs, inplace=True)
 
@@ -1122,10 +1107,7 @@ def numpy_mesh_to_pyvista(mesh: NumpyMesh) -> Any:
     try:
         import pyvista as pv  # type: ignore[import]
     except ImportError as exc:
-        raise ImportError(
-            "pyvista is not installed.  "
-            "Install it with: pip install pyvista"
-        ) from exc
+        raise ImportError("pyvista is not installed.  " "Install it with: pip install pyvista") from exc
 
     pts = mesh.points  # (N, 3) float64 — no copy
 
@@ -1139,9 +1121,7 @@ def numpy_mesh_to_pyvista(mesh: NumpyMesh) -> Any:
         return pv.PolyData(pts)
 
     # Generic fallback: just export points
-    logging.warning(
-        f"numpy_mesh_to_pyvista: unknown mesh type {type(mesh).__name__}, exporting points only."
-    )
+    logging.warning(f"numpy_mesh_to_pyvista: unknown mesh type {type(mesh).__name__}, exporting points only.")
     return pv.PolyData(pts)
 
 

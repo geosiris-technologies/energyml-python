@@ -6,4 +6,4 @@ The data module.
 Contains functions to help the read of specific entities like Grid2DRepresentation, TriangulatedSetRepresentation etc.
 It also contains functions to export data into OFF/OBJ format.
 """
-from .crs import CrsInfo, extract_crs_info, apply_from_crs_info, apply_axis_order_swap  # noqa: F401
+from energyml.utils.data.crs import CrsInfo, extract_crs_info, apply_from_crs_info, apply_axis_order_swap  # noqa: F401

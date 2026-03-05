@@ -181,7 +181,7 @@ def _resolve_dor(
     **and** the object has a ``uuid``/``uid`` attribute (i.e. it is a pointer,
     not a value type).
     """
-    
+
     if obj is None or workspace is None:
         return obj
     type_lower = type(obj).__name__.lower()
@@ -321,7 +321,9 @@ def _extract_vertical_crs_details(vertical_crs_obj: Any) -> dict:
     **must not** override a parent-level ``ZIncreasingDownward`` when this
     value is ``None``.
     """
-    logging.debug(f"Extracting vertical CRS details from object of type {type(vertical_crs_obj).__name__} with URI {get_obj_uri(vertical_crs_obj)}")
+    logging.debug(
+        f"Extracting vertical CRS details from object of type {type(vertical_crs_obj).__name__} with URI {get_obj_uri(vertical_crs_obj)}"
+    )
     result: dict = {
         "epsg_code": None,
         "wkt": None,
@@ -437,14 +439,10 @@ def _from_abstract_local3dcrs(
             z_increasing_downward = str(zid_raw).lower() in ("true", "1", "yes")
 
     # --- Projected UOM -----------------------------------------------------
-    projected_uom: Optional[str] = _uom_to_str(
-        get_object_attribute_no_verif(crs_obj, "projected_uom")
-    )
+    projected_uom: Optional[str] = _uom_to_str(get_object_attribute_no_verif(crs_obj, "projected_uom"))
 
     # --- Vertical UOM (length or time) ------------------------------------
-    vertical_uom: Optional[str] = _uom_to_str(
-        get_object_attribute_no_verif(crs_obj, "vertical_uom")
-    )
+    vertical_uom: Optional[str] = _uom_to_str(get_object_attribute_no_verif(crs_obj, "vertical_uom"))
     if vertical_uom is None:
         # time_uom only present on LocalTime3dCrs
         vertical_uom = _uom_to_str(getattr(crs_obj, "time_uom", None))
@@ -459,9 +457,7 @@ def _from_abstract_local3dcrs(
         projected_axis_order = ao.replace("_", " ").lower()
 
     # --- Projected CRS -----------------------------------------------------
-    projected_crs_obj = _resolve_dor(
-        get_object_attribute_no_verif(crs_obj, "projected_crs"), workspace
-    )
+    projected_crs_obj = _resolve_dor(get_object_attribute_no_verif(crs_obj, "projected_crs"), workspace)
     projected_details = _extract_projected_crs_details(projected_crs_obj)
 
     # Projected UOM from inline ProjectedCrs takes precedence if present
@@ -471,20 +467,20 @@ def _from_abstract_local3dcrs(
         projected_axis_order = projected_details["axis_order"]
 
     # --- Vertical CRS ------------------------------------------------------
-    vertical_crs_obj = _resolve_dor(
-        get_object_attribute_no_verif(crs_obj, "vertical_crs"), workspace
-    )
+    vertical_crs_obj = _resolve_dor(get_object_attribute_no_verif(crs_obj, "vertical_crs"), workspace)
     vertical_details = _extract_vertical_crs_details(vertical_crs_obj)
 
     # Direction from VerticalCrs overrides the top-level ZIncreasingDownward
     # only when explicitly set.
     logging.debug("z_increasing_downward before vertical CRS details: %s", z_increasing_downward)
-    logging.debug(f"Vertical CRS details: {vertical_details} -- vertical_crs_obj type: {type(vertical_crs_obj).__name__ if vertical_crs_obj else 'None'}")
+    logging.debug(
+        f"Vertical CRS details: {vertical_details} -- vertical_crs_obj type: {type(vertical_crs_obj).__name__ if vertical_crs_obj else 'None'}"
+    )
     if vertical_crs_obj is not None and vertical_details.get("z_increasing_downward") is not None:
         z_increasing_downward = vertical_details["z_increasing_downward"]
     if vertical_details.get("uom"):
         vertical_uom = vertical_details["uom"]
-        
+
     logging.debug("z_increasing_downward after vertical CRS details: %s", z_increasing_downward)
 
     return CrsInfo(
@@ -547,9 +543,7 @@ def _from_local_engineering2d_crs(
         azimuth_reference = ar.replace("_", " ").lower()
 
     # --- Horizontal UOM (HorizontalAxes.projected_uom or uom on ProjectedCrs) ---
-    projected_uom: Optional[str] = _uom_to_str(
-        get_object_attribute(crs_obj, "horizontal_axes.projected_uom")
-    )
+    projected_uom: Optional[str] = _uom_to_str(get_object_attribute(crs_obj, "horizontal_axes.projected_uom"))
 
     # --- ProjectedCrs — may be an inline object OR a DOR ------------------
     projected_crs_raw = get_object_attribute_no_verif(crs_obj, "origin_projected_crs")
@@ -920,10 +914,7 @@ def extract_crs_info(
     # ------------------------------------------------------------------
     # v2.0.1 types  (LocalDepth3dCrs, LocalTime3dCrs, AbstractLocal3dCrs)
     # ------------------------------------------------------------------
-    if any(
-        kw in type_name_lower
-        for kw in ("localdepth3dcrs", "localtime3dcrs", "abstractlocal3dcrs", "local3dcrs")
-    ):
+    if any(kw in type_name_lower for kw in ("localdepth3dcrs", "localtime3dcrs", "abstractlocal3dcrs", "local3dcrs")):
         return _from_abstract_local3dcrs(crs_obj, workspace)
 
     # ------------------------------------------------------------------

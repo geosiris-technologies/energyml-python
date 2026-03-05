@@ -158,7 +158,6 @@ if __H5PY_MODULE_EXISTS__:
 
     @dataclass
     class HDF5FileWriter:
-
         def write_array(
             self,
             target: Union[str, BytesIO, bytes, "h5py.File"],
@@ -209,7 +208,6 @@ else:
             raise MissingExtraInstallation(extra_name="hdf5")
 
     class HDF5FileWriter:
-
         def write_array(
             self,
             target: Union[str, BytesIO, bytes, Any],
@@ -631,9 +629,7 @@ def read_external_dataset_array(
         for s in sources:
             try:
                 if result_array is None:
-                    result_array = read_dataset(
-                        source=s, path_in_external_file=path_in_external, mimetype=mimetype
-                    )
+                    result_array = read_dataset(source=s, path_in_external_file=path_in_external, mimetype=mimetype)
                 else:
                     # TODO: take care of the "Counts" and "Starts" list in ExternalDataArrayPart to fill array correctly
                     result_array = result_array + read_dataset(
@@ -908,9 +904,7 @@ if __H5PY_MODULE_EXISTS__:
                 d_group = source[path_in_external_file]
                 if start_indices is not None and counts is not None:
                     # h5py reads only the required chunks/slabs from disk
-                    slices = tuple(
-                        slice(start, start + count) for start, count in zip(start_indices, counts)
-                    )
+                    slices = tuple(slice(start, start + count) for start, count in zip(start_indices, counts))
                     return d_group[slices]  # type: ignore
                 # np.array with copy=False returns a view for contiguous datasets
                 # Note: copy= kwarg on np.asarray requires numpy >=2.0;

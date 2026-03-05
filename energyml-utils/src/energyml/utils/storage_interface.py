@@ -252,6 +252,18 @@ class EnergymlStorageInterface(ABC):
         """
         pass
 
+    def get_object_by_uuid_versioned(self, uuid: str, version: Optional[str] = None) -> Optional[Any]:
+        """
+        Retrieve a specific version of an object by UUID and optional version.
+
+        Args:
+            uuid: Object UUID
+            version: Optional version string. If None, returns the latest version.
+        Returns:
+            The deserialized energyml object matching the UUID and version, or None if not found
+        """
+        return self.get_object(f"{uuid}.{version}" if version else f"{uuid}.")
+
     @abstractmethod
     def put_object(self, obj: Any, dataspace: Optional[str] = None) -> Optional[str]:
         """

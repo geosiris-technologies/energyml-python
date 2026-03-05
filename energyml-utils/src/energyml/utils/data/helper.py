@@ -8,9 +8,9 @@ from typing import Any, Literal, Optional, Callable, List, Tuple, Union
 from energyml.utils.storage_interface import EnergymlStorageInterface
 import numpy as np
 
-from .datasets_io import read_external_dataset_array
-from ..constants import flatten_concatenation, path_last_attribute, path_parent_attribute
-from ..exception import ObjectNotFoundNotError
+from energyml.utils.data.datasets_io import read_external_dataset_array, get_path_in_external_with_path
+from energyml.utils.constants import flatten_concatenation, path_last_attribute, path_parent_attribute
+from energyml.utils.exception import ObjectNotFoundNotError
 from energyml.utils.introspection import (
     get_obj_uri,
     snake_case,
@@ -27,8 +27,7 @@ from energyml.utils.introspection import (
     get_obj_title,
 )
 
-from .datasets_io import get_path_in_external_with_path
-from .crs import CrsInfo, extract_crs_info  # noqa: F401  (re-exported for convenience)
+from energyml.utils.data.crs import CrsInfo, extract_crs_info  # noqa: F401  (re-exported for convenience)
 
 _ARRAY_NAMES_ = [
     "BooleanArrayFromDiscretePropertyArray",
@@ -1215,18 +1214,16 @@ def read_point3d_from_representation_lattice_array(
 
     if supporting_rep is None and workspace is not None:
         from energyml.utils.introspection import get_obj_uuid
+
         candidates = workspace.get_object_by_uuid(get_obj_uuid(supporting_rep_dor))
         supporting_rep = candidates[0] if candidates else None
 
     if supporting_rep is None:
-        raise Exception(
-            f"Supporting representation {supporting_rep_identifier} not found in workspace"
-        )
+        raise Exception(f"Supporting representation {supporting_rep_identifier} not found in workspace")
 
     if "grid2d" not in str(type(supporting_rep)).lower():
         raise Exception(
-            f"Unsupported supporting rep type {type(supporting_rep).__name__} "
-            f"for {type(energyml_array).__name__}"
+            f"Unsupported supporting rep type {type(supporting_rep).__name__} " f"for {type(energyml_array).__name__}"
         )
 
     # ── 1. Read ALL points from the supporting representation ────────────────
@@ -1244,13 +1241,9 @@ def read_point3d_from_representation_lattice_array(
         )
     else:
         # RESQML 2.2: geometry is directly on the representation
-        geom_points_matches = search_attribute_matching_name_with_path(
-            supporting_rep, "Geometry.Points"
-        )
+        geom_points_matches = search_attribute_matching_name_with_path(supporting_rep, "Geometry.Points")
         if not geom_points_matches:
-            raise Exception(
-                f"Cannot find points in supporting rep {type(supporting_rep).__name__}"
-            )
+            raise Exception(f"Cannot find points in supporting rep {type(supporting_rep).__name__}")
         geom_path, geom_points_obj = geom_points_matches[0]
         all_sup_points = read_array(
             energyml_array=geom_points_obj,
@@ -1264,9 +1257,7 @@ def read_point3d_from_representation_lattice_array(
     all_sup_points = all_sup_points.reshape(-1, 3)
 
     # ── 2. Generate the node index list from the IntegerLatticeArray ─────────
-    node_idx_arr = get_object_attribute_no_verif(
-        energyml_array, "node_indices_on_supporting_representation"
-    )
+    node_idx_arr = get_object_attribute_no_verif(energyml_array, "node_indices_on_supporting_representation")
     if node_idx_arr is None:
         node_idx_arr = get_object_attribute_rgx(energyml_array, "NodeIndices")
 
@@ -1282,8 +1273,7 @@ def read_point3d_from_representation_lattice_array(
     else:
         # No index array: use all points in order (identity mapping)
         logging.debug(
-            "Point3DFromRepresentationLatticeArray: no NodeIndices found, "
-            "using all supporting rep points in order"
+            "Point3DFromRepresentationLatticeArray: no NodeIndices found, " "using all supporting rep points in order"
         )
         result = all_sup_points
 
@@ -1462,3 +1452,451 @@ def read_point3d_lattice_array(
 #         workspace: Optional[EnergymlStorageInterface] = None
 # ):
 #     logging.debug(energyml_array)
+
+
+#    ______                 __    _            __              __
+#   / ____/________ _____  / /_  (_)________ _/ /  _________  / /___  __________
+#  / / __/ ___/ __ `/ __ \/ __ \/ / ___/ __ `/ /  / ___/ __ \/ / __ \/ ___/ ___/
+# / /_/ / /  / /_/ / /_/ / / / / / /__/ /_/ / /  / /__/ /_/ / / /_/ / /  (__  )
+# \____/_/   \__,_/ .___/_/ /_/_/\___/\__,_/_/   \___/\____/_/\____/_/  /____/
+#                /_/
+
+# ===========================
+# PyVista integration snippet
+# ===========================
+
+# from energyml.utils.data.helper import (
+#     read_graphical_rendering_info, read_property
+# )
+
+# # 1. Load objects
+# gis   = workspace.get_object(gis_uri)
+# prop  = workspace.get_object(prop_uri)
+# prop_uuid = get_obj_uuid(prop)
+
+# # 2. Extract rendering info
+# info = read_graphical_rendering_info(gis, prop_uuid, workspace)
+
+# # 3. Read scalar values
+# scalars = read_array(prop.values_for_patch[0], root_obj=prop, workspace=workspace)
+
+# # 4. Build PyVista LUT
+# import pyvista as pv
+# if info and info.color_map:
+#     lut = pv.LookupTable()
+#     lut.values = info.color_map.to_vtk_lut()              # (256,4) RGBA
+#     if info.color_min_max:
+#         lut.scalar_range = info.color_min_max
+#     mesh.plot(scalars=scalars, cmap=lut)
+# elif info and info.constant_color:
+#     c = info.constant_color
+#     mesh.plot(color=(c.r, c.g, c.b), opacity=c.a)
+# HsvColor: hue [0,360], saturation [0,1], value [0,1], alpha [0,1], title
+# MinMax:   minimum: float, maximum: float
+
+import colorsys
+from dataclasses import dataclass, field as dc_field
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Unified output data structures
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@dataclass
+class RgbaColor:
+    """RGBA colour with channels in [0.0, 1.0]."""
+
+    r: float
+    g: float
+    b: float
+    a: float = 1.0
+
+    def to_uint8(self) -> Tuple[int, int, int, int]:
+        """Return (R, G, B, A) in [0, 255] – ready for VTK / PyVista."""
+        return (
+            int(round(self.r * 255)),
+            int(round(self.g * 255)),
+            int(round(self.b * 255)),
+            int(round(self.a * 255)),
+        )
+
+    @staticmethod
+    def from_hsv(hsv_obj: Any) -> "RgbaColor":
+        """Convert a RESQML ``HsvColor`` to :class:`RgbaColor`."""
+        h = (hsv_obj.hue or 0.0) / 360.0  # RESQML hue is [0, 360]
+        s = hsv_obj.saturation or 0.0
+        v = hsv_obj.value or 0.0
+        a = hsv_obj.alpha if hsv_obj.alpha is not None else 1.0
+        r, g, b = colorsys.hsv_to_rgb(h, s, v)
+        return RgbaColor(r, g, b, a)
+    
+    @staticmethod
+    def random() -> "RgbaColor":
+        """Generate a random RGBA color (for testing)."""
+        import random
+
+        return RgbaColor(
+            r=random.random(),
+            g=random.random(),
+            b=random.random(),
+            a=1.0,
+        )
+    
+    @staticmethod
+    def random_from_uuid(uuid_str: str) -> "RgbaColor":
+        """Generate a random RGBA color based on a UUID string (for consistent testing)."""
+        import random
+        import hashlib
+
+        # Create a hash of the UUID string to seed the random generator
+        hash_bytes = hashlib.sha256(uuid_str.encode()).digest()
+        seed = int.from_bytes(hash_bytes, 'big')
+        random.seed(seed)
+
+        return RgbaColor(
+            r=random.random(),
+            g=random.random(),
+            b=random.random(),
+            a=1.0,
+        )
+
+
+@dataclass
+class ColorMapEntry:
+    """One control point: a scalar index mapped to an RGBA colour."""
+
+    index: float  # float for both continuous and discrete (int index cast to float)
+    color: RgbaColor
+
+
+@dataclass
+class ColorMapInfo:
+    """
+    Unified representation of a RESQML color map, directly usable by PyVista/VTK.
+
+    Covers both :class:`ContinuousColorMap` and :class:`DiscreteColorMap`.
+
+    PyVista usage example::
+
+        info = read_color_map(my_continuous_color_map)
+        lut = pv.LookupTable()
+        lut.values = info.to_vtk_lut()          # (256, 4) uint8 RGBA array
+        lut.scalar_range = (info.entries[0].index, info.entries[-1].index)
+        mesh.plot(scalars="my_property", cmap=lut)
+    """
+
+    is_continuous: bool
+    entries: List[ColorMapEntry]  # sorted by ascending index
+    null_color: Optional[RgbaColor] = None
+    above_max_color: Optional[RgbaColor] = None
+    below_min_color: Optional[RgbaColor] = None
+
+    def to_vtk_lut(self, n_colors: int = 256) -> np.ndarray:
+        """
+        Return an ``(N, 4)`` uint8 RGBA array for use as a PyVista / VTK LUT.
+
+        - For **continuous** maps:  linearly interpolates the control-point
+          HSV colors over *n_colors* levels.
+        - For **discrete** maps:    returns one row per entry (``n_colors``
+          is ignored) so each integer index gets an exact color.
+
+        :param n_colors: Number of samples for continuous maps (default 256).
+        :return: ``np.ndarray`` of shape ``(N, 4)``, dtype ``uint8``.
+        """
+        if not self.entries:
+            return np.zeros((1, 4), dtype=np.uint8)
+
+        sorted_entries = sorted(self.entries, key=lambda e: e.index)
+
+        if not self.is_continuous:
+            # One exact row per integer entry – no interpolation needed.
+            return np.array(
+                [e.color.to_uint8() for e in sorted_entries], dtype=np.uint8
+            )
+
+        # Continuous: sample n_colors levels with linear interpolation in RGBA.
+        indices = np.array([e.index for e in sorted_entries], dtype=np.float64)
+        float_colors = np.array(
+            [[e.color.r, e.color.g, e.color.b, e.color.a] for e in sorted_entries],
+            dtype=np.float64,
+        )
+        t = np.linspace(indices[0], indices[-1], n_colors)
+        result = np.zeros((n_colors, 4), dtype=np.uint8)
+        for ch in range(4):
+            result[:, ch] = np.clip(
+                np.interp(t, indices, float_colors[:, ch]) * 255, 0, 255
+            ).round().astype(np.uint8)
+        return result
+
+    def scalar_range(self) -> Tuple[float, float]:
+        """Return ``(min_index, max_index)`` of the stored entries."""
+        if not self.entries:
+            return (0.0, 1.0)
+        indices = [e.index for e in self.entries]
+        return (min(indices), max(indices))
+
+
+@dataclass
+class ScalarRenderingInfo:
+    """
+    All graphical rendering parameters needed to display a RESQML property or
+    representation in a 3D viewer (PyVista, VTK, etc.).
+
+    Produced by :func:`read_graphical_rendering_info`.
+
+    Typical PyVista workflow::
+
+        info = read_graphical_rendering_info(gis, prop_uuid, workspace)
+        scalars = read_property(prop, workspace)           # np.ndarray
+        if info and info.color_map:
+            lut = pv.LookupTable()
+            lut.values = info.color_map.to_vtk_lut()
+            if info.color_min_max:
+                lut.scalar_range = info.color_min_max
+            mesh.plot(scalars=scalars, cmap=lut)
+    """
+
+    target_obj_uuid: str
+
+    # ── Colour mapping (from ColorInformation → ColorMap) ────────────────────
+    color_map: Optional[ColorMapInfo] = None
+    color_min_max: Optional[Tuple[float, float]] = None  # clamp range for the LUT
+    color_use_log: bool = False
+    color_use_reverse: bool = False
+    color_value_vector_index: Optional[int] = None  # component for vector props
+
+    # ── Alpha / opacity mapping (from AlphaInformation) ──────────────────────
+    # Piecewise: list of (property_value, opacity [0..1]) control points
+    alpha_control_points: Optional[List[Tuple[float, float]]] = None
+    alpha_min_max: Optional[Tuple[float, float]] = None
+    alpha_use_log: bool = False
+    alpha_overwrite_color_alpha: bool = False
+
+    # ── Size mapping (from SizeInformation) ──────────────────────────────────
+    size_min_max: Optional[Tuple[float, float]] = None  # (min_size, max_size)
+    size_use_log: bool = False
+    size_value_vector_index: Optional[int] = None
+
+    # ── Visibility / constant style (from DefaultGraphicalInformation) ────────
+    is_visible: bool = True
+    constant_color: Optional[RgbaColor] = None
+    constant_alpha: Optional[float] = None  # [0..1] global opacity override
+
+    # ── Contour lines (from ContourLineSetInformation) ────────────────────────
+    contour_increment: Optional[float] = None
+    contour_show_major_every: Optional[int] = None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Color-map readers  (Group 1 – both return ColorMapInfo)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _optional_rgba(hsv_obj: Optional[Any]) -> Optional[RgbaColor]:
+    """Convert an optional ``HsvColor`` to :class:`RgbaColor`, or ``None``."""
+    return RgbaColor.from_hsv(hsv_obj) if hsv_obj is not None else None
+
+
+def read_continuous_color_map(color_map_obj: Any) -> ColorMapInfo:
+    """
+    Read a RESQML ``ContinuousColorMap`` into a :class:`ColorMapInfo`.
+
+    **Input**: a ``ContinuousColorMap`` xsdata dataclass instance (e.g. from
+    ``workspace.get_object(uri)``).
+
+    **Output**: :class:`ColorMapInfo` with ``is_continuous=True`` and entries
+    sorted ascending by ``index`` (a ``float``).  The ``to_vtk_lut()`` method
+    produces a ``(256, 4)`` uint8 RGBA array directly usable by PyVista.
+    """
+    entries = sorted(
+        [
+            ColorMapEntry(index=float(e.index), color=RgbaColor.from_hsv(e.hsv))
+            for e in (color_map_obj.entry or [])
+            if e.index is not None and e.hsv is not None
+        ],
+        key=lambda ce: ce.index,
+    )
+    return ColorMapInfo(
+        is_continuous=True,
+        entries=entries,
+        null_color=_optional_rgba(getattr(color_map_obj, "null_color", None)),
+        above_max_color=_optional_rgba(getattr(color_map_obj, "above_max_color", None)),
+        below_min_color=_optional_rgba(getattr(color_map_obj, "below_min_color", None)),
+    )
+
+
+def read_discrete_color_map(color_map_obj: Any) -> ColorMapInfo:
+    """
+    Read a RESQML ``DiscreteColorMap`` into a :class:`ColorMapInfo`.
+
+    **Input**: a ``DiscreteColorMap`` xsdata dataclass instance.
+
+    **Output**: :class:`ColorMapInfo` with ``is_continuous=False`` and one
+    entry per integer code.  ``to_vtk_lut()`` returns exactly one RGBA row per
+    entry – suitable for VTK's categorical lookup table
+    (``vtkLookupTable.SetAnnotation`` workflow).
+    """
+    entries = sorted(
+        [
+            ColorMapEntry(index=float(e.index), color=RgbaColor.from_hsv(e.hsv))
+            for e in (color_map_obj.entry or [])
+            if e.index is not None and e.hsv is not None
+        ],
+        key=lambda ce: ce.index,
+    )
+    return ColorMapInfo(
+        is_continuous=False,
+        entries=entries,
+        null_color=_optional_rgba(getattr(color_map_obj, "null_color", None)),
+        above_max_color=_optional_rgba(getattr(color_map_obj, "above_max_color", None)),
+        below_min_color=_optional_rgba(getattr(color_map_obj, "below_min_color", None)),
+    )
+
+
+def read_color_map(color_map_obj: Any) -> Optional[ColorMapInfo]:
+    """
+    Dispatch to :func:`read_continuous_color_map` or :func:`read_discrete_color_map`
+    based on the runtime type of *color_map_obj*.
+
+    :param color_map_obj: Any RESQML color-map object (``ContinuousColorMap``
+        or ``DiscreteColorMap`` from any EML/RESQML version).
+    :return: :class:`ColorMapInfo`, or ``None`` if the type is unrecognised.
+    """
+    type_name = type(color_map_obj).__name__.lower()
+    if "continuous" in type_name:
+        return read_continuous_color_map(color_map_obj)
+    if "discrete" in type_name:
+        return read_discrete_color_map(color_map_obj)
+    logging.warning(f"read_color_map: unsupported color-map type '{type(color_map_obj).__name__}'")
+    return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Main entry point  (Group 2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def read_graphical_rendering_info(
+    graphical_information_set: Any,
+    target_uuid: str,
+    workspace: Optional[EnergymlStorageInterface] = None,
+) -> Optional[ScalarRenderingInfo]:
+    """
+    Extract all rendering parameters for a target object from a
+    ``GraphicalInformationSet``.
+
+    **Input**:
+
+    - *graphical_information_set*: a RESQML/EML ``GraphicalInformationSet``
+      object (from ``workspace.get_object(uri)`` or similar).
+    - *target_uuid*: the UUID (string) of the property, representation,
+      feature or interpretation you want to render.
+    - *workspace*: an :class:`EnergymlStorageInterface` used to resolve the
+      ``ColorMap`` DOR inside ``ColorInformation``.  Pass ``None`` if the
+      color map is not needed.
+
+    **Output**: :class:`ScalarRenderingInfo`, or ``None`` if the GIS contains
+    no graphical information targeting *target_uuid*.
+
+    Covers all standard RESQML v2.2 ``AbstractGraphicalInformation`` subtypes:
+
+    +-------------------------------+-----------------------------------+
+    | RESQML class                  | Populated fields                  |
+    +===============================+===================================+
+    | ``ColorInformation``          | ``color_map``, ``color_min_max``, |
+    |                               | ``color_use_log``, ``color_use_`` |
+    |                               | ``reverse``,                      |
+    |                               | ``color_value_vector_index``      |
+    +-------------------------------+-----------------------------------+
+    | ``AlphaInformation``          | ``alpha_control_points``,         |
+    |                               | ``alpha_min_max``,                |
+    |                               | ``alpha_use_log``,                |
+    |                               | ``alpha_overwrite_color_alpha``   |
+    +-------------------------------+-----------------------------------+
+    | ``SizeInformation``           | ``size_min_max``,                 |
+    |                               | ``size_use_log``,                 |
+    |                               | ``size_value_vector_index``       |
+    +-------------------------------+-----------------------------------+
+    | ``DefaultGraphicalInform…``   | ``is_visible``,                   |
+    |                               | ``constant_color``,               |
+    |                               | ``constant_alpha``                |
+    +-------------------------------+-----------------------------------+
+    | ``ContourLineSetInform…``     | ``contour_increment``,            |
+    |                               | ``contour_show_major_every``      |
+    +-------------------------------+-----------------------------------+
+    """
+
+    result = ScalarRenderingInfo(target_obj_uuid=target_uuid)
+    found = False
+
+    gis_infos: List[Any] = getattr(graphical_information_set, "graphical_information", []) or []
+
+    for info in gis_infos:
+        # Each AbstractGraphicalInformation targets ≥1 objects via target_object[].
+        targets: List[Any] = getattr(info, "target_object", []) or []
+        if not any(get_obj_uuid(t) == target_uuid for t in targets):
+            continue
+        found = True
+
+        type_name = type(info).__name__
+
+        if "ColorInformation" in type_name:
+            result.color_use_log = bool(getattr(info, "use_logarithmic_mapping", False))
+            result.color_use_reverse = bool(getattr(info, "use_reverse_mapping", False))
+            result.color_value_vector_index = getattr(info, "value_vector_index", None)
+            mm = getattr(info, "min_max", None)
+            if mm is not None:
+                result.color_min_max = (mm.minimum, mm.maximum)
+            cmap_dor = getattr(info, "color_map", None)
+            if cmap_dor is not None and workspace is not None:
+                cmap_obj = workspace.get_object(get_obj_uri(cmap_dor))
+                if cmap_obj is None:
+                    candidates = workspace.get_object_by_uuid(get_obj_uuid(cmap_dor))
+                    cmap_obj = candidates[0] if candidates else None
+                if cmap_obj is not None:
+                    result.color_map = read_color_map(cmap_obj)
+
+        elif "AlphaInformation" in type_name:
+            result.alpha_use_log = bool(getattr(info, "use_logarithmic_mapping", False))
+            result.alpha_overwrite_color_alpha = bool(getattr(info, "overwrite_color_alpha", False))
+            mm = getattr(info, "min_max", None)
+            if mm is not None:
+                result.alpha_min_max = (mm.minimum, mm.maximum)
+            raw_indices = getattr(info, "index", []) or []
+            raw_alphas = getattr(info, "alpha", []) or []
+            if raw_indices and raw_alphas:
+                try:
+                    result.alpha_control_points = [
+                        (float(idx), float(a))
+                        for idx, a in zip(raw_indices, raw_alphas)
+                    ]
+                except (TypeError, ValueError) as exc:
+                    logging.warning(f"read_graphical_rendering_info: cannot parse AlphaInformation indices: {exc}")
+
+        elif "SizeInformation" in type_name:
+            result.size_use_log = bool(getattr(info, "use_logarithmic_mapping", False))
+            result.size_value_vector_index = getattr(info, "value_vector_index", None)
+            mm = getattr(info, "min_max", None)
+            if mm is not None:
+                result.size_min_max = (mm.minimum, mm.maximum)
+
+        elif "DefaultGraphicalInformation" in type_name:
+            for elem_info in (getattr(info, "indexable_element_info", []) or []):
+                if (getattr(elem_info, "is_visible", None)) is False:
+                    result.is_visible = False
+                const_col = getattr(elem_info, "constant_color", None)
+                if const_col is not None:
+                    result.constant_color = RgbaColor.from_hsv(const_col)
+                const_alpha = getattr(elem_info, "constant_alpha", None)
+                if const_alpha is not None:
+                    result.constant_alpha = float(const_alpha)
+
+        elif "ContourLineSetInformation" in type_name:
+            result.contour_increment = getattr(info, "increment", None)
+            result.contour_show_major_every = getattr(info, "show_major_line_every", None)
+
+        # AnnotationInformation is intentionally not mapped to ScalarRenderingInfo
+        # because it drives label text, not colour/size – handle separately if needed.
+
+    return result if found else None
