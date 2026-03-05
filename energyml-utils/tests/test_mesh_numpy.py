@@ -22,6 +22,7 @@ import pytest
 
 from energyml.utils.data.mesh_numpy import (
     NumpyMesh,
+    NumpyMultiMesh,
     NumpyPointSetMesh,
     NumpyPolylineMesh,
     NumpySurfaceMesh,
@@ -34,6 +35,7 @@ from energyml.utils.data.mesh_numpy import (
     crs_displacement_np,
     read_numpy_mesh_object,
     numpy_mesh_to_pyvista,
+    numpy_multi_mesh_to_pyvista,
 )
 
 # ---------------------------------------------------------------------------
@@ -336,17 +338,19 @@ class TestReadNumpyMeshObjectEPC22:
         obj = epc22.get_object_by_uuid("6e678338-3b53-49b6-8801-faee493e0c42")
         if not obj:
             pytest.skip("TriangulatedSet UUID not found in fixture EPC")
-        meshes = read_numpy_mesh_object(obj[0], workspace=epc22)
-        assert meshes, "Expected at least one mesh"
-        for m in meshes:
+        multi = read_numpy_mesh_object(obj[0], workspace=epc22)
+        assert isinstance(multi, NumpyMultiMesh)
+        patches = multi.flat_patches()
+        assert patches, "Expected at least one patch"
+        for m in patches:
             assert isinstance(m, NumpySurfaceMesh)
 
     def test_triangulated_set_points_shape_dtype(self, epc22):
         obj = epc22.get_object_by_uuid("6e678338-3b53-49b6-8801-faee493e0c42")
         if not obj:
             pytest.skip("TriangulatedSet UUID not found in fixture EPC")
-        meshes = read_numpy_mesh_object(obj[0], workspace=epc22)
-        for m in meshes:
+        multi = read_numpy_mesh_object(obj[0], workspace=epc22)
+        for m in multi.flat_patches():
             assert m.points.ndim == 2
             assert m.points.shape[1] == 3
             assert m.points.dtype == np.float64
@@ -355,8 +359,8 @@ class TestReadNumpyMeshObjectEPC22:
         obj = epc22.get_object_by_uuid("6e678338-3b53-49b6-8801-faee493e0c42")
         if not obj:
             pytest.skip("TriangulatedSet UUID not found in fixture EPC")
-        meshes = read_numpy_mesh_object(obj[0], workspace=epc22)
-        for m in meshes:
+        multi = read_numpy_mesh_object(obj[0], workspace=epc22)
+        for m in multi.flat_patches():
             assert isinstance(m, NumpySurfaceMesh)
             assert m.faces.dtype == np.int64
             assert m.faces.ndim == 1
@@ -368,8 +372,8 @@ class TestReadNumpyMeshObjectEPC22:
         obj = epc22.get_object_by_uuid("6e678338-3b53-49b6-8801-faee493e0c42")
         if not obj:
             pytest.skip("TriangulatedSet UUID not found in fixture EPC")
-        meshes = read_numpy_mesh_object(obj[0], workspace=epc22)
-        for m in meshes:
+        multi = read_numpy_mesh_object(obj[0], workspace=epc22)
+        for m in multi.flat_patches():
             assert isinstance(m.points, np.ndarray), "points must be ndarray"
             assert isinstance(m.faces, np.ndarray), "faces must be ndarray"
 
@@ -378,9 +382,11 @@ class TestReadNumpyMeshObjectEPC22:
         obj = epc22.get_object_by_uuid("fbc5466c-94cd-46ab-8b48-2ae2162b372f")
         if not obj:
             pytest.skip("PointSet UUID not found in fixture EPC")
-        meshes = read_numpy_mesh_object(obj[0], workspace=epc22)
-        assert meshes
-        for m in meshes:
+        multi = read_numpy_mesh_object(obj[0], workspace=epc22)
+        assert isinstance(multi, NumpyMultiMesh)
+        patches = multi.flat_patches()
+        assert patches
+        for m in patches:
             assert isinstance(m, NumpyPointSetMesh)
             assert m.points.ndim == 2
             assert m.points.shape[1] == 3
@@ -391,9 +397,11 @@ class TestReadNumpyMeshObjectEPC22:
         obj = epc22.get_object_by_uuid("a54b8399-d3ba-4d4b-b215-8d4f8f537e66")
         if not obj:
             pytest.skip("Polyline UUID not found in fixture EPC")
-        meshes = read_numpy_mesh_object(obj[0], workspace=epc22)
-        assert meshes
-        for m in meshes:
+        multi = read_numpy_mesh_object(obj[0], workspace=epc22)
+        assert isinstance(multi, NumpyMultiMesh)
+        patches = multi.flat_patches()
+        assert patches
+        for m in patches:
             assert isinstance(m, NumpyPolylineMesh)
             assert m.points.dtype == np.float64
             assert m.lines.dtype == np.int64
@@ -403,9 +411,11 @@ class TestReadNumpyMeshObjectEPC22:
         obj = epc22.get_object_by_uuid("d873e243-d893-41ab-9a3e-d20b851c099f")
         if not obj:
             pytest.skip("WellboreFrame UUID not found in fixture EPC")
-        meshes = read_numpy_mesh_object(obj[0], workspace=epc22)
-        assert meshes
-        for m in meshes:
+        multi = read_numpy_mesh_object(obj[0], workspace=epc22)
+        assert isinstance(multi, NumpyMultiMesh)
+        patches = multi.flat_patches()
+        assert patches
+        for m in patches:
             assert isinstance(m, NumpyPolylineMesh)
             assert m.points.ndim == 2
             assert m.points.shape[1] == 3
@@ -414,8 +424,8 @@ class TestReadNumpyMeshObjectEPC22:
         obj = epc22.get_object_by_uuid("d873e243-d893-41ab-9a3e-d20b851c099f")
         if not obj:
             pytest.skip("WellboreFrame UUID not found in fixture EPC")
-        meshes = read_numpy_mesh_object(obj[0], workspace=epc22)
-        for m in meshes:
+        multi = read_numpy_mesh_object(obj[0], workspace=epc22)
+        for m in multi.flat_patches():
             assert isinstance(m, NumpyPolylineMesh)
             if len(m.lines) > 0:
                 # First element is count (number of points in first line segment)
@@ -446,9 +456,9 @@ class TestReadNumpyMeshObjectEPC22:
         obj = epc22.get_object_by_uuid("6b992199-5b47-4624-a62c-b70857133cda")
         if not obj:
             pytest.skip("RepresentationSet UUID not found in fixture EPC")
-        meshes = read_numpy_mesh_object(obj[0], workspace=epc22)
-        assert isinstance(meshes, list)
-        for m in meshes:
+        multi = read_numpy_mesh_object(obj[0], workspace=epc22)
+        assert isinstance(multi, NumpyMultiMesh)
+        for m in multi.flat_patches():
             assert isinstance(m, NumpyMesh)
 
     # --- Stubs raise NotSupportedError ---

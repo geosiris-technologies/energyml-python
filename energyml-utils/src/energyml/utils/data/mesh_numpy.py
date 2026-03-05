@@ -4,7 +4,7 @@
 
 This module is a high-performance companion to :mod:`mesh.py`. It keeps the
 same ``read_<type>(energyml_object, workspace)`` dispatcher philosophy but
-always returns :class:`NumpyMesh` dataclasses whose geometry arrays are
+always returns :class:`NumpyMultiMesh` containers whose geometry arrays are
 :class:`numpy.ndarray` objects (never plain Python lists).
 
 Design goals
@@ -20,17 +20,25 @@ Design goals
   use the VTK flat-count-prefixed format consumed directly by
   ``pyvista.PolyData`` and ``pyvista.UnstructuredGrid`` without additional
   allocation.
+* **Patch-level control** - every representation is returned as a
+  :class:`NumpyMultiMesh` container.  Each RESQML patch becomes a separate
+  :class:`NumpyMesh` entry in ``NumpyMultiMesh.patches``, carrying
+  ``patch_index``, ``patch_label``, ``source_uuid``, and ``source_type``
+  metadata.  ``RepresentationSetRepresentation`` members are stored as nested
+  ``NumpyMultiMesh.children`` so visibility can be toggled per-child in
+  PyVista ``MultiBlock`` viewers.
 * **Backward compatible** - :mod:`mesh.py` is untouched; both modules can be
   used side by side.
 
 Usage
 -----
 >>> from energyml.utils.epc import Epc
->>> from energyml.utils.data.mesh_numpy import read_numpy_mesh_object, numpy_mesh_to_pyvista
+>>> from energyml.utils.data.mesh_numpy import read_numpy_mesh_object, numpy_multi_mesh_to_pyvista
 >>> epc = Epc.read_file("my_model.epc")
 >>> obj = epc.get_object_by_uuid("...")[0]
->>> meshes = read_numpy_mesh_object(obj, workspace=epc, use_crs_displacement=True)
->>> pv_mesh = numpy_mesh_to_pyvista(meshes[0])   # requires pyvista
+>>> multi = read_numpy_mesh_object(obj, workspace=epc, use_crs_displacement=True)
+>>> block = numpy_multi_mesh_to_pyvista(multi)   # pyvista.MultiBlock
+>>> block.plot()
 """
 from __future__ import annotations
 
@@ -61,6 +69,7 @@ from energyml.utils.data.crs import extract_crs_info, apply_from_crs_info
 from energyml.utils.exception import NotSupportedError, ObjectNotFoundNotError
 from energyml.utils.introspection import (
     get_obj_uri,
+    get_obj_uuid,
     get_object_attribute,
     search_attribute_matching_name,
     search_attribute_matching_name_with_path,
@@ -130,6 +139,14 @@ class NumpyMesh:
     identifier: str = field(default="")
     #: Points array, shape (N, 3), dtype float64.  May be a numpy view.
     points: np.ndarray = field(default_factory=lambda: np.empty((0, 3), dtype=np.float64))
+    #: Index of this patch within the source representation (0-based).
+    patch_index: Optional[int] = field(default=None)
+    #: Human-readable label for this patch.
+    patch_label: Optional[str] = field(default=None)
+    #: UUID of the source RESQML object that produced this patch.
+    source_uuid: Optional[str] = field(default=None)
+    #: Python class name of the source RESQML object.
+    source_type: Optional[str] = field(default=None)
 
     def to_pyvista(self) -> Any:  # return type: pv.DataSet
         """Convert to a PyVista dataset.  Requires ``pyvista`` to be installed."""
@@ -176,6 +193,55 @@ class NumpyVolumeMesh(NumpyMesh):
 
     cells: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int64))
     cell_types: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.uint8))
+
+
+@dataclass
+class NumpyMultiMesh:
+    """Container for one or more :class:`NumpyMesh` patches from a single
+    energyml representation, plus optional nested child containers for
+    ``RepresentationSetRepresentation``.
+
+    Hierarchy
+    ---------
+    * **patches** — flat list of :class:`NumpyMesh` subclass instances
+      produced directly by this representation (one per RESQML patch).
+    * **children** — nested :class:`NumpyMultiMesh` instances; populated only
+      by :func:`read_numpy_representation_set_representation` (one child per
+      member representation).
+
+    The design is intentionally shallow: at most 2 levels (container →
+    patches) except for ``RepresentationSet`` which adds one extra level.
+    """
+
+    energyml_object: Any = field(default=None)
+    identifier: str = field(default="")
+    #: UUID of the source energyml object.
+    source_uuid: Optional[str] = field(default=None)
+    #: Python class name of the source energyml object.
+    source_type: Optional[str] = field(default=None)
+    #: Ordered list of patches produced by reading this representation.
+    patches: List["NumpyMesh"] = field(default_factory=list)
+    #: Child containers (only for RepresentationSetRepresentation).
+    children: List["NumpyMultiMesh"] = field(default_factory=list)
+
+    # ------------------------------------------------------------------
+    # Convenience helpers
+    # ------------------------------------------------------------------
+
+    def patch_count(self) -> int:
+        """Total number of leaf patches (recursive across children)."""
+        return len(self.patches) + sum(c.patch_count() for c in self.children)
+
+    def flat_patches(self) -> List["NumpyMesh"]:
+        """Return all leaf patches in depth-first order."""
+        result: List[NumpyMesh] = list(self.patches)
+        for child in self.children:
+            result.extend(child.flat_patches())
+        return result
+
+    def to_pyvista(self) -> Any:  # return type: pv.MultiBlock
+        """Convert to a PyVista ``MultiBlock``.  Requires ``pyvista``."""
+        return numpy_multi_mesh_to_pyvista(self)
 
 
 # ---------------------------------------------------------------------------
@@ -364,10 +430,17 @@ def read_numpy_point_representation(
     workspace: Optional[EnergymlStorageInterface] = None,
     use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
-) -> List[NumpyPointSetMesh]:
+) -> "NumpyMultiMesh":
     """Read a ``PointRepresentation`` / ``PointSetRepresentation``."""
     ws = _view_workspace(workspace)
-    meshes: List[NumpyPointSetMesh] = []
+    src_uuid = get_obj_uuid(energyml_object)
+    src_type = type(energyml_object).__name__
+    multi = NumpyMultiMesh(
+        energyml_object=energyml_object,
+        identifier=str(get_obj_uri(energyml_object)),
+        source_uuid=src_uuid,
+        source_type=src_type,
+    )
     patch_idx = 0
     total_size = 0
 
@@ -401,17 +474,22 @@ def read_numpy_point_representation(
         if use_crs_displacement and crs is not None and len(points) > 0:
             apply_from_crs_info(points, extract_crs_info(crs, workspace), inplace=True)
 
-        meshes.append(
+        label = f"{src_type}_patch_{patch_idx}"
+        multi.patches.append(
             NumpyPointSetMesh(
-                identifier=f"Patch num {patch_idx}",
+                identifier=label,
                 energyml_object=energyml_object,
                 crs_object=crs,
                 points=points,
+                patch_index=patch_idx,
+                patch_label=label,
+                source_uuid=src_uuid,
+                source_type=src_type,
             )
         )
         patch_idx += 1
 
-    return meshes
+    return multi
 
 
 def read_numpy_polyline_representation(
@@ -419,10 +497,17 @@ def read_numpy_polyline_representation(
     workspace: Optional[EnergymlStorageInterface] = None,
     use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
-) -> List[NumpyPolylineMesh]:
+) -> "NumpyMultiMesh":
     """Read a ``PolylineRepresentation`` / ``PolylineSetRepresentation``."""
     ws = _view_workspace(workspace)
-    meshes: List[NumpyPolylineMesh] = []
+    src_uuid = get_obj_uuid(energyml_object)
+    src_type = type(energyml_object).__name__
+    multi = NumpyMultiMesh(
+        energyml_object=energyml_object,
+        identifier=str(get_obj_uri(energyml_object)),
+        source_uuid=src_uuid,
+        source_type=src_type,
+    )
     patch_idx = 0
     total_size = 0
 
@@ -461,16 +546,18 @@ def read_numpy_polyline_representation(
             pass
 
         # --- Node counts per polyline ---
+        # nc_arr holds the *original* counts (before closing); used both for
+        # VTK-array construction and for sub_indices filtering below.
+        nc_arr: Optional[np.ndarray] = None
         lines: np.ndarray
         try:
             nc_path, nc_obj = search_attribute_matching_name_with_path(patch, "NodeCountPerPolyline")[0]
-            node_counts = _read_array_np(nc_obj, energyml_object, patch_path_in_obj + nc_path, ws)
-            node_counts = node_counts.astype(np.int64).ravel()
+            nc_arr = _read_array_np(nc_obj, energyml_object, patch_path_in_obj + nc_path, ws).astype(np.int64).ravel()
 
             # Build VTK lines array respecting closed flags
             parts: List[np.ndarray] = []
             offset = 0
-            for poly_idx, n in enumerate(node_counts):
+            for poly_idx, n in enumerate(nc_arr):
                 n = int(n)
                 indices = np.arange(offset, offset + n, dtype=np.int64)
                 if close_poly is not None and poly_idx < len(close_poly) and close_poly[poly_idx]:
@@ -487,22 +574,50 @@ def read_numpy_polyline_representation(
             lines = _build_vtk_lines_from_segments(len(points))
 
         # --- sub_indices filtering ---
-        # sub_indices apply to individual polylines (line segments), not points.
-        # We keep the full point array and subset the line connectivity.
+        # sub_indices select individual *polylines* (by index within this patch).
+        # We filter the VTK flat `lines` buffer and also subset `points` to
+        # keep only the nodes referenced by the surviving polylines.
         if sub_indices is not None and len(sub_indices) > 0:
-            # Reconstruct per-polyline ranges so we can filter
-            try:
-                nc_path, nc_obj = search_attribute_matching_name_with_path(patch, "NodeCountPerPolyline")[0]
-                node_counts = _read_array_np(nc_obj, energyml_object, patch_path_in_obj + nc_path, ws)
-                total_polylines = len(node_counts)
-            except IndexError:
-                total_polylines = 1
-
+            total_polylines = len(nc_arr) if nc_arr is not None else 1
             t_idx = np.asarray(sub_indices, dtype=np.int64) - total_size
-            _valid = t_idx[(t_idx >= 0) & (t_idx < total_polylines)]
-            # Rebuild lines for the selected polylines only (simplified: keep all lines)
-            # Full filtering requires splitting the flat array — skip for now; document.
+            _valid = np.sort(t_idx[(t_idx >= 0) & (t_idx < total_polylines)])
             total_size += total_polylines
+
+            if nc_arr is not None and len(_valid) > 0:
+                # Walk the VTK flat buffer once to record per-polyline slice bounds.
+                pos = 0
+                poly_slices: List[Tuple[int, int]] = []
+                for _ in range(total_polylines):
+                    n_vtk = int(lines[pos])
+                    poly_slices.append((pos, pos + n_vtk + 1))
+                    pos += n_vtk + 1
+
+                # Original point ranges per polyline (nc_arr gives node counts).
+                pt_offsets = np.concatenate([[0], np.cumsum(nc_arr)])
+
+                # Gather contiguous point ranges for the selected polylines.
+                keep_ranges = [
+                    np.arange(int(pt_offsets[i]), int(pt_offsets[i + 1]), dtype=np.int64)
+                    for i in _valid
+                ]
+                keep_pts = np.concatenate(keep_ranges) if keep_ranges else np.empty(0, dtype=np.int64)
+
+                # Build a full remapping: old_pt_idx → new_pt_idx (-1 = not kept).
+                new_pt_idx = np.full(len(points), -1, dtype=np.int64)
+                new_pt_idx[keep_pts] = np.arange(len(keep_pts), dtype=np.int64)
+                points = points[keep_pts]
+
+                # Re-index VTK segments for the selected polylines.
+                rebuilt: List[np.ndarray] = []
+                for i in _valid:
+                    s, e = poly_slices[i]
+                    seg = lines[s:e].copy()
+                    seg[1:] = new_pt_idx[seg[1:]]
+                    rebuilt.append(seg)
+                lines = np.concatenate(rebuilt) if rebuilt else np.empty(0, dtype=np.int64)
+            elif len(_valid) == 0:
+                points = np.empty((0, 3), dtype=np.float64)
+                lines = np.empty(0, dtype=np.int64)
         else:
             total_size += 1  # at least one polyline
 
@@ -512,18 +627,23 @@ def read_numpy_polyline_representation(
             apply_from_crs_info(points, extract_crs_info(crs, workspace), inplace=True)
 
         if len(points) > 0:
-            meshes.append(
+            label = f"{src_type}_patch_{patch_idx}"
+            multi.patches.append(
                 NumpyPolylineMesh(
-                    identifier=f"{get_obj_uri(energyml_object)}_patch{patch_idx}",
+                    identifier=label,
                     energyml_object=energyml_object,
                     crs_object=crs,
                     points=points,
                     lines=lines,
+                    patch_index=patch_idx,
+                    patch_label=label,
+                    source_uuid=src_uuid,
+                    source_type=src_type,
                 )
             )
         patch_idx += 1
 
-    return meshes
+    return multi
 
 
 def read_numpy_triangulated_set_representation(
@@ -531,7 +651,7 @@ def read_numpy_triangulated_set_representation(
     workspace: Optional[EnergymlStorageInterface] = None,
     use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
-) -> List[NumpySurfaceMesh]:
+) -> "NumpyMultiMesh":
     """Read a ``TriangulatedSetRepresentation`` as numpy-backed surface meshes.
 
     Key differences vs :func:`mesh.read_triangulated_set_representation`:
@@ -542,7 +662,14 @@ def read_numpy_triangulated_set_representation(
       :func:`numpy.column_stack` — no Python loops over triangles.
     """
     ws = _view_workspace(workspace)
-    meshes: List[NumpySurfaceMesh] = []
+    src_uuid = get_obj_uuid(energyml_object)
+    src_type = type(energyml_object).__name__
+    multi = NumpyMultiMesh(
+        energyml_object=energyml_object,
+        identifier=str(get_obj_uri(energyml_object)),
+        source_uuid=src_uuid,
+        source_type=src_type,
+    )
     point_offset = 0
     patch_idx = 0
     total_size = 0
@@ -609,19 +736,24 @@ def read_numpy_triangulated_set_representation(
         # Build VTK flat faces array: [3, v0, v1, v2, 3, v0, v1, v2, …]
         faces = _build_vtk_faces_from_triangles(triangles)
 
-        meshes.append(
+        label = f"{src_type}_patch_{patch_idx}"
+        multi.patches.append(
             NumpySurfaceMesh(
-                identifier=f"{get_obj_uri(energyml_object)}_patch{patch_idx}",
+                identifier=label,
                 energyml_object=energyml_object,
                 crs_object=crs,
                 points=points,
                 faces=faces,
+                patch_index=patch_idx,
+                patch_label=label,
+                source_uuid=src_uuid,
+                source_type=src_type,
             )
         )
         point_offset += len(points)
         patch_idx += 1
 
-    return meshes
+    return multi
 
 
 def read_numpy_grid2d_representation(
@@ -630,14 +762,21 @@ def read_numpy_grid2d_representation(
     use_crs_displacement: bool = True,
     keep_holes: bool = False,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
-) -> List[NumpySurfaceMesh]:
+) -> "NumpyMultiMesh":
     """Read a ``Grid2dRepresentation`` as a numpy quad-surface mesh.
 
     NaN-hole handling is done with boolean masks and cumsum-based index remapping
     (O(N) vs the O(N) dict-based approach in :func:`mesh.gen_surface_grid_geometry`,
     but avoids Python dict overhead for large grids).
     """
-    meshes: List[NumpySurfaceMesh] = []
+    src_uuid = get_obj_uuid(energyml_object)
+    src_type = type(energyml_object).__name__
+    multi = NumpyMultiMesh(
+        energyml_object=energyml_object,
+        identifier=str(get_obj_uri(energyml_object)),
+        source_uuid=src_uuid,
+        source_type=src_type,
+    )
     patch_idx = 0
     total_size = 0
 
@@ -650,9 +789,9 @@ def read_numpy_grid2d_representation(
             path_in_root=patch_path,
             workspace=workspace,
         )
-        if not raw_pts:
+        pts = np.asarray(raw_pts, dtype=np.float64) if raw_pts is not None else np.empty((0, 3))
+        if pts.size == 0:
             return None
-        pts = np.asarray(raw_pts, dtype=np.float64)  # (K, 3) or (K,) if malformed
 
         if pts.ndim == 1:
             pts = pts.reshape(-1, 3)
@@ -722,12 +861,17 @@ def read_numpy_grid2d_representation(
         total_size += len(quads)
 
         faces = _build_vtk_faces_from_quads(quads)
+        label = f"{src_type}_patch_{patch_idx}"
         mesh = NumpySurfaceMesh(
-            identifier=f"{get_obj_uri(energyml_object)}_patch{patch_idx}",
+            identifier=label,
             energyml_object=energyml_object,
             crs_object=crs,
             points=final_pts,
             faces=faces,
+            patch_index=patch_idx,
+            patch_label=label,
+            source_uuid=src_uuid,
+            source_type=src_type,
         )
         patch_idx += 1
         return mesh
@@ -746,7 +890,7 @@ def read_numpy_grid2d_representation(
             pass
         m = _process_patch(patch, patch_path, crs)
         if m is not None:
-            meshes.append(m)
+            multi.patches.append(m)
 
     # RESQML 2.2 — geometry directly on the object
     if hasattr(energyml_object, "geometry"):
@@ -762,9 +906,9 @@ def read_numpy_grid2d_representation(
             logging.error(e)
         m = _process_patch(energyml_object, "", crs)
         if m is not None:
-            meshes.append(m)
+            multi.patches.append(m)
 
-    return meshes
+    return multi
 
 
 def read_numpy_wellbore_trajectory_representation(
@@ -774,19 +918,20 @@ def read_numpy_wellbore_trajectory_representation(
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
     wellbore_frame_mds: Optional[Union[List[float], np.ndarray]] = None,
     step_meter: float = 5.0,
-) -> List[NumpyPolylineMesh]:
+) -> "NumpyMultiMesh":
     """Read a ``WellboreTrajectoryRepresentation`` as a numpy polyline mesh."""
     if energyml_object is None:
-        return []
+        return NumpyMultiMesh(identifier="empty_wellbore_trajectory")
 
     if isinstance(energyml_object, list):
-        return [
-            mesh
-            for obj in energyml_object
-            for mesh in read_numpy_wellbore_trajectory_representation(
-                obj, workspace, use_crs_displacement, sub_indices, wellbore_frame_mds, step_meter
+        synthetic = NumpyMultiMesh(identifier="WellboreTrajectoryRepresentation_list")
+        for obj in energyml_object:
+            synthetic.children.append(
+                read_numpy_wellbore_trajectory_representation(
+                    obj, workspace, use_crs_displacement, sub_indices, wellbore_frame_mds, step_meter
+                )
             )
-        ]
+        return synthetic
 
     crs = None
     head_x = head_y = head_z = 0.0
@@ -853,20 +998,37 @@ def read_numpy_wellbore_trajectory_representation(
             )
 
     if well_points_list is None or len(well_points_list) == 0:
-        return []
+        return NumpyMultiMesh(
+            energyml_object=energyml_object,
+            identifier=str(get_obj_uri(energyml_object)),
+            source_uuid=get_obj_uuid(energyml_object),
+            source_type=type(energyml_object).__name__,
+        )
 
     pts = _ensure_float64_points(np.asarray(well_points_list, dtype=np.float64))
     lines = _build_vtk_lines_from_segments(len(pts))
-
-    return [
-        NumpyPolylineMesh(
-            identifier=str(get_obj_uri(energyml_object)),
-            energyml_object=energyml_object,
-            crs_object=crs,
-            points=pts,
-            lines=lines,
-        )
-    ]
+    src_uuid = get_obj_uuid(energyml_object)
+    src_type = type(energyml_object).__name__
+    label = f"{src_type}_patch_0"
+    return NumpyMultiMesh(
+        energyml_object=energyml_object,
+        identifier=str(get_obj_uri(energyml_object)),
+        source_uuid=src_uuid,
+        source_type=src_type,
+        patches=[
+            NumpyPolylineMesh(
+                identifier=label,
+                energyml_object=energyml_object,
+                crs_object=crs,
+                points=pts,
+                lines=lines,
+                patch_index=0,
+                patch_label=label,
+                source_uuid=src_uuid,
+                source_type=src_type,
+            )
+        ],
+    )
 
 
 def read_numpy_wellbore_frame_representation(
@@ -874,10 +1036,15 @@ def read_numpy_wellbore_frame_representation(
     workspace: Optional[EnergymlStorageInterface] = None,
     use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
-) -> List[NumpyPolylineMesh]:
+) -> "NumpyMultiMesh":
     """Read a ``WellboreFrameRepresentation`` as a numpy polyline mesh."""
     ws = _view_workspace(workspace)
-    meshes: List[NumpyPolylineMesh] = []
+    empty = NumpyMultiMesh(
+        energyml_object=energyml_object,
+        identifier=str(get_obj_uri(energyml_object)),
+        source_uuid=get_obj_uuid(energyml_object),
+        source_type=type(energyml_object).__name__,
+    )
 
     try:
         node_md_path, node_md_obj = search_attribute_matching_name_with_path(energyml_object, "NodeMd")[0]
@@ -886,7 +1053,7 @@ def read_numpy_wellbore_frame_representation(
             wellbore_frame_mds = np.asarray(wellbore_frame_mds, dtype=np.float64)
     except (IndexError, AttributeError) as e:
         logging.warning(f"Could not read NodeMd from wellbore frame: {e}")
-        return meshes
+        return empty
 
     md_min = float(wellbore_frame_mds.min()) if len(wellbore_frame_mds) > 0 else 0.0
     md_max = float(wellbore_frame_mds.max()) if len(wellbore_frame_mds) > 0 else 0.0
@@ -906,16 +1073,20 @@ def read_numpy_wellbore_frame_representation(
     trajectory_dor = search_attribute_matching_name(obj=energyml_object, name_rgx="Trajectory")[0]
     trajectory_obj = workspace.get_object(get_obj_uri(trajectory_dor))
 
-    meshes = read_numpy_wellbore_trajectory_representation(
+    result = read_numpy_wellbore_trajectory_representation(
         energyml_object=trajectory_obj,
         workspace=workspace,
         use_crs_displacement=use_crs_displacement,
         sub_indices=sub_indices,
         wellbore_frame_mds=wellbore_frame_mds,
     )
-    for m in meshes:
-        m.identifier = str(get_obj_uri(energyml_object))
-    return meshes
+    frame_uri = str(get_obj_uri(energyml_object))
+    for m in result.flat_patches():
+        m.identifier = frame_uri
+    result.identifier = frame_uri
+    result.source_uuid = get_obj_uuid(energyml_object)
+    result.source_type = type(energyml_object).__name__
+    return result
 
 
 def read_numpy_sub_representation(
@@ -923,7 +1094,7 @@ def read_numpy_sub_representation(
     workspace: Optional[EnergymlStorageInterface] = None,
     use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
-) -> List[NumpyMesh]:
+) -> "NumpyMultiMesh":
     """Delegate to the supporting representation with filtered indices."""
     ws = _view_workspace(workspace)
     supporting_rep_dor = search_attribute_matching_name(
@@ -952,15 +1123,23 @@ def read_numpy_sub_representation(
         total_size += len(arr)
         all_indices = np.concatenate([all_indices, arr]) if all_indices is not None else arr
 
-    meshes = read_numpy_mesh_object(
+    inner = read_numpy_mesh_object(
         energyml_object=supporting_rep,
         workspace=workspace,
         use_crs_displacement=use_crs_displacement,
         sub_indices=all_indices.tolist() if all_indices is not None else None,
     )
-    for m in meshes:
-        m.identifier = f"sub representation {get_obj_uri(energyml_object)} of {m.identifier}"
-    return meshes
+    sub_uri = str(get_obj_uri(energyml_object))
+    for m in inner.flat_patches():
+        m.identifier = f"sub_rep_{sub_uri}/{m.identifier}"
+    return NumpyMultiMesh(
+        energyml_object=energyml_object,
+        identifier=sub_uri,
+        source_uuid=get_obj_uuid(energyml_object),
+        source_type=type(energyml_object).__name__,
+        patches=[],
+        children=[inner],
+    )
 
 
 def read_numpy_representation_set_representation(
@@ -968,33 +1147,37 @@ def read_numpy_representation_set_representation(
     workspace: Optional[EnergymlStorageInterface] = None,
     use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
-) -> List[NumpyMesh]:
-    """Delegate to each child representation."""
+) -> "NumpyMultiMesh":
+    """Delegate to each child representation; nest results as children."""
+    multi = NumpyMultiMesh(
+        energyml_object=energyml_object,
+        identifier=str(get_obj_uri(energyml_object)),
+        source_uuid=get_obj_uuid(energyml_object),
+        source_type=type(energyml_object).__name__,
+    )
     repr_list = get_object_attribute(energyml_object, "representation")
     if repr_list is None or not isinstance(repr_list, list):
-        return []
-    meshes: List[NumpyMesh] = []
+        return multi
     for repr_dor in repr_list:
         rpr_uri = get_obj_uri(repr_dor)
         repr_obj = workspace.get_object(rpr_uri)
         if repr_obj is None:
             logging.error(f"Representation {rpr_uri} not found in RepresentationSetRepresentation")
             continue
-        meshes.extend(
-            read_numpy_mesh_object(
-                energyml_object=repr_obj,
-                workspace=workspace,
-                use_crs_displacement=use_crs_displacement,
-            )
+        child = read_numpy_mesh_object(
+            energyml_object=repr_obj,
+            workspace=workspace,
+            use_crs_displacement=use_crs_displacement,
         )
-    return meshes
+        multi.children.append(child)
+    return multi
 
 
 def read_numpy_ijk_grid_representation(
     energyml_object: Any,
     workspace: Optional[EnergymlStorageInterface] = None,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
-) -> List[NumpyMesh]:
+) -> "NumpyMultiMesh":
     """Stub — IjkGridRepresentation is not yet implemented."""
     raise NotSupportedError(
         "IjkGridRepresentation is not yet supported in mesh_numpy. "
@@ -1006,7 +1189,7 @@ def read_numpy_unstructured_grid_representation(
     energyml_object: Any,
     workspace: Optional[EnergymlStorageInterface] = None,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
-) -> List[NumpyMesh]:
+) -> "NumpyMultiMesh":
     """Stub — UnstructuredGridRepresentation is not yet implemented."""
     raise NotSupportedError(
         "UnstructuredGridRepresentation is not yet supported in mesh_numpy. "
@@ -1022,30 +1205,42 @@ def read_numpy_unstructured_grid_representation(
 def read_numpy_mesh_object(
     energyml_object: Any,
     workspace: Optional[EnergymlStorageInterface] = None,
-    use_crs_displacement: bool = False,
+    use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
-) -> List[NumpyMesh]:
+) -> "NumpyMultiMesh":
     """Dispatcher — equivalent to :func:`mesh.read_mesh_object` but returns
-    :class:`NumpyMesh` objects.
+    a :class:`NumpyMultiMesh` container.
 
     Args:
         energyml_object: Any supported RESQML/EnergyML geometry/representation object.
         workspace:        Storage interface (``Epc`` or ``EpcStreamReader``).
-        use_crs_displacement: When ``True``, applies
+        use_crs_displacement: When ``True`` (default), applies
                           :func:`crs_displacement_np` to the points of every
                           returned mesh (excluding wellbore representations
                           which apply the transform internally).
         sub_indices:      Optional list of face/line/point indices to include.
 
     Returns:
-        List of :class:`NumpyMesh` subclass instances.
+        :class:`NumpyMultiMesh` containing one or more :class:`NumpyMesh` patches
+        (and/or nested children for ``RepresentationSetRepresentation``).
 
     Raises:
         :exc:`energyml.utils.exception.NotSupportedError`: if the object type
         has no registered reader.
     """
     if isinstance(energyml_object, list):
-        return energyml_object  # type: ignore[return-value]
+        # Synthetic container aggregating multiple top-level objects.
+        synthetic = NumpyMultiMesh(identifier="multi_object_list")
+        for obj in energyml_object:
+            synthetic.children.append(
+                read_numpy_mesh_object(
+                    energyml_object=obj,
+                    workspace=workspace,
+                    use_crs_displacement=use_crs_displacement,
+                    sub_indices=sub_indices,
+                )
+            )
+        return synthetic
 
     type_name = _numpy_mesh_name_mapping(type(energyml_object).__name__)
     reader_func = get_numpy_reader_function(type_name)
@@ -1058,13 +1253,15 @@ def read_numpy_mesh_object(
             f"Expected function 'read_numpy_{snake_case(type_name)}' in {__name__}."
         )
 
-    meshes: List[NumpyMesh] = reader_func(
+    result: NumpyMultiMesh = reader_func(
         energyml_object=energyml_object,
         workspace=workspace,
         sub_indices=sub_indices,
         use_crs_displacement=use_crs_displacement,
     )
 
+    # Apply fallback CRS displacement for readers that do NOT handle it
+    # internally (e.g. Grid2d which has no per-patch CRS apply call yet).
     _tn = type_name.lower()
     if (
         use_crs_displacement
@@ -1072,19 +1269,19 @@ def read_numpy_mesh_object(
         and "triangulated" not in _tn  # per-patch CRS applied inside reader
         and "point" not in _tn  # per-patch CRS applied inside reader
         and "polyline" not in _tn  # per-patch CRS applied inside reader
-        and "representationset" not in _tn  # each sub-mesh already had CRS applied by its own reader
-        and "subrepresentation" not in _tn  # delegates entirely to inner read_numpy_mesh_object call
+        and "representationset" not in _tn  # each child already had CRS applied
+        and "subrepresentation" not in _tn  # delegates entirely to inner call
     ):
-        for m in meshes:
+        for m in result.flat_patches():
             crs = m.crs_object[0] if isinstance(m.crs_object, list) and m.crs_object else m.crs_object
             if crs is not None and len(m.points) > 0:
                 crs_displacement_np(m.points, crs, inplace=True)
 
-    return meshes
+    return result
 
 
 # ---------------------------------------------------------------------------
-# PyVista converter
+# PyVista converters
 # ---------------------------------------------------------------------------
 
 
@@ -1125,6 +1322,35 @@ def numpy_mesh_to_pyvista(mesh: NumpyMesh) -> Any:
     return pv.PolyData(pts)
 
 
+def numpy_multi_mesh_to_pyvista(multi: "NumpyMultiMesh") -> Any:
+    """Convert a :class:`NumpyMultiMesh` to a ``pyvista.MultiBlock``.
+
+    The resulting ``MultiBlock`` mirrors the two-level hierarchy of
+    :class:`NumpyMultiMesh`:
+
+    * Child containers (e.g. ``RepresentationSetRepresentation`` members) become
+      nested ``MultiBlock`` blocks, keyed by their ``identifier``.
+    * Direct patches become leaf ``PolyData`` / ``UnstructuredGrid`` blocks,
+      keyed by ``patch_label`` or ``"patch_{patch_index}"``.
+
+    Requires ``pyvista`` to be installed (``pip install pyvista``).
+    """
+    try:
+        import pyvista as pv  # type: ignore[import]
+    except ImportError as exc:
+        raise ImportError("pyvista is not installed.  Install it with: pip install pyvista") from exc
+
+    block: pv.MultiBlock = pv.MultiBlock()
+    for child in multi.children:
+        block.append(numpy_multi_mesh_to_pyvista(child), child.identifier or "child")
+    for patch in multi.patches:
+        ds = numpy_mesh_to_pyvista(patch)
+        if ds is not None:
+            name = patch.patch_label or (f"patch_{patch.patch_index}" if patch.patch_index is not None else "patch")
+            block.append(ds, name)
+    return block
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -1136,6 +1362,7 @@ __all__ = [
     "NumpyPolylineMesh",
     "NumpySurfaceMesh",
     "NumpyVolumeMesh",
+    "NumpyMultiMesh",
     # CRS
     "crs_displacement_np",
     # Readers
@@ -1150,6 +1377,7 @@ __all__ = [
     "read_numpy_representation_set_representation",
     "read_numpy_ijk_grid_representation",
     "read_numpy_unstructured_grid_representation",
-    # Converter
+    # Converters
     "numpy_mesh_to_pyvista",
+    "numpy_multi_mesh_to_pyvista",
 ]

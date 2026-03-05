@@ -48,13 +48,11 @@ gen*/
 manip*
 *.epc
 *.h5
-*.off
-*.obj
 *.log
-*.geojson
 *.json
 *.csv
 *.zip
+
 
 *.xml
 *.json
@@ -62,8 +60,12 @@ docs/*.md
 
 # DATA
 *.obj
+*.off
+*.mtl
 *.geojson
 *.vtk
+*.vtp
+*.vtu
 *.stl
 rc/specs
 rc/**/*.epc

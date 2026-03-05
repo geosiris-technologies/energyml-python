@@ -59,6 +59,7 @@ def test_hdf5_array_handler_read_write():
             pass
 
 
+@pytest.mark.skip(reason="Requires 'parquet' extra: pip install energyml-utils[parquet]")
 def test_parquet_array_handler_read_write():
     """Test ParquetArrayHandler read/write."""
     arr = np.arange(6).reshape(2, 3)
