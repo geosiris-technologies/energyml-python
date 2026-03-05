@@ -767,7 +767,7 @@ def apply_from_crs_info(
     Transform pipeline (order matters):
 
     1. **Areal rotation** (RESQML convention: *clockwise* angle) →
-       ``x' = x·cos θ + y·sin θ``, ``y' = –x·sin θ + y·cos θ``
+       ``x' = x·cos θ + y·sin θ``, ``y' = -x·sin θ + y·cos θ``
     2. **Translation** — add ``(x_offset, y_offset, z_offset)``
     3. **Z-axis flip** — negate Z when the CRS *is*
        z-increasing-downward (i.e. the local CRS stores depth as positive Z,

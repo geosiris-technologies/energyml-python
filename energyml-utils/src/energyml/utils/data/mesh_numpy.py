@@ -9,18 +9,18 @@ always returns :class:`NumpyMesh` dataclasses whose geometry arrays are
 
 Design goals
 ------------
-* **No list conversion** – no ``.tolist()`` calls anywhere.  Arrays stay as
+* **No list conversion** - no ``.tolist()`` calls anywhere.  Arrays stay as
   numpy throughout.
-* **Best-effort zero-copy** – geometry is read via
+* **Best-effort zero-copy** - geometry is read via
   :meth:`EnergymlStorageInterface.read_array_view`.  For contiguous,
   uncompressed HDF5 datasets this returns a numpy view backed directly by the
   memory-mapped file buffer (no RAM copy).  Chunked / compressed datasets fall
   back silently to a copy.
-* **PyVista-ready connectivity** – ``faces`` / ``lines`` / ``cells`` arrays
+* **PyVista-ready connectivity** - ``faces`` / ``lines`` / ``cells`` arrays
   use the VTK flat-count-prefixed format consumed directly by
   ``pyvista.PolyData`` and ``pyvista.UnstructuredGrid`` without additional
   allocation.
-* **Backward compatible** – :mod:`mesh.py` is untouched; both modules can be
+* **Backward compatible** - :mod:`mesh.py` is untouched; both modules can be
   used side by side.
 
 Usage
@@ -91,7 +91,7 @@ class _ViewWorkspace:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._ws, name)
 
-    def read_array(  # noqa: D102 – mirrors EnergymlStorageInterface
+    def read_array(  # noqa: D102 - mirrors EnergymlStorageInterface
         self,
         proxy: Any,
         path_in_external: str,
@@ -121,8 +121,8 @@ class NumpyMesh:
     """Base class for all numpy-backed mesh objects.
 
     Subclasses guarantee:
-    * ``points``  – shape ``(N, 3)``,  dtype ``float64``
-    * Connectivity arrays – dtype ``int64``, VTK flat format
+    * ``points``  - shape ``(N, 3)``,  dtype ``float64``
+    * Connectivity arrays - dtype ``int64``, VTK flat format
     """
 
     energyml_object: Any = field(default=None)
@@ -169,7 +169,7 @@ class NumpySurfaceMesh(NumpyMesh):
 class NumpyVolumeMesh(NumpyMesh):
     """A volumetric mesh (hexahedral, polyhedral, …).
 
-    ``cells`` – VTK flat format, ``cell_types`` – uint8 VTK cell-type codes.
+    ``cells`` - VTK flat format, ``cell_types`` - uint8 VTK cell-type codes.
     ``pyvista.UnstructuredGrid(cells, cell_types, points)`` accepts them
     directly.
     """

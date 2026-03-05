@@ -1513,7 +1513,7 @@ class RgbaColor:
     a: float = 1.0
 
     def to_uint8(self) -> Tuple[int, int, int, int]:
-        """Return (R, G, B, A) in [0, 255] – ready for VTK / PyVista."""
+        """Return (R, G, B, A) in [0, 255] - ready for VTK / PyVista."""
         return (
             int(round(self.r * 255)),
             int(round(self.g * 255)),
@@ -1610,7 +1610,7 @@ class ColorMapInfo:
         sorted_entries = sorted(self.entries, key=lambda e: e.index)
 
         if not self.is_continuous:
-            # One exact row per integer entry – no interpolation needed.
+            # One exact row per integer entry - no interpolation needed.
             return np.array(
                 [e.color.to_uint8() for e in sorted_entries], dtype=np.uint8
             )
@@ -1689,7 +1689,7 @@ class ScalarRenderingInfo:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Color-map readers  (Group 1 – both return ColorMapInfo)
+# Color-map readers  (Group 1 - both return ColorMapInfo)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -1734,7 +1734,7 @@ def read_discrete_color_map(color_map_obj: Any) -> ColorMapInfo:
 
     **Output**: :class:`ColorMapInfo` with ``is_continuous=False`` and one
     entry per integer code.  ``to_vtk_lut()`` returns exactly one RGBA row per
-    entry – suitable for VTK's categorical lookup table
+    entry - suitable for VTK's categorical lookup table
     (``vtkLookupTable.SetAnnotation`` workflow).
     """
     entries = sorted(
@@ -1897,6 +1897,6 @@ def read_graphical_rendering_info(
             result.contour_show_major_every = getattr(info, "show_major_line_every", None)
 
         # AnnotationInformation is intentionally not mapped to ScalarRenderingInfo
-        # because it drives label text, not colour/size – handle separately if needed.
+        # because it drives label text, not colour/size - handle separately if needed.
 
     return result if found else None
