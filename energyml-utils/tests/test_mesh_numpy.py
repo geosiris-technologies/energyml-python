@@ -461,18 +461,52 @@ class TestReadNumpyMeshObjectEPC22:
         for m in multi.flat_patches():
             assert isinstance(m, NumpyMesh)
 
-    # --- Stubs raise NotSupportedError ---
-    def test_ijk_grid_raises_not_supported(self, epc22):
+    # --- IjkGrid + UnstructuredGrid: return empty when geometry is missing ---
+
+    def test_ijk_grid_returns_empty_when_no_ni_nj_nk(self, epc22):
+        """Reader returns an empty NumpyMultiMesh when ni/nj/nk are absent."""
+        from energyml.utils.data.mesh_numpy import read_numpy_ijk_grid_representation
+        mock_obj = MagicMock()
+        mock_obj.ni = None
+        mock_obj.nj = None
+        mock_obj.nk = None
+        result = read_numpy_ijk_grid_representation(mock_obj, epc22)
+        assert isinstance(result, NumpyMultiMesh)
+        assert result.patch_count() == 0
+
+    def test_ijk_grid_parametric_raises_not_supported(self):
+        """Reader raises NotSupportedError for Point3DParametricArray geometry."""
         from energyml.utils.exception import NotSupportedError
         from energyml.utils.data.mesh_numpy import read_numpy_ijk_grid_representation
-        with pytest.raises(NotSupportedError):
-            read_numpy_ijk_grid_representation(MagicMock(), epc22)
+        mock_obj = MagicMock()
+        mock_obj.ni = 2
+        mock_obj.nj = 2
+        mock_obj.nk = 1
+        mock_obj.kgaps = None
+        # Create a real instance of a class named "Point3DParametricArray" so that
+        # type(pts_obj).__name__ == "Point3DParametricArray" (contains "Parametric").
+        # Using MagicMock().__class__ = ... does NOT affect type(), only __class__.
+        mock_pts = type("Point3DParametricArray", (), {})()
+        mock_geom = MagicMock()
+        mock_geom.column_layer_split_coordinate_lines = None
+        # search_attribute_matching_name_with_path will find a parametric Points obj
+        from unittest.mock import patch as mock_patch
+        with mock_patch(
+            "energyml.utils.data.mesh_numpy.search_attribute_matching_name_with_path",
+            return_value=[("Points", mock_pts)],
+        ), mock_patch("energyml.utils.data.mesh_numpy.get_obj_uri", return_value="mock-uri"):
+            mock_obj.geometry = mock_geom
+            with pytest.raises(NotSupportedError):
+                read_numpy_ijk_grid_representation(mock_obj)
 
-    def test_unstructured_grid_raises_not_supported(self, epc22):
-        from energyml.utils.exception import NotSupportedError
+    def test_unstructured_grid_returns_empty_when_no_geometry(self, epc22):
+        """Reader returns an empty NumpyMultiMesh when geometry is absent."""
         from energyml.utils.data.mesh_numpy import read_numpy_unstructured_grid_representation
-        with pytest.raises(NotSupportedError):
-            read_numpy_unstructured_grid_representation(MagicMock(), epc22)
+        mock_obj = MagicMock()
+        mock_obj.geometry = None
+        result = read_numpy_unstructured_grid_representation(mock_obj, epc22)
+        assert isinstance(result, NumpyMultiMesh)
+        assert result.patch_count() == 0
 
 
 # ---------------------------------------------------------------------------
