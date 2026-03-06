@@ -474,30 +474,41 @@ class TestReadNumpyMeshObjectEPC22:
         assert isinstance(result, NumpyMultiMesh)
         assert result.patch_count() == 0
 
-    def test_ijk_grid_parametric_raises_not_supported(self):
-        """Reader raises NotSupportedError for Point3DParametricArray geometry."""
+    def test_ijk_grid_parametric_no_longer_raises_not_supported(self):
+        """Parametric IJK grids now enter the evaluation path instead of raising NotSupportedError.
+
+        With a minimal stub (missing ``parameters``), the code should raise
+        ``ValueError`` — never ``NotSupportedError`` — proving the guard was
+        removed and the evaluation pipeline is entered.
+        """
         from energyml.utils.exception import NotSupportedError
         from energyml.utils.data.mesh_numpy import read_numpy_ijk_grid_representation
+
         mock_obj = MagicMock()
         mock_obj.ni = 2
         mock_obj.nj = 2
         mock_obj.nk = 1
         mock_obj.kgaps = None
-        # Create a real instance of a class named "Point3DParametricArray" so that
-        # type(pts_obj).__name__ == "Point3DParametricArray" (contains "Parametric").
-        # Using MagicMock().__class__ = ... does NOT affect type(), only __class__.
+
+        # Bare class so type().__name__ contains "Parametric" but has no attrs.
         mock_pts = type("Point3DParametricArray", (), {})()
         mock_geom = MagicMock()
         mock_geom.column_layer_split_coordinate_lines = None
-        # search_attribute_matching_name_with_path will find a parametric Points obj
+
         from unittest.mock import patch as mock_patch
+
         with mock_patch(
             "energyml.utils.data.mesh_numpy.search_attribute_matching_name_with_path",
             return_value=[("Points", mock_pts)],
         ), mock_patch("energyml.utils.data.mesh_numpy.get_obj_uri", return_value="mock-uri"):
             mock_obj.geometry = mock_geom
-            with pytest.raises(NotSupportedError):
+            with pytest.raises(Exception) as exc_info:
                 read_numpy_ijk_grid_representation(mock_obj)
+            # The important assertion: the code must NOT raise NotSupportedError.
+            assert not isinstance(exc_info.value, NotSupportedError), (
+                "Expected evaluation-path error (e.g. ValueError), "
+                "but NotSupportedError was raised — the old guard is still active."
+            )
 
     def test_unstructured_grid_returns_empty_when_no_geometry(self, epc22):
         """Reader returns an empty NumpyMultiMesh when geometry is absent."""
@@ -572,3 +583,350 @@ class TestNumpyMeshToPyvista:
         pv_mesh = m.to_pyvista()
         import pyvista
         assert isinstance(pv_mesh, pyvista.PolyData)
+
+
+# ---------------------------------------------------------------------------
+# 9. Point3dParametricArray / ParametricLineArray evaluation helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_pla(
+    knot_count: int,
+    ctrl_pts: np.ndarray,       # (K, P, d) — will be passed as a raw np.ndarray
+    ctrl_params: Optional[np.ndarray],  # (K, P) or None
+    kinds: np.ndarray,          # (P,)
+    tangents: Optional[np.ndarray] = None,  # (K, P, 3) or None
+):
+    """Build a SimpleNamespace that duck-types ParametricLineArray for testing."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        knot_count=knot_count,
+        control_points=ctrl_pts,       # read_array will return this directly (it's an ndarray)
+        control_point_parameters=ctrl_params,
+        line_kind_indices=kinds,
+        tangent_vectors=tangents,
+        parametric_line_intersections=None,
+    )
+
+
+class TestEvaluatePillarKind0:
+    """Vertical pillars: constant X, Y; Z = P-value."""
+
+    def test_z_equals_query_param(self):
+        from energyml.utils.data.helper import _evaluate_one_pillar
+
+        ctrl_pts = np.array([[10.0, 20.0, 0.0], [10.0, 20.0, 0.0]])  # (2, 3), XY constant
+        ctrl_params = None  # unused for kind=0
+        query = np.array([100.0, 200.0, 300.0])
+        result = _evaluate_one_pillar(0, ctrl_params, ctrl_pts, None, query)
+
+        assert result.shape == (3, 3)
+        np.testing.assert_allclose(result[:, 0], 10.0)  # X constant
+        np.testing.assert_allclose(result[:, 1], 20.0)  # Y constant
+        np.testing.assert_allclose(result[:, 2], query)  # Z = P
+
+    def test_2d_ctrl_pts(self):
+        """Kind=0 with only (X, Y) control points — typical RESQML encoding."""
+        from energyml.utils.data.helper import _evaluate_one_pillar
+
+        ctrl_pts = np.array([[5.0, 7.0]])  # (1, 2)
+        result = _evaluate_one_pillar(0, None, ctrl_pts, None, np.array([0.0, 50.0]))
+        np.testing.assert_allclose(result[:, 0], 5.0)
+        np.testing.assert_allclose(result[:, 1], 7.0)
+        np.testing.assert_allclose(result[:, 2], [0.0, 50.0])
+
+
+class TestEvaluatePillarKind1:
+    """Linear pillar: piecewise linear interpolation."""
+
+    def test_linear_midpoint(self):
+        from energyml.utils.data.helper import _evaluate_one_pillar
+
+        ctrl_params = np.array([0.0, 10.0])
+        ctrl_pts = np.array([[0.0, 0.0, 0.0], [10.0, 20.0, 30.0]])
+        result = _evaluate_one_pillar(1, ctrl_params, ctrl_pts, None, np.array([5.0]))
+        np.testing.assert_allclose(result[0], [5.0, 10.0, 15.0])
+
+    def test_linear_at_knots(self):
+        from energyml.utils.data.helper import _evaluate_one_pillar
+
+        ctrl_params = np.array([0.0, 10.0, 20.0])
+        ctrl_pts = np.array([[1.0, 2.0, 3.0], [11.0, 12.0, 13.0], [21.0, 22.0, 23.0]])
+        result = _evaluate_one_pillar(1, ctrl_params, ctrl_pts, None, ctrl_params)
+        np.testing.assert_allclose(result, ctrl_pts, atol=1e-10)
+
+    def test_clamp_below_range(self):
+        from energyml.utils.data.helper import _evaluate_one_pillar
+
+        ctrl_params = np.array([5.0, 10.0])
+        ctrl_pts = np.array([[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]])
+        # np.interp clamps to first knot value
+        result = _evaluate_one_pillar(1, ctrl_params, ctrl_pts, None, np.array([0.0]))
+        np.testing.assert_allclose(result[0, 0], 1.0)
+
+
+class TestEvaluatePillarKind2:
+    """Natural cubic spline — requires scipy."""
+
+    @pytest.fixture(autouse=True)
+    def _require_scipy(self):
+        pytest.importorskip("scipy")
+
+    def test_passes_through_knots(self):
+        from energyml.utils.data.helper import _evaluate_one_pillar
+
+        ctrl_params = np.array([0.0, 5.0, 10.0, 15.0])
+        ctrl_pts = np.array([
+            [0.0, 0.0, 0.0],
+            [3.0, 1.0, 5.0],
+            [6.0, 0.0, 10.0],
+            [9.0, -1.0, 15.0],
+        ])
+        result = _evaluate_one_pillar(2, ctrl_params, ctrl_pts, None, ctrl_params)
+        np.testing.assert_allclose(result, ctrl_pts, atol=1e-8)
+
+    def test_interpolated_value_between_knots(self):
+        from energyml.utils.data.helper import _evaluate_one_pillar
+        from scipy.interpolate import CubicSpline
+
+        ctrl_params = np.array([0.0, 1.0, 2.0])
+        ctrl_pts = np.array([[0.0, 0.0, 0.0], [1.0, 4.0, 2.0], [2.0, 0.0, 4.0]])
+        query = np.array([0.5])
+
+        result = _evaluate_one_pillar(2, ctrl_params, ctrl_pts, None, query)
+        cs = CubicSpline(ctrl_params, ctrl_pts, bc_type="natural")
+        expected = cs(query)
+        np.testing.assert_allclose(result, expected, atol=1e-10)
+
+
+class TestEvaluatePillarKind3:
+    """Tangential cubic (Hermite) — falls back to linear when no tangents."""
+
+    def test_fallback_to_linear_without_tangents(self):
+        from energyml.utils.data.helper import _evaluate_one_pillar
+        import warnings
+
+        ctrl_params = np.array([0.0, 10.0])
+        ctrl_pts = np.array([[0.0, 0.0, 0.0], [10.0, 10.0, 10.0]])
+        result = _evaluate_one_pillar(3, ctrl_params, ctrl_pts, None, np.array([5.0]))
+        np.testing.assert_allclose(result[0], [5.0, 5.0, 5.0], atol=1e-10)
+
+    def test_hermite_midpoint(self):
+        from energyml.utils.data.helper import _evaluate_one_pillar, hermite_interpolation
+
+        ctrl_params = np.array([0.0, 10.0])
+        ctrl_pts = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 10.0]])
+        # Tangents pointing straight down.
+        tangents = np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]])
+
+        query = np.array([5.0])
+        result = _evaluate_one_pillar(3, ctrl_params, ctrl_pts, tangents, query)
+        expected = hermite_interpolation(5.0, 0.0, 10.0, ctrl_pts[0], ctrl_pts[1], tangents[0], tangents[1])
+        np.testing.assert_allclose(result[0], expected, atol=1e-10)
+
+
+class TestEvaluatePillarKind4:
+    """Z-linear cubic: X, Y use natural cubic; Z uses linear interp."""
+
+    @pytest.fixture(autouse=True)
+    def _require_scipy(self):
+        pytest.importorskip("scipy")
+
+    def test_z_is_linear(self):
+        from energyml.utils.data.helper import _evaluate_one_pillar
+
+        ctrl_params = np.array([0.0, 10.0, 20.0])
+        ctrl_pts = np.array([
+            [0.0, 0.0, 0.0],
+            [5.0, 3.0, 10.0],
+            [10.0, 0.0, 20.0],
+        ])
+        query = np.array([5.0, 10.0, 15.0])
+        result = _evaluate_one_pillar(4, ctrl_params, ctrl_pts, None, query)
+
+        # Z must match linear interpolation.
+        z_linear = np.interp(query, ctrl_params, ctrl_pts[:, 2])
+        np.testing.assert_allclose(result[:, 2], z_linear, atol=1e-10)
+
+    def test_xy_uses_cubic(self):
+        from energyml.utils.data.helper import _evaluate_one_pillar
+        from scipy.interpolate import CubicSpline
+
+        ctrl_params = np.array([0.0, 1.0, 2.0])
+        ctrl_pts = np.array([[0.0, 0.0, 0.0], [1.0, 4.0, 1.0], [2.0, 0.0, 2.0]])
+        query = np.array([0.5])
+
+        result = _evaluate_one_pillar(4, ctrl_params, ctrl_pts, None, query)
+        cs_xy = CubicSpline(ctrl_params, ctrl_pts[:, :2], bc_type="natural")
+        np.testing.assert_allclose(result[0, :2], cs_xy(query)[0], atol=1e-10)
+
+
+class TestEvaluatePillarKind5:
+    """Minimum-curvature spline."""
+
+    def test_straight_vertical_pillar(self):
+        """A perfectly vertical pillar with tangents [0,0,1] should give linear Z."""
+        from energyml.utils.data.helper import _evaluate_one_pillar
+
+        ctrl_params = np.array([0.0, 100.0])
+        ctrl_pts = np.array([[10.0, 20.0, 0.0], [10.0, 20.0, 100.0]])
+        tangents = np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]])
+        query = np.array([0.0, 50.0, 100.0])
+
+        result = _evaluate_one_pillar(5, ctrl_params, ctrl_pts, tangents, query)
+        np.testing.assert_allclose(result[:, 2], [0.0, 50.0, 100.0], atol=1e-6)
+        np.testing.assert_allclose(result[:, 0], 10.0, atol=1e-6)
+        np.testing.assert_allclose(result[:, 1], 20.0, atol=1e-6)
+
+    def test_fallback_when_no_tangents(self):
+        from energyml.utils.data.helper import _evaluate_one_pillar
+
+        ctrl_params = np.array([0.0, 10.0])
+        ctrl_pts = np.array([[0.0, 0.0, 0.0], [5.0, 5.0, 10.0]])
+        result = _evaluate_one_pillar(5, ctrl_params, ctrl_pts, None, np.array([5.0]))
+        np.testing.assert_allclose(result[0], [2.5, 2.5, 5.0], atol=1e-10)
+
+
+class TestEvaluatePillarKindNull:
+    """Null pillar (kind=-1) should produce NaN output."""
+
+    def test_null_pillar_returns_nan(self):
+        from energyml.utils.data.helper import _evaluate_one_pillar
+
+        result = _evaluate_one_pillar(-1, None, np.zeros((1, 3)), None, np.array([0.0, 10.0]))
+        assert result.shape == (2, 3)
+        assert np.all(np.isnan(result))
+
+
+class TestEvaluateParametricLineArray:
+    """Integration tests for evaluate_parametric_line_array."""
+
+    def _make_query(self, nkl, n_pillars, depth_start=0.0, depth_end=100.0):
+        """Build a uniform (NKL, n_pillars) query parameter array."""
+        depths = np.linspace(depth_start, depth_end, nkl)
+        return np.tile(depths[:, np.newaxis], (1, n_pillars))
+
+    def test_all_vertical_3x3_grid(self):
+        """All-vertical 3×3 pillar grid (kind=0) — quick smoke test."""
+        from energyml.utils.data.helper import evaluate_parametric_line_array
+
+        ni, nj = 2, 2
+        n_pillars = (ni + 1) * (nj + 1)  # 9
+        nkl = 4
+        K = 2  # knot count
+
+        # Vertical pillars: (K, P, 2) — only X, Y per knot.
+        ctrl_pts = np.zeros((K, n_pillars, 2), dtype=np.float64)
+        for p in range(n_pillars):
+            ctrl_pts[:, p, 0] = float(p % (ni + 1))  # X = pillar column
+            ctrl_pts[:, p, 1] = float(p // (ni + 1))  # Y = pillar row
+
+        kinds = np.full(n_pillars, 0, dtype=np.int32)
+        query = self._make_query(nkl, n_pillars)
+
+        pla = _make_pla(K, ctrl_pts, None, kinds)
+        result = evaluate_parametric_line_array(pla, None, None, query, ni, nj)
+
+        assert result.shape == (nkl, n_pillars, 3)
+        assert result.dtype == np.float64
+        # For each pillar: Z at each layer == query param.
+        np.testing.assert_allclose(result[:, :, 2], query, atol=1e-10)
+
+    def test_all_linear_single_pillar(self):
+        """Single linear pillar grid (kind=1), trivial 1×1 check."""
+        from energyml.utils.data.helper import evaluate_parametric_line_array
+
+        ni, nj = 1, 1
+        n_pillars = 4  # (1+1)*(1+1)
+        nkl = 3
+        K = 2
+
+        ctrl_pts = np.zeros((K, n_pillars, 3), dtype=np.float64)
+        ctrl_pts[0] = 0.0
+        ctrl_pts[1] = 100.0  # all coords go from 0 to 100
+
+        ctrl_params = np.zeros((K, n_pillars), dtype=np.float64)
+        ctrl_params[0] = 0.0
+        ctrl_params[1] = 100.0
+
+        kinds = np.full(n_pillars, 1, dtype=np.int32)
+        query = self._make_query(nkl, n_pillars, 0.0, 100.0)
+
+        pla = _make_pla(K, ctrl_pts, ctrl_params, kinds)
+        result = evaluate_parametric_line_array(pla, None, None, query, ni, nj)
+
+        assert result.shape == (nkl, n_pillars, 3)
+        # All control points go uniformly 0→100 in every coordinate, so each
+        # result coordinate == the query P-value for that node.
+        expected = np.broadcast_to(query[:, :, np.newaxis], (nkl, n_pillars, 3))
+        np.testing.assert_allclose(result, expected, atol=1e-10)
+
+    def test_mixed_kinds(self):
+        """Grid with mixed kinds (0 and 1) — result shape must be correct."""
+        from energyml.utils.data.helper import evaluate_parametric_line_array
+
+        ni, nj = 1, 1
+        n_pillars = 4
+        nkl = 3
+        K = 2
+
+        ctrl_pts = np.zeros((K, n_pillars, 3), dtype=np.float64)
+        ctrl_pts[1, :, 2] = 100.0  # Z goes from 0 to 100
+
+        ctrl_params = np.zeros((K, n_pillars), dtype=np.float64)
+        ctrl_params[1] = 100.0
+
+        # Pillars 0,2 vertical; pillars 1,3 linear.
+        kinds = np.array([0, 1, 0, 1], dtype=np.int32)
+        query = self._make_query(nkl, n_pillars, 0.0, 100.0)
+
+        pla = _make_pla(K, ctrl_pts, ctrl_params, kinds)
+        result = evaluate_parametric_line_array(pla, None, None, query, ni, nj)
+
+        assert result.shape == (nkl, n_pillars, 3)
+        assert not np.any(np.isnan(result))
+
+    def test_output_dtype_is_float64(self):
+        """Output must always be float64 regardless of input dtype."""
+        from energyml.utils.data.helper import evaluate_parametric_line_array
+
+        ni, nj = 1, 1
+        n_pillars = 4
+        nkl = 2
+        K = 2
+
+        ctrl_pts = np.zeros((K, n_pillars, 3), dtype=np.float32)  # float32 input
+        ctrl_params = np.array([[0.0], [10.0]], dtype=np.float32).repeat(n_pillars, axis=1)
+        kinds = np.full(n_pillars, 1, dtype=np.int32)
+        query = np.linspace(0, 10, nkl * n_pillars).reshape(nkl, n_pillars)
+
+        pla = _make_pla(K, ctrl_pts, ctrl_params, kinds)
+        result = evaluate_parametric_line_array(pla, None, None, query, ni, nj)
+
+        assert result.dtype == np.float64
+
+
+class TestResolveParametricLineArray:
+    """resolve_parametric_line_array with a direct PLA should return it unchanged."""
+
+    def test_direct_pla_returned_unchanged(self):
+        from types import SimpleNamespace
+        from energyml.utils.data.helper import resolve_parametric_line_array
+
+        pla = SimpleNamespace(knot_count=2, control_points=None)
+        result = resolve_parametric_line_array(pla, None, None, 4)
+        assert result is pla
+
+    def test_from_representation_lattice_missing_workspace_raises(self):
+        """Without a workspace, resolving a ParametricLineFromRepresentationLatticeArray raises ValueError."""
+        from types import SimpleNamespace
+        from energyml.utils.data.helper import resolve_parametric_line_array
+
+        # Create a stub whose type name contains "FromRepresentationLattice".
+        pla_from_rep = type("ParametricLineFromRepresentationLatticeArray", (), {
+            "supporting_representation": SimpleNamespace(uuid="some-uuid"),
+            "line_indices_on_supporting_representation": None,
+        })()
+        with pytest.raises(ValueError, match="workspace is required"):
+            resolve_parametric_line_array(pla_from_rep, None, None, 4)

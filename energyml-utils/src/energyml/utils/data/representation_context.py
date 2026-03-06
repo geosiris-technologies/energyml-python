@@ -15,6 +15,37 @@ from energyml.utils.data.helper import RgbaColor, ScalarRenderingInfo, read_grap
 NO_KIND = "NO_KIND"
 
 
+def collect_graphical_info(obj: Any, workspace: EnergymlStorageInterface) -> dict:
+    rels = workspace.get_obj_rels(obj)
+    obj_uuid = get_obj_uuid(obj)
+    return collect_graphical_info_from_rels(rels, obj_uuid, workspace)
+
+def collect_graphical_info_from_rels(rels: List[Relationship], obj_uuid: str, workspace: EnergymlStorageInterface) -> dict:
+    graphical_info = {}
+    # Collect graphical information entries whose target matches this representation
+    for r in rels:
+        if "GraphicalInformationSet" in r.target:
+            uuid, version = extract_uuid_and_version_from_obj_path(r.target)
+            graphical_info_set = workspace.get_object_by_uuid_versioned(uuid, version)
+            if graphical_info_set is None:
+                logging.warning(f"GraphicalInformationSet {r.target} not found in workspace")
+                continue
+            graphical_info_set_uri = get_obj_uri(graphical_info_set)
+            for graphical_info in getattr(graphical_info_set, "graphical_information", []):
+                target_dors = getattr(graphical_info, "target_object", None)
+                if target_dors is not None:
+                    if not isinstance(target_dors, list):
+                        target_dors = [target_dors]
+                    for target_dor in target_dors:
+                        target_dor_uuid = get_obj_uuid(target_dor)
+                        if target_dor_uuid == obj_uuid:
+                            if graphical_info_set_uri not in graphical_info:
+                                graphical_info[graphical_info_set_uri] = []
+                            graphical_info[graphical_info_set_uri].append(graphical_info)
+                            break
+    return graphical_info
+                        
+
 class RepresentationContext(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -84,27 +115,7 @@ class RepresentationContext(BaseModel):
 
     def _collect_graphical_info(self, rels: List[Relationship]):
         # Collect graphical information entries whose target matches this representation
-        self.graphical_info = {}
-        for r in self.rels:
-            if "GraphicalInformationSet" in r.target:
-                uuid, version = extract_uuid_and_version_from_obj_path(r.target)
-                graphical_info_set = self.workspace.get_object_by_uuid_versioned(uuid, version)
-                if graphical_info_set is None:
-                    logging.warning(f"GraphicalInformationSet {r.target} not found in workspace")
-                    continue
-                graphical_info_set_uri = get_obj_uri(graphical_info_set)
-                for graphical_info in getattr(graphical_info_set, "graphical_information", []):
-                    target_dors = getattr(graphical_info, "target_object", None)
-                    if target_dors is not None:
-                        if not isinstance(target_dors, list):
-                            target_dors = [target_dors]
-                        for target_dor in target_dors:
-                            target_dor_uuid = get_obj_uuid(target_dor)
-                            if target_dor_uuid == self.uri.uuid:
-                                if graphical_info_set_uri not in self.graphical_info:
-                                    self.graphical_info[graphical_info_set_uri] = []
-                                self.graphical_info[graphical_info_set_uri].append(graphical_info)
-                                break
+        self.graphical_info = collect_graphical_info_from_rels(rels, self.uri.uuid, self.workspace)
                             
     def get_default_color(self) -> ScalarRenderingInfo:
         """Search for a default color (first found) for the representation, and return it as an RGBA tuple.  Returns a random color (generated from uuid) if no color information is found."""

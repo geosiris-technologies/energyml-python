@@ -387,6 +387,7 @@ def get_crs_obj(
             crs = workspace.get_object(get_obj_uri(crs_list[0]))
             # logging.debug(f"CRS found for {get_obj_title(context_obj)} ({type(context_obj).__name__}): {crs}")
             if crs is None:
+                # if a wrong version is written in DOR
                 # logging.debug(f"CRS {crs_list[0]} not found (or not read correctly)")
                 _crs_list = workspace.get_object_by_uuid(get_obj_uuid(crs_list[0]))
                 crs = _crs_list[0] if _crs_list is not None and len(_crs_list) > 0 else None
@@ -486,6 +487,445 @@ def hermite_interpolation(md_target, md_start, md_end, p_start, p_end, v_start, 
     p_target = (h00 * p_start) + (h10 * T_start) + (h01 * p_end) + (h11 * T_end)
 
     return p_target
+
+
+# ---------------------------------------------------------------------------
+# Point3dParametricArray / ParametricLineArray evaluation
+# ---------------------------------------------------------------------------
+#
+# RESQML line_kind_indices reference:
+#   0  → vertical        (control_points store only X,Y; Z = P-value)
+#   1  → linear spline   (piecewise-linear)
+#   2  → natural cubic spline
+#   3  → tangential cubic spline (Hermite, requires tangent_vectors)
+#   4  → Z-linear cubic spline   (X,Y natural cubic; Z linear)
+#   5  → minimum-curvature spline (requires tangent_vectors)
+#  -1  → null / no line
+# ---------------------------------------------------------------------------
+
+_PARAMETRIC_KIND_VERTICAL = 0
+_PARAMETRIC_KIND_LINEAR = 1
+_PARAMETRIC_KIND_NATURAL_CUBIC = 2
+_PARAMETRIC_KIND_HERMITE = 3
+_PARAMETRIC_KIND_ZLINEAR_CUBIC = 4
+_PARAMETRIC_KIND_MIN_CURVATURE = 5
+_PARAMETRIC_KIND_NULL = -1
+
+
+def _interp1d_vectorized(
+    ctrl_params: np.ndarray,  # (K,)
+    ctrl_pts: np.ndarray,     # (K, d)
+    query: np.ndarray,        # (Q,)
+) -> np.ndarray:              # (Q, d)
+    """Vectorised piecewise-linear interpolation of a 1-D parametric curve."""
+    result = np.empty((len(query), ctrl_pts.shape[1]), dtype=np.float64)
+    for dim in range(ctrl_pts.shape[1]):
+        result[:, dim] = np.interp(query, ctrl_params, ctrl_pts[:, dim])
+    return result
+
+
+def _natural_cubic_spline_eval(
+    ctrl_params: np.ndarray,  # (K,)
+    ctrl_pts: np.ndarray,     # (K, d)
+    query: np.ndarray,        # (Q,)
+) -> np.ndarray:              # (Q, d)
+    """
+    Evaluate a natural cubic spline (second derivatives = 0 at endpoints) via
+    ``scipy.interpolate.CubicSpline``.
+
+    Raises ``ImportError`` with an actionable message when scipy is absent —
+    install with ``pip install energyml-utils[geometry]`` or
+    ``pip install scipy``.
+    """
+    try:
+        from scipy.interpolate import CubicSpline  # lazy import to keep scipy optional
+    except ImportError as exc:
+        raise ImportError(
+            "scipy is required for natural-cubic (kind=2) and Z-linear-cubic (kind=4) "
+            "pillar interpolation in IjkGridRepresentation. "
+            "Install it with: pip install scipy   or   pip install energyml-utils[geometry]"
+        ) from exc
+
+    cs = CubicSpline(ctrl_params, ctrl_pts, bc_type="natural")
+    return cs(query)  # shape (Q, d)
+
+
+def _minimum_curvature_eval(
+    ctrl_params: np.ndarray,  # (K,)  P-values (e.g. depth) at knots
+    ctrl_pts: np.ndarray,     # (K, 3)  XYZ at knots
+    tangents: np.ndarray,     # (K, 3)  unit tangent vectors at knots
+    query: np.ndarray,        # (Q,)  query P-values
+) -> np.ndarray:              # (Q, 3)
+    """
+    Minimum-curvature interpolation (RESQML line kind 5).
+
+    Between each pair of knots k and k+1 the trajectory segment is computed
+    using the standard directional-drilling minimum-curvature formula:
+
+        DL    = arccos(T_k · T_{k+1})
+        RF    = 2/DL * tan(DL/2)   (1.0 when DL==0)
+        ΔP    = (ds/2) * (T_k + T_{k+1}) * RF
+
+    Query points within the interval are obtained by re-applying the formula
+    with partial-interval tangent blending so that the interpolated position
+    depends continuously on the query P-value.
+    """
+    K = len(ctrl_params)
+    Q = len(query)
+    result = np.empty((Q, 3), dtype=np.float64)
+
+    # Clamp queries to the valid parametric range.
+    q_clamped = np.clip(query, ctrl_params[0], ctrl_params[-1])
+
+    for q_idx in range(Q):
+        q = q_clamped[q_idx]
+        # Find the enclosing knot interval [k, k+1].
+        k = np.searchsorted(ctrl_params, q, side="right") - 1
+        k = int(np.clip(k, 0, K - 2))
+
+        p0, p1 = ctrl_params[k], ctrl_params[k + 1]
+        ds_full = p1 - p0
+        if ds_full == 0.0:
+            result[q_idx] = ctrl_pts[k]
+            continue
+
+        t = (q - p0) / ds_full  # fractional progress in [0, 1]
+        ds = q - p0  # partial arc length from knot k to query
+
+        T0 = tangents[k]
+        T1 = tangents[k + 1]
+        # Blend tangent at query position using linear interpolation of angle.
+        T_q = (1.0 - t) * T0 + t * T1
+        nrm = np.linalg.norm(T_q)
+        T_q = T_q / nrm if nrm > 1e-12 else T0
+
+        # Minimum-curvature ratio factor for the partial segment T0→T_q.
+        cos_dl = np.clip(np.dot(T0, T_q), -1.0, 1.0)
+        dl = np.arccos(cos_dl)
+        rf = (2.0 / dl) * np.tan(dl / 2.0) if dl > 1e-9 else 1.0
+
+        result[q_idx] = ctrl_pts[k] + (ds / 2.0) * (T0 + T_q) * rf
+
+    return result
+
+
+def _evaluate_one_pillar(
+    kind: int,
+    ctrl_params: Optional[np.ndarray],  # (K,) — may be None for kind=0
+    ctrl_pts: np.ndarray,               # (K, d) — d=2 for kind=0, d=3 otherwise
+    tangents: Optional[np.ndarray],     # (K, 3) — only for kinds 3, 5
+    query_params: np.ndarray,           # (Q,) query P-values for this pillar
+) -> np.ndarray:                        # (Q, 3)
+    """
+    Evaluate a single parametric pillar at *query_params*, returning `(Q, 3)` XYZ.
+
+    Clamps out-of-range queries to the nearest knot; returns NaN columns for
+    null lines (kind==-1).
+    """
+    Q = len(query_params)
+
+    if kind == _PARAMETRIC_KIND_NULL:
+        return np.full((Q, 3), np.nan, dtype=np.float64)
+
+    if kind == _PARAMETRIC_KIND_VERTICAL:
+        # Only X, Y stored; Z coordinate = P-value.
+        # ctrl_pts shape (K, 2) or (K, 3) — take only first two coords regardless.
+        x = float(ctrl_pts[0, 0])
+        y = float(ctrl_pts[0, 1])
+        out = np.empty((Q, 3), dtype=np.float64)
+        out[:, 0] = x
+        out[:, 1] = y
+        out[:, 2] = query_params
+        return out
+
+    if kind == _PARAMETRIC_KIND_LINEAR:
+        return _interp1d_vectorized(ctrl_params, ctrl_pts[:, :3], query_params)
+
+    if kind == _PARAMETRIC_KIND_NATURAL_CUBIC:
+        return _natural_cubic_spline_eval(ctrl_params, ctrl_pts[:, :3], query_params)
+
+    if kind == _PARAMETRIC_KIND_HERMITE:
+        if tangents is None:
+            logging.warning(
+                "Pillar kind=3 (tangential cubic Hermite) requested but no tangent_vectors "
+                "found — falling back to linear interpolation."
+            )
+            return _interp1d_vectorized(ctrl_params, ctrl_pts[:, :3], query_params)
+        # Evaluate piecewise Hermite per query point.
+        result = np.empty((Q, 3), dtype=np.float64)
+        K = len(ctrl_params)
+        q_clamped = np.clip(query_params, ctrl_params[0], ctrl_params[-1])
+        for q_idx in range(Q):
+            q = q_clamped[q_idx]
+            k = int(np.clip(np.searchsorted(ctrl_params, q, side="right") - 1, 0, K - 2))
+            result[q_idx] = hermite_interpolation(
+                md_target=q,
+                md_start=ctrl_params[k],
+                md_end=ctrl_params[k + 1],
+                p_start=ctrl_pts[k, :3],
+                p_end=ctrl_pts[k + 1, :3],
+                v_start=tangents[k],
+                v_end=tangents[k + 1],
+            )
+        return result
+
+    if kind == _PARAMETRIC_KIND_ZLINEAR_CUBIC:
+        # X, Y: natural cubic spline; Z: linear.
+        xy_cubic = _natural_cubic_spline_eval(ctrl_params, ctrl_pts[:, :2], query_params)
+        z_linear = np.interp(query_params, ctrl_params, ctrl_pts[:, 2])
+        out = np.empty((Q, 3), dtype=np.float64)
+        out[:, :2] = xy_cubic
+        out[:, 2] = z_linear
+        return out
+
+    if kind == _PARAMETRIC_KIND_MIN_CURVATURE:
+        if tangents is None:
+            logging.warning(
+                "Pillar kind=5 (minimum-curvature) requested but no tangent_vectors "
+                "found — falling back to linear interpolation."
+            )
+            return _interp1d_vectorized(ctrl_params, ctrl_pts[:, :3], query_params)
+        return _minimum_curvature_eval(ctrl_params, ctrl_pts[:, :3], tangents, query_params)
+
+    # Unknown kind: warn and fall back to linear.
+    logging.warning(f"Unknown parametric line kind={kind}; falling back to linear interpolation.")
+    return _interp1d_vectorized(ctrl_params, ctrl_pts[:, :3], query_params)
+
+
+def resolve_parametric_line_array(
+    parametric_lines_obj: Any,
+    root_obj: Any,
+    workspace: Optional[EnergymlStorageInterface],
+    n_pillars: int,
+) -> Any:
+    """
+    Resolve `parametric_lines` to a concrete `ParametricLineArray`-like object.
+
+    Two cases:
+    * **Direct** ``ParametricLineArray``: returned as-is (most common).
+    * **ParametricLineFromRepresentationLatticeArray** (v2.0.1 only): resolves
+      the supporting representation, extracts its ``ParametricLineArray`` and
+      selects the relevant pillar columns using the embedded
+      ``IntegerLatticeArray`` index selection.  Returns a ``SimpleNamespace``
+      that duck-types ``ParametricLineArray`` so that
+      :func:`evaluate_parametric_line_array` can consume it unchanged.
+
+    :param parametric_lines_obj: Either a ``ParametricLineArray`` or a
+        ``ParametricLineFromRepresentationLatticeArray``.
+    :param root_obj: Root RESQML object (for array reading context).
+    :param workspace: Workspace for resolving external references.
+    :param n_pillars: Expected number of pillars in the calling grid.
+    :raises ValueError: If the supporting representation or its parametric
+        lines cannot be resolved.
+    """
+    from types import SimpleNamespace
+
+    type_name = type(parametric_lines_obj).__name__
+    if "FromRepresentationLattice" not in type_name:
+        # Direct ParametricLineArray — nothing to resolve.
+        return parametric_lines_obj
+
+    # ParametricLineFromRepresentationLatticeArray path (RESQML v2.0.1).
+    supporting_rep_dor = getattr(parametric_lines_obj, "supporting_representation", None)
+    if supporting_rep_dor is None:
+        raise ValueError(
+            "ParametricLineFromRepresentationLatticeArray has no supporting_representation reference."
+        )
+
+    if workspace is None:
+        raise ValueError(
+            "A workspace is required to resolve ParametricLineFromRepresentationLatticeArray."
+        )
+
+    sup_uri = get_obj_uri(supporting_rep_dor)
+    sup_obj = workspace.get_object(sup_uri)
+    if sup_obj is None:
+        raise ValueError(f"Supporting representation {sup_uri} not found in workspace.")
+
+    # Locate the ParametricLineArray inside the supporting representation.
+    pla_results = search_attribute_matching_name_with_path(sup_obj, "ParametricLines")
+    if not pla_results:
+        pla_results = search_attribute_matching_name_with_path(sup_obj, "parametric_lines")
+    if not pla_results:
+        raise ValueError(
+            f"Cannot find a ParametricLineArray in supporting representation {sup_uri}."
+        )
+    _, sup_pla = pla_results[0]
+
+    # Read the pillar index selection (IntegerLatticeArray).
+    idx_obj = getattr(parametric_lines_obj, "line_indices_on_supporting_representation", None)
+    if idx_obj is None:
+        # No index selection → identity mapping; return parent PLA directly.
+        return sup_pla
+
+    from energyml.utils.data.helper import read_array as _read_array_helper  # for local use
+
+    raw_indices = _read_array_helper(
+        energyml_array=idx_obj, root_obj=root_obj, workspace=workspace
+    )
+    if not isinstance(raw_indices, np.ndarray):
+        raw_indices = np.array(raw_indices, dtype=np.int64)
+    raw_indices = raw_indices.flatten().astype(np.int64)
+
+    # Build a SimpleNamespace that selects the relevant pillar columns.
+    # We wrap each sub-array lazily using a column-selection proxy so that
+    # evaluate_parametric_line_array can call read_array on the underlying
+    # arrays and then slice columns.
+    return SimpleNamespace(
+        _sup_pla=sup_pla,
+        _indices=raw_indices,
+        knot_count=getattr(sup_pla, "knot_count", None),
+        control_points=getattr(sup_pla, "control_points", None),
+        control_point_parameters=getattr(sup_pla, "control_point_parameters", None),
+        line_kind_indices=getattr(sup_pla, "line_kind_indices", None),
+        tangent_vectors=getattr(sup_pla, "tangent_vectors", None),
+        parametric_line_intersections=getattr(sup_pla, "parametric_line_intersections", None),
+        _column_indices=raw_indices,  # used by evaluate_parametric_line_array to slice columns
+    )
+
+
+def evaluate_parametric_line_array(
+    pla: Any,
+    root_obj: Any,
+    workspace: Optional[EnergymlStorageInterface],
+    query_parameters: np.ndarray,  # shape (NKL, n_pillars)
+    ni: int,
+    nj: int,
+) -> np.ndarray:                   # shape (NKL, n_pillars, 3) float64
+    """
+    Evaluate a ``ParametricLineArray`` at the given query P-values and return
+    3-D Cartesian coordinates for every grid node.
+
+    This is the core of the ``Point3dParametricArray`` reader for
+    :func:`read_numpy_ijk_grid_representation`.
+
+    :param pla: A ``ParametricLineArray`` instance (or duck-typed
+        ``SimpleNamespace`` from :func:`resolve_parametric_line_array`).
+    :param root_obj: Root RESQML object — passed to :func:`read_array` for
+        external-dataset resolution.
+    :param workspace: Workspace used for HDF5 reads.
+    :param query_parameters: ``(NKL, n_pillars)`` array of parametric
+        P-values (usually depth) at which to evaluate each pillar.
+    :param ni: Grid cell count in the I direction (``NI``).
+    :param nj: Grid cell count in the J direction (``NJ``).
+    :return: ``(NKL, n_pillars, 3)`` float64 array of evaluated XYZ positions.
+    :raises ValueError: If mandatory arrays (control_points, line_kind_indices)
+        cannot be read.
+    :raises ImportError: Propagated from :func:`_natural_cubic_spline_eval`
+        when scipy is missing and kind-2 / kind-4 pillars are present.
+    """
+    nkl, n_pillars = query_parameters.shape
+
+    knot_count: int = getattr(pla, "knot_count", None)
+
+    # --- 1. Read control_points ---
+    cp_obj = getattr(pla, "control_points", None)
+    if cp_obj is None:
+        raise ValueError("ParametricLineArray.control_points is required but absent.")
+    raw_cp = read_array(energyml_array=cp_obj, root_obj=root_obj, workspace=workspace)
+    if not isinstance(raw_cp, np.ndarray):
+        raw_cp = np.array(raw_cp, dtype=np.float64)
+    raw_cp = raw_cp.astype(np.float64)
+
+    # Determine coordinate dimension (2 for vertical-only, 3 otherwise).
+    # The flat array has K*P*d values; we disambiguate using knot_count and n_pillars.
+    n_pillars_base = (ni + 1) * (nj + 1)
+    coord_dim = raw_cp.size // (knot_count * n_pillars) if knot_count and knot_count * n_pillars > 0 else 3
+    if coord_dim not in (2, 3):
+        # Fallback: try 4-D layout (knot, NJ+1, NI+1, d)
+        if raw_cp.size == knot_count * (nj + 1) * (ni + 1) * 3:
+            raw_cp = raw_cp.reshape(knot_count, nj + 1, ni + 1, 3)
+            raw_cp = raw_cp.reshape(knot_count, n_pillars_base, 3)
+            coord_dim = 3
+        else:
+            coord_dim = 3  # safe default
+    ctrl_pts = raw_cp.reshape(knot_count, n_pillars, coord_dim)
+
+    # Optional column selection for ParametricLineFromRepresentationLatticeArray.
+    col_indices: Optional[np.ndarray] = getattr(pla, "_column_indices", None)
+    if col_indices is not None:
+        ctrl_pts = ctrl_pts[:, col_indices, :]
+
+    # --- 2. Read control_point_parameters (may be None for all-vertical) ---
+    cpp_obj = getattr(pla, "control_point_parameters", None)
+    ctrl_params: Optional[np.ndarray] = None
+    if cpp_obj is not None:
+        raw_cpp = read_array(energyml_array=cpp_obj, root_obj=root_obj, workspace=workspace)
+        if not isinstance(raw_cpp, np.ndarray):
+            raw_cpp = np.array(raw_cpp, dtype=np.float64)
+        raw_cpp = raw_cpp.astype(np.float64).flatten()
+        # Layout: (K * P,) ordered knot-major → reshape to (K, P).
+        if raw_cpp.size == knot_count * n_pillars:
+            ctrl_params = raw_cpp.reshape(knot_count, n_pillars)
+        elif raw_cpp.size == knot_count:
+            # Same parameters for all pillars (broadcast).
+            ctrl_params = np.tile(raw_cpp[:, np.newaxis], (1, n_pillars))
+        else:
+            logging.warning(
+                f"control_point_parameters size {raw_cpp.size} does not match "
+                f"knot_count={knot_count} × n_pillars={n_pillars}. "
+                "Attempting best-effort reshape."
+            )
+            ctrl_params = raw_cpp[: knot_count * n_pillars].reshape(knot_count, n_pillars)
+        if col_indices is not None:
+            ctrl_params = ctrl_params[:, col_indices]
+
+    # --- 3. Read line_kind_indices ---
+    lki_obj = getattr(pla, "line_kind_indices", None)
+    if lki_obj is None:
+        raise ValueError("ParametricLineArray.line_kind_indices is required but absent.")
+    raw_lki = read_array(energyml_array=lki_obj, root_obj=root_obj, workspace=workspace)
+    if not isinstance(raw_lki, np.ndarray):
+        raw_lki = np.array(raw_lki, dtype=np.int32)
+    kinds: np.ndarray = raw_lki.astype(np.int32).flatten()
+    if col_indices is not None:
+        kinds = kinds[col_indices]
+    if len(kinds) != n_pillars:
+        logging.warning(
+            f"line_kind_indices length {len(kinds)} ≠ n_pillars {n_pillars}. "
+            "Broadcasting first kind value to all pillars."
+        )
+        kinds = np.full(n_pillars, kinds[0] if len(kinds) > 0 else _PARAMETRIC_KIND_LINEAR, dtype=np.int32)
+
+    # --- 4. Read tangent_vectors (optional, only for kinds 3 and 5) ---
+    tv_obj = getattr(pla, "tangent_vectors", None)
+    tangent_vecs: Optional[np.ndarray] = None
+    unique_kinds = np.unique(kinds)
+    needs_tangents = any(k in unique_kinds for k in (_PARAMETRIC_KIND_HERMITE, _PARAMETRIC_KIND_MIN_CURVATURE))
+    if tv_obj is not None and needs_tangents:
+        raw_tv = read_array(energyml_array=tv_obj, root_obj=root_obj, workspace=workspace)
+        if not isinstance(raw_tv, np.ndarray):
+            raw_tv = np.array(raw_tv, dtype=np.float64)
+        tangent_vecs = raw_tv.astype(np.float64).reshape(knot_count, n_pillars, 3)
+        if col_indices is not None:
+            tangent_vecs = tangent_vecs[:, col_indices, :]
+
+    # --- 5. Evaluate each pillar ---
+    result = np.empty((nkl, n_pillars, 3), dtype=np.float64)
+
+    for p_idx in range(n_pillars):
+        kind = int(kinds[p_idx])
+        q_p = query_parameters[:, p_idx]  # (NKL,) P-values for this pillar
+        cp_p = ctrl_pts[:, p_idx, :]      # (K, d)
+
+        # ctrl_params_p: (K,) — derived from global or pillar-specific params.
+        # For kind=0, ctrl_params is None (vertical) and we pass None.
+        if ctrl_params is not None:
+            cpp_p = ctrl_params[:, p_idx]  # (K,)
+        else:
+            cpp_p = None
+
+        tv_p = tangent_vecs[:, p_idx, :] if tangent_vecs is not None else None  # (K, 3) or None
+
+        result[:, p_idx, :] = _evaluate_one_pillar(
+            kind=kind,
+            ctrl_params=cpp_p,
+            ctrl_pts=cp_p,
+            tangents=tv_p,
+            query_params=q_p,
+        )
+
+    return result
 
 
 def get_wellbore_points(
@@ -1215,7 +1655,7 @@ def read_point3d_from_representation_lattice_array(
     if supporting_rep is None and workspace is not None:
         from energyml.utils.introspection import get_obj_uuid
 
-        candidates = workspace.get_object_by_uuid(get_obj_uuid(supporting_rep_dor))
+        candidates = workspace.get_object(get_obj_uri(supporting_rep_dor))
         supporting_rep = candidates[0] if candidates else None
 
     if supporting_rep is None:
@@ -1852,7 +2292,7 @@ def read_graphical_rendering_info(
             if cmap_dor is not None and workspace is not None:
                 cmap_obj = workspace.get_object(get_obj_uri(cmap_dor))
                 if cmap_obj is None:
-                    candidates = workspace.get_object_by_uuid(get_obj_uuid(cmap_dor))
+                    candidates = workspace.get_object(get_obj_uri(cmap_dor))
                     cmap_obj = candidates[0] if candidates else None
                 if cmap_obj is not None:
                     result.color_map = read_color_map(cmap_obj)

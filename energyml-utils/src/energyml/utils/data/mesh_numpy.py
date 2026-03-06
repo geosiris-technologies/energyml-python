@@ -54,6 +54,7 @@ import numpy as np
 
 from energyml.utils.data.helper import (
     apply_crs_transform,
+    evaluate_parametric_line_array,
     generate_vertical_well_points,
     get_crs_offsets_and_angle,
     get_crs_obj,
@@ -63,6 +64,7 @@ from energyml.utils.data.helper import (
     read_array,
     read_grid2d_patch,
     read_parametric_geometry,
+    resolve_parametric_line_array,
     get_wellbore_points,
 )
 from energyml.utils.data.crs import extract_crs_info, apply_from_crs_info
@@ -1484,6 +1486,172 @@ def _build_split_pillar_map(
     return pillar_map
 
 
+def _read_direct_points(
+    pts_obj: Any,
+    pts_path: str,
+    energyml_object: Any,
+    ws: Any,
+    nkl: int,
+    n_pillars_total: int,
+    n_pillars_base: int,
+    n_splits: int,
+    ni: int,
+    nj: int,
+) -> np.ndarray:
+    """
+    Read a non-parametric points array (e.g. ``Point3DExternalArray``) and
+    return a ``(NKL, n_pillars_total, 3)`` float64 array.
+
+    Handles both the 3-D layout ``(NKL, n_pillars, 3)`` typically used for
+    faulted grids and the 4-D layout ``(NKL, NJ+1, NI+1, 3)`` used for
+    unfaulted grids.
+
+    :raises ValueError: When the raw array size matches neither layout.
+    """
+    raw_pts = _read_array_np(pts_obj, energyml_object, f"geometry.{pts_path}", ws)
+
+    expected_3d = nkl * n_pillars_total * 3
+    expected_4d = nkl * (nj + 1) * (ni + 1) * 3
+
+    if n_splits > 0 or raw_pts.size == expected_3d:
+        return raw_pts.reshape(nkl, n_pillars_total, 3)
+    elif raw_pts.size == expected_4d:
+        # Standard 4-D unfaulted layout: (NKL, NJ+1, NI+1, 3).
+        # Pillar index j*(ni+1)+i matches C-order of the last two dims.
+        pts_4d = raw_pts.reshape(nkl, nj + 1, ni + 1, 3)
+        return pts_4d.reshape(nkl, n_pillars_base, 3)
+    else:
+        raise ValueError(
+            f"IjkGridRepresentation: unexpected points array size {raw_pts.size}. "
+            f"Expected {expected_3d} (3-D layout, nkl={nkl}, n_pillars={n_pillars_total}) "
+            f"or {expected_4d} (4-D layout, nkl={nkl}, nj+1={nj+1}, ni+1={ni+1})."
+        )
+
+
+def _read_point3d_parametric_array(
+    pts_obj: Any,
+    energyml_object: Any,
+    ws: Any,
+    nkl: int,
+    n_pillars_total: int,
+    n_pillars_base: int,
+    ni: int,
+    nj: int,
+) -> np.ndarray:
+    """
+    Evaluate a ``Point3dParametricArray`` and return a
+    ``(NKL, n_pillars_total, 3)`` float64 array of XYZ positions.
+
+    Algorithm outline
+    -----------------
+    1. Read ``pts_obj.parameters`` — the P-values (typically depth) at every
+       ``(NKL × n_pillars)`` grid node.
+    2. Optionally honour ``pts_obj.parametric_line_indices`` — when present it
+       maps each column of *parameters* to the corresponding pillar index in
+       the ``ParametricLineArray``.
+    3. Resolve ``pts_obj.parametric_lines`` via
+       :func:`~energyml.utils.data.helper.resolve_parametric_line_array`
+       (handles both ``ParametricLineArray`` and
+       ``ParametricLineFromRepresentationLatticeArray``).
+    4. Evaluate the pillar splines via
+       :func:`~energyml.utils.data.helper.evaluate_parametric_line_array`.
+
+    :param pts_obj: ``Point3dParametricArray`` RESQML object.
+    :param energyml_object: Root RESQML object (for ``read_array`` context).
+    :param ws: Workspace (HDF5 / EPC reader).
+    :param nkl: Number of node layers (``nk + n_kgaps + 1``).
+    :param n_pillars_total: Total pillar count (base + split duplicates).
+    :param n_pillars_base: ``(ni+1) × (nj+1)``.
+    :param ni: Cell count in the I direction.
+    :param nj: Cell count in the J direction.
+    :return: ``(NKL, n_pillars_total, 3)`` float64 array.
+    :raises ValueError: If ``parameters`` or ``parametric_lines`` are absent.
+    """
+    # --- 1. Read query P-values ---
+    params_obj = getattr(pts_obj, "parameters", None)
+    if params_obj is None:
+        raise ValueError(
+            "Point3dParametricArray.parameters is required but absent — "
+            "cannot evaluate pillar positions without depth P-values."
+        )
+
+    raw_params = _read_array_np(params_obj, energyml_object, "geometry.Points.parameters", ws)
+    raw_params = raw_params.astype(np.float64)
+
+    # Reshape to (NKL, n_pillars_total).
+    expected_3d = nkl * n_pillars_total
+    expected_4d = nkl * (nj + 1) * (ni + 1)
+    if raw_params.size == expected_3d:
+        query_params = raw_params.reshape(nkl, n_pillars_total)
+    elif raw_params.size == expected_4d:
+        query_params = raw_params.reshape(nkl, nj + 1, ni + 1).reshape(nkl, n_pillars_base)
+        # Pad to n_pillars_total if needed (split pillars may extend the range).
+        if n_pillars_total > n_pillars_base:
+            pad = np.full((nkl, n_pillars_total - n_pillars_base), np.nan, dtype=np.float64)
+            query_params = np.concatenate([query_params, pad], axis=1)
+    else:
+        logging.warning(
+            f"Point3dParametricArray.parameters size {raw_params.size} does not match "
+            f"expected {expected_3d} (3-D) or {expected_4d} (4-D). Attempting flat reshape."
+        )
+        query_params = raw_params.flatten()[: nkl * n_pillars_total].reshape(nkl, n_pillars_total)
+
+    # --- 2. Handle optional parametric_line_indices ---
+    # When present, each column index in query_params maps to a pillar index
+    # in the ParametricLineArray (needed for grids with truncated or
+    # non-contiguous pillar numbering).
+    pli_obj = getattr(pts_obj, "parametric_line_indices", None)
+    if pli_obj is not None:
+        logging.debug(
+            "Point3dParametricArray.parametric_line_indices is present. "
+            "This re-indexing is applied inside evaluate_parametric_line_array "
+            "via the column-selection mechanism of resolve_parametric_line_array."
+        )
+        # The indices are handled by passing the re-ordered query_params.
+        # Build a column-permuted view so pillar p of query_params maps to
+        # pillar pli[p] of the ParametricLineArray.
+        raw_pli = _read_array_np(pli_obj, energyml_object, "geometry.Points.parametric_line_indices", ws)
+        raw_pli = raw_pli.astype(np.int64).flatten()
+        # Reorder query_params columns to match the PLA pillar ordering.
+        # (Each position i in query_params[:,i] uses PLA pillar raw_pli[i].)
+        # We pass this as-is; evaluate_parametric_line_array iterates by
+        # query_params column index, which now aligns with pli-selected pillars.
+        # NOTE: If pli introduces a non-injective mapping (two query columns →
+        # same PLA pillar), the evaluation is repeated — this is correct per spec.
+        query_params_reordered = query_params[:, raw_pli] if len(raw_pli) > 0 else query_params
+        query_params = query_params_reordered
+
+    # --- 3. Handle optional truncated_line_indices ---
+    tli_obj = getattr(pts_obj, "truncated_line_indices", None)
+    if tli_obj is not None:
+        logging.warning(
+            "Point3dParametricArray.truncated_line_indices is present. "
+            "Full truncated-pillar support is not yet implemented — "
+            "truncation metadata will be ignored and results may be geometrically "
+            "incorrect near truncated pillars."
+        )
+
+    # --- 4. Resolve ParametricLineArray ---
+    pla_raw = getattr(pts_obj, "parametric_lines", None)
+    if pla_raw is None:
+        raise ValueError(
+            "Point3dParametricArray.parametric_lines is required but absent."
+        )
+    pla = resolve_parametric_line_array(pla_raw, energyml_object, ws, n_pillars_total)
+
+    # --- 5. Evaluate pillar splines ---
+    pts_3d = evaluate_parametric_line_array(
+        pla=pla,
+        root_obj=energyml_object,
+        workspace=ws,
+        query_parameters=query_params,
+        ni=ni,
+        nj=nj,
+    )  # (NKL, n_pillars_total, 3)
+
+    return pts_3d
+
+
 def read_numpy_ijk_grid_representation(
     energyml_object: Any,
     workspace: Optional[EnergymlStorageInterface] = None,
@@ -1602,34 +1770,32 @@ def read_numpy_ijk_grid_representation(
 
     # Reject parametric arrays (not yet supported)
     if "Parametric" in type(pts_obj).__name__:
-        raise NotSupportedError(
-            f"IjkGridRepresentation with parametric-pillar geometry "
-            f"({type(pts_obj).__name__}) is not yet supported. "
-            "Only direct HDF5 coordinate arrays (Point3DExternalArray) are handled."
+        # Point3dParametricArray: evaluate pillar splines at the grid P-values.
+        pts_3d = _read_point3d_parametric_array(
+            pts_obj=pts_obj,
+            energyml_object=energyml_object,
+            ws=ws,
+            nkl=nkl,
+            n_pillars_total=n_pillars_total,
+            n_pillars_base=n_pillars_base,
+            ni=ni,
+            nj=nj,
         )
-
-    raw_pts = _read_array_np(pts_obj, energyml_object, f"geometry.{pts_path}", ws)
-
-    # Reshape raw points: HDF5 layout is (NKL, NJ+1, NI+1, 3) for unfaulted
-    # grids and (NKL, n_pillars_total, 3) when split lines are present.
-    expected_3d = nkl * n_pillars_total * 3
-    expected_4d = nkl * (nj + 1) * (ni + 1) * 3
-    if n_splits > 0 or raw_pts.size == expected_3d:
-        # Split lines present (or data already in 3-D layout)
-        pts_3d = raw_pts.reshape(nkl, n_pillars_total, 3)
-        points = pts_3d.reshape(-1, 3).astype(np.float64, copy=False)
-    elif raw_pts.size == expected_4d:
-        # Standard 4-D unfaulted layout: (NKL, NJ+1, NI+1, 3)
-        pts_4d = raw_pts.reshape(nkl, nj + 1, ni + 1, 3)
-        # Reorder to (NKL, n_pillars_base, 3) for uniform node indexing
-        # Pillar index: j*(ni+1)+i  →  this matches C-order of the last two dims
-        points = pts_4d.reshape(nkl, n_pillars_base, 3).reshape(-1, 3).astype(np.float64, copy=False)
     else:
-        raise ValueError(
-            f"IjkGridRepresentation: unexpected points array size {raw_pts.size}. "
-            f"Expected {expected_3d} (3-D layout, nkl={nkl}, n_pillars={n_pillars_total}) "
-            f"or {expected_4d} (4-D layout, nkl={nkl}, nj+1={nj+1}, ni+1={ni+1})."
+        pts_3d = _read_direct_points(
+            pts_obj=pts_obj,
+            pts_path=pts_path,
+            energyml_object=energyml_object,
+            ws=ws,
+            nkl=nkl,
+            n_pillars_total=n_pillars_total,
+            n_pillars_base=n_pillars_base,
+            n_splits=n_splits,
+            ni=ni,
+            nj=nj,
         )
+
+    points = pts_3d.reshape(-1, 3).astype(np.float64, copy=False)
 
     # --- CRS ---
     crs = None
