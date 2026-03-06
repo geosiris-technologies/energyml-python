@@ -1990,6 +1990,32 @@ def read_numpy_mesh_object(
 # ---------------------------------------------------------------------------
 
 
+def _import_pyvista() -> Any:
+    """Import PyVista and apply forward-compatibility fixes.
+
+    PyVista 0.43 deprecated ``PolyData.n_faces`` (which used to return the
+    total cell count, equivalent to ``n_cells``); PyVista 0.46 converted that
+    deprecation into a hard ``AttributeError``.  Calling
+    ``use_strict_n_faces(True)`` opts into the new, permanent semantics where
+    ``n_faces`` returns only the polygon (face) count — identical to
+    ``n_faces_strict`` — rather than raising an error.
+
+    This is safe to call multiple times; the flag is a class-level boolean on
+    ``pyvista.PolyData`` and the call is idempotent.
+    """
+    try:
+        import pyvista as pv  # type: ignore[import]
+    except ImportError as exc:
+        raise ImportError(
+            "pyvista is not installed.  Install it with: pip install pyvista"
+        ) from exc
+    # Enable strict n_faces mode: makes n_faces return n_faces_strict (polygon
+    # count) instead of raising AttributeError in PyVista >= 0.46.
+    if hasattr(pv.PolyData, "use_strict_n_faces"):
+        pv.PolyData.use_strict_n_faces(True)
+    return pv
+
+
 def numpy_mesh_to_pyvista(mesh: NumpyMesh) -> Any:
     """Convert a :class:`NumpyMesh` to the appropriate PyVista dataset.
 
@@ -2006,10 +2032,7 @@ def numpy_mesh_to_pyvista(mesh: NumpyMesh) -> Any:
     * :class:`NumpySurfaceMesh`   → ``pyvista.PolyData(points, faces=faces)``
     * :class:`NumpyVolumeMesh`    → ``pyvista.UnstructuredGrid(cells, cell_types, points)``
     """
-    try:
-        import pyvista as pv  # type: ignore[import]
-    except ImportError as exc:
-        raise ImportError("pyvista is not installed.  " "Install it with: pip install pyvista") from exc
+    pv = _import_pyvista()
 
     pts = mesh.points  # (N, 3) float64 — no copy
 
@@ -2040,10 +2063,7 @@ def numpy_multi_mesh_to_pyvista(multi: "NumpyMultiMesh") -> Any:
 
     Requires ``pyvista`` to be installed (``pip install pyvista``).
     """
-    try:
-        import pyvista as pv  # type: ignore[import]
-    except ImportError as exc:
-        raise ImportError("pyvista is not installed.  Install it with: pip install pyvista") from exc
+    pv = _import_pyvista()
 
     block: pv.MultiBlock = pv.MultiBlock()
     for child in multi.children:

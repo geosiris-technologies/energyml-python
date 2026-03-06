@@ -111,13 +111,13 @@ class RepresentationContext(BaseModel):
         for gis_uri, entries in self.graphical_info.items():
             for entry in entries:
                 try:
-                    rendering_info = read_graphical_rendering_info(entry, self.workspace)
+                    rendering_info = read_graphical_rendering_info(entry, self.uri.uuid, self.workspace)
                     if rendering_info is not None:
                         return rendering_info
                 except Exception as exc:
                     logging.debug(f"Error reading graphical rendering info for entry {entry}: {exc}")
         # No color information found, generate a random color from uuid
-        return ScalarRenderingInfo(constant_color=RgbaColor.from_uuid(self.uri.uuid))
+        return ScalarRenderingInfo(constant_color=RgbaColor.random_from_uuid(self.uri.uuid))
 
     def get_property(self, property_uuid: str) -> Optional[Any]:
         """Return the property object with the given uuid, or None."""

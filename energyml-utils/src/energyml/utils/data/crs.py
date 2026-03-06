@@ -321,9 +321,9 @@ def _extract_vertical_crs_details(vertical_crs_obj: Any) -> dict:
     **must not** override a parent-level ``ZIncreasingDownward`` when this
     value is ``None``.
     """
-    logging.debug(
-        f"Extracting vertical CRS details from object of type {type(vertical_crs_obj).__name__} with URI {get_obj_uri(vertical_crs_obj)}"
-    )
+    # logging.debug(
+    #     f"Extracting vertical CRS details from object of type {type(vertical_crs_obj).__name__} with URI {get_obj_uri(vertical_crs_obj)}"
+    # )
     result: dict = {
         "epsg_code": None,
         "wkt": None,

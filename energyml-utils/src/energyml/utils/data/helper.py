@@ -385,7 +385,7 @@ def get_crs_obj(
         if crs_list is not None and len(crs_list) > 0 and crs_list[0] is not None:
             # logging.debug(crs_list[0])
             crs = workspace.get_object(get_obj_uri(crs_list[0]))
-            logging.debug(f"CRS found for {get_obj_title(context_obj)} ({type(context_obj).__name__}): {crs}")
+            # logging.debug(f"CRS found for {get_obj_title(context_obj)} ({type(context_obj).__name__}): {crs}")
             if crs is None:
                 # logging.debug(f"CRS {crs_list[0]} not found (or not read correctly)")
                 _crs_list = workspace.get_object_by_uuid(get_obj_uuid(crs_list[0]))
