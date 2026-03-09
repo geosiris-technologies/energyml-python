@@ -94,7 +94,7 @@ def is_z_reversed(crs: Optional[Any]) -> bool:
     :return: By default, ``False`` is returned when *crs* is ``None``.
     """
     result = extract_crs_info(crs).z_increasing_downward
-    logging.debug(f"is_z_reversed: {result}")
+    # logging.debug(f"is_z_reversed: {result}")
     return result
 
 
@@ -1796,9 +1796,9 @@ def read_point3d_lattice_array(
         slowest_size = len(slowest_table)
         fastest_size = len(fastest_table)
 
-        logging.debug(f"slowest vector: {slowest_vec}, spacing: {slowest_spacing}, size: {slowest_size}")
-        logging.debug(f"fastest vector: {fastest_vec}, spacing: {fastest_spacing}, size: {fastest_size}")
-        logging.debug(f"origin: {origin}")
+        # logging.debug(f"slowest vector: {slowest_vec}, spacing: {slowest_spacing}, size: {slowest_size}")
+        # logging.debug(f"fastest vector: {fastest_vec}, spacing: {fastest_spacing}, size: {fastest_size}")
+        # logging.debug(f"origin: {origin}")
 
         if crs_sa_count is not None and len(crs_sa_count) > 0 and crs_fa_count is not None and len(crs_fa_count) > 0:
             if (crs_sa_count[0] == fastest_size and crs_fa_count[0] == slowest_size) or (
@@ -2229,7 +2229,8 @@ def read_graphical_rendering_info(
     **Input**:
 
     - *graphical_information_set*: a RESQML/EML ``GraphicalInformationSet``
-      object (from ``workspace.get_object(uri)`` or similar).
+      object (from ``workspace.get_object(uri)`` or similar), or directly a GraphicalObject (e.g. DefaultGraphicalInformation).
+       The function will search for all graphical information entries in the set that target the specified UUID, and accumulate their parameters into a single :class:`ScalarRenderingInfo` output.
     - *target_uuid*: the UUID (string) of the property, representation,
       feature or interpretation you want to render.
     - *workspace*: an :class:`EnergymlStorageInterface` used to resolve the
@@ -2270,7 +2271,7 @@ def read_graphical_rendering_info(
     result = ScalarRenderingInfo(target_obj_uuid=target_uuid)
     found = False
 
-    gis_infos: List[Any] = getattr(graphical_information_set, "graphical_information", []) or []
+    gis_infos: List[Any] = getattr(graphical_information_set, "graphical_information", []) or ([graphical_information_set] if not isinstance(graphical_information_set, list) else graphical_information_set)
 
     for info in gis_infos:
         # Each AbstractGraphicalInformation targets ≥1 objects via target_object[].
