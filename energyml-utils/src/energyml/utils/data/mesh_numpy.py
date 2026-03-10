@@ -242,7 +242,7 @@ class NumpyMultiMesh:
         for child in self.children:
             result.extend(child.flat_patches())
         return result
-    
+
     def flat_children(self) -> List["NumpyMultiMesh"]:
         """Return all child containers in depth-first order."""
         result: List[NumpyMultiMesh] = list(self.children)
@@ -639,10 +639,7 @@ def read_numpy_polyline_representation(
                 pt_offsets = np.concatenate([[0], np.cumsum(nc_arr)])
 
                 # Gather contiguous point ranges for the selected polylines.
-                keep_ranges = [
-                    np.arange(int(pt_offsets[i]), int(pt_offsets[i + 1]), dtype=np.int64)
-                    for i in _valid
-                ]
+                keep_ranges = [np.arange(int(pt_offsets[i]), int(pt_offsets[i + 1]), dtype=np.int64) for i in _valid]
                 keep_pts = np.concatenate(keep_ranges) if keep_ranges else np.empty(0, dtype=np.int64)
 
                 # Build a full remapping: old_pt_idx → new_pt_idx (-1 = not kept).
@@ -1363,9 +1360,7 @@ def read_numpy_seismic_wellbore_frame_representation(
         for patch in result.flat_patches():
             patch.extra_arrays["node_time_values"] = node_time_values
     except (IndexError, Exception) as exc:
-        logging.warning(
-            f"SeismicWellboreFrameRepresentation: could not read NodeTimeValues: {exc}"
-        )
+        logging.warning(f"SeismicWellboreFrameRepresentation: could not read NodeTimeValues: {exc}")
     result.source_type = type(energyml_object).__name__
     return result
 
@@ -1464,9 +1459,9 @@ def _build_split_pillar_map(
     pillar_map = np.zeros((nj, ni, 4), dtype=np.int64)
     for j in range(nj):
         for i in range(ni):
-            pillar_map[j, i, 0] = j * (ni + 1) + i           # TL
-            pillar_map[j, i, 1] = j * (ni + 1) + (i + 1)     # TR
-            pillar_map[j, i, 2] = (j + 1) * (ni + 1) + i     # BL
+            pillar_map[j, i, 0] = j * (ni + 1) + i  # TL
+            pillar_map[j, i, 1] = j * (ni + 1) + (i + 1)  # TR
+            pillar_map[j, i, 2] = (j + 1) * (ni + 1) + i  # BL
             pillar_map[j, i, 3] = (j + 1) * (ni + 1) + (i + 1)  # BR
 
     for split_idx in range(n_splits):
@@ -1483,13 +1478,13 @@ def _build_split_pillar_map(
                 continue
             # Identify which corner of this column corresponds to (orig_j, orig_i)
             if orig_j == col_j and orig_i == col_i:
-                pillar_map[col_j, col_i, 0] = new_pillar_idx   # TL
+                pillar_map[col_j, col_i, 0] = new_pillar_idx  # TL
             elif orig_j == col_j and orig_i == col_i + 1:
-                pillar_map[col_j, col_i, 1] = new_pillar_idx   # TR
+                pillar_map[col_j, col_i, 1] = new_pillar_idx  # TR
             elif orig_j == col_j + 1 and orig_i == col_i:
-                pillar_map[col_j, col_i, 2] = new_pillar_idx   # BL
+                pillar_map[col_j, col_i, 2] = new_pillar_idx  # BL
             elif orig_j == col_j + 1 and orig_i == col_i + 1:
-                pillar_map[col_j, col_i, 3] = new_pillar_idx   # BR
+                pillar_map[col_j, col_i, 3] = new_pillar_idx  # BR
 
     return pillar_map
 
@@ -1642,9 +1637,7 @@ def _read_point3d_parametric_array(
     # --- 4. Resolve ParametricLineArray ---
     pla_raw = getattr(pts_obj, "parametric_lines", None)
     if pla_raw is None:
-        raise ValueError(
-            "Point3dParametricArray.parametric_lines is required but absent."
-        )
+        raise ValueError("Point3dParametricArray.parametric_lines is required but absent.")
     pla = resolve_parametric_line_array(pla_raw, energyml_object, ws, n_pillars_total)
 
     # --- 5. Evaluate pillar splines ---
@@ -1755,13 +1748,16 @@ def read_numpy_ijk_grid_representation(
             if pi_list:
                 pi_path, pi_obj = pi_list[0]
                 pillar_indices_arr = _read_array_np(
-                    pi_obj, energyml_object,
-                    f"geometry.column_layer_split_coordinate_lines.{pi_path}", ws,
+                    pi_obj,
+                    energyml_object,
+                    f"geometry.column_layer_split_coordinate_lines.{pi_path}",
+                    ws,
                 )
             cps_obj = getattr(split_cl, "columns_per_split_coordinate_line", None)
             if cps_obj is not None:
                 columns_per_split = _decode_jagged_array(
-                    cps_obj, energyml_object,
+                    cps_obj,
+                    energyml_object,
                     "geometry.column_layer_split_coordinate_lines.columns_per_split_coordinate_line",
                     ws,
                 )
@@ -1835,9 +1831,9 @@ def read_numpy_ijk_grid_representation(
 
         kl_b = kl_bottom[ik_arr]  # (ni, nj, nk)
         kl_t = kl_top[ik_arr]
-        p_tl = ij_arr * (ni + 1) + ii_arr            # pillar TL
-        p_tr = ij_arr * (ni + 1) + (ii_arr + 1)     # pillar TR
-        p_bl = (ij_arr + 1) * (ni + 1) + ii_arr     # pillar BL
+        p_tl = ij_arr * (ni + 1) + ii_arr  # pillar TL
+        p_tr = ij_arr * (ni + 1) + (ii_arr + 1)  # pillar TR
+        p_bl = (ij_arr + 1) * (ni + 1) + ii_arr  # pillar BL
         p_br = (ij_arr + 1) * (ni + 1) + (ii_arr + 1)  # pillar BR
 
         def _nidx(kl, pl):
@@ -1979,8 +1975,7 @@ def read_numpy_unstructured_grid_representation(
     fpc_obj = getattr(geom, "faces_per_cell", None)
     if npf_obj is None or fpc_obj is None:
         logging.warning(
-            "UnstructuredGridRepresentation: missing nodes_per_face or faces_per_cell "
-            "— returning point-set mesh"
+            "UnstructuredGridRepresentation: missing nodes_per_face or faces_per_cell " "— returning point-set mesh"
         )
         label = f"{src_type}_patch_0"
         multi = NumpyMultiMesh(
@@ -2180,9 +2175,7 @@ def _import_pyvista() -> Any:
     try:
         import pyvista as pv  # type: ignore[import]
     except ImportError as exc:
-        raise ImportError(
-            "pyvista is not installed.  Install it with: pip install pyvista"
-        ) from exc
+        raise ImportError("pyvista is not installed.  Install it with: pip install pyvista") from exc
     # Enable strict n_faces mode: makes n_faces return n_faces_strict (polygon
     # count) instead of raising AttributeError in PyVista >= 0.46.
     if hasattr(pv.PolyData, "use_strict_n_faces"):

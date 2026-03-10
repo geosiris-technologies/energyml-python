@@ -514,9 +514,9 @@ _PARAMETRIC_KIND_NULL = -1
 
 def _interp1d_vectorized(
     ctrl_params: np.ndarray,  # (K,)
-    ctrl_pts: np.ndarray,     # (K, d)
-    query: np.ndarray,        # (Q,)
-) -> np.ndarray:              # (Q, d)
+    ctrl_pts: np.ndarray,  # (K, d)
+    query: np.ndarray,  # (Q,)
+) -> np.ndarray:  # (Q, d)
     """Vectorised piecewise-linear interpolation of a 1-D parametric curve."""
     result = np.empty((len(query), ctrl_pts.shape[1]), dtype=np.float64)
     for dim in range(ctrl_pts.shape[1]):
@@ -526,9 +526,9 @@ def _interp1d_vectorized(
 
 def _natural_cubic_spline_eval(
     ctrl_params: np.ndarray,  # (K,)
-    ctrl_pts: np.ndarray,     # (K, d)
-    query: np.ndarray,        # (Q,)
-) -> np.ndarray:              # (Q, d)
+    ctrl_pts: np.ndarray,  # (K, d)
+    query: np.ndarray,  # (Q,)
+) -> np.ndarray:  # (Q, d)
     """
     Evaluate a natural cubic spline (second derivatives = 0 at endpoints) via
     ``scipy.interpolate.CubicSpline``.
@@ -552,10 +552,10 @@ def _natural_cubic_spline_eval(
 
 def _minimum_curvature_eval(
     ctrl_params: np.ndarray,  # (K,)  P-values (e.g. depth) at knots
-    ctrl_pts: np.ndarray,     # (K, 3)  XYZ at knots
-    tangents: np.ndarray,     # (K, 3)  unit tangent vectors at knots
-    query: np.ndarray,        # (Q,)  query P-values
-) -> np.ndarray:              # (Q, 3)
+    ctrl_pts: np.ndarray,  # (K, 3)  XYZ at knots
+    tangents: np.ndarray,  # (K, 3)  unit tangent vectors at knots
+    query: np.ndarray,  # (Q,)  query P-values
+) -> np.ndarray:  # (Q, 3)
     """
     Minimum-curvature interpolation (RESQML line kind 5).
 
@@ -612,10 +612,10 @@ def _minimum_curvature_eval(
 def _evaluate_one_pillar(
     kind: int,
     ctrl_params: Optional[np.ndarray],  # (K,) — may be None for kind=0
-    ctrl_pts: np.ndarray,               # (K, d) — d=2 for kind=0, d=3 otherwise
-    tangents: Optional[np.ndarray],     # (K, 3) — only for kinds 3, 5
-    query_params: np.ndarray,           # (Q,) query P-values for this pillar
-) -> np.ndarray:                        # (Q, 3)
+    ctrl_pts: np.ndarray,  # (K, d) — d=2 for kind=0, d=3 otherwise
+    tangents: Optional[np.ndarray],  # (K, 3) — only for kinds 3, 5
+    query_params: np.ndarray,  # (Q,) query P-values for this pillar
+) -> np.ndarray:  # (Q, 3)
     """
     Evaluate a single parametric pillar at *query_params*, returning `(Q, 3)` XYZ.
 
@@ -728,14 +728,10 @@ def resolve_parametric_line_array(
     # ParametricLineFromRepresentationLatticeArray path (RESQML v2.0.1).
     supporting_rep_dor = getattr(parametric_lines_obj, "supporting_representation", None)
     if supporting_rep_dor is None:
-        raise ValueError(
-            "ParametricLineFromRepresentationLatticeArray has no supporting_representation reference."
-        )
+        raise ValueError("ParametricLineFromRepresentationLatticeArray has no supporting_representation reference.")
 
     if workspace is None:
-        raise ValueError(
-            "A workspace is required to resolve ParametricLineFromRepresentationLatticeArray."
-        )
+        raise ValueError("A workspace is required to resolve ParametricLineFromRepresentationLatticeArray.")
 
     sup_uri = get_obj_uri(supporting_rep_dor)
     sup_obj = workspace.get_object(sup_uri)
@@ -747,9 +743,7 @@ def resolve_parametric_line_array(
     if not pla_results:
         pla_results = search_attribute_matching_name_with_path(sup_obj, "parametric_lines")
     if not pla_results:
-        raise ValueError(
-            f"Cannot find a ParametricLineArray in supporting representation {sup_uri}."
-        )
+        raise ValueError(f"Cannot find a ParametricLineArray in supporting representation {sup_uri}.")
     _, sup_pla = pla_results[0]
 
     # Read the pillar index selection (IntegerLatticeArray).
@@ -760,9 +754,7 @@ def resolve_parametric_line_array(
 
     from energyml.utils.data.helper import read_array as _read_array_helper  # for local use
 
-    raw_indices = _read_array_helper(
-        energyml_array=idx_obj, root_obj=root_obj, workspace=workspace
-    )
+    raw_indices = _read_array_helper(energyml_array=idx_obj, root_obj=root_obj, workspace=workspace)
     if not isinstance(raw_indices, np.ndarray):
         raw_indices = np.array(raw_indices, dtype=np.int64)
     raw_indices = raw_indices.flatten().astype(np.int64)
@@ -791,7 +783,7 @@ def evaluate_parametric_line_array(
     query_parameters: np.ndarray,  # shape (NKL, n_pillars)
     ni: int,
     nj: int,
-) -> np.ndarray:                   # shape (NKL, n_pillars, 3) float64
+) -> np.ndarray:  # shape (NKL, n_pillars, 3) float64
     """
     Evaluate a ``ParametricLineArray`` at the given query P-values and return
     3-D Cartesian coordinates for every grid node.
@@ -906,7 +898,7 @@ def evaluate_parametric_line_array(
     for p_idx in range(n_pillars):
         kind = int(kinds[p_idx])
         q_p = query_parameters[:, p_idx]  # (NKL,) P-values for this pillar
-        cp_p = ctrl_pts[:, p_idx, :]      # (K, d)
+        cp_p = ctrl_pts[:, p_idx, :]  # (K, d)
 
         # ctrl_params_p: (K,) — derived from global or pillar-specific params.
         # For kind=0, ctrl_params is None (vertical) and we pass None.
@@ -1970,7 +1962,7 @@ class RgbaColor:
         a = hsv_obj.alpha if hsv_obj.alpha is not None else 1.0
         r, g, b = colorsys.hsv_to_rgb(h, s, v)
         return RgbaColor(r, g, b, a)
-    
+
     @staticmethod
     def random() -> "RgbaColor":
         """Generate a random RGBA color (for testing)."""
@@ -1982,7 +1974,7 @@ class RgbaColor:
             b=random.random(),
             a=1.0,
         )
-    
+
     @staticmethod
     def random_from_uuid(uuid_str: str) -> "RgbaColor":
         """Generate a random RGBA color based on a UUID string (for consistent testing)."""
@@ -1991,7 +1983,7 @@ class RgbaColor:
 
         # Create a hash of the UUID string to seed the random generator
         hash_bytes = hashlib.sha256(uuid_str.encode()).digest()
-        seed = int.from_bytes(hash_bytes, 'big')
+        seed = int.from_bytes(hash_bytes, "big")
         random.seed(seed)
 
         return RgbaColor(
@@ -2051,9 +2043,7 @@ class ColorMapInfo:
 
         if not self.is_continuous:
             # One exact row per integer entry - no interpolation needed.
-            return np.array(
-                [e.color.to_uint8() for e in sorted_entries], dtype=np.uint8
-            )
+            return np.array([e.color.to_uint8() for e in sorted_entries], dtype=np.uint8)
 
         # Continuous: sample n_colors levels with linear interpolation in RGBA.
         indices = np.array([e.index for e in sorted_entries], dtype=np.float64)
@@ -2064,9 +2054,7 @@ class ColorMapInfo:
         t = np.linspace(indices[0], indices[-1], n_colors)
         result = np.zeros((n_colors, 4), dtype=np.uint8)
         for ch in range(4):
-            result[:, ch] = np.clip(
-                np.interp(t, indices, float_colors[:, ch]) * 255, 0, 255
-            ).round().astype(np.uint8)
+            result[:, ch] = np.clip(np.interp(t, indices, float_colors[:, ch]) * 255, 0, 255).round().astype(np.uint8)
         return result
 
     def scalar_range(self) -> Tuple[float, float]:
@@ -2271,7 +2259,9 @@ def read_graphical_rendering_info(
     result = ScalarRenderingInfo(target_obj_uuid=target_uuid)
     found = False
 
-    gis_infos: List[Any] = getattr(graphical_information_set, "graphical_information", []) or ([graphical_information_set] if not isinstance(graphical_information_set, list) else graphical_information_set)
+    gis_infos: List[Any] = getattr(graphical_information_set, "graphical_information", []) or (
+        [graphical_information_set] if not isinstance(graphical_information_set, list) else graphical_information_set
+    )
 
     for info in gis_infos:
         # Each AbstractGraphicalInformation targets ≥1 objects via target_object[].
@@ -2308,10 +2298,7 @@ def read_graphical_rendering_info(
             raw_alphas = getattr(info, "alpha", []) or []
             if raw_indices and raw_alphas:
                 try:
-                    result.alpha_control_points = [
-                        (float(idx), float(a))
-                        for idx, a in zip(raw_indices, raw_alphas)
-                    ]
+                    result.alpha_control_points = [(float(idx), float(a)) for idx, a in zip(raw_indices, raw_alphas)]
                 except (TypeError, ValueError) as exc:
                     logging.warning(f"read_graphical_rendering_info: cannot parse AlphaInformation indices: {exc}")
 
@@ -2323,7 +2310,7 @@ def read_graphical_rendering_info(
                 result.size_min_max = (mm.minimum, mm.maximum)
 
         elif "DefaultGraphicalInformation" in type_name:
-            for elem_info in (getattr(info, "indexable_element_info", []) or []):
+            for elem_info in getattr(info, "indexable_element_info", []) or []:
                 if (getattr(elem_info, "is_visible", None)) is False:
                     result.is_visible = False
                 const_col = getattr(elem_info, "constant_color", None)

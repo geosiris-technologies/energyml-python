@@ -1133,10 +1133,7 @@ def read_property_interpreted_with_cbt(
                 # empty while another is not).  Pad all columns with None up to
                 # the maximum column length so that np.array() can build a
                 # rectangular (n_columns, max_rows) matrix before transposing.
-                col_values = [
-                    list(v) if not isinstance(v, list) else v
-                    for v in category_lookup_data.values()
-                ]
+                col_values = [list(v) if not isinstance(v, list) else v for v in category_lookup_data.values()]
                 max_len = max((len(c) for c in col_values), default=0)
                 if max_len == 0:
                     # All columns empty — nothing to look up.

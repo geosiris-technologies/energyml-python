@@ -20,7 +20,10 @@ def collect_graphical_info(obj: Any, workspace: EnergymlStorageInterface) -> dic
     obj_uuid = get_obj_uuid(obj)
     return collect_graphical_info_from_rels(rels, obj_uuid, workspace)
 
-def collect_graphical_info_from_rels(rels: List[Relationship], obj_uuid: str, workspace: EnergymlStorageInterface) -> dict:
+
+def collect_graphical_info_from_rels(
+    rels: List[Relationship], obj_uuid: str, workspace: EnergymlStorageInterface
+) -> dict:
     graphical_info_result = {}
     # Collect graphical information entries whose target matches this representation
     for r in rels:
@@ -44,7 +47,7 @@ def collect_graphical_info_from_rels(rels: List[Relationship], obj_uuid: str, wo
                             graphical_info_result[graphical_info_set_uri].append(graphical_info)
                             break
     return graphical_info_result
-                        
+
 
 class RepresentationContext(BaseModel):
 
@@ -116,7 +119,7 @@ class RepresentationContext(BaseModel):
     def _collect_graphical_info(self, rels: List[Relationship]):
         # Collect graphical information entries whose target matches this representation
         self.graphical_info = collect_graphical_info_from_rels(rels, self.uri.uuid, self.workspace)
-                            
+
     def get_default_color(self) -> ScalarRenderingInfo:
         """Search for a default color (first found) for the representation, and return it as an RGBA tuple.  Returns a random color (generated from uuid) if no color information is found."""
         for gis_uri, entries in self.graphical_info.items():
@@ -128,7 +131,9 @@ class RepresentationContext(BaseModel):
                 except Exception as exc:
                     logging.debug(f"Error reading graphical rendering info for entry {entry}: {exc}")
         # No color information found, generate a random color from uuid
-        return ScalarRenderingInfo(target_obj_uuid=self.uri.uuid, constant_color=RgbaColor.random_from_uuid(self.uri.uuid))
+        return ScalarRenderingInfo(
+            target_obj_uuid=self.uri.uuid, constant_color=RgbaColor.random_from_uuid(self.uri.uuid)
+        )
 
     def get_property(self, property_uuid: str) -> Optional[Any]:
         """Return the property object with the given uuid, or None."""

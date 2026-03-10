@@ -889,7 +889,7 @@ def extract_crs_info(
     """
     if crs_obj is None:
         return CrsInfo()
-    
+
     if isinstance(crs_obj, CrsInfo):
         return crs_obj
 
