@@ -83,7 +83,7 @@ def _point_as_array(point: Any) -> List:
     ]
 
 
-def is_z_reversed(crs: Optional[Any]) -> bool:
+def is_z_reversed(crs: Optional[Any], workspace: Optional[EnergymlStorageInterface] = None) -> bool:
     """
     Returns True if the Z axis increases downward
     (``ZIncreasingDownward==True`` or ``VerticalAxis.Direction=='down'``).
@@ -93,12 +93,12 @@ def is_z_reversed(crs: Optional[Any]) -> bool:
     :param crs: a CRS object
     :return: By default, ``False`` is returned when *crs* is ``None``.
     """
-    result = extract_crs_info(crs).z_increasing_downward
+    result = extract_crs_info(crs, workspace).z_increasing_downward
     # logging.debug(f"is_z_reversed: {result}")
     return result
 
 
-def get_vertical_epsg_code(crs_object: Any) -> Optional[int]:
+def get_vertical_epsg_code(crs_object: Any, workspace: Optional[EnergymlStorageInterface] = None) -> Optional[int]:
     """Return the EPSG code of the vertical CRS.  Delegates to :func:`extract_crs_info`."""
     return extract_crs_info(crs_object).vertical_epsg_code
 

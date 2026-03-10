@@ -1126,8 +1126,24 @@ def read_property_interpreted_with_cbt(
                     else None
                 )
             elif isinstance(category_lookup_data, dict):
-                # Transpose so that each index corresponds to a category (column), not a row
-                category_lookup_matrice = np.array(list(category_lookup_data.values())).T
+                # Transpose so that each index corresponds to a category (column), not a row.
+                logging.debug(f"category_lookup_data dict : {category_lookup_data}")
+
+                # Guard against inhomogeneous column lengths (e.g. one column is
+                # empty while another is not).  Pad all columns with None up to
+                # the maximum column length so that np.array() can build a
+                # rectangular (n_columns, max_rows) matrix before transposing.
+                col_values = [
+                    list(v) if not isinstance(v, list) else v
+                    for v in category_lookup_data.values()
+                ]
+                max_len = max((len(c) for c in col_values), default=0)
+                if max_len == 0:
+                    # All columns empty — nothing to look up.
+                    return prop_arrays if not _return_none_if_no_category_lookup else None
+
+                padded = [c + [None] * (max_len - len(c)) for c in col_values]
+                category_lookup_matrice = np.array(padded, dtype=object).T
                 # logging.debug(f"category_lookup_matrice : {category_lookup_matrice}")
                 # return a matrice with the same shape as prop_arrays but with the values from the category lookup array using the prop value as key in the category lookup array
                 result = (

@@ -23,10 +23,10 @@ from energyml.utils.introspection import (
     get_object_attribute,
     search_attribute_matching_name_with_path,
 )
-from energyml.resqml.v2_2.resqmlv2 import VerticalCRS
-from energyml.resqml.v2_0_1.resqmlv2 import DiscreteProperty as DiscreteProperty201, ContinuousProperty as ContinuousProperty201
-from energyml.eml.v2_3.commonv2 import TimeSeries, ColumnBasedTable
-from energyml.eml.v2_1.commonv2 import TimeSeries as TimeSeries21
+# from energyml.resqml.v2_2.resqmlv2 import VerticalCRS
+# from energyml.resqml.v2_0_1.resqmlv2 import DiscreteProperty as DiscreteProperty201, ContinuousProperty as ContinuousProperty201
+# from energyml.eml.v2_3.commonv2 import TimeSeries, ColumnBasedTable
+# from energyml.eml.v2_1.commonv2 import TimeSeries as TimeSeries21
 
 from energyml.utils.serialization import read_energyml_xml_str, serialize_json
 
@@ -271,10 +271,14 @@ def read_props_and_cbt(
 
     epcs = []
     for path in epc_path:
-        epc = EpcStreamReader(
+        epc = Epc.read_file(
             epc_file_path=path,
-            rels_update_mode=RelsUpdateMode.MANUAL,
+            # rels_update_mode=RelsUpdateMode.MANUAL,
         )
+        # epc = EpcStreamReader(
+        #     epc_file_path=path,
+        #     rels_update_mode=RelsUpdateMode.MANUAL,
+        # )
         # epc = Epc.read_file(f"{path}", read_rels_from_files=False, recompute_rels=False)
         epcs.append(epc)
 
@@ -464,6 +468,7 @@ def test_read_write_array(h5_path):
 
 
 if __name__ == "__main__":
+    # Run $env:PYTHONPATH="src" if it fails to be executed from the project root.
     logging.basicConfig(level=logging.DEBUG)
     meshes = []
     # meshes = read_grid()
@@ -472,7 +477,7 @@ if __name__ == "__main__":
     # meshes = read_representation_set_representation()
     # meshes = read_trset()
     # meshes = read_pointset()
-    meshes = read_wellbore_frame_repr_demo_jfr_02_26()
+    # meshes = read_wellbore_frame_repr_demo_jfr_02_26()
 
     print(f"Number of meshes read: {len(meshes)}")
 
@@ -495,4 +500,6 @@ if __name__ == "__main__":
                     raise e
 
     # read_props_and_cbt()
+    read_props_and_cbt(epc_path=["D:/Geosiris/Gitlab/clients/brgm/csv-to-energyml/rc/output/result.epc"], 
+                       p_or_cbt_uuids=["deaa96db-9cd0-456c-beb1-dc19607fcfb9", "399678cf-6fe6-4522-9fba-710115c546cf"])
     # test_read_write_array("test_array_rw.h5")

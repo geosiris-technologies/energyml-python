@@ -889,6 +889,9 @@ def extract_crs_info(
     """
     if crs_obj is None:
         return CrsInfo()
+    
+    if isinstance(crs_obj, CrsInfo):
+        return crs_obj
 
     # Transparently resolve DataObjectReference inputs (e.g. from get_datum_information)
     # so callers do not have to resolve DORs before calling this function.
