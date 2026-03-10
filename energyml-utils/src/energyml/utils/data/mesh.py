@@ -1127,7 +1127,7 @@ def read_property_interpreted_with_cbt(
                 )
             elif isinstance(category_lookup_data, dict):
                 # Transpose so that each index corresponds to a category (column), not a row.
-                logging.debug(f"category_lookup_data dict : {category_lookup_data}")
+                # logging.debug(f"category_lookup_data dict : {category_lookup_data}")
 
                 # Guard against inhomogeneous column lengths (e.g. one column is
                 # empty while another is not).  Pad all columns with None up to
