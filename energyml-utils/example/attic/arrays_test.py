@@ -501,5 +501,13 @@ if __name__ == "__main__":
 
     # read_props_and_cbt()
     read_props_and_cbt(epc_path=["D:/Geosiris/Gitlab/clients/brgm/csv-to-energyml/rc/output/result.epc"], 
-                       p_or_cbt_uuids=["deaa96db-9cd0-456c-beb1-dc19607fcfb9", "399678cf-6fe6-4522-9fba-710115c546cf"])
+                       p_or_cbt_uuids=["a9d7a549-1a21-4659-b85e-2b2d3ba3a7ca"])
+    # read_props_and_cbt(epc_path=["D:/Geosiris/Gitlab/clients/brgm/csv-to-energyml/rc/output/result.epc"], 
+    #                    p_or_cbt_uuids=["deaa96db-9cd0-456c-beb1-dc19607fcfb9", "399678cf-6fe6-4522-9fba-710115c546cf"])
+    
+    # from energyml.eml.v2_3.commonv2 import IntegerLatticeArray, IntegerConstantArray
+    # print(read_array(IntegerLatticeArray(
+    #             start_value=1,
+    #             offset=[IntegerConstantArray(value=2, count=5)],
+    #         )))
     # test_read_write_array("test_array_rw.h5")

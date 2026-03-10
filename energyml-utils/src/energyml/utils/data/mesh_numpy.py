@@ -242,6 +242,13 @@ class NumpyMultiMesh:
         for child in self.children:
             result.extend(child.flat_patches())
         return result
+    
+    def flat_children(self) -> List["NumpyMultiMesh"]:
+        """Return all child containers in depth-first order."""
+        result: List[NumpyMultiMesh] = list(self.children)
+        for child in self.children:
+            result.extend(child.flat_children())
+        return result
 
     def to_pyvista(self) -> Any:  # return type: pv.MultiBlock
         """Convert to a PyVista ``MultiBlock``.  Requires ``pyvista``."""
@@ -1122,6 +1129,7 @@ def read_numpy_wellbore_frame_representation(
     result.identifier = frame_uri
     result.source_uuid = get_obj_uuid(energyml_object)
     result.source_type = type(energyml_object).__name__
+    result.energyml_object = energyml_object
     return result
 
 
