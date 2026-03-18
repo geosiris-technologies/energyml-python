@@ -550,6 +550,29 @@ def get_property_kind_by_uuid(uuid: str) -> Optional[Any]:
             logging.error(f"Failed to parse propertykind dict {e}")
     return __CACHE_PROP_KIND_DICT__.get(uuid, None)
 
+def get_property_kind_by_title(title: str) -> Optional[Any]:
+    """
+    Get a property kind by its title.
+    :param title: the title of the property kind
+    :return: the property kind or None if not found
+    """
+    
+    # TODO: Make a mapping between energyml.resqml.v2_0_1.resqmlv2.ResqmlPropertyKind enum and the real pk titles.
+    # Because some values from ResqmlPropertyKind are not the real pk title
+    
+    if len(__CACHE_PROP_KIND_DICT__) == 0:
+        # update the cache to check if it is a
+        try:
+            update_prop_kind_dict_cache()
+        except FileNotFoundError as e:
+            logging.error(f"Failed to parse propertykind dict {e}")
+    title_reshaped = title.replace(" ", "_").lower()
+    for prop in __CACHE_PROP_KIND_DICT__.values():
+        pk_title_reshaped = prop.citation.title.replace(" ", "_").lower() if prop.citation and prop.citation.title else ""
+        if pk_title_reshaped == title_reshaped:
+            return prop
+    return None
+
 
 def get_property_kind_and_parents(uuids: list) -> Dict[str, Any]:
     """Get PropertyKind objects and their parents from a list of UUIDs.
@@ -573,6 +596,13 @@ def get_property_kind_and_parents(uuids: list) -> Dict[str, Any]:
             logging.warning(f"PropertyKind with UUID {prop_uuid} not found.")
             continue
     return dict_props
+
+
+def get_property_kind_uuid_from_property_object(prop: Any) -> Optional[Any]:
+    prop_kind_uuid = get_object_attribute(prop, "propertyKind.*.uuid") # resqml 201
+    if prop_kind_uuid is None:
+        prop_kind_uuid = get_object_attribute(prop, "propertyKind.uuid") # resqml 22
+    return prop_kind_uuid
 
 
 #     ____  ____  ____     ______                 __  _

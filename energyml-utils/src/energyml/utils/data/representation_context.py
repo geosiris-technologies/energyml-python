@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field, ConfigDict
 
 from energyml.utils.uri import Uri
 from energyml.utils.storage_interface import EnergymlStorageInterface
-from energyml.utils.epc_utils import extract_uuid_and_version_from_obj_path
-from energyml.utils.introspection import get_obj_uri, get_obj_uuid, search_attribute_matching_name
+from energyml.utils.epc_utils import extract_uuid_and_version_from_obj_path, get_property_kind_by_title, get_property_kind_uuid_from_property_object
+from energyml.utils.introspection import get_obj_uri, get_obj_uuid, get_object_attribute, is_enum, search_attribute_matching_name
 from energyml.utils.data.helper import RgbaColor, ScalarRenderingInfo, read_graphical_rendering_info
 
 NO_KIND = "NO_KIND"
@@ -60,9 +60,6 @@ class RepresentationContext(BaseModel):
     crs: List[Any] = Field(default_factory=list)
     rels: List[Relationship] = Field(default_factory=list)
 
-    # Properties keyed by object uuid → property object
-    properties_by_kind: dict = Field(default_factory=dict)
-
     # Graphical information keyed by GraphicalInformationSet uri → list of entries
     graphical_info: dict = Field(default_factory=dict)
 
@@ -70,6 +67,10 @@ class RepresentationContext(BaseModel):
 
     def __init__(self, obj: Any, workspace: EnergymlStorageInterface, **data):
         super().__init__(obj=obj, workspace=workspace, uri=get_obj_uri(obj), **data)
+        
+        # Properties keyed by object uuid → property object
+        self._props = {}
+        self._props_by_kind = {}
         self.update()
 
     def update(self):
@@ -92,7 +93,8 @@ class RepresentationContext(BaseModel):
 
     def _collect_properties(self, rels: List[Relationship]):
         # Collect related properties keyed by property uuid
-        self.properties_by_kind = {}
+        self._props = {}
+        self._props_by_kind = {}
         for r in self.rels:
             if "Property" in r.target:
                 uuid, version = extract_uuid_and_version_from_obj_path(r.target)
@@ -101,7 +103,26 @@ class RepresentationContext(BaseModel):
                     logging.warning(f"Property {r.target} not found in workspace")
                     continue
                 prop_uuid = getattr(prop, "uuid", NO_KIND)
-                self.properties_by_kind[prop_uuid] = prop
+                self._props[prop_uuid] = prop
+                prop_kind_uuid = get_property_kind_uuid_from_property_object(prop) or NO_KIND
+                if prop_kind_uuid not in self._props_by_kind:
+                    self._props_by_kind[prop_kind_uuid] = []
+                    
+                if prop_kind_uuid != NO_KIND:
+                    self._props_by_kind[prop_kind_uuid].append(prop)
+                else:
+                    # Search if a standard name is given (in resqml 201)
+                    title = get_object_attribute(prop, "propertyKind.kind")
+                    if title is not None:
+                        if is_enum(title):
+                            title = title.value
+                        pk = get_property_kind_by_title(title)
+                        if pk is not None:
+                            self._props_by_kind[pk.uuid].append(prop)
+                        else:
+                            self._props_by_kind[NO_KIND].append(prop)
+                    else:
+                        self._props_by_kind[NO_KIND].append(prop)
 
     def _collect_crs(self):
         # Collect related CRS objects referenced by the representation
@@ -137,7 +158,17 @@ class RepresentationContext(BaseModel):
 
     def get_property(self, property_uuid: str) -> Optional[Any]:
         """Return the property object with the given uuid, or None."""
-        return self.properties_by_kind.get(property_uuid)
+        return self._props.get(property_uuid)
+    
+    @property
+    def properties(self) -> Dict[str, Any]:
+        """Return a dict of all properties keyed by property uuid."""
+        return self._props
+    
+    @property
+    def properties_by_kind(self) -> Dict[str, List[Any]]:
+        """Return a dict of properties grouped by property kind uuid."""
+        return self._props_by_kind
 
     def get_properties_time_series(self, property_uuid: str) -> Dict[str, List[Any]]:
         """
@@ -220,9 +251,10 @@ class RepresentationContext(BaseModel):
 
         lines.append("")
         lines.append(f"  Properties ({len(self.properties_by_kind)}):")
-        for uuid, prop in self.properties_by_kind.items():
-            kind = getattr(prop, "property_kind", "?")
-            lines.append(f"    - {type(prop).__name__}  uuid={uuid}  kind={kind}")
+        for kind, props in self.properties_by_kind.items():
+            lines.append(f"    - Kind {kind} ({len(props)} properties)")
+            for prop in props:
+                lines.append(f"      - {type(prop).__name__}  uuid={get_obj_uuid(prop)}")
 
         lines.append("")
         lines.append(f"  Graphical info ({len(self.graphical_info)} set(s)):")
@@ -272,11 +304,11 @@ if __name__ == "__main__":
             print(f"    axis_order={info.projected_axis_order}")
 
     # Detail: property arrays (truncated)
-    if repr_ctx.properties_by_kind:
+    if repr_ctx._props:
         from energyml.utils.data.mesh import read_property
 
         print("\nProperty arrays (first 10 values):")
-        for uuid, prop in repr_ctx.properties_by_kind.items():
+        for uuid, prop in repr_ctx._props.items():
             try:
                 arr = read_property(prop, workspace)
                 print(f"  {type(prop).__name__} [{uuid}]: shape={getattr(arr, 'shape', len(arr))}  sample={arr[:10]}")
@@ -284,9 +316,9 @@ if __name__ == "__main__":
                 print(f"  {type(prop).__name__} [{uuid}]: ERROR reading — {exc}")
 
     # print property time series values
-    if repr_ctx.properties_by_kind:
+    if repr_ctx._props:
         print("\nProperty time series values:")
-        for uuid, prop in repr_ctx.properties_by_kind.items():
+        for uuid, prop in repr_ctx._props.items():
             try:
                 ts_values = repr_ctx.get_properties_time_series(uuid)
                 if ts_values:

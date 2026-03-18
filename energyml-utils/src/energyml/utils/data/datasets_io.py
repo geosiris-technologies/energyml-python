@@ -856,7 +856,7 @@ if __H5PY_MODULE_EXISTS__:
             try:
                 return h5py.File(file_path, mode)  # type: ignore
             except Exception as e:
-                logging.debug(f"Failed to open HDF5 file {file_path}: {e}")
+                # logging.debug(f"Failed to open HDF5 file {file_path}: {e}")
                 return None
 
         def read_array(

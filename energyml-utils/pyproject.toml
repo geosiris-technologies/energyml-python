@@ -103,7 +103,7 @@ mypy = "^0.971"
 bandit = "^1.7.0"
 safety = "^1.10.0"
 memory-profiler = "^0.60.0"
-line-profiler = "^4.0.0"
+# line-profiler = "^4.0.0"
 
 [tool.coverage.run]
 branch = true
