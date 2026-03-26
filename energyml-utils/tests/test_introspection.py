@@ -6,8 +6,10 @@ Test Suite for energyml.utils.introspection module
 This module contains comprehensive tests for introspection utilities used to
 inspect, manipulate, and extract information from Energyml objects.
 """
+import json
 from dataclasses import dataclass
 from energyml.utils.epc_utils import MimeType, as_dor
+from energyml.utils.serialization import serialize_json
 import pytest
 from typing import Any
 
@@ -760,6 +762,13 @@ def test_get_obj_uri(triangulated_set_no_version, fault_interpretation):
     assert (
         uri_str_fi_dataspace
         == f"eml:///dataspace('/MyDataspace/')/resqml20.obj_FaultInterpretation(uuid={fault_interpretation.uuid},version='{fault_interpretation.object_version}')"
+    )
+    
+    uri_dict_dor = str(get_obj_uri(json.loads(serialize_json(as_dor(fault_interpretation)))))
+    
+    assert (
+        uri_dict_dor
+        == f"eml:///resqml20.obj_FaultInterpretation(uuid={fault_interpretation.uuid},version='{fault_interpretation.object_version}')"
     )
 
 

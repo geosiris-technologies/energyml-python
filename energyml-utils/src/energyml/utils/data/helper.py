@@ -1952,6 +1952,15 @@ class RgbaColor:
             int(round(self.b * 255)),
             int(round(self.a * 255)),
         )
+        
+    def to_hex(self) -> str:
+        """Return color as a hex string, e.g. '#RRGGBBAA'."""
+        return "#{:02X}{:02X}{:02X}{:02X}".format(*self.to_uint8())
+    
+    def to_hex_argb(self) -> str:
+        """Return color as a hex string in ARGB order, e.g. '#AARRGGBB'."""
+        r, g, b, a = self.to_uint8()
+        return "#{:02X}{:02X}{:02X}{:02X}".format(a, r, g, b)
 
     @staticmethod
     def from_hsv(hsv_obj: Any) -> "RgbaColor":
@@ -2328,3 +2337,45 @@ def read_graphical_rendering_info(
         # because it drives label text, not colour/size - handle separately if needed.
 
     return result if found else None
+
+# def numpy_dtype_to_resqml_22_type(dtype: np.dtype, is_external: bool = True) -> Optional[str]:
+#     import energyml.resqml.v2_2.resqmlv2
+#     # ======== resqml22
+#     # BooleanXmlArrayList
+#     # FloatingPointXmlArrayList
+#     # IntegerXmlArrayList
+#     # BooleanXmlArray
+#     # StringXmlArray
+#     # FloatingPointXmlArray
+#     # IntegerXmlArray
+#     # ======= common23
+#     # BooleanExternalArray
+#     # StringExternalArray
+#     # FloatingPointExternalArray
+#     # IntegerExternalArray
+#     # ======= common21
+#     # Point2DHdf5Array
+#     # Point2dHdf5Array
+#     # Point3DHdf5Array
+#     # Point3dHdf5Array
+#     # StringHdf5Array
+#     # BooleanHdf5Array
+#     # DoubleHdf5Array
+#     # IntegerHdf5Array
+    
+#     suffix = "ExternalArray" if is_external else "XmlArray"
+#     if np.issubdtype(dtype, np.bool_):
+
+
+
+
+# def numpy_to_resqml_array(np_array: np.ndarray, resqlm_version: str = "2.2") -> Any:
+#     """
+#     Convert a NumPy array to a RESQML array object (e.g. RealArray, IntegerArray).
+
+#     :param np_array: The input NumPy array to convert.
+#     :param resqlm_version: The target RESQML version (default "2.2").
+#     :return: A RESQML array object containing the data from the NumPy array.
+#     """
+#     dtype = np_array.dtype
+    

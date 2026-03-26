@@ -1330,11 +1330,11 @@ def get_obj_version(obj: Any) -> Optional[str]:
         # )
         if isinstance(obj, dict):
             for k in obj.keys():
-                if re.match(r"object_version|version_string", k, re.IGNORECASE):
+                if re.match(r"object_?version|version_?string", k, re.IGNORECASE):
                     return obj[k]
                 elif re.match(r"citation", k, re.IGNORECASE) and isinstance(obj[k], dict):
                     for ck in obj[k].keys():
-                        if re.match(r"version_string", ck, re.IGNORECASE):
+                        if re.match(r"version_?string", ck, re.IGNORECASE):
                             return obj[k][ck]
         pass
     return None
@@ -1390,7 +1390,12 @@ def get_obj_pkg_pkgv_type_uuid_version(
     :param obj:
     :return:
     """
-    pkg: Optional[str] = get_class_pkg(obj)
+    pkg: Optional[str] = None
+    try:
+        pkg = get_class_pkg(obj)
+    except AttributeError:
+        # could occur if obj is a dict
+        pass
     pkg_v: Optional[str] = get_class_pkg_version(obj)
     obj_type: Optional[str] = get_object_type_for_file_path_from_class(obj)
     obj_uuid = get_obj_uuid(obj)
@@ -1400,8 +1405,11 @@ def get_obj_pkg_pkgv_type_uuid_version(
     try:
         ct = get_object_attribute_no_verif(obj, "content_type")
     except:
-        pass
-
+        try:
+            ct = get_object_attribute_no_verif(obj, "ContentType")
+        except:
+            pass
+    
     if ct is not None:
         ct_match = parse_content_type(ct)
         if ct_match is not None:
@@ -1409,15 +1417,21 @@ def get_obj_pkg_pkgv_type_uuid_version(
             pkg_v = ct_match.group("domainVersion")
             obj_type = ct_match.group("type")
     else:
+        qt = None
         try:
             qt = get_object_attribute_no_verif(obj, "qualified_type")
+        except:
+            try:
+                qt = get_object_attribute_no_verif(obj, "QualifiedType")
+            except:
+                pass
+        
+        if qt is not None:
             qt_match = parse_qualified_type(qt)
             if qt_match is not None:
                 pkg = qt_match.group("domain")
                 pkg_v = qt_match.group("domainVersion")
                 obj_type = qt_match.group("type")
-        except:
-            pass
 
     # flattening version
     if pkg_v is not None:
