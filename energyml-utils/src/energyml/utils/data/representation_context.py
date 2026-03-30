@@ -70,6 +70,8 @@ class RepresentationContext(BaseModel):
     
     _projected_uom: Optional[str] = None
     _vertical_uom: Optional[str] = None
+    
+    _interpretation: Optional[Any] = None
 
     def __init__(self, obj: Any, workspace: EnergymlStorageInterface, **data):
         super().__init__(obj=obj, workspace=workspace, uri=get_obj_uri(obj), **data)
@@ -85,6 +87,8 @@ class RepresentationContext(BaseModel):
         self._collect_crs()
         self._collect_graphical_info(self.rels)
         self.collect_time_series()
+        
+    
 
     def collect_time_series(self):
         self.time_series = []
@@ -173,12 +177,56 @@ class RepresentationContext(BaseModel):
         return self._props.get(property_uuid)
     
     @property
+    def vertical_is_time(self) -> bool:
+        """Return True if the vertical axis of the representation is time, based on interpretation domain or CRS info."""
+        # Check interpretation domain first
+        domain = self.domain
+        if domain is not None and "time" in domain.lower():
+            return True
+        
+        return False
+    
+    @property
+    def domain(self) -> Optional[str]:
+        """Return the domain of the representation (e.g. "depth", "time", "depth/time", etc.) if available from interpretation, or None."""
+        interp = self.interpretation
+        if interp is not None:
+            try:
+                interp.domain
+            except Exception:
+                pass
+        return None
+    
+    @property
+    def interpretation(self) -> Optional[Any]:
+        """Return the interpretation object related to this representation, or None if not found."""
+        if self._interpretation is not None:
+            return self._interpretation
+        
+        interpretation_dor = None
+        try:
+            interpretation_dor = self.obj.represented_interpretation
+        except Exception as exc:
+            try:
+                interpretation_dor = self.obj.represented_object
+            except Exception as exc:
+                pass
+        if interpretation_dor is not None:
+            interpretation_obj = self.workspace.get_object(get_obj_uri(interpretation_dor))
+            if interpretation_obj is not None:
+                self._interpretation = interpretation_obj
+                return interpretation_obj
+            
+        return None
+    
+    @property
     def projected_uom(self) -> Optional[str]:
         """Return the projected unit of measure (e.g. "m") if available from CRS info, or None."""
         for ci in self.crs_infos:
             if ci.projected_uom is not None:
                 return ci.projected_uom
         return None
+
     @property
     def vertical_uom(self) -> Optional[str]:
         """Return the vertical unit of measure (e.g. "m") if available from CRS info, or None."""
