@@ -193,8 +193,9 @@ class RepresentationContext(BaseModel):
         interp = self.interpretation
         if interp is not None:
             try:
-                interp.domain
-            except Exception:
+                return interp.domain.value
+            except Exception as e:
+                print(f"Error accessing interpretation domain: {e}")
                 pass
         return None
     
@@ -203,7 +204,6 @@ class RepresentationContext(BaseModel):
         """Return the interpretation object related to this representation, or None if not found."""
         if self._interpretation is not None:
             return self._interpretation
-        
         interpretation_dor = None
         try:
             interpretation_dor = self.obj.represented_interpretation
@@ -326,6 +326,18 @@ class RepresentationContext(BaseModel):
         lines.append(f"  CRS ({len(self.crs)}):")
         for c in self.crs:
             lines.append(f"    - {type(c).__name__}  {get_obj_uri(c)}")
+            
+        # UOMs
+        lines.append("  UOM:")
+        lines.append(f"    - vertical_uom from CRS info: {self.vertical_uom}")
+        lines.append(f"    - projected_uom from CRS info: {self.projected_uom}")
+        lines.append(f"    - vertical_is_time: {self.vertical_is_time}")
+        lines.append(f"    - interpretation domain: {self.domain}")
+        
+        
+        # Interpretation
+        lines.append("  Interpretation:")
+        lines.append(f"    - represented_interpretation: {get_obj_uri(getattr(self.obj, 'represented_interpretation', None))}")
 
         lines.append("")
         lines.append(f"  Relationships ({len(self.rels)}):")

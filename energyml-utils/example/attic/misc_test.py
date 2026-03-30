@@ -44,6 +44,21 @@ def test_serialize_dor(xml_path: str):
 def load_epc_22dev3(file_path: str):
     obj = Epc.read_file(file_path, recompute_rels=True)
     print(obj)
+    
+def dumps_repr_ctx(file_path: str, uuid: str):
+    epc = Epc.read_file(file_path, recompute_rels=True)
+    obj = epc.get_object_by_uuid(uuid)[0]
+    
+    if obj is None:
+        raise ValueError(f"Object with UUID {uuid} not found in EPC file {file_path}")
+    
+    from energyml.utils.data.representation_context import RepresentationContext
+    repr_ctx = RepresentationContext(obj, epc)
+    
+    if not isinstance(repr_ctx, RepresentationContext):
+        raise ValueError("Expected a RepresentationContext object")
+    
+    print(repr_ctx.dump())
 
 
 if __name__ == "__main__":
@@ -51,5 +66,6 @@ if __name__ == "__main__":
     # test_as_uri("rc/ContinuousProperty_1d34249c-4c4f-4705-870e-b5dea9c0d78e.xml")
     # test_as_uri("rc/DiscreteProperty.xml")
     # test_serialize_dor("rc/DiscreteProperty.xml")
-    load_epc_22dev3("D:/Geosiris/Clients/Egis/Documents/Data/4 MNT Trojena/MNT_Trojena_2024-03-18 _val.epc")
+    # load_epc_22dev3("D:/Geosiris/Clients/Egis/Documents/Data/4 MNT Trojena/MNT_Trojena_2024-03-18 _val.epc")
+    dumps_repr_ctx("D:/Geosiris/Cloud/Resqml_Tools/2026-DATA/CARL_DGI/carl_volve_horizons.epc", "8a9833b9-46bf-4f4a-9a0a-adb77ee3b17a")
 
