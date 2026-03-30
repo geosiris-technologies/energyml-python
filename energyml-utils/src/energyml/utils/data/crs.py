@@ -106,6 +106,10 @@ class CrsInfo:
 
     vertical_unknown: Optional[str] = None
     """Free-text vertical CRS descriptor."""
+    
+    time_uom: Optional[str] = None
+    """Unit of measure for time coordinates (e.g. ``"s"``, ``"min"``, ``"h"``)."""
+
 
     # ------------------------------------------------------------------
     # Rotation / azimuth
@@ -443,9 +447,10 @@ def _from_abstract_local3dcrs(
 
     # --- Vertical UOM (length or time) ------------------------------------
     vertical_uom: Optional[str] = _uom_to_str(get_object_attribute_no_verif(crs_obj, "vertical_uom"))
+    time_uom = _uom_to_str(getattr(crs_obj, "time_uom", None))
     if vertical_uom is None:
         # time_uom only present on LocalTime3dCrs
-        vertical_uom = _uom_to_str(getattr(crs_obj, "time_uom", None))
+        vertical_uom = time_uom
 
     # --- Axis order --------------------------------------------------------
     axis_order_raw = get_object_attribute_no_verif(crs_obj, "projected_axis_order")
@@ -494,6 +499,7 @@ def _from_abstract_local3dcrs(
         projected_unknown=projected_details.get("unknown"),
         vertical_epsg_code=vertical_details.get("epsg_code"),
         vertical_uom=vertical_uom,
+        time_uom=time_uom,
         z_increasing_downward=z_increasing_downward,
         vertical_wkt=vertical_details.get("wkt"),
         vertical_unknown=vertical_details.get("unknown"),
@@ -621,6 +627,11 @@ def _from_local_engineering_compound_crs(
     vert_axis_uom_raw = get_object_attribute(crs_obj, "vertical_axis.uom")
     if vert_axis_uom_raw is not None:
         vert_axis_uom = _uom_to_str(vert_axis_uom_raw)
+        
+    is_time = get_object_attribute(crs_obj, "vertical_axis.is_time")
+    time_uom = None
+    if is_time is not None and str(is_time).lower() in ("true", "1", "yes"):
+        time_uom = vert_axis_uom
     vert_axis_dir_raw = get_object_attribute(crs_obj, "vertical_axis.direction")
     if vert_axis_dir_raw is not None:
         d = str(vert_axis_dir_raw)
@@ -693,6 +704,7 @@ def _from_local_engineering_compound_crs(
         # when the resolved CRS carries an explicit direction (not the None sentinel).
         vertical_epsg_code=vert_info.vertical_epsg_code if vert_info else None,
         vertical_uom=(vert_info.vertical_uom if vert_info else None) or vert_axis_uom,
+        time_uom=time_uom,
         z_increasing_downward=(
             vert_info.z_increasing_downward
             if vert_info and vert_details_raw is not None and vert_details_raw.get("z_increasing_downward") is not None

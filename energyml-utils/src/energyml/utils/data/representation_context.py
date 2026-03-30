@@ -12,6 +12,7 @@ from energyml.utils.storage_interface import EnergymlStorageInterface
 from energyml.utils.epc_utils import extract_uuid_and_version_from_obj_path, get_property_kind_by_title, get_property_kind_uuid_from_property_object
 from energyml.utils.introspection import get_obj_uri, get_obj_uuid, get_object_attribute, is_enum, search_attribute_matching_name
 from energyml.utils.data.helper import RgbaColor, ScalarRenderingInfo, read_graphical_rendering_info
+from energyml.utils.data.crs import extract_crs_info
 
 NO_KIND = "NO_KIND"
 
@@ -149,7 +150,7 @@ class RepresentationContext(BaseModel):
                         crs_uuid = getattr(crs, "uuid", None)
                         if crs_uuid is not None and crs_uuid not in crs_uuids:
                             crs_uuids.add(crs_uuid)
-                            self.crs_infos.append(CrsInfo.from_crs_object(crs, self.workspace))
+                            self.crs_infos.append(extract_crs_info(crs, self.workspace))
                     else:
                         logging.warning(f"CRS {get_obj_uri(crs_ref)} not found in workspace")
 
@@ -230,6 +231,11 @@ class RepresentationContext(BaseModel):
     @property
     def vertical_uom(self) -> Optional[str]:
         """Return the vertical unit of measure (e.g. "m") if available from CRS info, or None."""
+        if self.vertical_is_time:
+            # For time-based representations, return the time unit of measure if available
+            for ci in self.crs_infos:
+                if ci.time_uom is not None:
+                    return ci.time_uom
         for ci in self.crs_infos:
             if ci.vertical_uom is not None:
                 return ci.vertical_uom
