@@ -236,6 +236,8 @@ class RepresentationContext(BaseModel):
             for ci in self.crs_infos:
                 if ci.time_uom is not None:
                     return ci.time_uom
+            # If timeUom not found, fall back to vertical_uom (for VerticalCRS, istime doesn't exists and istime is defined in CompoundCRS with vertical_axis)
+                
         for ci in self.crs_infos:
             if ci.vertical_uom is not None:
                 return ci.vertical_uom
