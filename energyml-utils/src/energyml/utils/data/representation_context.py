@@ -4,6 +4,7 @@
 import logging
 from typing import Any, Dict, List, Optional
 from energyml.opc.opc import Relationship
+from energyml.utils.data.crs import CrsInfo
 from pydantic import BaseModel, Field, ConfigDict
 
 from energyml.utils.uri import Uri
@@ -58,12 +59,17 @@ class RepresentationContext(BaseModel):
     uri: Uri = Field(default="")
 
     crs: List[Any] = Field(default_factory=list)
+    crs_infos: List[CrsInfo] = Field(default_factory=list)
+    
     rels: List[Relationship] = Field(default_factory=list)
 
     # Graphical information keyed by GraphicalInformationSet uri → list of entries
     graphical_info: dict = Field(default_factory=dict)
 
     time_series: list = Field(default_factory=list)
+    
+    _projected_uom: Optional[str] = None
+    _vertical_uom: Optional[str] = None
 
     def __init__(self, obj: Any, workspace: EnergymlStorageInterface, **data):
         super().__init__(obj=obj, workspace=workspace, uri=get_obj_uri(obj), **data)
@@ -127,13 +133,19 @@ class RepresentationContext(BaseModel):
     def _collect_crs(self):
         # Collect related CRS objects referenced by the representation
         self.crs = []
+        self.crs_infos = []
+        crs_uuids = set()
         crs_dors = search_attribute_matching_name(self.obj, r"\.*Crs", search_in_sub_obj=True, deep_search=False)
         if crs_dors is not None and len(crs_dors) > 0:
             for crs_ref in crs_dors:
                 if crs_ref is not None:
                     crs = self.workspace.get_object(get_obj_uri(crs_ref))
                     if crs is not None:
-                        self.crs.append(crs)
+                        self.crs.append(crs) # always add to keep crs for each patch
+                        crs_uuid = getattr(crs, "uuid", None)
+                        if crs_uuid is not None and crs_uuid not in crs_uuids:
+                            crs_uuids.add(crs_uuid)
+                            self.crs_infos.append(CrsInfo.from_crs_object(crs, self.workspace))
                     else:
                         logging.warning(f"CRS {get_obj_uri(crs_ref)} not found in workspace")
 
@@ -159,6 +171,21 @@ class RepresentationContext(BaseModel):
     def get_property(self, property_uuid: str) -> Optional[Any]:
         """Return the property object with the given uuid, or None."""
         return self._props.get(property_uuid)
+    
+    @property
+    def projected_uom(self) -> Optional[str]:
+        """Return the projected unit of measure (e.g. "m") if available from CRS info, or None."""
+        for ci in self.crs_infos:
+            if ci.projected_uom is not None:
+                return ci.projected_uom
+        return None
+    @property
+    def vertical_uom(self) -> Optional[str]:
+        """Return the vertical unit of measure (e.g. "m") if available from CRS info, or None."""
+        for ci in self.crs_infos:
+            if ci.vertical_uom is not None:
+                return ci.vertical_uom
+        return None
     
     @property
     def properties(self) -> Dict[str, Any]:

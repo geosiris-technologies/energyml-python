@@ -1,5 +1,6 @@
 import json
 
+from energyml.utils.epc import Epc
 from energyml.utils.epc_utils import as_dor, get_dor_uris_from_obj
 from energyml.utils.introspection import get_obj_uri, search_attribute_matching_type_with_path
 from energyml.utils.serialization import (
@@ -38,10 +39,17 @@ def test_serialize_dor(xml_path: str):
     print(json_dict)
     
     print(get_obj_uri(json_dict))
+    
+
+def load_epc_22dev3(file_path: str):
+    obj = Epc.read_file(file_path, recompute_rels=True)
+    print(obj)
 
 
 if __name__ == "__main__":
+    # Run $env:PYTHONPATH="src" if it fails to be executed from the project root.
     # test_as_uri("rc/ContinuousProperty_1d34249c-4c4f-4705-870e-b5dea9c0d78e.xml")
     # test_as_uri("rc/DiscreteProperty.xml")
-    test_serialize_dor("rc/DiscreteProperty.xml")
+    # test_serialize_dor("rc/DiscreteProperty.xml")
+    load_epc_22dev3("D:/Geosiris/Clients/Egis/Documents/Data/4 MNT Trojena/MNT_Trojena_2024-03-18 _val.epc")
 
