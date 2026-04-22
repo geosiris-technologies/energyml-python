@@ -413,7 +413,7 @@ def _from_abstract_local3dcrs(
     DORs when provided.
     """
     type_name = type(crs_obj).__name__
-    logging.debug(f"@_from_abstract_local3dcrs Extracting CRS info from {type_name} with URI {get_obj_uri(crs_obj)}")
+    # logging.debug(f"@_from_abstract_local3dcrs Extracting CRS info from {type_name} with URI {get_obj_uri(crs_obj)}")
 
     # --- Offsets -----------------------------------------------------------
     x_offset = 0.0
@@ -477,16 +477,16 @@ def _from_abstract_local3dcrs(
 
     # Direction from VerticalCrs overrides the top-level ZIncreasingDownward
     # only when explicitly set.
-    logging.debug("z_increasing_downward before vertical CRS details: %s", z_increasing_downward)
-    logging.debug(
-        f"Vertical CRS details: {vertical_details} -- vertical_crs_obj type: {type(vertical_crs_obj).__name__ if vertical_crs_obj else 'None'}"
-    )
+    # logging.debug("z_increasing_downward before vertical CRS details: %s", z_increasing_downward)
+    # logging.debug(
+    #     f"Vertical CRS details: {vertical_details} -- vertical_crs_obj type: {type(vertical_crs_obj).__name__ if vertical_crs_obj else 'None'}"
+    # )
     if vertical_crs_obj is not None and vertical_details.get("z_increasing_downward") is not None:
         z_increasing_downward = vertical_details["z_increasing_downward"]
     if vertical_details.get("uom"):
         vertical_uom = vertical_details["uom"]
 
-    logging.debug("z_increasing_downward after vertical CRS details: %s", z_increasing_downward)
+    # logging.debug("z_increasing_downward after vertical CRS details: %s", z_increasing_downward)
 
     return CrsInfo(
         x_offset=x_offset,

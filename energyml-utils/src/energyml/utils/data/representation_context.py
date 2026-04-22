@@ -17,15 +17,16 @@ from energyml.utils.data.crs import extract_crs_info
 NO_KIND = "NO_KIND"
 
 
-def collect_graphical_info(obj: Any, workspace: EnergymlStorageInterface) -> dict:
+def collect_graphical_info(obj: Any, workspace: EnergymlStorageInterface) -> Dict[str, List[Any]]:
     rels = workspace.get_obj_rels(obj)
+    print("\tRelationships for object:", rels)
     obj_uuid = get_obj_uuid(obj)
     return collect_graphical_info_from_rels(rels, obj_uuid, workspace)
 
 
 def collect_graphical_info_from_rels(
     rels: List[Relationship], obj_uuid: str, workspace: EnergymlStorageInterface
-) -> dict:
+) -> Dict[str, List[Any]]:
     graphical_info_result = {}
     # Collect graphical information entries whose target matches this representation
     for r in rels:
@@ -65,9 +66,9 @@ class RepresentationContext(BaseModel):
     rels: List[Relationship] = Field(default_factory=list)
 
     # Graphical information keyed by GraphicalInformationSet uri → list of entries
-    graphical_info: dict = Field(default_factory=dict)
+    graphical_info: Dict[str, List[Any]] = Field(default_factory=dict)
 
-    time_series: list = Field(default_factory=list)
+    time_series: List[Any] = Field(default_factory=list)
     
     _projected_uom: Optional[str] = None
     _vertical_uom: Optional[str] = None
@@ -172,6 +173,8 @@ class RepresentationContext(BaseModel):
         return ScalarRenderingInfo(
             target_obj_uuid=self.uri.uuid, constant_color=RgbaColor.random_from_uuid(self.uri.uuid)
         )
+        
+    
 
     def get_property(self, property_uuid: str) -> Optional[Any]:
         """Return the property object with the given uuid, or None."""
@@ -360,7 +363,7 @@ class RepresentationContext(BaseModel):
         return "\n".join(lines)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__2":
     import sys
 
     logging.basicConfig(level=logging.WARNING, stream=sys.stdout)
@@ -422,3 +425,61 @@ if __name__ == "__main__":
                         print(f"    - Time {time_step}: sample={values[:10]}")
             except Exception as exc:
                 print(f"  {type(prop).__name__} [{uuid}]: ERROR reading time series — {exc}")
+
+
+
+if __name__ == "__main__3":
+    # Run $env:PYTHONPATH="src" if it fails to be executed from the project root.
+    # poetry run python .\src\energyml\utils\data\representation_context.py
+    import sys
+
+    logging.basicConfig(level=logging.WARNING, stream=sys.stdout)
+
+    epc_path = "D:/Geosiris/Cloud/Geo-Workflow/BRGM/BRGM_RESQML_PROJECT_2024/AVRE/exports_brgm/AVRE_COMPLETED_APRIL_SURF/AVRE_COLORED_valentin.epc"
+    representation_uri = "eml:///resqml22.StratigraphicUnitInterpretation(feefb8d2-785e-4173-8315-69b57e022c53)"
+
+    from energyml.utils.epc import Epc
+
+    epc = Epc.read_file(epc_path)
+    workspace = epc  # Epc extends EnergymlStorageInterface directly
+
+    repr_obj = workspace.get_object(representation_uri)
+    if repr_obj is None:
+        print(f"ERROR: object not found for URI {representation_uri}")
+        sys.exit(1)
+        
+    print("GI : ", collect_graphical_info(repr_obj, workspace))
+
+    
+
+
+if __name__ == "__main__":
+    # Run $env:PYTHONPATH="src" if it fails to be executed from the project root.
+    # poetry run python .\src\energyml\utils\data\representation_context.py
+    import sys
+
+    logging.basicConfig(level=logging.WARNING, stream=sys.stdout)
+
+    epc_path = "D:/Geosiris/Cloud/Geo-Workflow/BRGM/BRGM_RESQML_PROJECT_2024/AVRE/exports_brgm/AVRE_COMPLETED_APRIL_SURF/AVRE_COLORED_valentin.epc"
+    representation_uri = "eml:///resqml22.StratigraphicUnitInterpretation(feefb8d2-785e-4173-8315-69b57e022c53)"
+
+    from energyml.utils.epc import Epc
+
+    epc = Epc.read_file(epc_path)
+    workspace = epc  # Epc extends EnergymlStorageInterface directly
+
+    repr_obj = workspace.get_object(representation_uri)
+    if repr_obj is None:
+        print(f"ERROR: object not found for URI {representation_uri}")
+        sys.exit(1)
+        
+    for gi in collect_graphical_info(repr_obj, workspace).values():
+        for entry in gi:
+            try:
+                rendering_info = read_graphical_rendering_info(entry, get_obj_uuid(repr_obj), workspace)
+                print(f"Rendering info for entry {type(entry)}")
+                print(f"\t{rendering_info}")
+            except Exception as exc:
+                print(f"Error reading graphical rendering info for entry {entry}: {exc}")
+
+    
