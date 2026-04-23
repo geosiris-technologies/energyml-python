@@ -3,7 +3,7 @@
 import inspect
 import logging
 import sys
-from typing import Any, Literal, Optional, Callable, List, Tuple, Union
+from typing import Any, Dict, Literal, Optional, Callable, List, Tuple, Union
 
 from energyml.utils.storage_interface import EnergymlStorageInterface
 import numpy as np
@@ -2075,6 +2075,47 @@ class ColorMapInfo:
 
 
 @dataclass
+class IndexableElementRenderingInfo:
+    """Rendering info for one RESQML indexable element type
+    (GraphicalInformationForEdges / ForFaces / ForNodes / ForVolumes / ForWholeObject)."""
+
+    element_type: str  # e.g. "GraphicalInformationForFaces"
+
+    # ── AbstractGraphicalInformationForIndexableElement base fields ───────────
+    is_visible: Optional[bool] = None
+    constant_color: Optional[RgbaColor] = None
+    constant_alpha: Optional[float] = None
+    overwrite_color_alpha: Optional[bool] = None
+    active_color_information_index: Optional[int] = None
+    active_alpha_information_index: Optional[int] = None
+    active_size_information_index: Optional[int] = None
+    active_annotation_information_index: Optional[int] = None
+
+    # ── Edge-specific ─────────────────────────────────────────────────────────
+    edge_pattern: Optional[str] = None
+    edge_thickness: Optional[Any] = None
+    edge_use_interpolation_between_nodes: Optional[bool] = None
+    edge_display_space: Optional[Any] = None
+
+    # ── Node-specific ─────────────────────────────────────────────────────────
+    node_constant_size: Optional[Any] = None
+    node_symbol: Optional[str] = None
+    node_show_symbol_every: Optional[int] = None
+    node_display_space: Optional[Any] = None
+
+    # ── Face-specific ─────────────────────────────────────────────────────────
+    face_applies_on_right_handed_face: Optional[bool] = None
+    face_use_interpolation_between_nodes: Optional[bool] = None
+
+    # ── Volume-specific ───────────────────────────────────────────────────────
+    volume_use_interpolation_between_nodes: Optional[bool] = None
+
+    # ── WholeObject-specific ──────────────────────────────────────────────────
+    whole_display_title: Optional[bool] = None
+    whole_active_contour_line_set_information_index: Optional[int] = None
+
+
+@dataclass
 class ScalarRenderingInfo:
     """
     All graphical rendering parameters needed to display a RESQML property or
@@ -2096,6 +2137,13 @@ class ScalarRenderingInfo:
 
     target_obj_uuid: str
 
+    # ── Per-element rendering info (DefaultGraphicalInformation) ──────────────
+    # Keys are the element type class names, e.g.:
+    #   "GraphicalInformationForFaces", "GraphicalInformationForEdges",
+    #   "GraphicalInformationForNodes", "GraphicalInformationForVolumes",
+    #   "GraphicalInformationForWholeObject"
+    elements: Dict[str, IndexableElementRenderingInfo] = dc_field(default_factory=dict)
+
     # ── Colour mapping (from ColorInformation → ColorMap) ────────────────────
     color_map: Optional[ColorMapInfo] = None
     color_min_max: Optional[Tuple[float, float]] = None  # clamp range for the LUT
@@ -2108,21 +2156,24 @@ class ScalarRenderingInfo:
     alpha_control_points: Optional[List[Tuple[float, float]]] = None
     alpha_min_max: Optional[Tuple[float, float]] = None
     alpha_use_log: bool = False
+    alpha_use_reverse: bool = False
     alpha_overwrite_color_alpha: bool = False
+    alpha_value_vector_index: Optional[int] = None
 
     # ── Size mapping (from SizeInformation) ──────────────────────────────────
     size_min_max: Optional[Tuple[float, float]] = None  # (min_size, max_size)
     size_use_log: bool = False
+    size_use_reverse: bool = False
     size_value_vector_index: Optional[int] = None
-
-    # ── Visibility / constant style (from DefaultGraphicalInformation) ────────
-    is_visible: bool = True
-    constant_color: Optional[RgbaColor] = None
-    constant_alpha: Optional[float] = None  # [0..1] global opacity override
 
     # ── Contour lines (from ContourLineSetInformation) ────────────────────────
     contour_increment: Optional[float] = None
     contour_show_major_every: Optional[int] = None
+    contour_display_label_on_major_line: Optional[bool] = None
+    contour_display_label_on_minor_line: Optional[bool] = None
+    contour_value_vector_index: Optional[int] = None
+    contour_major_line_info: Optional[IndexableElementRenderingInfo] = None
+    contour_minor_line_info: Optional[IndexableElementRenderingInfo] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2214,6 +2265,46 @@ def read_color_map(color_map_obj: Any) -> Optional[ColorMapInfo]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def _read_indexable_element_info(elem_info: Any) -> IndexableElementRenderingInfo:
+    """Map one RESQML ``AbstractGraphicalInformationForIndexableElement`` to
+    :class:`IndexableElementRenderingInfo`, preserving all type-specific fields."""
+    type_name = type(elem_info).__name__
+    base = IndexableElementRenderingInfo(
+        element_type=type_name,
+        is_visible=getattr(elem_info, "is_visible", None),
+        constant_color=_optional_rgba(getattr(elem_info, "constant_color", None)),
+        constant_alpha=getattr(elem_info, "constant_alpha", None),
+        overwrite_color_alpha=getattr(elem_info, "overwrite_color_alpha", None),
+        active_color_information_index=getattr(elem_info, "active_color_information_index", None),
+        active_alpha_information_index=getattr(elem_info, "active_alpha_information_index", None),
+        active_size_information_index=getattr(elem_info, "active_size_information_index", None),
+        active_annotation_information_index=getattr(elem_info, "active_annotation_information_index", None),
+    )
+    if "ForEdges" in type_name:
+        raw_pattern = getattr(elem_info, "pattern", None)
+        base.edge_pattern = str(raw_pattern) if raw_pattern is not None else None
+        base.edge_thickness = getattr(elem_info, "thickness", None)
+        base.edge_use_interpolation_between_nodes = getattr(elem_info, "use_interpolation_between_nodes", None)
+        base.edge_display_space = getattr(elem_info, "display_space", None)
+    elif "ForNodes" in type_name:
+        base.node_constant_size = getattr(elem_info, "constant_size", None)
+        raw_symbol = getattr(elem_info, "symbol", None)
+        base.node_symbol = str(raw_symbol) if raw_symbol is not None else None
+        base.node_show_symbol_every = getattr(elem_info, "show_symbol_every", None)
+        base.node_display_space = getattr(elem_info, "display_space", None)
+    elif "ForFaces" in type_name:
+        base.face_applies_on_right_handed_face = getattr(elem_info, "applies_on_right_handed_face", None)
+        base.face_use_interpolation_between_nodes = getattr(elem_info, "use_interpolation_between_nodes", None)
+    elif "ForVolumes" in type_name:
+        base.volume_use_interpolation_between_nodes = getattr(elem_info, "use_interpolation_between_nodes", None)
+    elif "ForWholeObject" in type_name:
+        base.whole_display_title = getattr(elem_info, "display_title", None)
+        base.whole_active_contour_line_set_information_index = getattr(
+            elem_info, "active_contour_line_set_information_index", None
+        )
+    return base
+
+
 def read_graphical_rendering_info(
     graphical_information_set: Any,
     target_uuid: str,
@@ -2243,25 +2334,27 @@ def read_graphical_rendering_info(
     | RESQML class                  | Populated fields                  |
     +===============================+===================================+
     | ``ColorInformation``          | ``color_map``, ``color_min_max``, |
-    |                               | ``color_use_log``, ``color_use_`` |
-    |                               | ``reverse``,                      |
+    |                               | ``color_use_log``,                |
+    |                               | ``color_use_reverse``,            |
     |                               | ``color_value_vector_index``      |
     +-------------------------------+-----------------------------------+
     | ``AlphaInformation``          | ``alpha_control_points``,         |
     |                               | ``alpha_min_max``,                |
     |                               | ``alpha_use_log``,                |
-    |                               | ``alpha_overwrite_color_alpha``   |
+    |                               | ``alpha_use_reverse``,            |
+    |                               | ``alpha_overwrite_color_alpha``,  |
+    |                               | ``alpha_value_vector_index``      |
     +-------------------------------+-----------------------------------+
     | ``SizeInformation``           | ``size_min_max``,                 |
     |                               | ``size_use_log``,                 |
+    |                               | ``size_use_reverse``,             |
     |                               | ``size_value_vector_index``       |
     +-------------------------------+-----------------------------------+
-    | ``DefaultGraphicalInform…``   | ``is_visible``,                   |
-    |                               | ``constant_color``,               |
-    |                               | ``constant_alpha``                |
+    | ``DefaultGraphicalInform…``   | ``elements`` dict keyed by        |
+    |                               | element-type class name           |
     +-------------------------------+-----------------------------------+
-    | ``ContourLineSetInform…``     | ``contour_increment``,            |
-    |                               | ``contour_show_major_every``      |
+    | ``ContourLineSetInform…``     | ``contour_*`` fields +            |
+    |                               | ``contour_major/minor_line_info`` |
     +-------------------------------+-----------------------------------+
     """
 
@@ -2291,28 +2384,35 @@ def read_graphical_rendering_info(
             cmap_dor = getattr(info, "color_map", None)
             if cmap_dor is not None and workspace is not None:
                 cmap_obj = workspace.get_object(get_obj_uri(cmap_dor))
-                if cmap_obj is None:
-                    candidates = workspace.get_object(get_obj_uri(cmap_dor))
-                    cmap_obj = candidates[0] if candidates else None
                 if cmap_obj is not None:
                     result.color_map = read_color_map(cmap_obj)
 
         elif "AlphaInformation" in type_name:
             result.alpha_use_log = bool(getattr(info, "use_logarithmic_mapping", False))
+            result.alpha_use_reverse = bool(getattr(info, "use_reverse_mapping", False))
             result.alpha_overwrite_color_alpha = bool(getattr(info, "overwrite_color_alpha", False))
+            result.alpha_value_vector_index = getattr(info, "value_vector_index", None)
             mm = getattr(info, "min_max", None)
             if mm is not None:
                 result.alpha_min_max = (mm.minimum, mm.maximum)
             raw_indices = getattr(info, "index", []) or []
             raw_alphas = getattr(info, "alpha", []) or []
             if raw_indices and raw_alphas:
-                try:
-                    result.alpha_control_points = [(float(idx), float(a)) for idx, a in zip(raw_indices, raw_alphas)]
-                except (TypeError, ValueError) as exc:
-                    logging.warning(f"read_graphical_rendering_info: cannot parse AlphaInformation indices: {exc}")
+                pts = []
+                for idx, a in zip(raw_indices, raw_alphas):
+                    try:
+                        pts.append((float(idx), float(a)))
+                    except (TypeError, ValueError) as exc:
+                        logging.warning(
+                            f"read_graphical_rendering_info: skipping invalid AlphaInformation"
+                            f" control point ({idx!r}, {a!r}): {exc}"
+                        )
+                if pts:
+                    result.alpha_control_points = pts
 
         elif "SizeInformation" in type_name:
             result.size_use_log = bool(getattr(info, "use_logarithmic_mapping", False))
+            result.size_use_reverse = bool(getattr(info, "use_reverse_mapping", False))
             result.size_value_vector_index = getattr(info, "value_vector_index", None)
             mm = getattr(info, "min_max", None)
             if mm is not None:
@@ -2320,18 +2420,21 @@ def read_graphical_rendering_info(
 
         elif "DefaultGraphicalInformation" in type_name:
             for elem_info in getattr(info, "indexable_element_info", []) or []:
-                if (getattr(elem_info, "is_visible", None)) is False:
-                    result.is_visible = False
-                const_col = getattr(elem_info, "constant_color", None)
-                if const_col is not None:
-                    result.constant_color = RgbaColor.from_hsv(const_col)
-                const_alpha = getattr(elem_info, "constant_alpha", None)
-                if const_alpha is not None:
-                    result.constant_alpha = float(const_alpha)
+                elem_type = type(elem_info).__name__
+                result.elements[elem_type] = _read_indexable_element_info(elem_info)
 
         elif "ContourLineSetInformation" in type_name:
             result.contour_increment = getattr(info, "increment", None)
             result.contour_show_major_every = getattr(info, "show_major_line_every", None)
+            result.contour_display_label_on_major_line = getattr(info, "display_label_on_major_line", None)
+            result.contour_display_label_on_minor_line = getattr(info, "display_label_on_minor_line", None)
+            result.contour_value_vector_index = getattr(info, "value_vector_index", None)
+            major = getattr(info, "major_line_graphical_information", None)
+            if major is not None:
+                result.contour_major_line_info = _read_indexable_element_info(major)
+            minor = getattr(info, "minor_line_graphical_information", None)
+            if minor is not None:
+                result.contour_minor_line_info = _read_indexable_element_info(minor)
 
         # AnnotationInformation is intentionally not mapped to ScalarRenderingInfo
         # because it drives label text, not colour/size - handle separately if needed.

@@ -262,9 +262,7 @@ def _get_context_color(
     if ctx is None:
         return None
     try:
-        rendering = ctx.get_default_color()
-        if rendering is not None and rendering.constant_color is not None:
-            return rendering.constant_color.to_uint8()
+        return ctx.primary_color.to_uint8()
     except Exception as exc:  # pragma: no cover
         log.debug("Failed to read color for %s: %s", source_uuid, exc)
     return None

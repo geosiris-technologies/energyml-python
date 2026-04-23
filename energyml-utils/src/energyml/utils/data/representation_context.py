@@ -1,8 +1,9 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 
+from enum import Enum
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from energyml.opc.opc import Relationship
 from energyml.utils.data.crs import CrsInfo
 from pydantic import BaseModel, Field, ConfigDict
@@ -11,10 +12,74 @@ from energyml.utils.uri import Uri
 from energyml.utils.storage_interface import EnergymlStorageInterface
 from energyml.utils.epc_utils import extract_uuid_and_version_from_obj_path, get_property_kind_by_title, get_property_kind_uuid_from_property_object
 from energyml.utils.introspection import get_obj_uri, get_obj_uuid, get_object_attribute, is_enum, search_attribute_matching_name
-from energyml.utils.data.helper import RgbaColor, ScalarRenderingInfo, read_graphical_rendering_info
+from energyml.utils.data.helper import RgbaColor, ScalarRenderingInfo, IndexableElementRenderingInfo, read_color_map, read_graphical_rendering_info
 from energyml.utils.data.crs import extract_crs_info
 
 NO_KIND = "NO_KIND"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Element-type keys (RESQML class name suffixes used in ScalarRenderingInfo.elements)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_ELEMENT_KEY_FACES = "GraphicalInformationForFaces"
+_ELEMENT_KEY_EDGES = "GraphicalInformationForEdges"
+_ELEMENT_KEY_NODES = "GraphicalInformationForNodes"
+_ELEMENT_KEY_VOLUMES = "GraphicalInformationForVolumes"
+_ELEMENT_KEY_WHOLE = "GraphicalInformationForWholeObject"
+
+
+def _primary_element_key(type_name: str) -> str:
+    """Return the dominant element-type key for a RESQML representation class name."""
+    t = type_name.lower()
+    if any(k in t for k in ("triangulated", "grid2d", "horizon", "surface", "grid")):
+        return _ELEMENT_KEY_FACES
+    if any(k in t for k in ("polyline", "wellbore", "trajectory", "seismic")):
+        return _ELEMENT_KEY_EDGES
+    if "point" in t:
+        return _ELEMENT_KEY_NODES
+    return _ELEMENT_KEY_WHOLE
+
+
+class CellType(Enum):
+    FACE = "face"
+    EDGE = "edge"
+    NODE = "node"
+    VOLUME = "volume"
+    WHOLE = "whole"
+    
+    def __str__(self):
+        return self.value
+    
+    def __eq__(self, value):
+        return (isinstance(value, str) and self.value == value.lower()) or (isinstance(value, CellType) and self.value == value.value)
+
+def _primary_cell_type_for_object(type_name: str) -> CellType:
+    """Return the dominant element-type key for a RESQML representation class name."""
+    if not isinstance(type_name, str):
+        type_name = type(type_name).__name__
+    t = type_name.lower()
+    if any(k in t for k in (_ELEMENT_KEY_VOLUMES.lower(), "ijk", "grid3d")):
+        return CellType.VOLUME
+    if any(k in t for k in (_ELEMENT_KEY_FACES.lower(), "triangulated", "grid2d", "horizon", "surface", "grid")):
+        return CellType.FACE
+    if any(k in t for k in (_ELEMENT_KEY_EDGES.lower(), "polyline", "wellbore", "trajectory", "seismic")):
+        return CellType.EDGE
+    if "point" in t or _ELEMENT_KEY_NODES.lower() in t:
+        return CellType.NODE
+    return CellType.WHOLE
+
+
+def _element_constant_color(
+    ri: ScalarRenderingInfo, key: str
+) -> Optional[RgbaColor]:
+    """Return the constant color for *key* element type, falling back to WholeObject."""
+    elem = ri.elements.get(key)
+    if elem is not None and elem.constant_color is not None:
+        return elem.constant_color
+    whole = ri.elements.get(_ELEMENT_KEY_WHOLE)
+    if whole is not None and whole.constant_color is not None:
+        return whole.constant_color
+    return None
 
 
 def collect_graphical_info(obj: Any, workspace: EnergymlStorageInterface) -> Dict[str, List[Any]]:
@@ -52,6 +117,67 @@ def collect_graphical_info_from_rels(
     return graphical_info_result
 
 
+def get_color(cell_type: Union[str, CellType], object_type: str, graphical_info: List[Any], workspace: EnergymlStorageInterface) -> Optional[RgbaColor]:
+    """
+    Return the color of an object based on its graphical information, or None if not found.
+    The function searches for ColorInformation object if found and if the cell_type matches the type of the object_type
+    (e.g. "face" for TriangulatedSet or Grid, "edge" for PolylineSet, "node" for PointSet, etc.). 
+    If cell_type and object_type do not match, or if no ColorInformation is found, a search is done for DefaultGraphicalInformation 
+    that contains an indexable_element_info with the appropriate cell_type. If none found, search for a WholeObject indexable_element_info.
+    """
+    # test if cell_type and object_type matches
+    obj_cell_type = _primary_cell_type_for_object(object_type)
+    if cell_type == obj_cell_type:
+        # same type, search for ColorInformation
+        for gi in graphical_info:
+            if "ColorInformation" in type(gi).__name__:
+                try:
+                    value_vector_index = int(getattr(gi, "value_vector_index", None))
+                    cmap_dor = getattr(gi, "color_map", None)
+                    if cmap_dor is not None and workspace is not None:
+                        cmap_obj = workspace.get_object(get_obj_uri(cmap_dor))
+                        if cmap_obj is not None:
+                            color_map = read_color_map(cmap_obj)
+                            return color_map.entries[value_vector_index].color
+                except Exception as exc:
+                    logging.debug(f"Error reading ColorInformation: {exc}")
+                    
+    # Search for DefaultGraphicalInformation with matching cell_type
+    info_whole_color = []
+    for gi in graphical_info:
+        if "DefaultGraphicalInformation" in type(gi).__name__:
+            try:
+                for elem_info in getattr(gi, "indexable_element_info", []):
+                    elem_cell_type = _primary_cell_type_for_object(type(elem_info).__name__)
+                    if elem_cell_type == CellType.WHOLE:
+                        if elem_info.constant_color is not None:
+                            info_whole_color.append(RgbaColor.from_hsv(elem_info.constant_color))
+                    if elem_cell_type == cell_type:
+                        if elem_info.constant_color is not None:
+                            return RgbaColor.from_hsv(elem_info.constant_color)
+            except Exception as exc:
+                logging.debug(f"Error reading DefaultGraphicalInformation: {exc}")
+
+    if info_whole_color:
+        return info_whole_color[0].to_rgb()
+    
+    return None
+
+def get_color_from_object(obj: Any, cell_type: Union[str, CellType], workspace: EnergymlStorageInterface, target_obj_type: Optional[str]=None) -> Optional[RgbaColor]:
+    """
+    Return the color of an object based on its graphical information, or None if not found.
+    The function searches for ColorInformation object if found and if the cell_type matches the type of the target_obj_type
+    (e.g. "face" for TriangulatedSet or Grid, "edge" for PolylineSet, "node" for PointSet, etc.). 
+    If cell_type and target_obj_type do not match, or if no ColorInformation is found, a search is done for DefaultGraphicalInformation 
+    that contains an indexable_element_info with the appropriate cell_type. If none found, search for a WholeObject indexable_element_info.
+    If target_obj_type is not provided, it will be inferred from the type of obj.
+    """
+    if target_obj_type is None:
+        target_obj_type = type(obj).__name__
+    graphical_info = collect_graphical_info(obj, workspace)
+    return get_color(cell_type, target_obj_type, [gi for gis in graphical_info.values() for gi in gis], workspace)
+
+
 class RepresentationContext(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -74,6 +200,7 @@ class RepresentationContext(BaseModel):
     _vertical_uom: Optional[str] = None
     
     _interpretation: Optional[Any] = None
+    _interpretation_context: Optional["RepresentationContext"] = None
 
     def __init__(self, obj: Any, workspace: EnergymlStorageInterface, **data):
         super().__init__(obj=obj, workspace=workspace, uri=get_obj_uri(obj), **data)
@@ -81,6 +208,7 @@ class RepresentationContext(BaseModel):
         # Properties keyed by object uuid → property object
         self._props = {}
         self._props_by_kind = {}
+        self._rendering_info = None
         self.update()
 
     def update(self):
@@ -89,6 +217,7 @@ class RepresentationContext(BaseModel):
         self._collect_crs()
         self._collect_graphical_info(self.rels)
         self.collect_time_series()
+        self._rendering_info = None  # invalidate lazy cache
         
     
 
@@ -159,22 +288,97 @@ class RepresentationContext(BaseModel):
         # Collect graphical information entries whose target matches this representation
         self.graphical_info = collect_graphical_info_from_rels(rels, self.uri.uuid, self.workspace)
 
-    def get_default_color(self) -> ScalarRenderingInfo:
-        """Search for a default color (first found) for the representation, and return it as an RGBA tuple.  Returns a random color (generated from uuid) if no color information is found."""
-        for gis_uri, entries in self.graphical_info.items():
-            for entry in entries:
-                try:
-                    rendering_info = read_graphical_rendering_info(entry, self.uri.uuid, self.workspace)
-                    if rendering_info is not None:
-                        return rendering_info
-                except Exception as exc:
-                    logging.debug(f"Error reading graphical rendering info for entry {entry}: {exc}")
-        # No color information found, generate a random color from uuid
-        return ScalarRenderingInfo(
-            target_obj_uuid=self.uri.uuid, constant_color=RgbaColor.random_from_uuid(self.uri.uuid)
-        )
-        
+    @property
+    def rendering_info(self) -> Optional[ScalarRenderingInfo]:
+        """Lazily accumulate and cache all graphical rendering info for this representation."""
+        if self._rendering_info is None:
+            accumulated: Optional[ScalarRenderingInfo] = None
+            for _gis_uri, entries in self.graphical_info.items():
+                for entry in entries:
+                    try:
+                        ri = read_graphical_rendering_info(entry, self.uri.uuid, self.workspace)
+                        if ri is None:
+                            continue
+                        if accumulated is None:
+                            accumulated = ri
+                        else:
+                            # Merge elements dict (later entries overwrite earlier for same key)
+                            accumulated.elements.update(ri.elements)
+                            if ri.color_map is not None:
+                                accumulated.color_map = ri.color_map
+                            if ri.color_min_max is not None:
+                                accumulated.color_min_max = ri.color_min_max
+                            if ri.contour_major_line_info is not None:
+                                accumulated.contour_major_line_info = ri.contour_major_line_info
+                            if ri.contour_minor_line_info is not None:
+                                accumulated.contour_minor_line_info = ri.contour_minor_line_info
+                    except Exception as exc:
+                        logging.debug(f"Error reading graphical rendering info: {exc}")
+            self._rendering_info = accumulated
+        return self._rendering_info
     
+    
+    def get_related_color(self, cell_type: Union[str, CellType]) -> Optional[RgbaColor]:
+        """Return the color of an object based on its graphical information, or None if not found. Search is done for the given cell_type first, then fallback to WholeObject."""
+        obj_type = type(self.obj).__name__
+        color = None
+        # Fallback on interpretation
+        if self.interpretation_as_context is not None:
+            color = get_color(cell_type, obj_type, [gi for gis in self.interpretation_as_context.graphical_info.values() for gi in gis], self.workspace)
+        if color is None:
+            # search for units in rels or interpretation rels
+            cached_uuids = set()
+            for r in self.rels + (self.interpretation_as_context.rels if self.interpretation_as_context is not None else []):
+                if "Unit" in r.target:
+                    uuid, version = extract_uuid_and_version_from_obj_path(r.target)
+                    print(f"Found Unit reference in relationship: {r.target} (uuid={uuid}, version={version})")
+                    if uuid not in cached_uuids:
+                        cached_uuids.add(uuid)
+                        unit_obj = self.workspace.get_object_by_uuid_versioned(uuid, version)
+                        if unit_obj is not None:
+                            col = get_color_from_object(unit_obj, cell_type, self.workspace, target_obj_type=obj_type)
+                            if col is not None:
+                                return col
+        return color
+
+    @property
+    def mesh_color(self) -> Optional[RgbaColor]:
+        """Constant color for mesh elements (faces or volumes), or None if not set."""
+        cell_type = _primary_cell_type_for_object(self.obj)
+        obj_type = type(self.obj).__name__
+        color = get_color(cell_type, obj_type, [gi for gis in self.graphical_info.values() for gi in gis], self.workspace)
+        
+        return color or self.get_related_color(cell_type)
+            
+
+    @property
+    def face_color(self) -> Optional[RgbaColor]:
+        """Constant color for face elements, or None if not set."""
+        color = get_color(CellType.FACE, type(self.obj).__name__, [gi for gis in self.graphical_info.values() for gi in gis], self.workspace)
+        return color or self.get_related_color(CellType.FACE)
+
+    @property
+    def edge_color(self) -> Optional[RgbaColor]:
+        """Constant color for edge elements, or None if not set."""
+        color = get_color(CellType.EDGE, type(self.obj).__name__, [gi for gis in self.graphical_info.values() for gi in gis], self.workspace)
+        return color or self.get_related_color(CellType.EDGE)
+            
+    @property
+    def node_color(self) -> Optional[RgbaColor]:
+        """Constant color for node/point elements, or None if not set."""
+        color = get_color(CellType.NODE, type(self.obj).__name__, [gi for gis in self.graphical_info.values() for gi in gis], self.workspace)
+        return color or self.get_related_color(CellType.NODE)
+            
+    @property
+    def primary_color(self) -> RgbaColor:
+        """Best constant color for this representation type, falling back to a UUID-seeded random color."""
+        ri = self.rendering_info
+        if ri is not None:
+            key = _primary_element_key(type(self.obj).__name__)
+            color = _element_constant_color(ri, key)
+            if color is not None:
+                return color
+        return RgbaColor.random_from_uuid(self.uri.uuid)
 
     def get_property(self, property_uuid: str) -> Optional[Any]:
         """Return the property object with the given uuid, or None."""
@@ -221,6 +425,18 @@ class RepresentationContext(BaseModel):
                 self._interpretation = interpretation_obj
                 return interpretation_obj
             
+        return None
+    
+    @property
+    def interpretation_as_context(self) -> Optional["RepresentationContext"]:
+        """Return the interpretation as a RepresentationContext, or None if not found."""
+        if self._interpretation_context is not None:
+            return self._interpretation_context
+        
+        interp = self.interpretation
+        if interp is not None:
+            self._interpretation_context = RepresentationContext(interp, self.workspace)
+            return self._interpretation_context
         return None
     
     @property
@@ -461,7 +677,9 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.WARNING, stream=sys.stdout)
 
     epc_path = "D:/Geosiris/Cloud/Geo-Workflow/BRGM/BRGM_RESQML_PROJECT_2024/AVRE/exports_brgm/AVRE_COMPLETED_APRIL_SURF/AVRE_COLORED_valentin.epc"
-    representation_uri = "eml:///resqml22.StratigraphicUnitInterpretation(feefb8d2-785e-4173-8315-69b57e022c53)"
+    # representation_uri = "eml:///resqml22.TriangulatedSetRepresentation(b1fd87b4-17f7-4730-a37b-7829e59add4b)"  # SENO
+    representation_uri = "eml:///resqml22.TriangulatedSetRepresentation(13b8bf5d-af9e-4b23-9ef0-5be693afd617)"  # PERC
+    # representation_uri = "eml:///resqml22.StratigraphicUnitInterpretation(feefb8d2-785e-4173-8315-69b57e022c53)"
 
     from energyml.utils.epc import Epc
 
@@ -473,13 +691,23 @@ if __name__ == "__main__":
         print(f"ERROR: object not found for URI {representation_uri}")
         sys.exit(1)
         
+    gi_list = []
     for gi in collect_graphical_info(repr_obj, workspace).values():
-        for entry in gi:
-            try:
-                rendering_info = read_graphical_rendering_info(entry, get_obj_uuid(repr_obj), workspace)
-                print(f"Rendering info for entry {type(entry)}")
-                print(f"\t{rendering_info}")
-            except Exception as exc:
-                print(f"Error reading graphical rendering info for entry {entry}: {exc}")
+        gi_list.extend(gi)
+        # for entry in gi:
+        #     try:
+        #         rendering_info = read_graphical_rendering_info(entry, get_obj_uuid(repr_obj), workspace)
+        #         print(f"Rendering info for entry {type(entry)}")
+        #         print(f"\t{rendering_info}")
+        #     except Exception as exc:
+        #         print(f"Error reading graphical rendering info for entry {entry}: {exc}")
+                
+                
+    # print(get_color(CellType.FACE, type(repr_obj).__name__, gi_list, workspace))
+    # print(get_color(CellType.EDGE, type(repr_obj).__name__, gi_list, workspace))
+    repr_ctx = RepresentationContext(repr_obj, workspace)
+    print(repr_ctx.face_color)
+    print(repr_ctx.edge_color)
+    print(repr_ctx.node_color)
 
     

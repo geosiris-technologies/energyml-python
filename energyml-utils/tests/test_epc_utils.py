@@ -628,3 +628,4 @@ class TestObjectCreation:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+    print(create_external_part_reference("2.2", "coucou"))
