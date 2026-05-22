@@ -84,7 +84,7 @@ def _element_constant_color(
 
 def collect_graphical_info(obj: Any, workspace: EnergymlStorageInterface) -> Dict[str, List[Any]]:
     rels = workspace.get_obj_rels(obj)
-    print("\tRelationships for object:", rels)
+    # print("\tRelationships for object:", rels)
     obj_uuid = get_obj_uuid(obj)
     return collect_graphical_info_from_rels(rels, obj_uuid, workspace)
 
@@ -678,8 +678,9 @@ if __name__ == "__main__":
 
     epc_path = "D:/Geosiris/Cloud/Geo-Workflow/BRGM/BRGM_RESQML_PROJECT_2024/AVRE/exports_brgm/AVRE_COMPLETED_APRIL_SURF/AVRE_COLORED_valentin.epc"
     # representation_uri = "eml:///resqml22.TriangulatedSetRepresentation(b1fd87b4-17f7-4730-a37b-7829e59add4b)"  # SENO
-    representation_uri = "eml:///resqml22.TriangulatedSetRepresentation(13b8bf5d-af9e-4b23-9ef0-5be693afd617)"  # PERC
+    # representation_uri = "eml:///resqml22.TriangulatedSetRepresentation(13b8bf5d-af9e-4b23-9ef0-5be693afd617)"  # PERC
     # representation_uri = "eml:///resqml22.StratigraphicUnitInterpretation(feefb8d2-785e-4173-8315-69b57e022c53)"
+    representation_uri = "eml:///resqml22.StratigraphicUnitInterpretation(ff7a469b-606a-4fb8-969c-f136269de1a5)"  # PERC
 
     from energyml.utils.epc import Epc
 

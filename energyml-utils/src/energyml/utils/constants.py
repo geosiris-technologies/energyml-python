@@ -33,6 +33,11 @@ ENERGYML_NAMESPACES = {
     "witsml": "http://www.energistics.org/energyml/data/witsmlv2",
     "resqml": "http://www.energistics.org/energyml/data/resqmlv2",
 }
+
+WELLKNOWN_NAMESPACES = ENERGYML_NAMESPACES |{
+    "xsd": "http://www.w3.org/2001/XMLSchema",
+    "xsi": "http://www.w3.org/2001/XMLSchema-instance"
+}
 """Dict of all energyml namespaces"""
 
 ENERGYML_NAMESPACES_PACKAGE = {
