@@ -1,17 +1,20 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
+import logging
 import re
 from dataclasses import dataclass, field, Field
 from enum import Enum
 import traceback
 from typing import Any, Dict, List, Optional, Union
 
-from .epc import (
-    get_obj_identifier,
+from energyml.utils.epc import (
     Epc,
+)
+from energyml.utils.epc_utils import (
+    get_obj_identifier,
     get_property_kind_by_uuid,
 )
-from .introspection import (
+from energyml.utils.introspection import (
     get_class_fields,
     get_object_attribute,
     is_primitive,
@@ -34,6 +37,9 @@ class ErrorType(Enum):
     INFO = "info"
     WARNING = "warning"
 
+    def __str__(self):
+        return self.value
+
 
 @dataclass
 class ValidationError:
@@ -49,6 +55,7 @@ class ValidationError:
         return {
             "msg": self.msg,
             "error_type": self.error_type.value,
+            "err_class": self.__class__.__name__,
         }
 
     @property
@@ -89,7 +96,6 @@ class ValidationObjectInfo(ValidationObjectError):
 
 @dataclass
 class MandatoryError(ValidationObjectError):
-
     @property
     def msg(self) -> str:
         return f"Mandatory value is None for {get_obj_identifier(self.target_obj)} : '{self.attribute_dot_path}'"
@@ -201,6 +207,8 @@ def dor_validation_object(
                     _msg=f"[DOR ERR] has wrong information. Unknown object with uuid '{dor_uuid}'",
                 )
             )
+
+        object_version_list_failed = False
         if target_uuid is not None and target_identifier is None:
             accessible_version = [get_obj_version(ref_obj) for ref_obj in dict_obj_uuid[dor_uuid]]
             errs.append(
@@ -212,6 +220,7 @@ def dor_validation_object(
                     f"Version must be one of {accessible_version}",
                 )
             )
+            object_version_list_failed = True
 
         if target_prop is not None and target_uuid is None:
             errs.append(
@@ -224,6 +233,32 @@ def dor_validation_object(
             )
 
         target = target_identifier or target_uuid or target_prop
+
+        # debug
+        if isinstance(target, list):
+            # logging.error(
+            #     f"Multiple objects found with uuid '{dor_uuid}' for DOR in object '{get_obj_identifier(obj)}' at path '{dor_path}'. This should not happen and can lead to wrong validation results.",
+            #     exc_info=True,
+            #     stack_info=True,  # This shows the full call stack including caller
+            # )
+            # logging.error(
+            #     f'\t{target} => Object ct and qt {get_object_attribute_rgx(dor, "content_type")} : {get_object_attribute_rgx(dor, "qualified_type")}'
+            # )
+            if len(target) == 0:
+                target = None
+            else:
+                if len(target) > 1:
+                    errs.append(
+                        ValidationObjectError(
+                            error_type=ErrorType.WARNING,
+                            target_obj=obj,
+                            attribute_dot_path=dor_path,
+                            _msg=f"[DOR ERR] Multiple objects found with uuid '{dor_uuid}' for DOR in object '{get_obj_identifier(obj)}' at path '{dor_path}'. This should not happen and can lead to wrong validation results.",
+                        )
+                    )
+                target = target[0]
+
+        # ====
         if target is not None:
             # target = dict_obj_identifier[dor_target_id]
             target_title = get_object_attribute_rgx(target, "citation.title")
@@ -265,7 +300,8 @@ def dor_validation_object(
                         )
                     )
 
-            if target_version != dor_version:
+            if not object_version_list_failed and target_version != dor_version:
+                # checking object_version_list_failed to avoid multiple version errors
                 errs.append(
                     ValidationObjectError(
                         error_type=ErrorType.WARNING,

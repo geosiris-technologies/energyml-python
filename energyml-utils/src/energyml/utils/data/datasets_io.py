@@ -51,6 +51,22 @@ try:
 except Exception:
     __PARQUET_MODULE_EXISTS__ = False
 
+try:
+    import lasio
+
+    __LASIO_MODULE_EXISTS__ = True
+except Exception:
+    lasio = None
+    __LASIO_MODULE_EXISTS__ = False
+
+try:
+    import segyio
+
+    __SEGYIO_MODULE_EXISTS__ = True
+except Exception:
+    segyio = None
+    __SEGYIO_MODULE_EXISTS__ = False
+
 # HDF5
 if __H5PY_MODULE_EXISTS__:
 
@@ -142,7 +158,6 @@ if __H5PY_MODULE_EXISTS__:
 
     @dataclass
     class HDF5FileWriter:
-
         def write_array(
             self,
             target: Union[str, BytesIO, bytes, "h5py.File"],
@@ -193,7 +208,6 @@ else:
             raise MissingExtraInstallation(extra_name="hdf5")
 
     class HDF5FileWriter:
-
         def write_array(
             self,
             target: Union[str, BytesIO, bytes, Any],
@@ -580,15 +594,14 @@ def read_dataset(
     mimetype: Optional[str] = "application/x-hdf5",
 ) -> Any:
     mimetype = (mimetype or "").lower()
-    file_reader = HDF5FileReader()  # default is hdf5
     if "parquet" in mimetype or (
         isinstance(source, str) and (source.lower().endswith(".parquet") or source.lower().endswith(".pqt"))
     ):
         file_reader = ParquetFileReader()
-    elif "csv" in mimetype or (
-        isinstance(source, str) and (source.lower().endswith(".csv") or source.lower().endswith(".dat"))
-    ):
+    elif "csv" in mimetype or (isinstance(source, str) and (source.lower().endswith(".csv"))):
         file_reader = CSVFileReader()
+    else:
+        file_reader = HDF5FileReader()  # default is hdf5
     return file_reader.read_array(source, path_in_external_file)
 
 
@@ -601,7 +614,7 @@ def read_external_dataset_array(
 ):
     if additional_sources is None:
         additional_sources = []
-    result_array = []
+    result_array = None
 
     for path_in_obj, path_in_external in get_path_in_external_with_path(energyml_array):
         succeed = False
@@ -615,10 +628,13 @@ def read_external_dataset_array(
         )
         for s in sources:
             try:
-                # TODO: take care of the "Counts" and "Starts" list in ExternalDataArrayPart to fill array correctly
-                result_array = result_array + read_dataset(
-                    source=s, path_in_external_file=path_in_external, mimetype=mimetype
-                )
+                if result_array is None:
+                    result_array = read_dataset(source=s, path_in_external_file=path_in_external, mimetype=mimetype)
+                else:
+                    # TODO: take care of the "Counts" and "Starts" list in ExternalDataArrayPart to fill array correctly
+                    result_array = result_array + read_dataset(
+                        source=s, path_in_external_file=path_in_external, mimetype=mimetype
+                    )
                 succeed = True
                 break  # stop after the first read success
             except MissingExtraInstallation as mei:
@@ -706,3 +722,1119 @@ def get_proxy_uri_for_path_in_external(obj: Any, dataspace_name_or_uri: Union[st
     else:
         logging.debug(f"No datasets found in object {str(get_obj_uri(obj))}")
     return uri_path_map
+
+
+# ===========================================================================================
+# FILE CACHE MANAGER AND HANDLER REGISTRY
+# ===========================================================================================
+
+
+from typing import Callable
+from energyml.utils.data.model import ExternalArrayHandler
+
+
+class FileHandlerRegistry:
+    """
+    Global registry that maps file extensions to handler classes.
+
+    This allows the system to automatically select the correct handler
+    based on file extension without hardcoding dependencies.
+
+    Usage:
+        registry = FileHandlerRegistry()
+        handler = registry.get_handler_for_file("data.h5")
+        if handler:
+            array = handler.read_array("data.h5", "/dataset/path")
+    """
+
+    def __init__(self, max_open_files: int = 3):
+        self._handlers: Dict[str, Callable[[], ExternalArrayHandler]] = {}
+        self._register_default_handlers(max_open_files)
+
+    def _register_default_handlers(self, max_open_files: int) -> None:
+        """Register all available handlers based on installed dependencies."""
+        # HDF5 Handler
+        if __H5PY_MODULE_EXISTS__:
+            self.register_handler([".h5", ".hdf5"], lambda: HDF5ArrayHandler())  # dat for Galaxy compatibility
+        else:
+            self.register_handler([".h5", ".hdf5"], lambda: MockHDF5ArrayHandler())  # dat for Galaxy compatibility
+
+        # Parquet Handler
+        if __PARQUET_MODULE_EXISTS__:
+            self.register_handler([".parquet", ".pq"], lambda: ParquetArrayHandler())
+        else:
+            self.register_handler([".parquet", ".pq"], lambda: MockParquetArrayHandler())
+
+        # CSV Handler - always available (uses Python's csv module)
+        if __CSV_MODULE_EXISTS__:
+            self.register_handler([".csv", ".txt"], lambda: CSVArrayHandler())
+
+        # LAS Handler
+        if __LASIO_MODULE_EXISTS__:
+            self.register_handler([".las"], lambda: LASArrayHandler())
+        else:
+            self.register_handler([".las"], lambda: MockLASArrayHandler())
+
+        # SEG-Y Handler
+        if __SEGYIO_MODULE_EXISTS__:
+            self.register_handler([".sgy", ".segy"], lambda: SEGYArrayHandler())
+        else:
+            self.register_handler([".sgy", ".segy"], lambda: MockSEGYArrayHandler())
+
+    def register_handler(self, extensions: List[str], handler_factory: Callable[[], ExternalArrayHandler]) -> None:
+        """
+        Register a handler factory for given file extensions.
+
+        Args:
+            extensions: List of file extensions (with leading dot, e.g., ['.h5', '.hdf5'])
+            handler_factory: Callable that returns a new handler instance
+        """
+        for ext in extensions:
+            ext_lower = ext.lower() if ext.startswith(".") else "." + ext.lower()
+            self._handlers[ext_lower] = handler_factory
+
+    def get_handler_for_file(self, file_path: str) -> Optional[ExternalArrayHandler]:
+        """
+        Get appropriate handler for a file based on its extension.
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            Handler instance, or h5 handler if extension not found but h5 handler is available and not mock, else None
+        """
+        ext = os.path.splitext(file_path)[1].lower()
+
+        if ext in self._handlers:
+            return self._handlers[ext]()
+
+        # search for h5 handler if not mock and return it by default
+        if ".h5" in self._handlers:
+            h = self._handlers[".h5"]()
+            if "mock" not in h.__class__.__name__.lower():
+                return self._handlers[".h5"]()
+        return None
+
+    def supports_extension(self, extension: str) -> bool:
+        """
+        Check if a handler is registered for the given extension.
+
+        Args:
+            extension: File extension (with or without leading dot)
+
+        Returns:
+            True if a handler is registered
+        """
+        ext_lower = extension.lower() if extension.startswith(".") else "." + extension.lower()
+        return ext_lower in self._handlers
+
+
+# Global registry instance
+_GLOBAL_HANDLER_REGISTRY = FileHandlerRegistry()
+
+
+def get_handler_registry() -> FileHandlerRegistry:
+    """Get the global file handler registry."""
+    return _GLOBAL_HANDLER_REGISTRY
+
+
+# ===========================================================================================
+# CONCRETE HANDLER IMPLEMENTATIONS
+# ===========================================================================================
+
+# HDF5 Handler
+if __H5PY_MODULE_EXISTS__:
+
+    class HDF5ArrayHandler(ExternalArrayHandler):
+        """Handler for HDF5 files (.h5, .hdf5)."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open an HDF5 file without using the cache."""
+            try:
+                return h5py.File(file_path, mode)  # type: ignore
+            except Exception as e:
+                # logging.debug(f"Failed to open HDF5 file {file_path}: {e}")
+                return None
+
+        def read_array(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            """Read array from HDF5 file with optional sub-selection."""
+            if isinstance(source, h5py.File):  # type: ignore
+                if path_in_external_file:
+                    d_group = source[path_in_external_file]
+                    full_array = d_group[()]  # type: ignore
+                    # Apply sub-selection if specified
+                    if start_indices is not None and counts is not None:
+                        slices = tuple(slice(start, start + count) for start, count in zip(start_indices, counts))
+                        return full_array[slices]
+                    return full_array
+                return None
+            else:
+                with self.file_cache.get_or_open(source, self, "r") as f:  # type: ignore
+                    return self.read_array(f, path_in_external_file, start_indices, counts)
+
+        def read_array_view(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            """Read array from HDF5 with best-effort zero-copy semantics.
+
+            For contiguous, uncompressed datasets the returned array is backed
+            by the memory-mapped file buffer (no copy).  For chunked or
+            compressed datasets h5py transparently falls back to a copy, but
+            sub-selection is done by h5py in C before the data reaches Python
+            (avoids loading the full dataset then slicing in Python).
+
+            The caller **must not mutate** the returned array.
+            """
+            if isinstance(source, h5py.File):  # type: ignore
+                if not path_in_external_file:
+                    return None
+                d_group = source[path_in_external_file]
+                if start_indices is not None and counts is not None:
+                    # h5py reads only the required chunks/slabs from disk
+                    slices = tuple(slice(start, start + count) for start, count in zip(start_indices, counts))
+                    return d_group[slices]  # type: ignore
+                # np.array with copy=False returns a view for contiguous datasets
+                # Note: copy= kwarg on np.asarray requires numpy >=2.0;
+                # np.array(x, copy=False) works on all numpy versions.
+                return np.array(d_group, copy=False)  # type: ignore
+            else:
+                with self.file_cache.get_or_open(source, self, "r") as f:  # type: ignore
+                    return self.read_array_view(f, path_in_external_file, start_indices, counts)
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            **kwargs,
+        ) -> bool:
+            """Write array to HDF5 file with optional offset."""
+            if not path_in_external_file:
+                return False
+
+            if isinstance(array, list):
+                array = np.asarray(array)
+
+            dtype = kwargs.get("dtype")
+            if dtype is not None and not isinstance(dtype, np.dtype):
+                dtype = np.dtype(dtype)
+
+            try:
+                if isinstance(target, h5py.File):  # type: ignore
+                    if isinstance(array, np.ndarray) and array.dtype == "O":
+                        array = np.asarray([s.encode() if isinstance(s, str) else s for s in array])
+                        np.void(array)
+
+                    # Handle partial writes if start_indices provided
+                    if start_indices is not None and path_in_external_file in target:
+                        dset = target[path_in_external_file]
+                        slices = tuple(slice(start, start + dim) for start, dim in zip(start_indices, array.shape))
+                        dset[slices] = array
+                    else:
+                        dset = target.create_dataset(path_in_external_file, array.shape, dtype or array.dtype)
+                        dset[()] = array
+                else:
+                    # with self.file_cache.get_or_open(target, self, "a") as f:  # type: ignore
+                    # return self.write_array(f, array, path_in_external_file, start_indices, **kwargs)
+                    return self.write_array(
+                        self.file_cache.get_or_open(target, self, "a"),
+                        array,
+                        path_in_external_file,
+                        start_indices,
+                        **kwargs,
+                    )
+
+                return True
+            except Exception as e:
+                logging.error(f"Failed to write array to HDF5: {e}")
+                return False
+
+        def get_array_metadata(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[Union[dict, List[dict]]]:
+            """Get metadata for HDF5 datasets with optional sub-selection."""
+            try:
+                if isinstance(source, h5py.File):  # type: ignore
+                    if path_in_external_file:
+                        dset = source[path_in_external_file]
+                        shape = list(dset.shape)
+                        size = dset.size
+
+                        # Adjust shape and size for sub-selection
+                        if start_indices is not None and counts is not None:
+                            shape = counts
+                            size = int(np.prod(counts))
+
+                        return {
+                            "path": path_in_external_file,
+                            "dtype": str(dset.dtype),
+                            "shape": shape,
+                            "size": size,
+                        }
+                    else:
+                        # List all datasets
+                        datasets = h5_list_datasets(source)
+                        return [self.get_array_metadata(source, ds, start_indices, counts) for ds in datasets]
+                else:
+                    # with self.file_cache.get_or_open(source, self, "r") as f:  # type: ignore
+                    #     return self.get_array_metadata(f, path_in_external_file, start_indices, counts)
+                    return self.get_array_metadata(
+                        self.file_cache.get_or_open(source, self, "r"), path_in_external_file, start_indices, counts
+                    )
+            except Exception as e:
+                logging.debug(f"Failed to get HDF5 metadata: {e}")
+                return None
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            """List all datasets in HDF5 file."""
+            return h5_list_datasets(source)
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext in [".h5", ".hdf5"]  # dat for Galaxy compatibility
+
+else:
+
+    class MockHDF5ArrayHandler(ExternalArrayHandler):
+        """Mock handler when h5py is not installed."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open an HDF5 file without using the cache."""
+            return None
+
+        def read_array(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            raise MissingExtraInstallation(extra_name="hdf5")
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            **kwargs,
+        ) -> bool:
+            raise MissingExtraInstallation(extra_name="hdf5")
+
+        def get_array_metadata(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[Union[dict, List[dict]]]:
+            raise MissingExtraInstallation(extra_name="hdf5")
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            raise MissingExtraInstallation(extra_name="hdf5")
+
+        def can_handle_file(self, file_path: str) -> bool:
+            return os.path.splitext(file_path)[1].lower() in [".h5", ".hdf5"]  # dat for Galaxy compatibility
+
+    # Alias so the public name is always importable
+    HDF5ArrayHandler = MockHDF5ArrayHandler
+
+
+# Parquet Handler
+if __PARQUET_MODULE_EXISTS__:
+
+    class ParquetArrayHandler(ExternalArrayHandler):
+        """Handler for Parquet files (.parquet, .pq)."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a Parquet file without using the cache."""
+            try:
+                return pq.ParquetFile(file_path)  # type: ignore
+            except Exception as e:
+                logging.error(f"Failed to open Parquet file {file_path}: {e}")
+                return None
+
+        def read_array(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            """Read array from Parquet file with optional sub-selection."""
+            if isinstance(source, bytes):
+                source = pa.BufferReader(source)
+
+            table = pq.read_table(source)
+
+            if path_in_external_file:
+                array = np.array(table[path_in_external_file])
+            else:
+                # Return all columns as 2D array
+                array = table.to_pandas().values
+
+            # Apply sub-selection if specified
+            if array is not None and start_indices is not None and counts is not None:
+                slices = tuple(slice(start, start + count) for start, count in zip(start_indices, counts))
+                return array[slices]
+            return array
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            **kwargs,
+        ) -> bool:
+            """Write array to Parquet file."""
+            column_titles = kwargs.get("column_titles")
+
+            try:
+                # Convert to numpy array if needed
+                if not isinstance(array, np.ndarray):
+                    array = np.array(array)
+
+                # Handle 2D arrays properly: rows as rows, columns as columns
+                if array.ndim == 2:
+                    # Create DataFrame where each column is a dimension
+                    if column_titles is None:
+                        column_titles = [str(i) for i in range(array.shape[1])]
+                    array_as_pd_df = pd.DataFrame(array, columns=column_titles)
+                elif array.ndim == 1:
+                    # 1D array becomes a single column
+                    col_name = column_titles[0] if column_titles else "0"
+                    array_as_pd_df = pd.DataFrame({col_name: array})
+                else:
+                    # For higher dimensions, flatten or handle as needed
+                    logging.warning(f"Parquet writer received {array.ndim}D array, flattening to 2D")
+                    array_2d = array.reshape(array.shape[0], -1)
+                    if column_titles is None:
+                        column_titles = [str(i) for i in range(array_2d.shape[1])]
+                    array_as_pd_df = pd.DataFrame(array_2d, columns=column_titles)
+
+                pq.write_table(
+                    pa.Table.from_pandas(array_as_pd_df),
+                    target,
+                    version="2.6",
+                    compression="snappy",
+                )
+                return True
+            except Exception as e:
+                logging.error(f"Failed to write array to Parquet: {e}")
+                return False
+
+        def get_array_metadata(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[Union[dict, List[dict]]]:
+            """Get metadata for Parquet columns with optional sub-selection."""
+            try:
+                if isinstance(source, bytes):
+                    source = pa.BufferReader(source)
+
+                metadata = pq.read_metadata(source)
+                schema = pq.read_schema(source)
+
+                if path_in_external_file:
+                    # Get specific column metadata
+                    col_idx = schema.get_field_index(path_in_external_file)
+                    if col_idx >= 0:
+                        field = schema.field(col_idx)
+                        shape = [metadata.num_rows]
+                        size = metadata.num_rows
+
+                        # Adjust for sub-selection
+                        if start_indices is not None and counts is not None:
+                            shape = counts
+                            size = int(np.prod(counts))
+
+                        return {
+                            "path": path_in_external_file,
+                            "dtype": str(field.type),
+                            "shape": shape,
+                            "size": size,
+                        }
+                else:
+                    # Get all columns
+                    return [self.get_array_metadata(source, field.name, start_indices, counts) for field in schema]
+            except Exception as e:
+                logging.debug(f"Failed to get Parquet metadata: {e}")
+                return None
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            """List all columns in Parquet file."""
+            try:
+                if isinstance(source, bytes):
+                    source = pa.BufferReader(source)
+                schema = pq.read_schema(source)
+                return [field.name for field in schema]
+            except Exception:
+                return []
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext in [".parquet", ".pq"]
+
+else:
+
+    class MockParquetArrayHandler(ExternalArrayHandler):
+        """Mock handler when parquet libraries are not installed."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a Parquet file without using the cache."""
+            return None
+
+        def read_array(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            raise MissingExtraInstallation(extra_name="parquet")
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            **kwargs,
+        ) -> bool:
+            raise MissingExtraInstallation(extra_name="parquet")
+
+        def get_array_metadata(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[Union[dict, List[dict]]]:
+            raise MissingExtraInstallation(extra_name="parquet")
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            raise MissingExtraInstallation(extra_name="parquet")
+
+        def can_handle_file(self, file_path: str) -> bool:
+            return os.path.splitext(file_path)[1].lower() in [".parquet", ".pq"]
+
+    # Alias so the public name is always importable
+    ParquetArrayHandler = MockParquetArrayHandler
+
+
+# CSV Handler
+if __CSV_MODULE_EXISTS__:
+
+    class CSVArrayHandler(ExternalArrayHandler):
+        """Handler for CSV files (.csv, .txt)."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a CSV file without using the cache."""
+            try:
+                return open(file_path, mode)
+            except Exception as e:
+                logging.error(f"Failed to open CSV file {file_path}: {e}")
+                return None
+
+        def read_array(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            """Read array from CSV file with optional sub-selection."""
+            # For CSV, path_in_external_file can be column name or index
+            # This is a simplified implementation
+            try:
+                if isinstance(source, str):
+                    data = np.genfromtxt(source, delimiter=",")
+                else:
+                    data = np.genfromtxt(source, delimiter=",")
+
+                # Apply sub-selection if specified
+                if data is not None and start_indices is not None and counts is not None:
+                    slices = tuple(slice(start, start + count) for start, count in zip(start_indices, counts))
+                    return data[slices]
+                return data
+            except Exception as e:
+                logging.debug(f"Failed to read CSV: {e}")
+                return None
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            **kwargs,
+        ) -> bool:
+            """Write array to CSV file."""
+            try:
+                if isinstance(array, list):
+                    array = np.asarray(array)
+                np.savetxt(target, array, delimiter=",")
+                return True
+            except Exception as e:
+                logging.error(f"Failed to write CSV: {e}")
+                return False
+
+        def get_array_metadata(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[Union[dict, List[dict]]]:
+            """Get metadata for CSV file with optional sub-selection."""
+            try:
+                data = self.read_array(source, path_in_external_file, start_indices, counts)
+                if data is not None:
+                    return {
+                        "path": path_in_external_file or "",
+                        "dtype": str(data.dtype),
+                        "shape": list(data.shape),
+                        "size": data.size,
+                    }
+            except Exception as e:
+                logging.debug(f"Failed to get CSV metadata: {e}")
+            return None
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            """CSV files don't have named datasets."""
+            return []
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext in [".csv", ".txt"]
+
+
+# LAS Handler
+if __LASIO_MODULE_EXISTS__:
+
+    class LASArrayHandler(ExternalArrayHandler):
+        """Handler for LAS (Log ASCII Standard) files (.las)."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a LAS file without using the cache."""
+            try:
+                return lasio.read(file_path)  # type: ignore
+            except Exception as e:
+                logging.error(f"Failed to open LAS file {file_path}: {e}")
+                return None
+
+        def read_array(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            """
+            Read array from LAS file.
+
+            Args:
+                source: Path to LAS file or BytesIO object
+                path_in_external_file: Comma-separated list of mnemonics to read from ~A block
+                start_indices: Starting index for each dimension (optional)
+                counts: Number of elements to read for each dimension (optional)
+
+            Returns:
+                NumPy array with requested curves, or None if reading failed
+            """
+            try:
+                # Load LAS file
+                las = lasio.read(source)
+
+                if path_in_external_file is None or path_in_external_file.strip() == "":
+                    # Return all curves as 2D array (depth, curves)
+                    data = las.data
+                else:
+                    # Parse mnemonic list (comma or semicolon separated)
+                    mnemonics = [m.strip() for m in path_in_external_file.replace(";", ",").split(",")]
+
+                    # Extract specified curves
+                    curves_data = []
+                    for mnemonic in mnemonics:
+                        if mnemonic in las.keys():
+                            curves_data.append(las[mnemonic])
+                        else:
+                            logging.warning(f"Mnemonic '{mnemonic}' not found in LAS file")
+
+                    if not curves_data:
+                        logging.error("No valid mnemonics found in LAS file")
+                        return None
+
+                    # Stack curves horizontally
+                    data = np.column_stack(curves_data) if len(curves_data) > 1 else np.array(curves_data[0])
+
+                # Apply slicing if specified
+                if start_indices is not None or counts is not None:
+                    slices = []
+                    for dim in range(len(data.shape)):
+                        start = start_indices[dim] if start_indices and dim < len(start_indices) else 0
+                        count = counts[dim] if counts and dim < len(counts) else data.shape[dim] - start
+                        slices.append(slice(start, start + count))
+                    data = data[tuple(slices)]
+
+                return np.array(data)
+
+            except Exception as e:
+                logging.error(f"Failed to read LAS file: {e}")
+                return None
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            **kwargs,
+        ) -> bool:
+            """
+            Write array to LAS file.
+
+            Args:
+                target: Path to LAS file
+                array: NumPy array or list to write
+                path_in_external_file: Comma-separated list of mnemonics for curves
+                start_indices: Not used for LAS files
+                **kwargs: Additional parameters (well_name, field, etc.)
+
+            Returns:
+                True if successful, False otherwise
+            """
+            try:
+                # Convert to numpy array
+                if not isinstance(array, np.ndarray):
+                    array = np.array(array)
+
+                # Create new LAS file
+                las = lasio.LASFile()
+
+                # Set well information from kwargs
+                if "well_name" in kwargs:
+                    las.well.WELL = kwargs["well_name"]
+                if "field" in kwargs:
+                    las.well.FLD = kwargs["field"]
+                if "company" in kwargs:
+                    las.well.COMP = kwargs["company"]
+
+                # Parse mnemonics if provided
+                mnemonics = None
+                if path_in_external_file:
+                    mnemonics = [m.strip() for m in path_in_external_file.replace(";", ",").split(",")]
+
+                # Add curves
+                if array.ndim == 1:
+                    # Single curve
+                    mnemonic = mnemonics[0] if mnemonics else "DATA"
+                    las.append_curve(mnemonic, array, unit=kwargs.get("unit", ""))
+                else:
+                    # Multiple curves
+                    for i in range(array.shape[1]):
+                        mnemonic = mnemonics[i] if mnemonics and i < len(mnemonics) else f"CURVE{i}"
+                        las.append_curve(mnemonic, array[:, i], unit=kwargs.get("unit", ""))
+
+                # Write to file
+                if isinstance(target, str):
+                    las.write(target)
+                else:
+                    # For BytesIO, write to string then encode
+                    las_str = las.write(None)  # Returns string
+                    target.write(las_str.encode("utf-8"))
+
+                return True
+
+            except Exception as e:
+                logging.error(f"Failed to write LAS file: {e}")
+                return False
+
+        def get_array_metadata(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[Union[dict, List[dict]]]:
+            """
+            Get metadata for LAS file curves.
+
+            Args:
+                source: Path to LAS file or BytesIO object
+                path_in_external_file: Comma-separated list of mnemonics
+
+            Returns:
+                Dictionary with metadata (shape, dtype, curves, well_info)
+            """
+            try:
+                las = lasio.read(source)
+
+                # Get curve information
+                curves_info = []
+                for curve in las.curves:
+                    curves_info.append(
+                        {
+                            "mnemonic": curve.mnemonic,
+                            "unit": curve.unit,
+                            "descr": curve.descr,
+                            "data_points": len(curve.data),
+                        }
+                    )
+
+                # Get overall metadata
+                metadata = {
+                    "shape": las.data.shape,
+                    "dtype": str(las.data.dtype),
+                    "curves": curves_info,
+                    "well_info": {
+                        "well_name": las.well.WELL.value if hasattr(las.well, "WELL") else None,
+                        "field": las.well.FLD.value if hasattr(las.well, "FLD") else None,
+                        "company": las.well.COMP.value if hasattr(las.well, "COMP") else None,
+                    },
+                    "version": las.version.VERS.value if hasattr(las.version, "VERS") else None,
+                }
+
+                return metadata
+
+            except Exception as e:
+                logging.error(f"Failed to get LAS metadata: {e}")
+                return None
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            """List all curve mnemonics in LAS file."""
+            try:
+                las = lasio.read(source)
+                return [curve.mnemonic for curve in las.curves]
+            except Exception as e:
+                logging.error(f"Failed to list LAS curves: {e}")
+                return []
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext == ".las"
+
+else:
+
+    class MockLASArrayHandler(ExternalArrayHandler):
+        """Mock handler when lasio is not installed."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a LAS file without using the cache."""
+            return None
+
+        def read_array(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            raise MissingExtraInstallation(extra_name="las")
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            **kwargs,
+        ) -> bool:
+            raise MissingExtraInstallation(extra_name="las")
+
+        def get_array_metadata(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[Union[dict, List[dict]]]:
+            raise MissingExtraInstallation(extra_name="las")
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            raise MissingExtraInstallation(extra_name="las")
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext == ".las"
+
+    # Alias so the public name is always importable
+    LASArrayHandler = MockLASArrayHandler
+
+
+# SEG-Y Handler
+if __SEGYIO_MODULE_EXISTS__:
+
+    class SEGYArrayHandler(ExternalArrayHandler):
+        """Handler for SEG-Y seismic files (.sgy, .segy)."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a SEG-Y file without using the cache."""
+            try:
+                return segyio.open(file_path, mode, ignore_geometry=True)  # type: ignore
+            except Exception as e:
+                logging.error(f"Failed to open SEG-Y file {file_path}: {e}")
+                return None
+
+        def read_array(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            """
+            Read array from SEG-Y file.
+
+            Args:
+                source: Path to SEG-Y file
+                path_in_external_file: Comma-separated list of trace headers or 'traces' for trace data
+                start_indices: Starting index [trace_start, sample_start]
+                counts: Number of elements [trace_count, sample_count]
+
+            Returns:
+                NumPy array with requested data
+            """
+            try:
+                # SEG-Y requires file path, not BytesIO
+                if not isinstance(source, str):
+                    logging.error("SEG-Y handler requires file path, not BytesIO")
+                    return None
+
+                with segyio.open(source, "r", ignore_geometry=True) as f:
+                    if path_in_external_file is None or path_in_external_file.strip().lower() == "traces":
+                        # Read trace data
+                        trace_start = start_indices[0] if start_indices and len(start_indices) > 0 else 0
+                        sample_start = start_indices[1] if start_indices and len(start_indices) > 1 else 0
+
+                        trace_count = counts[0] if counts and len(counts) > 0 else len(f.trace) - trace_start
+                        sample_count = counts[1] if counts and len(counts) > 1 else len(f.samples) - sample_start
+
+                        # Read traces
+                        traces = []
+                        for i in range(trace_start, trace_start + trace_count):
+                            if i < len(f.trace):
+                                trace = f.trace[i][sample_start : sample_start + sample_count]
+                                traces.append(trace)
+
+                        return np.array(traces)
+                    else:
+                        # Read trace headers
+                        headers = [h.strip() for h in path_in_external_file.replace(";", ",").split(",")]
+
+                        trace_start = start_indices[0] if start_indices and len(start_indices) > 0 else 0
+                        trace_count = counts[0] if counts and len(counts) > 0 else len(f.trace) - trace_start
+
+                        # Extract header values
+                        header_data = []
+                        for i in range(trace_start, trace_start + trace_count):
+                            if i < len(f.trace):
+                                trace_headers = f.header[i]
+                                header_values = [
+                                    trace_headers.get(segyio.TraceField.__dict__.get(h.upper(), 0), 0) for h in headers
+                                ]
+                                header_data.append(header_values)
+
+                        return np.array(header_data)
+
+            except Exception as e:
+                logging.error(f"Failed to read SEG-Y file: {e}")
+                return None
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            **kwargs,
+        ) -> bool:
+            """
+            Write array to SEG-Y file.
+
+            Args:
+                target: Path to SEG-Y file
+                array: NumPy array (traces x samples)
+                path_in_external_file: Not used (SEG-Y structure is fixed)
+                **kwargs: Additional parameters (sample_interval, etc.)
+
+            Returns:
+                True if successful, False otherwise
+            """
+            try:
+                if not isinstance(target, str):
+                    logging.error("SEG-Y handler requires file path for writing")
+                    return False
+
+                if not isinstance(array, np.ndarray):
+                    array = np.array(array)
+
+                # Ensure 2D array (traces x samples)
+                if array.ndim == 1:
+                    array = array.reshape(1, -1)
+
+                n_traces, n_samples = array.shape
+
+                # Create SEG-Y file specification
+                spec = segyio.spec()
+                spec.format = kwargs.get("format", 1)  # 1 = 4-byte IBM float
+                spec.samples = range(n_samples)
+                spec.tracecount = n_traces
+
+                # Write SEG-Y file
+                with segyio.create(target, spec) as f:
+                    for i in range(n_traces):
+                        f.trace[i] = array[i, :]
+
+                    # Set sample interval if provided (in microseconds)
+                    if "sample_interval" in kwargs:
+                        f.bin[segyio.BinField.Interval] = kwargs["sample_interval"]
+
+                return True
+
+            except Exception as e:
+                logging.error(f"Failed to write SEG-Y file: {e}")
+                return False
+
+        def get_array_metadata(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[Union[dict, List[dict]]]:
+            """
+            Get metadata for SEG-Y file.
+
+            Returns:
+                Dictionary with shape, dtype, trace count, sample info
+            """
+            try:
+                if not isinstance(source, str):
+                    logging.error("SEG-Y handler requires file path")
+                    return None
+
+                with segyio.open(source, "r", ignore_geometry=True) as f:
+                    metadata = {
+                        "shape": (len(f.trace), len(f.samples)),
+                        "dtype": str(f.dtype),
+                        "trace_count": len(f.trace),
+                        "sample_count": len(f.samples),
+                        "sample_interval": f.bin[segyio.BinField.Interval],
+                        "format": f.format,
+                        "samples": f.samples.tolist() if hasattr(f.samples, "tolist") else list(f.samples),
+                    }
+
+                    return metadata
+
+            except Exception as e:
+                logging.error(f"Failed to get SEG-Y metadata: {e}")
+                return None
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            """List available data in SEG-Y file (always 'traces')."""
+            return ["traces"]
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext in [".sgy", ".segy"]
+
+else:
+
+    class MockSEGYArrayHandler(ExternalArrayHandler):
+        """Mock handler when segyio is not installed."""
+
+        def __init__(self, max_open_files: int = 3):
+            super().__init__(max_open_files=max_open_files)
+
+        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            """Open a SEG-Y file without using the cache."""
+            return None
+
+        def read_array(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[np.ndarray]:
+            raise MissingExtraInstallation(extra_name="segy")
+
+        def write_array(
+            self,
+            target: Union[str, BytesIO, Any],
+            array: Union[list, np.ndarray],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            **kwargs,
+        ) -> bool:
+            raise MissingExtraInstallation(extra_name="segy")
+
+        def get_array_metadata(
+            self,
+            source: Union[BytesIO, str, Any],
+            path_in_external_file: Optional[str] = None,
+            start_indices: Optional[List[int]] = None,
+            counts: Optional[List[int]] = None,
+        ) -> Optional[Union[dict, List[dict]]]:
+            raise MissingExtraInstallation(extra_name="segy")
+
+        def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
+            raise MissingExtraInstallation(extra_name="segy")
+
+        def can_handle_file(self, file_path: str) -> bool:
+            """Check if this handler can process the file."""
+            ext = os.path.splitext(file_path)[1].lower()
+            return ext in [".sgy", ".segy"]
+
+    # Alias so the public name is always importable
+    SEGYArrayHandler = MockSEGYArrayHandler

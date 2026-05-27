@@ -1,7 +1,8 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
 
-from energyml.utils.uri import Uri, parse_uri
+from energyml.utils.exception import NotUriError
+from energyml.utils.uri import Uri, parse_uri, parse_uri_raise_if_failed
 from energyml.utils.introspection import get_obj_uri
 from energyml.resqml.v2_0_1.resqmlv2 import TriangulatedSetRepresentation, ObjTriangulatedSetRepresentation
 
@@ -46,8 +47,17 @@ def test_uri_eq():
 
 
 def test_uri_error():
-    assert parse_uri("eml//") is None
-    assert parse_uri("a random text") is None
+    try:
+        parse_uri_raise_if_failed("eml//")
+        raise AssertionError("Expected NotUriError to be raised")
+    except NotUriError:
+        pass
+
+    try:
+        parse_uri_raise_if_failed("a random text")
+        raise AssertionError("Expected NotUriError to be raised")
+    except NotUriError:
+        pass
 
 
 def test_uri_default_dataspace():
@@ -109,6 +119,18 @@ def test_uri_dataspace_data_object_collection_query():
 def test_uri_full():
     uri = "eml:///witsml20.Well(uuid=ec8c3f16-1454-4f36-ae10-27d2a2680cf2,version='1.0')/witsml20.Wellbore?query"
     assert uri == str(parse_uri(uri))
+
+
+def test_uri_content_type():
+    uri = parse_uri(
+        "eml:///witsml20.Well(uuid=ec8c3f16-1454-4f36-ae10-27d2a2680cf2,version='1.0')/witsml20.Wellbore?query"
+    )
+    assert uri.get_content_type() == "application/x-witsml+xml;version=2.0;type=Well"
+
+    uri = parse_uri(
+        "eml:///resqml20.obj_HorizonInterpretation(uuid=421a7a05-033a-450d-bcef-051352023578,version='2.0')"
+    )
+    assert uri.get_content_type() == "application/x-resqml+xml;version=2.0;type=obj_HorizonInterpretation"
 
 
 def test_uuid():

@@ -33,6 +33,11 @@ ENERGYML_NAMESPACES = {
     "witsml": "http://www.energistics.org/energyml/data/witsmlv2",
     "resqml": "http://www.energistics.org/energyml/data/resqmlv2",
 }
+
+WELLKNOWN_NAMESPACES = ENERGYML_NAMESPACES |{
+    "xsd": "http://www.w3.org/2001/XMLSchema",
+    "xsi": "http://www.w3.org/2001/XMLSchema-instance"
+}
 """Dict of all energyml namespaces"""
 
 ENERGYML_NAMESPACES_PACKAGE = {
@@ -49,7 +54,7 @@ ENERGYML_NAMESPACES_PACKAGE = {
 
 ENERGYML_MODULES_NAMES = ["eml", "prodml", "witsml", "resqml"]
 
-RELATED_MODULES = [
+_RELATED_MODULES = [
     ["energyml.eml.v2_0.commonv2", "energyml.resqml.v2_0_1.resqmlv2"],
     [
         "energyml.eml.v2_1.commonv2",
@@ -64,6 +69,11 @@ RELATED_MODULES = [
         "energyml.witsml.v2_1.witsmlv2",
     ],
 ]
+
+RELATED_MODULES_MAP = {}
+for group in _RELATED_MODULES:
+    for module in group:
+        RELATED_MODULES_MAP[module] = group
 
 # ===================================
 # REGEX PATTERN STRINGS (for reference)
@@ -113,7 +123,7 @@ RGX_ENERGYML_FILE_NAME = rf"^(.*/)?({RGX_ENERGYML_FILE_NAME_OLD})|({RGX_ENERGYML
 
 RGX_XML_HEADER = r"^\s*<\?xml(\s+(encoding\s*=\s*\"(?P<encoding>[^\"]+)\"|version\s*=\s*\"(?P<version>[^\"]+)\"|standalone\s*=\s*\"(?P<standalone>[^\"]+)\"))+"
 
-RGX_IDENTIFIER = rf"{RGX_UUID}(.(?P<version>\w+)?)?"
+RGX_IDENTIFIER = rf"{RGX_UUID}.((?P<version>\w+)?)?"
 
 # URI regex components
 URI_RGX_GRP_DOMAIN = "domain"
@@ -208,10 +218,13 @@ class OptimizedRegex:
 # CONSTANTS AND ENUMS
 # ===================================
 
+# TODO: RELS_CONTENT_TYPE may be incorrect or not well named, needs review
 RELS_CONTENT_TYPE = "application/vnd.openxmlformats-package.core-properties+xml"
 RELS_FOLDER_NAME = "_rels"
+CORE_PROPERTIES_FOLDER_NAME = "docProps"
 
-primitives = (bool, str, int, float, type(None))
+# primitives = (bool, str, int, float, type(None))
+primitives = {bool, str, int, float, bytes, type(None)}
 
 
 class MimeType(Enum):
@@ -222,6 +235,22 @@ class MimeType(Enum):
     PARQUET = "application/x-parquet"
     PDF = "application/pdf"
     RELS = "application/vnd.openxmlformats-package.relationships+xml"
+    CORE_PROPERTIES = "application/vnd.openxmlformats-package.core-properties+xml"
+    EXTENDED_CORE_PROPERTIES = "application/x-extended-core-properties+xml"
+    JPEG = "image/jpeg"
+    PNG = "image/png"
+    TIFF = "image/tiff"
+    GIF = "image/gif"
+    SVG = "image/svg+xml"
+    DOC = "application/msword"
+    DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    XML = "application/xml"
+    JSON = "application/json"
+    TXT = "text/plain"
+    MARKDOWN = "text/markdown"
+    HTML = "text/html"
+    ZIP = "application/zip"
 
     def __str__(self):
         return self.value
@@ -237,17 +266,26 @@ class EpcExportVersion(Enum):
 class EPCRelsRelationshipType(Enum):
     """EPC relationships types with proper URL generation"""
 
-    # Standard relationship types
     DESTINATION_OBJECT = "destinationObject"
+    """The object in Target is the destination of the relationship."""
     SOURCE_OBJECT = "sourceObject"
+    """The current object is the source in the relationship with the target object."""
     ML_TO_EXTERNAL_PART_PROXY = "mlToExternalPartProxy"
+    """The target object is a proxy object for an external file."""
     EXTERNAL_PART_PROXY_TO_ML = "externalPartProxyToMl"
+    """The current object is used as a proxy object by the target object."""
     EXTERNAL_RESOURCE = "externalResource"
+    """The target is a resource outside of the EPC package. Note that TargetMode should be "External" for this relationship."""
     DestinationMedia = "destinationMedia"
+    """The object in Target is a media representation for the current object. As a guideline, media files should be stored in a "media" folder in the root of the package."""
     SOURCE_MEDIA = "sourceMedia"
+    """The current object is a media representation for the object in Target."""
     CHUNKED_PART = "chunkedPart"
+    """The target is part of a larger data object that has been chunked into several smaller files."""
     CORE_PROPERTIES = "core-properties"
-    EXTENDED_CORE_PROPERTIES = "extended-core-properties"  # Not in standard
+    """Core properties metadata relationship."""
+    EXTENDED_CORE_PROPERTIES = "extended-core-properties"
+    """Extended core properties metadata relationship (not in standard)."""
 
     def get_type(self) -> str:
         """Get the full relationship type URL"""
@@ -258,21 +296,151 @@ class EPCRelsRelationshipType(Enum):
         else:
             return "http://schemas.energistics.org/package/2012/relationships/" + self.value
 
+    def __str__(self) -> str:
+        return self.get_type()
+
 
 @dataclass
 class RawFile:
     """A class for non-energyml files to be stored in an EPC file"""
 
     path: str = field(default="_")
-    content: BytesIO = field(default=None)
+    content: Optional[BytesIO] = field(default=None)
+
+
+# ===================================
+# MIME TYPE MAPPINGS
+# ===================================
+
+# Primary mapping: MimeType enum → file extension
+MIME_TYPE_TO_EXTENSION: dict[MimeType, str] = {
+    MimeType.CSV: "csv",
+    MimeType.HDF5: "h5",
+    MimeType.PARQUET: "parquet",
+    MimeType.PDF: "pdf",
+    MimeType.RELS: "rels",
+    MimeType.CORE_PROPERTIES: "xml",
+    MimeType.EXTENDED_CORE_PROPERTIES: "xml",
+    MimeType.JPEG: "jpg",
+    MimeType.PNG: "png",
+    MimeType.TIFF: "tiff",
+    MimeType.GIF: "gif",
+    MimeType.SVG: "svg",
+    MimeType.DOC: "doc",
+    MimeType.DOCX: "docx",
+    MimeType.XLSX: "xlsx",
+    MimeType.XML: "xml",
+    MimeType.JSON: "json",
+    MimeType.TXT: "txt",
+    MimeType.MARKDOWN: "md",
+    MimeType.HTML: "html",
+    MimeType.ZIP: "zip",
+}
+
+# Alternative MIME type strings (aliases and variants)
+MIME_TYPE_ALIASES: dict[str, MimeType] = {
+    "application/parquet": MimeType.PARQUET,
+    "application/vnd.apache.parquet": MimeType.PARQUET,
+    "text/xml": MimeType.XML,
+    "image/jpg": MimeType.JPEG,
+}
+
+# Alternative file extensions
+EXTENSION_ALIASES: dict[str, str] = {
+    "hdf5": "h5",
+    "jpeg": "jpg",
+    "tif": "tiff",
+    "markdown": "md",
+    "htm": "html",
+}
+
+
+def mime_type_to_file_extension(mime_type: str) -> Optional[str]:
+    """
+    Convert MIME type to file extension using the MimeType enum and aliases.
+
+    Args:
+        mime_type: MIME type string (case-insensitive)
+
+    Returns:
+        File extension without leading dot, or None if not found
+
+    Examples:
+        >>> mime_type_to_file_extension("text/csv")
+        'csv'
+        >>> mime_type_to_file_extension("application/parquet")
+        'parquet'
+    """
+    if not mime_type:
+        return None
+
+    mime_type_lower = mime_type.lower()
+
+    # Try to find in MimeType enum
+    for mime_enum in MimeType:
+        if mime_enum.value.lower() == mime_type_lower:
+            return MIME_TYPE_TO_EXTENSION.get(mime_enum)
+
+    # Try aliases
+    mime_enum = MIME_TYPE_ALIASES.get(mime_type_lower)
+    if mime_enum:
+        return MIME_TYPE_TO_EXTENSION.get(mime_enum)
+
+    return None
+
+
+def file_extension_to_mime_type(extension: str) -> Optional[str]:
+    """
+    Convert file extension to MIME type using the MimeType enum.
+
+    Args:
+        extension: File extension with or without leading dot (case-insensitive)
+
+    Returns:
+        MIME type string, or None if not found
+
+    Examples:
+        >>> file_extension_to_mime_type("csv")
+        'text/csv'
+        >>> file_extension_to_mime_type(".json")
+        'application/json'
+    """
+    if not extension:
+        return None
+
+    # Remove leading dot if present
+    ext_lower = extension.lstrip(".").lower()
+
+    # Normalize through aliases first
+    ext_normalized = EXTENSION_ALIASES.get(ext_lower, ext_lower)
+
+    # Find the MimeType that matches this extension
+    for mime_enum, ext in MIME_TYPE_TO_EXTENSION.items():
+        if ext == ext_normalized:
+            return mime_enum.value
+
+    return None
 
 
 # ===================================
 # OPTIMIZED UTILITY FUNCTIONS
 # ===================================
 
+_SNAKE_CASE_PATTERNS = [
+    (re.compile(r"(.)([A-Z][a-z]+)"), r"\1_\2"),
+    (re.compile(r"__([A-Z])"), r"_\1"),
+    (re.compile(r"([a-z0-9])([A-Z])"), r"\1_\2"),
+]
+
 
 def snake_case(string: str) -> str:
+    """Transform a string into snake_case (optimized with pre-compiled regexes)"""
+    for pattern, repl in _SNAKE_CASE_PATTERNS:
+        string = pattern.sub(repl, string)
+    return string.lower()
+
+
+def snake_case_old(string: str) -> str:
     """Transform a string into snake_case"""
     string = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", string)
     string = re.sub("__([A-Z])", r"_\1", string)
@@ -360,11 +528,11 @@ def content_type_to_qualified_type(ct: str) -> Optional[str]:
         return None
 
 
-def qualified_type_to_content_type(qt: str) -> Optional[str]:
+def qualified_type_to_content_type(qt: str) -> str:
     """Convert qualified type to content type format"""
     parsed = parse_content_or_qualified_type(qt)
     if not parsed:
-        return None
+        raise ValueError(f"Failed to parse qualified type: {qt}")
 
     try:
         domain = parsed.group("domain")
@@ -376,7 +544,7 @@ def qualified_type_to_content_type(qt: str) -> Optional[str]:
 
         return f"application/x-{domain}+xml;" f"version={formatted_version};" f"type={obj_type}"
     except (AttributeError, KeyError):
-        return None
+        raise ValueError(f"Failed to convert qualified type to content type: {qt}")
 
 
 def get_domain_version_from_content_or_qualified_type(cqt: str) -> Optional[str]:
@@ -389,6 +557,18 @@ def get_domain_version_from_content_or_qualified_type(cqt: str) -> Optional[str]
         return parsed.group("domainVersion")
     except (AttributeError, KeyError):
         return None
+
+
+def get_obj_type_from_content_or_qualified_type(cqt: str) -> str:
+    """Extract object type (e.g., "WellboreFeature") from content or qualified type"""
+    parsed = parse_content_or_qualified_type(cqt)
+    if not parsed:
+        raise ValueError(f"Failed to parse content or qualified type: {cqt}")
+
+    if parsed.group("type") is None:
+        raise ValueError(f"Failed to extract object type from content or qualified type: {cqt}")
+
+    return parsed.group("type")
 
 
 def split_identifier(identifier: str) -> Tuple[Optional[str], Optional[str]]:
@@ -435,6 +615,17 @@ def date_to_epoch(date: str) -> int:
         raise ValueError(f"Invalid date format: {date}")
 
 
+def date_to_datetime(date: str) -> datetime.datetime:
+    """Convert energyml date string to datetime object"""
+    try:
+        # Python 3.10 doesn't support 'Z' suffix in fromisoformat()
+        # Replace 'Z' with '+00:00' for compatibility
+        date_normalized = date.replace("Z", "+00:00") if date.endswith("Z") else date
+        return datetime.datetime.fromisoformat(date_normalized)
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid date format: {date}")
+
+
 def epoch_to_date(epoch_value: int) -> str:
     """Convert epoch timestamp to energyml date format"""
     try:
@@ -449,25 +640,16 @@ def gen_uuid() -> str:
     return str(uuid_mod.uuid4())
 
 
-def mime_type_to_file_extension(mime_type: str) -> Optional[str]:
-    """Convert MIME type to file extension"""
-    if not mime_type:
+def extract_uuid_from_string(s: str) -> Optional[str]:
+    """Extract UUID from a string using optimized regex"""
+    if not s:
         return None
 
-    mime_type_lower = mime_type.lower()
+    match = OptimizedRegex.UUID_NO_GRP.search(s)
+    if match:
+        return match.group(0)
 
-    # Use dict for faster lookup than if/elif chain
-    mime_to_ext = {
-        "application/x-parquet": "parquet",
-        "application/parquet": "parquet",
-        "application/vnd.apache.parquet": "parquet",
-        "application/x-hdf5": "h5",
-        "text/csv": "csv",
-        "application/vnd.openxmlformats-package.relationships+xml": "rels",
-        "application/pdf": "pdf",
-    }
-
-    return mime_to_ext.get(mime_type_lower)
+    return None
 
 
 # ===================================
@@ -515,6 +697,10 @@ def path_iter(dot_path: str) -> List[str]:
         return findall(DOT_PATH_ATTRIBUTE, dot_path)
     except (TypeError, ValueError):
         return []
+
+
+def path_parent_attribute(dot_path: str) -> Optional[str]:
+    return ".".join(path_iter(dot_path)[:-1]) if dot_path else None
 
 
 # ===================================
@@ -583,3 +769,5 @@ if __name__ == "__main__":
             result = OptimizedRegex.URI.search(test_string)
 
         print(f"  {name}: {'✓' if result else '✗'} - {test_string[:50]}{'...' if len(test_string) > 50 else ''}")
+
+    print(EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES)

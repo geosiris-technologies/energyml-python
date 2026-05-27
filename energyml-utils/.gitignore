@@ -39,19 +39,20 @@ src/energyml/utils/converter/
 
 # Other files
 requirements.txt
+.github/
+
+
 #doc/
 sample/
 gen*/
 manip*
 *.epc
 *.h5
-*.off
-*.obj
 *.log
-*.geojson
 *.json
 *.csv
 *.zip
+
 
 *.xml
 *.json
@@ -59,12 +60,24 @@ docs/*.md
 
 # DATA
 *.obj
+*.off
+*.mtl
 *.geojson
 *.vtk
+*.vtp
+*.vtu
 *.stl
+rc/specs
+rc/**/*.epc
+rc/**/*.h5
+rc/**/*.hdf5
 
 
 # WIP
 src/energyml/utils/wip*
 scripts
 rc/camunda
+
+
+# code profiling
+*.prof

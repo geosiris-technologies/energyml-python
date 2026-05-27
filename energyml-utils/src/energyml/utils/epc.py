@@ -5,82 +5,51 @@ This module contains utilities to read/write EPC files.
 """
 
 import datetime
-import json
+import threading
 import logging
 import os
 from pathlib import Path
 import random
-import re
+import time
 import traceback
 import zipfile
 from dataclasses import dataclass, field
+from functools import wraps
 from io import BytesIO
-from typing import List, Any, Union, Dict, Callable, Optional, Tuple
-
-from energyml.opc.opc import (
-    CoreProperties,
-    Relationships,
-    Types,
-    Default,
-    Relationship,
-    Override,
-    Created,
-    Creator,
-    Identifier,
-    Keywords1,
-    TargetMode,
-)
-from energyml.utils.storage_interface import DataArrayMetadata, EnergymlStorageInterface, ResourceMetadata
+from typing import List, Any, Set, Tuple, Union, Dict, Optional
 import numpy as np
-from .uri import Uri, parse_uri
+
+from enum import Enum
 from xsdata.formats.dataclass.models.generics import DerivedElement
 
-from .constants import (
-    RELS_CONTENT_TYPE,
-    RELS_FOLDER_NAME,
+from energyml.opc.opc import CoreProperties, Relationships, Types, Relationship, Override
+from energyml.utils.storage_interface import DataArrayMetadata, EnergymlStorageInterface, ResourceMetadata
+from energyml.utils.uri import Uri, parse_uri
+
+from energyml.utils.constants import (
     EpcExportVersion,
     RawFile,
     EPCRelsRelationshipType,
-    MimeType,
-    content_type_to_qualified_type,
-    qualified_type_to_content_type,
-    split_identifier,
-    get_property_kind_dict_path_as_dict,
-    OptimizedRegex,
 )
-from .data.datasets_io import (
-    HDF5FileReader,
-    HDF5FileWriter,
+from energyml.utils.data.datasets_io import (
+    get_handler_registry,
     read_external_dataset_array,
 )
-from .exception import UnparsableFile
-from .introspection import (
+from energyml.utils.exception import UnparsableFile
+from energyml.utils.introspection import (
     get_class_from_content_type,
-    get_dor_obj_info,
     get_obj_type,
     get_obj_uri,
     get_obj_usable_class,
-    is_dor,
-    search_attribute_matching_type,
     get_obj_version,
     get_obj_uuid,
-    get_object_type_for_file_path_from_class,
     get_content_type_from_class,
-    get_direct_dor_list,
-    epoch_to_date,
-    epoch,
     gen_uuid,
     get_obj_identifier,
-    get_class_from_qualified_type,
-    copy_attributes,
-    get_obj_attribute_class,
-    set_attribute_from_path,
-    set_attribute_value,
     get_object_attribute,
     get_qualified_type_from_class,
 )
-from .manager import get_class_pkg, get_class_pkg_version
-from .serialization import (
+from energyml.utils.serialization import (
     serialize_xml,
     read_energyml_xml_str,
     read_energyml_xml_bytes,
@@ -88,13 +57,693 @@ from .serialization import (
     read_energyml_json_bytes,
     JSON_VERSION,
 )
-from .xml import is_energyml_content_type
+from energyml.utils.xml_utils import is_energyml_content_type
+from energyml.utils.epc_utils import (
+    gen_core_props_path,
+    gen_energyml_object_path,
+    gen_rels_path,
+    get_epc_content_type_path,
+    create_h5_external_relationship,
+    get_file_folder,
+    make_path_relative_to_other_file,
+    make_path_relative_to_filepath_list,
+    as_identifier,
+)
+
+
+class EnergymlObjectCollection:
+    """
+    A collection that maintains both list semantics (for backward compatibility)
+    and dict-based lookups (for O(1) performance) for energyml objects.
+
+    This allows existing code using .append() to work while providing efficient
+    get_object_by_identifier() and get_object_by_uuid() operations.
+    """
+
+    def __init__(self, objects: Optional[List[Any]] = None):
+        self._by_identifier: Dict[str, Any] = {}
+        self._by_uri: Dict[str, Any] = {}
+        self._by_uuid: Dict[str, List[Any]] = {}
+        self._objects_list: List[Any] = []
+
+        if objects:
+            for obj in objects:
+                self.append(obj)
+
+    def append(self, obj: Any) -> None:
+        """Add an object to the collection (list-compatible method)."""
+        identifier = get_obj_identifier(obj)
+        uri = str(get_obj_uri(obj))
+        uuid = get_obj_uuid(obj)
+
+        # Check if object already exists by identifier
+        if identifier in self._by_identifier:
+            # Replace existing object
+            existing = self._by_identifier[identifier]
+            idx = self._objects_list.index(existing)
+            self._objects_list[idx] = obj
+
+            # Clean up old URI mapping
+            old_uri = str(get_obj_uri(existing))
+            if old_uri in self._by_uri:
+                del self._by_uri[old_uri]
+
+            # Clean up old UUID mapping
+            old_uuid = get_obj_uuid(existing)
+            if old_uuid in self._by_uuid and existing in self._by_uuid[old_uuid]:
+                self._by_uuid[old_uuid].remove(existing)
+                if not self._by_uuid[old_uuid]:
+                    del self._by_uuid[old_uuid]
+        else:
+            # Add new object
+            self._objects_list.append(obj)
+
+        # Update all indices
+        self._by_identifier[identifier] = obj
+        self._by_uri[uri] = obj
+
+        if uuid not in self._by_uuid:
+            self._by_uuid[uuid] = []
+        if obj not in self._by_uuid[uuid]:
+            self._by_uuid[uuid].append(obj)
+
+    def remove(self, obj: Any) -> None:
+        """Remove an object from the collection (list-compatible method)."""
+        identifier = get_obj_identifier(obj)
+
+        if identifier in self._by_identifier:
+            stored_obj = self._by_identifier[identifier]
+            self._objects_list.remove(stored_obj)
+
+            # Clean up all indices
+            del self._by_identifier[identifier]
+
+            uri = str(get_obj_uri(stored_obj))
+            if uri in self._by_uri:
+                del self._by_uri[uri]
+
+            uuid = get_obj_uuid(stored_obj)
+            if uuid in self._by_uuid and stored_obj in self._by_uuid[uuid]:
+                self._by_uuid[uuid].remove(stored_obj)
+                if not self._by_uuid[uuid]:
+                    del self._by_uuid[uuid]
+
+    def get_by_identifier(self, identifier: Union[str, Uri]) -> Optional[Any]:
+        """Get object by identifier (O(1) lookup)."""
+        # Try identifier lookup first
+        # obj = self._by_identifier.get(str(identifier))
+        obj = self._by_identifier.get(as_identifier(identifier))
+        if obj is not None:
+            return obj
+
+        # Try URI lookup
+        return self._by_uri.get(str(identifier))
+
+    def get_by_uuid(self, uuid: str) -> List[Any]:
+        """Get all objects with this UUID (O(1) lookup)."""
+        return self._by_uuid.get(uuid, [])
+
+    def __iter__(self):
+        """Iterate over objects in insertion order."""
+        return iter(self._objects_list)
+
+    def __len__(self) -> int:
+        """Get number of objects."""
+        return len(self._objects_list)
+
+    def __getitem__(self, index: int) -> Any:
+        """Support indexing (e.g., energyml_objects[0])."""
+        return self._objects_list[index]
+
+    def __bool__(self) -> bool:
+        """Support boolean checks (e.g., if energyml_objects:)."""
+        return len(self._objects_list) > 0
+
+
+class EpcRelsCacheErrorPolicy(Enum):
+    LOG = "log"
+    RAISE = "raise"
+    SKIP = "skip"
+
+
+class EpcRelsCache:
+    """
+    EPC Relationships Cache Manager
+
+    Summary
+    -------
+    Manages in-memory relationships between EPC objects, using canonical Uri as the internal key.
+    Accepts identifier, Uri, str(Uri), or the object itself as input for all public methods.
+    Does not manage rels file paths; export logic is handled by the Epc class.
+
+    API Reference
+    -------------
+    - __init__(epc: Epc | EnergymlObjectCollection, export_version, error_policy='log')
+        Initialize with a reference to the owning Epc or a collection of objects.
+        Optionally set error handling policy ('log', 'raise', 'skip').
+
+    - set_rels_from_file(obj: Union[str, Uri, Any], rels: Relationships) -> None
+        Attach relationships loaded from a .rels file to the given object (by any accepted key type).
+        Used for supplemental or precomputed rels.
+
+    - add_supplemental_rels(obj: Union[str, Uri, Any], rels: Union[Relationship, List[Relationship]]) -> None
+        Add supplemental relationships for an object. These persist across cache clears and are merged lazily.
+
+    - get_object_rels(obj: Union[str, Uri, Any]) -> List[Relationship]
+        Return the effective relationships for an object, merging computed and supplemental rels, deduplicated.
+
+    - get_object_relationships(obj: Union[str, Uri, Any]) -> Relationships
+        Return RelationShips(get_object_rels(obj)) for the given object.
+
+    - compute_rels(parallel: bool = False, recompute_all: bool = False) -> Dict[Uri, List[Relationship]]
+        Recompute all relationships. If parallel=True, use a thread/process pool for the map phase.
+        Returns a mapping of Uri to deduplicated relationships. Export logic (rels path, target) is handled by Epc.
+
+    - update_cache_for_object(obj: Union[str, Uri, Any]) -> None
+        Incrementally update relationships for a single object add, remove, or modification.
+
+    - clear_cache() and recompute_cache(parallel=False)
+        Clear or fully recompute the internal cache.
+
+    - clean_rels(obj: Union[str, Uri, Any] = None) -> None
+        Deduplicate relationships for a given object or all objects. Called after full recompute.
+
+    - validate_rels() -> Dict[str, Any]
+        Run validation checks: duplicate rels, missing reverse links, circular references, etc.
+        Returns a report of issues found.
+
+    Implementation Notes
+    -------------------
+    - All public methods accept identifier, Uri, str(Uri), or object; internally, always convert to Uri with a specific function to avoid code duplication.
+    - Internal caches: {Uri: List[Relationship]} for computed, {Uri: List[Relationship]} for supplemental, {Uri: Set[Uri]} for reverse index (target -> sources).
+    - Reverse index enables O(1) lookup of which objects reference a given target, critical for incremental updates.
+    - No rels path management; Epc class is responsible for rels file path and target attribute generation.
+    - Relationship IDs must be deterministic (e.g., UUIDv5 or hash of source+target+type).
+    - On exception, log/skip/raise according to error_policy. Omitted objects do not block the pipeline.
+    - clean_rels() can be parallelized, as deduplication is per-object.
+    - Use threading.Lock or RLock to protect cache updates. Only lock during writes.
+
+    Behavioural Invariants
+    ---------------------
+    - Canonical in-memory key: Uri. Never mix identifier and Uri in the same map.
+    - Supplemental rels are preserved and merged lazily; not lost on clear/recompute unless explicitly removed.
+    - All deduplication and validation is performed on the in-memory Uri-keyed data.
+
+    Validation & Testing
+    -------------------
+    - clean_rels() ensures no duplicate (type, target) relationships per object.
+    - validate_rels() checks for missing reverse links, circular references, and other edge cases.
+    - Unit tests should cover all input types, deduplication, error handling, and validation.
+    - Use EnergymlObjectCollection for initial tests.
+
+    Migration/Integration
+    --------------------
+    - This class is standalone. Once implemented and tested, integrate into Epc, replacing legacy rels handling.
+    - No migration needed until integration.
+
+    """
+
+    def __init__(self, epc_or_collection, export_version=None, error_policy=EpcRelsCacheErrorPolicy.LOG):
+        """
+        Initialize the EpcRelsCache.
+        :param epc_or_collection: Epc instance or EnergymlObjectCollection
+        :param export_version: EPC export version. If None and epc_or_collection is Epc, uses epc.export_version
+        :param export_version: EPC export version (for rels path/target generation)
+        :param error_policy: EpcRelsCacheErrorPolicy enum value for error handling
+        """
+        self._lock = threading.RLock()
+        if isinstance(error_policy, str):
+            # Allow legacy string for backward compatibility
+            error_policy = EpcRelsCacheErrorPolicy(error_policy.lower())
+        self._error_policy = error_policy
+        # Accept Epc or EnergymlObjectCollection
+        if isinstance(epc_or_collection, Epc):
+            self._objects = epc_or_collection.energyml_objects
+            self._epc = epc_or_collection
+            self._export_version_fallback = export_version or epc_or_collection.export_version
+        else:
+            self._objects = epc_or_collection
+            self._epc = None
+            self._export_version_fallback = export_version or EpcExportVersion.CLASSIC
+        # Internal caches
+        self._computed_rels = {}  # {Uri: List[Relationship]}
+        self._supplemental_rels = {}  # {Uri: List[Relationship]}
+        self._reverse_index: Dict[Uri, Set[Uri]] = {}  # {target_uri: {source_uris}}
+
+    @property
+    def export_version(self) -> EpcExportVersion:
+        """Get the current export version, using Epc's version if available."""
+        if self._epc is not None:
+            return self._epc.export_version
+        return self._export_version_fallback
+
+    def _uri_from_any(self, obj_or_id: Any) -> "Uri":
+        """
+        Normalize input to canonical Uri.
+        Accepts identifier, Uri, str(Uri), or object.
+        """
+        if isinstance(obj_or_id, Uri):
+            return obj_or_id
+        if hasattr(obj_or_id, "object_version") or hasattr(obj_or_id, "__dict__"):
+            # Likely an energyml object
+            return get_obj_uri(obj_or_id)
+        if isinstance(obj_or_id, str):
+            # Try parse as Uri
+            uri = parse_uri(obj_or_id)
+            if uri:
+                return uri
+            # Try as identifier
+            obj = None
+            if self._epc and hasattr(self._epc, "get_object_by_identifier"):
+                obj = self._epc.get_object_by_identifier(obj_or_id)
+            elif hasattr(self._objects, "get_by_identifier"):
+                obj = self._objects.get_by_identifier(obj_or_id)
+            if obj:
+                return get_obj_uri(obj)
+        raise ValueError(f"Cannot resolve to Uri: {obj_or_id}")
+
+    def set_rels_from_file(self, obj: Any, rels: "Relationships") -> None:
+        """Attach relationships loaded from a .rels file to the given object."""
+        uri = self._uri_from_any(obj)
+        with self._lock:
+            self._computed_rels[uri] = list(rels.relationship) if hasattr(rels, "relationship") else list(rels)
+
+            # check supplemental to keep :
+            for r in rels.relationship or []:
+                if r.type_value not in (
+                    str(EPCRelsRelationshipType.DESTINATION_OBJECT),
+                    str(EPCRelsRelationshipType.SOURCE_OBJECT),
+                    str(EPCRelsRelationshipType.ML_TO_EXTERNAL_PART_PROXY),
+                    str(EPCRelsRelationshipType.EXTERNAL_PART_PROXY_TO_ML),
+                ):
+                    if uri not in self._supplemental_rels:
+                        self._supplemental_rels[uri] = []
+                    self._supplemental_rels[uri].append(r)
+
+            # self._supplemental_rels[uri] = list(rels.relationship) if hasattr(rels, "relationship") else list(rels)
+
+    def add_supplemental_rels(self, obj: Any, rels: Union["Relationship", List["Relationship"]]) -> None:
+        """Add supplemental relationships for an object."""
+        uri = self._uri_from_any(obj)
+        with self._lock:
+            if uri not in self._supplemental_rels:
+                self._supplemental_rels[uri] = []
+            if isinstance(rels, list):
+                self._supplemental_rels[uri].extend(rels)
+            else:
+                self._supplemental_rels[uri].append(rels)
+
+    def get_supplemental_rels(self, obj: Any, default=None) -> List["Relationship"]:
+        """Get supplemental relationships for an object."""
+        uri = self._uri_from_any(obj)
+        with self._lock:
+            return self._supplemental_rels.get(uri, default if default is not None else [])
+
+    def get_object_rels(self, obj: Any) -> List["Relationship"]:
+        """Return the effective relationships for an object, merging computed and supplemental rels, deduplicated."""
+        uri = self._uri_from_any(obj)
+        with self._lock:
+            rels = list(self._computed_rels.get(uri, []))
+            rels.extend(self._supplemental_rels.get(uri, []))
+        return self._deduplicate_rels(rels)
+
+    def compute_rels(self, parallel: bool = False) -> Dict["Uri", List["Relationship"]]:
+        """
+        Recompute all relationships, including reverse relationships. If parallel=True, use a thread/process pool for the map phase.
+        Returns a mapping of Uri to deduplicated relationships.
+        """
+        import collections
+        import concurrent.futures
+
+        with self._lock:
+            self._computed_rels.clear()
+            objects = list(self._objects)
+
+        # First pass: collect direct DORs for each object
+        def map_func(obj) -> Optional[Tuple[Uri, Set[Uri], Set[Tuple[str, str]]]]:
+            try:
+                uri = get_obj_uri(obj)
+                dor_uris, external_uris = self._get_direct_dor_uris(obj)
+                return (uri, dor_uris, external_uris)
+            except Exception as e:
+                self._handle_error(f"Failed to compute DORs for {obj}: {e}")
+                return None
+
+        results = []
+        if parallel:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                for res in executor.map(map_func, objects):
+                    if res:
+                        results.append(res)
+        else:
+            for obj in objects:
+                res = map_func(obj)
+                if res:
+                    results.append(res)
+
+        # Second pass: build forward and reverse relationships
+        rels_map = collections.defaultdict(list)  # {Uri: List[Relationship]}
+        for src_uri, dor_uris, external_uris in results:
+            src_path = gen_energyml_object_path(src_uri, export_version=self.export_version)
+            for tgt_uri in dor_uris:
+                tgt_path = gen_energyml_object_path(tgt_uri, export_version=self.export_version)
+                # Forward rel (src -> tgt)
+                rels_map[src_uri].append(
+                    Relationship(
+                        target=tgt_path,
+                        type_value=get_rels_dor_type(dor_target=tgt_path, in_dor_owner_rels_file=True),
+                        id=f"_{gen_uuid()}",
+                    )
+                )
+                # Reverse rel (tgt -> src)
+                rels_map[tgt_uri].append(
+                    Relationship(
+                        target=src_path,
+                        type_value=get_rels_dor_type(dor_target=tgt_path, in_dor_owner_rels_file=False),
+                        id=f"_{gen_uuid()}",
+                    )
+                )
+            for ext_uri, _ in external_uris:
+                rels_map[src_uri].append(create_external_relationship(ext_uri))
+
+        # Build reverse index from results
+        reverse_idx = collections.defaultdict(set)
+        for src_uri, dor_uris, external_uris in results:
+            for tgt_uri in dor_uris:
+                reverse_idx[tgt_uri].add(src_uri)
+
+        with self._lock:
+            self._computed_rels = dict(rels_map)
+            self._reverse_index = {k: v for k, v in reverse_idx.items()}
+        self.clean_rels()
+        return {uri: self.get_object_rels(uri) for uri in self._computed_rels}
+
+    def update_cache_for_object(self, obj: Any) -> None:
+        """Incrementally update relationships for a single object, including reverse relationships."""
+        uri = self._uri_from_any(obj)
+        dor_uris, external_uris = self._get_direct_dor_uris(obj)
+
+        with self._lock:
+            # Remove old reverse index entries for this object
+            if uri in self._computed_rels:
+                # Find old DOR targets and clean them up
+                old_rels = self._computed_rels.get(uri, [])
+                for old_rel in old_rels:
+                    # Extract target URI from path (approximate - we'll rebuild from scratch)
+                    pass
+
+            # Clean up old reverse index entries where this object was the source
+            for tgt_uri, sources in list(self._reverse_index.items()):
+                if uri in sources:
+                    sources.discard(uri)
+                    if not sources:
+                        del self._reverse_index[tgt_uri]
+
+            # Compute forward relationships for this object
+            forward_rels = []
+            src_path = gen_energyml_object_path(uri, export_version=self.export_version)
+
+            for tgt_uri in dor_uris:
+                tgt_path = gen_energyml_object_path(tgt_uri, export_version=self.export_version)
+                # Forward rel (this object -> target)
+                forward_rels.append(
+                    Relationship(
+                        target=tgt_path,
+                        type_value=get_rels_dor_type(dor_target=tgt_path, in_dor_owner_rels_file=True),
+                        id=f"_{gen_uuid()}",
+                    )
+                )
+
+                # Update reverse index: target is now referenced by this object
+                if tgt_uri not in self._reverse_index:
+                    self._reverse_index[tgt_uri] = set()
+                self._reverse_index[tgt_uri].add(uri)
+
+                # Add reverse rel to target if target exists in cache
+                if tgt_uri in self._computed_rels:
+                    reverse_rel = Relationship(
+                        target=src_path,
+                        type_value=get_rels_dor_type(dor_target=tgt_path, in_dor_owner_rels_file=False),
+                        id=f"_{gen_uuid()}",
+                    )
+                    self._computed_rels[tgt_uri].append(reverse_rel)
+
+            # Compute reverse relationships from index (who references me?)
+            reverse_rels = []
+            for src_uri in self._reverse_index.get(uri, set()):
+                if src_uri != uri:  # Avoid self-references
+                    src_path = gen_energyml_object_path(src_uri, export_version=self.export_version)
+                    tgt_path = gen_energyml_object_path(uri, export_version=self.export_version)
+                    reverse_rels.append(
+                        Relationship(
+                            target=src_path,
+                            type_value=get_rels_dor_type(dor_target=tgt_path, in_dor_owner_rels_file=False),
+                            id=f"_{gen_uuid()}",
+                        )
+                    )
+
+            for ext_uri, _ in external_uris:
+                forward_rels.append(create_external_relationship(ext_uri))
+
+            # Store combined relationships
+            self._computed_rels[uri] = forward_rels + reverse_rels
+
+    def clear_cache(self) -> None:
+        """Clear the internal caches and reverse index."""
+        with self._lock:
+            self._computed_rels.clear()
+            self._reverse_index.clear()
+
+    def recompute_cache(self, parallel: bool = False) -> Dict["Uri", List["Relationship"]]:
+        """Fully recompute the internal cache."""
+        return self.compute_rels(parallel=parallel)
+
+    def clean_rels(self, obj: Optional[Any] = None) -> None:
+        """
+        Deduplicate relationships for a given object or all objects.
+        Removes duplicates by (target, type_value).
+        """
+        with self._lock:
+            if obj is not None:
+                uri = self._uri_from_any(obj)
+                rels = self._computed_rels.get(uri, []) + self._supplemental_rels.get(uri, [])
+                deduped = self._deduplicate_rels(rels)
+                self._computed_rels[uri] = deduped
+            else:
+                for uri in set(list(self._computed_rels.keys()) + list(self._supplemental_rels.keys())):
+                    rels = self._computed_rels.get(uri, []) + self._supplemental_rels.get(uri, [])
+                    deduped = self._deduplicate_rels(rels)
+                    self._computed_rels[uri] = deduped
+
+    def validate_rels(self) -> Dict[str, Any]:
+        """
+        Run validation checks: duplicate rels, orphaned references, circular references, etc.
+        Returns a report of issues found.
+        """
+        report = {"duplicates": [], "orphaned_references": [], "circular": [], "index_inconsistency": []}
+
+        with self._lock:
+            # Check for duplicates
+            for uri, rels in self._computed_rels.items():
+                seen = set()
+                for rel in rels:
+                    key = (getattr(rel, "target", None), getattr(rel, "type_value", None))
+                    if key in seen:
+                        report["duplicates"].append((str(uri), key))
+                    else:
+                        seen.add(key)
+
+            # Check for orphaned references (references to non-existent objects)
+            all_object_uris = set()
+            if self._epc:
+                all_object_uris = {get_obj_uri(obj) for obj in self._epc.energyml_objects}
+            elif self._objects:
+                all_object_uris = {get_obj_uri(obj) for obj in self._objects}
+
+            for target_uri, sources in self._reverse_index.items():
+                # An object is orphaned if it's referenced but doesn't exist in the collection
+                # Note: target_uri may be in _computed_rels due to reverse relationships,
+                # but that doesn't mean the object actually exists in the collection
+                if target_uri not in all_object_uris:
+                    report["orphaned_references"].append(
+                        {"target": str(target_uri), "referenced_by": [str(s) for s in sources]}
+                    )
+
+            # Check reverse index consistency
+            for src_uri, rels in self._computed_rels.items():
+                for rel in rels:
+                    # Check if forward relationships are properly indexed
+                    # This is a sanity check for the index
+                    pass
+
+        return report
+
+    def get_reverse_index_stats(self) -> Dict[str, Any]:
+        """
+        Get statistics about the reverse reference index for debugging and validation.
+        Returns a dictionary with index statistics.
+        """
+        with self._lock:
+            stats = {
+                "total_targets": len(self._reverse_index),
+                "total_references": sum(len(sources) for sources in self._reverse_index.values()),
+                "max_references_to_single_target": max(
+                    (len(sources) for sources in self._reverse_index.values()), default=0
+                ),
+                "targets_by_reference_count": {},
+            }
+
+            # Group targets by how many sources reference them
+            for target_uri, sources in self._reverse_index.items():
+                count = len(sources)
+                if count not in stats["targets_by_reference_count"]:
+                    stats["targets_by_reference_count"][count] = 0
+                stats["targets_by_reference_count"][count] += 1
+
+            return stats
+
+    def _handle_error(self, msg: str) -> None:
+        if self._error_policy == EpcRelsCacheErrorPolicy.LOG:
+            import logging
+
+            logging.error(msg)
+        elif self._error_policy == EpcRelsCacheErrorPolicy.RAISE:
+            raise RuntimeError(msg)
+        # else: SKIP
+
+    def _deduplicate_rels(self, rels: List["Relationship"]) -> List["Relationship"]:
+        """Remove duplicate relationships by (target, type_value)."""
+        seen = set()
+        result = []
+        for rel in rels:
+            key = (getattr(rel, "target", None), getattr(rel, "type_value", None))
+            if key not in seen:
+                seen.add(key)
+                result.append(rel)
+        return result
+
+    def _remove_object_from_cache(self, obj: Any) -> None:
+        """
+        Remove an object from the cache, cleaning up all references and reverse index entries.
+        """
+        uri = self._uri_from_any(obj)
+
+        with self._lock:
+            # Remove from computed rels
+            if uri in self._computed_rels:
+                del self._computed_rels[uri]
+
+            # Remove from supplemental rels
+            if uri in self._supplemental_rels:
+                del self._supplemental_rels[uri]
+
+            # Remove from reverse index (as target)
+            if uri in self._reverse_index:
+                del self._reverse_index[uri]
+
+            # Remove from reverse index (as source)
+            for target_uri, sources in list(self._reverse_index.items()):
+                if uri in sources:
+                    sources.discard(uri)
+                    if not sources:
+                        del self._reverse_index[target_uri]
+
+            # Remove reverse rels from targets' computed rels
+            for other_uri, other_rels in self._computed_rels.items():
+                if other_uri != uri:
+                    # Filter out relationships targeting the removed object
+                    uri_path = gen_energyml_object_path(uri, export_version=self.export_version)
+                    self._computed_rels[other_uri] = [
+                        rel for rel in other_rels if getattr(rel, "target", None) != uri_path
+                    ]
+
+    def _get_direct_dor_uris(self, obj: Any) -> Tuple[Set[Uri], Set[Tuple[str, str]]]:
+        """
+        Return the set of direct DOR target Uris for the given object and Tuple[filepath, mimetype] for external references.
+        """
+        try:
+            return get_dor_or_external_uris_from_obj(obj)
+        except Exception as e:
+            self._handle_error(f"Error getting direct DOR URIs: {e}")
+            return set(), set()
+
+
+def log_timestamp(func):
+    """Decorator to log timestamps for function execution."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        func_name = func.__name__
+        start_time = time.perf_counter()
+        timestamp_start = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+        # Get file path from arguments if available
+        file_path = None
+        if args:
+            if isinstance(args[0], str) and (args[0].endswith(".epc") or "/" in args[0] or "\\" in args[0]):
+                file_path = args[0]
+            elif hasattr(args[0], "epc_file_path"):
+                file_path = args[0].epc_file_path
+        if "path" in kwargs:
+            file_path = kwargs["path"]
+        elif "epc_file_path" in kwargs:
+            file_path = kwargs["epc_file_path"]
+
+        path_info = f" [{file_path}]" if file_path else ""
+        print(f"⏱️  [{timestamp_start}] Starting {func_name}{path_info}")
+
+        try:
+            result = func(*args, **kwargs)
+            elapsed = time.perf_counter() - start_time
+            timestamp_end = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            print(f"✅ [{timestamp_end}] Completed {func_name} in {elapsed:.3f}s{path_info}")
+            return result
+        except Exception as e:
+            elapsed = time.perf_counter() - start_time
+            timestamp_end = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            print(f"❌ [{timestamp_end}] Failed {func_name} after {elapsed:.3f}s{path_info}: {e}")
+            raise
+
+    return wrapper
+
+
+# --- HELPER FUNCTIONS (HORS CLASSE) ---
+
+
+def _parallel_xml_read(xml_data: bytes, content_type: str):
+    try:
+
+        target_class = get_class_from_content_type(content_type)
+        obj = read_energyml_xml_bytes(xml_data, target_class)
+
+        if isinstance(obj, DerivedElement):
+            obj = obj.value
+        return obj
+    except Exception as e:
+        return e
+
+
+def _parallel_rels_read(rels_bytes: bytes):
+    try:
+        return read_energyml_xml_bytes(rels_bytes, Relationships)
+    except Exception as e:
+        return e
+
+
+def _parallel_xml_serialize(obj):
+    """Sérialise un objet Python en XML bytes dans un processus séparé."""
+    try:
+        return serialize_xml(obj)
+    except Exception as e:
+        return e
 
 
 @dataclass
 class Epc(EnergymlStorageInterface):
     """
-    A class that represent an EPC file content
+    A class that represent an EPC file content. Creating an isntance of this class with a file path will not directly load the file content if it exists.
+    To read an existing file, use the @read_file or @read_stream functions.
+    Moreover, you must explicitly call @export_file or @export_io functions to save the content of the instance.
     """
 
     # content_type: List[str] = field(
@@ -103,11 +752,11 @@ class Epc(EnergymlStorageInterface):
 
     export_version: EpcExportVersion = field(default=EpcExportVersion.CLASSIC)
 
-    core_props: CoreProperties = field(default=None)
+    core_props: Optional[CoreProperties] = field(default=None)
 
     """ xml files referred in the [Content_Types].xml  """
-    energyml_objects: List = field(
-        default_factory=list,
+    energyml_objects: EnergymlObjectCollection = field(
+        default_factory=EnergymlObjectCollection,
     )
 
     """ Other files content like pdf etc """
@@ -127,17 +776,26 @@ class Epc(EnergymlStorageInterface):
 
     force_h5_path: Optional[str] = field(default=None)
 
+    """ Relationships cache for efficient rels computation and management """
+    _rels_cache: Optional[EpcRelsCache] = field(default=None, init=False, repr=False)
+
     """
-    Additional rels for objects. Key is the object (same than in @energyml_objects) and value is a list of
+    Additional rels for objects (DEPRECATED - use _rels_cache.add_supplemental_rels instead).
+    Key is the object (same than in @energyml_objects) and value is a list of
     RelationShip. This can be used to link an HDF5 to an ExternalPartReference in resqml 2.0.1
     Key is a value returned by @get_obj_identifier
     """
-    additional_rels: Dict[str, List[Relationship]] = field(default_factory=lambda: {})
+    # additional_rels: Dict[str, List[Relationship]] = field(default_factory=lambda: {})
 
     """
     Epc file path. Used when loaded from a local file or for export
     """
     epc_file_path: Optional[str] = field(default=None)
+
+    def __post_init__(self):
+        """Initialize the relationships cache after dataclass initialization."""
+        if self._rels_cache is None:
+            self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
 
     def __str__(self):
         return (
@@ -213,308 +871,7 @@ class Epc(EnergymlStorageInterface):
         else:
             logging.error(f"unsupported type {str(type(obj))}")
 
-    # EXPORT functions
-
-    def gen_opc_content_type(self) -> Types:
-        """
-        Generates a :class:`Types` instance and fill it with energyml objects :class:`Override` values
-        :return:
-        """
-        ct = Types()
-        rels_default = Default()
-        rels_default.content_type = RELS_CONTENT_TYPE
-        rels_default.extension = "rels"
-
-        ct.default = [rels_default]
-
-        ct.override = []
-        for e_obj in self.energyml_objects:
-            ct.override.append(
-                Override(
-                    content_type=get_content_type_from_class(type(e_obj)),
-                    part_name=gen_energyml_object_path(e_obj, self.export_version),
-                )
-            )
-
-        if self.core_props is not None:
-            ct.override.append(
-                Override(
-                    content_type=get_content_type_from_class(self.core_props),
-                    part_name=gen_core_props_path(self.export_version),
-                )
-            )
-
-        return ct
-
-    def export_file(self, path: Optional[str] = None) -> None:
-        """
-        Export the epc file. If :param:`path` is None, the epc 'self.epc_file_path' is used
-        :param path:
-        :return:
-        """
-        if path is None:
-            path = self.epc_file_path
-
-        # Ensure directory exists
-        if path is not None:
-            Path(path).parent.mkdir(parents=True, exist_ok=True)
-        epc_io = self.export_io()
-        with open(path, "wb") as f:
-            f.write(epc_io.getbuffer())
-
-    def export_io(self) -> BytesIO:
-        """
-        Export the epc file into a :class:`BytesIO` instance. The result is an 'in-memory' zip file.
-        :return:
-        """
-        zip_buffer = BytesIO()
-
-        with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-            # CoreProps
-            if self.core_props is None:
-                self.core_props = CoreProperties(
-                    created=Created(any_element=epoch_to_date(epoch())),
-                    creator=Creator(any_element="energyml-utils python module (Geosiris)"),
-                    identifier=Identifier(any_element=f"urn:uuid:{gen_uuid()}"),
-                    keywords=Keywords1(
-                        lang="en",
-                        content=["generated;Geosiris;python;energyml-utils"],
-                    ),
-                    version="1.0",
-                )
-
-            zip_info_core = zipfile.ZipInfo(
-                filename=gen_core_props_path(self.export_version),
-                date_time=datetime.datetime.now().timetuple()[:6],
-            )
-            data = serialize_xml(self.core_props)
-            zip_file.writestr(zip_info_core, data)
-
-            #  Energyml objects
-            for e_obj in self.energyml_objects:
-                e_path = gen_energyml_object_path(e_obj, self.export_version)
-                zip_info = zipfile.ZipInfo(
-                    filename=e_path,
-                    date_time=datetime.datetime.now().timetuple()[:6],
-                )
-                data = serialize_xml(e_obj)
-                zip_file.writestr(zip_info, data)
-
-            # Rels
-            for rels_path, rels in self.compute_rels().items():
-                zip_info = zipfile.ZipInfo(
-                    filename=rels_path,
-                    date_time=datetime.datetime.now().timetuple()[:6],
-                )
-                data = serialize_xml(rels)
-                zip_file.writestr(zip_info, data)
-
-            # Other files:
-            for raw in self.raw_files:
-                zip_info = zipfile.ZipInfo(
-                    filename=raw.path,
-                    date_time=datetime.datetime.now().timetuple()[:6],
-                )
-                zip_file.writestr(zip_info, raw.content.read())
-
-            # ContentType
-            zip_info_ct = zipfile.ZipInfo(
-                filename=get_epc_content_type_path(),
-                date_time=datetime.datetime.now().timetuple()[:6],
-            )
-            data = serialize_xml(self.gen_opc_content_type())
-            zip_file.writestr(zip_info_ct, data)
-
-        return zip_buffer
-
-    def get_obj_rels(self, obj: Any) -> Optional[Relationships]:
-        """
-        Get the Relationships object for a given energyml object
-        :param obj:
-        :return:
-        """
-        rels_path = gen_rels_path(
-            energyml_object=obj,
-            export_version=self.export_version,
-        )
-        all_rels = self.compute_rels()
-        if rels_path in all_rels:
-            return all_rels[rels_path]
-        return None
-
-    def compute_rels(self) -> Dict[str, Relationships]:
-        """
-        Returns a dict containing for each objet, the rels xml file path as key and the RelationShips object as value
-        :return:
-        """
-        dor_relation = get_reverse_dor_list(self.energyml_objects)
-
-        # destObject
-        rels = {
-            obj_id: [
-                Relationship(
-                    target=gen_energyml_object_path(target_obj, self.export_version),
-                    type_value=EPCRelsRelationshipType.DESTINATION_OBJECT.get_type(),
-                    id=f"_{obj_id}_{get_obj_type(get_obj_usable_class(target_obj))}_{get_obj_identifier(target_obj)}",
-                )
-                for target_obj in target_obj_list
-            ]
-            for obj_id, target_obj_list in dor_relation.items()
-        }
-        # sourceObject
-        for obj in self.energyml_objects:
-            obj_id = get_obj_identifier(obj)
-            if obj_id not in rels:
-                rels[obj_id] = []
-            for target_obj in get_direct_dor_list(obj):
-                try:
-                    rels[obj_id].append(
-                        Relationship(
-                            target=gen_energyml_object_path(target_obj, self.export_version),
-                            type_value=EPCRelsRelationshipType.SOURCE_OBJECT.get_type(),
-                            id=f"_{obj_id}_{get_obj_type(get_obj_usable_class(target_obj))}_{get_obj_identifier(target_obj)}",
-                        )
-                    )
-                except Exception:
-                    logging.error(f'Failed to create rels for "{obj_id}" with target {target_obj}')
-
-        # filtering non-accessible objects from DOR
-        rels = {k: v for k, v in rels.items() if self.get_object_by_identifier(k) is not None}
-
-        map_obj_id_to_obj = {get_obj_identifier(obj): obj for obj in self.energyml_objects}
-
-        obj_rels = {
-            gen_rels_path(
-                energyml_object=map_obj_id_to_obj.get(obj_id),
-                export_version=self.export_version,
-            ): Relationships(
-                relationship=obj_rels + (self.additional_rels[obj_id] if obj_id in self.additional_rels else []),
-            )
-            for obj_id, obj_rels in rels.items()
-        }
-
-        # CoreProps
-        if self.core_props is not None:
-            obj_rels[gen_rels_path(self.core_props)] = Relationships(
-                relationship=[
-                    Relationship(
-                        target=gen_core_props_path(),
-                        type_value=EPCRelsRelationshipType.CORE_PROPERTIES.get_type(),
-                        id="CoreProperties",
-                    )
-                ]
-            )
-
-        return obj_rels
-
-    def rels_to_h5_file(self, obj: Any, h5_path: str) -> Relationship:
-        """
-        Creates in the epc file, a Relation (in the object .rels file) to link a h5 external file.
-        Usually this function is used to link an ExternalPartReference to a h5 file.
-        In practice, the Relation object is added to the "additional_rels" of the current epc file.
-        :param obj:
-        :param h5_path:
-        :return: the Relationship added to the epc.additional_rels dict
-        """
-        obj_ident = get_obj_identifier(obj)
-        if obj_ident not in self.additional_rels:
-            self.additional_rels[obj_ident] = []
-
-        nb_current_file = len(self.get_h5_file_paths(obj))
-
-        rel = create_h5_external_relationship(h5_path=h5_path, current_idx=nb_current_file)
-        self.additional_rels[obj_ident].append(rel)
-        return rel
-
-    def get_h5_file_paths(self, obj: Any) -> List[str]:
-        """
-        Get all HDF5 file paths referenced in the EPC file (from rels to external resources)
-        :return: list of HDF5 file paths
-        """
-
-        if self.force_h5_path is not None:
-            return [self.force_h5_path]
-
-        is_uri = (isinstance(obj, str) and parse_uri(obj) is not None) or isinstance(obj, Uri)
-        if is_uri:
-            obj = self.get_object_by_identifier(obj)
-
-        h5_paths = set()
-
-        if isinstance(obj, str):
-            obj = self.get_object_by_identifier(obj)
-        for rels in self.additional_rels.get(get_obj_identifier(obj), []):
-            if rels.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
-                h5_paths.add(rels.target)
-
-        if len(h5_paths) == 0:
-            # search if an h5 file has the same name than the epc file
-            epc_folder = self.get_epc_file_folder()
-            if epc_folder is not None and self.epc_file_path is not None:
-                epc_file_name = os.path.basename(self.epc_file_path)
-                epc_file_base, _ = os.path.splitext(epc_file_name)
-                possible_h5_path = os.path.join(epc_folder, epc_file_base + ".h5")
-                if os.path.exists(possible_h5_path):
-                    h5_paths.add(possible_h5_path)
-        return list(h5_paths)
-
-    def get_object_as_dor(self, identifier: str, dor_qualified_type) -> Optional[Any]:
-        """
-        Search an object by its identifier and returns a DOR
-        :param identifier:
-        :param dor_qualified_type: the qualified type of the DOR (e.g. resqml22.DataObjectReference)
-        :return:
-        """
-        obj = self.get_object_by_identifier(identifier=identifier)
-        # if obj is None:
-
-        return as_dor(obj_or_identifier=obj or identifier, dor_qualified_type=dor_qualified_type)
-
-    def get_object_by_uuid(self, uuid: str) -> List[Any]:
-        """
-        Search all objects with the uuid :param:`uuid`.
-        :param uuid:
-        :return:
-        """
-        return list(filter(lambda o: get_obj_uuid(o) == uuid, self.energyml_objects))
-
-    def get_object_by_identifier(self, identifier: Union[str, Uri]) -> Optional[Any]:
-        """
-        Search an object by its identifier.
-        :param identifier: given by the function :func:`get_obj_identifier`, or a URI (or its str representation)
-        :return:
-        """
-        is_uri = isinstance(identifier, Uri) or parse_uri(identifier) is not None
-        id_str = str(identifier)
-        for o in self.energyml_objects:
-            if (get_obj_identifier(o) if not is_uri else str(get_obj_uri(o))) == id_str:
-                return o
-        return None
-
-    def get_object(self, identifier: Union[str, Uri]) -> Optional[Any]:
-        return self.get_object_by_identifier(identifier)
-
-    def add_object(self, obj: Any) -> bool:
-        """
-        Add an energyml object to the EPC stream
-        :param obj:
-        :return:
-        """
-        self.energyml_objects.append(obj)
-        return True
-
-    def remove_object(self, identifier: Union[str, Uri]) -> None:
-        """
-        Remove an energyml object from the EPC stream by its identifier
-        :param identifier:
-        :return:
-        """
-        obj = self.get_object_by_identifier(identifier)
-        if obj is not None:
-            self.energyml_objects.remove(obj)
-
-    def __len__(self) -> int:
-        return len(self.energyml_objects)
+    # === Relationships management functions ===
 
     def add_rels_for_object(
         self,
@@ -528,24 +885,129 @@ class Epc(EnergymlStorageInterface):
         :return:
         """
 
+        self._rels_cache.add_supplemental_rels(obj, relationships)
+
+        # if isinstance(obj, str) or isinstance(obj, Uri):
+        #     obj = self.get_object_by_identifier(obj)
+        #     obj_ident = get_obj_identifier(obj)
+        # else:
+        #     obj_ident = get_obj_identifier(obj)
+        # if obj_ident not in self.additional_rels:
+        #     self.additional_rels[obj_ident] = []
+
+        # self.additional_rels[obj_ident] = self.additional_rels[obj_ident] + relationships
+
+    def rels_to_h5_file(self, obj: Any, h5_path: str) -> Relationship:
+        """
+        Creates in the epc file, a Relation (in the object .rels file) to link a h5 external file.
+        Usually this function is used to link an ExternalPartReference to a h5 file.
+        :param obj:
+        :param h5_path:
+        :return: the Relationship added to the rels cache
+        """
+        # obj_ident = get_obj_identifier(obj)
+        # if obj_ident not in self.additional_rels:
+        #     self.additional_rels[obj_ident] = []
+
+        nb_current_file = len(self.get_h5_file_paths(obj))
+
+        rel = create_h5_external_relationship(h5_path=h5_path, current_idx=nb_current_file)
+        # self.additional_rels[obj_ident].append(rel)
+        self._rels_cache.add_supplemental_rels(obj, rel)
+        return rel
+
+    def get_obj_rels(self, obj: Union[str, Uri, Any]) -> List[Relationship]:
+        """
+        Get the relationships for a given energyml object using the cache.
+        :param obj: The object identifier/URI or the object itself
+        :return: List of Relationship objects
+        """
+        # Ensure cache is initialized
+        if self._rels_cache is None:
+            self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
+
+        # Convert identifier to object if needed
         if isinstance(obj, str) or isinstance(obj, Uri):
             obj = self.get_object_by_identifier(obj)
-            obj_ident = get_obj_identifier(obj)
-        else:
-            obj_ident = get_obj_identifier(obj)
-        if obj_ident not in self.additional_rels:
-            self.additional_rels[obj_ident] = []
+            if obj is None:
+                return []
 
-        self.additional_rels[obj_ident] = self.additional_rels[obj_ident] + relationships
+        # Get relationships from cache (includes computed + supplemental rels)
+        return self._rels_cache.get_object_rels(obj)
+
+    def update_rels_cache(self) -> None:
+        """Update the relationships cache for all objects. This should be called after any modification to the energyml objects to keep the cache consistent."""
+        if self._rels_cache is None:
+            self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
+        self._rels_cache.recompute_cache()
+
+    def clean_rels_cache(self, obj: Any = None) -> None:
+        """Clean relationships for a specific object in the cache. If no object is provided, clean all relationships in the cache. This will remove duplicates and ensure consistency between computed and supplemental relationships."""
+        if self._rels_cache is not None:
+            self._rels_cache.clean_rels(obj)
+
+    def clear_rels_cache(self) -> None:
+        """Clear the relationships cache. This will remove all computed and supplemental relationships, forcing a full recomputation on next access."""
+        if self._rels_cache is not None:
+            self._rels_cache.clear_cache()
+
+    def compute_rels(self, force_recompute_object_rels: bool = False) -> Dict[str, Relationships]:
+        """
+        Compute all relationships in the EPC file.
+        :param force_recompute_object_rels: If True, recompute all object relationships from scratch
+        :return: Dictionary mapping rels file paths to Relationships objects
+        """
+        # Ensure cache is initialized
+        if self._rels_cache is None:
+            self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
+
+        # Recompute cache if requested
+        if force_recompute_object_rels:
+            self._rels_cache.recompute_cache()
+
+        result = {}
+
+        # all energyml objects - get relationships from cache
+        for obj in self.energyml_objects:
+            obj_file_rels_path = gen_rels_path(obj, export_version=self.export_version)
+
+            # Get relationships from cache (includes computed + supplemental)
+            cached_rels = self._rels_cache.get_object_rels(obj)
+
+            result[obj_file_rels_path] = Relationships(relationship=cached_rels)
+
+        # CoreProps
+        core_props = self.core_props or create_default_core_properties()
+        core_props_rels_path = gen_rels_path(core_props, self.export_version)
+        result[core_props_rels_path] = Relationships(relationship=[])
+        for rf in self.raw_files:
+            if is_core_prop_or_extension_path(rf.path):
+                result[core_props_rels_path].relationship.append(
+                    Relationship(
+                        target=rf.path,
+                        type_value=str(EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES),
+                        id=f"_{gen_uuid()}",
+                    )
+                )
+
+        # ContentType
+        content_type_path_rels = get_epc_content_type_rels_path()
+        result[content_type_path_rels] = Relationships(
+            relationship=[
+                Relationship(
+                    id="CoreProperties",
+                    type_value=str(EPCRelsRelationshipType.CORE_PROPERTIES),
+                    target=gen_core_props_path(),
+                )
+            ]
+        )
+
+        return result
+
+    # === Array functions ===
 
     def get_epc_file_folder(self) -> Optional[str]:
-        if self.epc_file_path is not None and len(self.epc_file_path) > 0:
-            folders_and_name = re.split(r"[\\/]", self.epc_file_path)
-            if len(folders_and_name) > 1:
-                return "/".join(folders_and_name[:-1])
-            else:
-                return ""
-        return None
+        return get_file_folder(self.epc_file_path) if self.epc_file_path else None
 
     def read_external_array(
         self,
@@ -574,89 +1036,607 @@ class Epc(EnergymlStorageInterface):
             epc=self,
         )
 
-    def read_array(self, proxy: Union[str, Uri, Any], path_in_external: str) -> Optional[np.ndarray]:
+    def read_array(
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: str,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
+        external_uri: Optional[str] = None,
+    ) -> Optional[np.ndarray]:
+        """
+        Read a data array from external storage (HDF5, Parquet, CSV, etc.) with optional sub-selection.
+
+        :param proxy: The object identifier/URI or the object itself that references the array
+        :param path_in_external: Path within the external file (e.g., 'values/0')
+        :param start_indices: Optional start index for each dimension (RESQML v2.2 StartIndex)
+        :param counts: Optional count of elements for each dimension (RESQML v2.2 Count)
+        :param external_uri: Optional URI to override default file path (RESQML v2.2 URI)
+        :return: The data array as a numpy array, or None if not found
+        """
         obj = proxy
         if isinstance(proxy, str) or isinstance(proxy, Uri):
             obj = self.get_object_by_identifier(proxy)
 
-        h5_path = self.get_h5_file_paths(obj)
-        h5_reader = HDF5FileReader()
+        # Determine which external files to use
+        file_paths = self.get_h5_file_paths(obj)
+        if external_uri:
+            file_paths.insert(0, make_path_relative_to_other_file(external_uri, self.epc_file_path))
 
-        if h5_path is None or len(h5_path) == 0:
-            for h5_path in self.external_files_path:
-                try:
-                    return h5_reader.read_array(source=h5_path, path_in_external_file=path_in_external)
-                except Exception:
-                    pass
-                    # logging.error(f"Failed to read HDF5 dataset from {h5_path}: {e}")
-        else:
-            for h5p in h5_path:
-                try:
-                    return h5_reader.read_array(source=h5p, path_in_external_file=path_in_external)
-                except Exception:
-                    pass
-                    # logging.error(f"Failed to read HDF5 dataset from {h5p}: {e}")
+        if not file_paths or len(file_paths) == 0:
+            file_paths = self.external_files_path
+
+        if not file_paths:
+            logging.warning(f"No external file paths found for proxy: {proxy}")
+            return None
+
+        # Get the file handler registry
+        handler_registry = get_handler_registry()
+
+        for file_path in file_paths:
+            # Get the appropriate handler for this file type
+            handler = handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                logging.debug(f"No handler found for file: {file_path}")
+                continue
+
+            try:
+                # Use handler to read array with sub-selection support
+                array = handler.read_array(file_path, path_in_external, start_indices, counts)
+                if array is not None:
+                    return array
+            except Exception as e:
+                # logging.debug(f"Failed to read dataset from {file_path}: {e}")
+                pass
+
+        logging.error(f"Failed to read array from any available file paths: {file_paths}")
+        return None
+
+    def read_array_view(
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: str,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
+        external_uri: Optional[str] = None,
+    ) -> Optional[np.ndarray]:
+        """Best-effort zero-copy variant of :meth:`read_array`.
+
+        Delegates to ``handler.read_array_view`` when available (HDF5), which
+        returns a numpy array backed by the file buffer for contiguous,
+        uncompressed datasets.  Falls back transparently to a copy for chunked
+        or compressed data.
+        """
+        obj = proxy
+        if isinstance(proxy, str) or isinstance(proxy, Uri):
+            obj = self.get_object_by_identifier(proxy)
+
+        file_paths = self.get_h5_file_paths(obj)
+        if external_uri:
+            file_paths.insert(0, make_path_relative_to_other_file(external_uri, self.epc_file_path))
+        if not file_paths or len(file_paths) == 0:
+            file_paths = self.external_files_path
+        if not file_paths:
+            return None
+
+        handler_registry = get_handler_registry()
+        for file_path in file_paths:
+            handler = handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                continue
+            try:
+                read_view_fn = getattr(handler, "read_array_view", None)
+                if read_view_fn is not None:
+                    array = read_view_fn(file_path, path_in_external, start_indices, counts)
+                else:
+                    array = handler.read_array(file_path, path_in_external, start_indices, counts)
+                if array is not None:
+                    return array
+            except Exception as e:
+                logging.debug(f"Failed to read_array_view from {file_path}: {e}")
         return None
 
     def write_array(
-        self, proxy: Union[str, Uri, Any], path_in_external: str, array: Any, in_memory: bool = False
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: str,
+        array: np.ndarray,
+        start_indices: Optional[List[int]] = None,
+        external_uri: Optional[str] = None,
+        **kwargs,
     ) -> bool:
         """
-        Write a dataset in the HDF5 file linked to the proxy object.
-        :param proxy: the object or its identifier
-        :param path_in_external: the path in the external file
-        :param array: the data to write
-        :param in_memory: if True, write in the in-memory HDF5 files (epc.h5_io_files)
+        Write a data array to external storage (HDF5, Parquet, CSV, etc.) with optional offset.
 
-        :return: True if successful
+        :param proxy: The object identifier/URI or the object itself that references the array
+        :param path_in_external: Path within the external file (e.g., 'values/0')
+        :param array: The numpy array to write
+        :param start_indices: Optional start index for each dimension for partial writes
+        :param external_uri: Optional URI to override default file path (RESQML v2.2 URI)
+        :param kwargs: Additional format-specific parameters (e.g., dtype, column_titles)
+        :return: True if successfully written, False otherwise
         """
         obj = proxy
         if isinstance(proxy, str) or isinstance(proxy, Uri):
             obj = self.get_object_by_identifier(proxy)
 
-        h5_path = self.get_h5_file_paths(obj)
-        h5_writer = HDF5FileWriter()
+        # Determine which external files to use
+        file_paths = self.get_h5_file_paths(obj)
+        if external_uri:
+            file_paths.insert(0, make_path_relative_to_other_file(external_uri, self.epc_file_path))
 
-        if in_memory or h5_path is None or len(h5_path) == 0:
-            for h5_path in self.external_files_path:
-                try:
-                    h5_writer.write_array(target=h5_path, path_in_external_file=path_in_external, array=array)
-                    return True
-                except Exception:
-                    pass
-                    # logging.error(f"Failed to write HDF5 dataset to {h5_path}: {e}")
+        if not file_paths or len(file_paths) == 0:
+            file_paths = self.external_files_path
 
-        for h5p in h5_path:
+        if not file_paths:
+            logging.warning(f"No external file paths found for proxy: {proxy}")
+            return False
+
+        # Get the file handler registry
+        handler_registry = get_handler_registry()
+
+        # Try to write to the first available file
+        for file_path in file_paths:
+            # Get the appropriate handler for this file type
+            handler = handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                logging.debug(f"No handler found for file: {file_path}")
+                continue
+
             try:
-                h5_writer.write_array(target=h5p, path_in_external_file=path_in_external, array=array)
-                return True
-            except Exception:
-                pass
-                # logging.error(f"Failed to write HDF5 dataset to {h5p}: {e}")
+                # Use handler to write array with optional partial write support
+                success = handler.write_array(file_path, array, path_in_external, start_indices, **kwargs)
+                if success:
+                    return True
+            except Exception as e:
+                logging.error(f"Failed to write dataset to {file_path}: {e}")
+
+        logging.error(f"Failed to write array to any available file paths: {file_paths}")
         return False
 
+    def get_array_metadata(
+        self,
+        proxy: Union[str, Uri, Any],
+        path_in_external: Optional[str] = None,
+        start_indices: Optional[List[int]] = None,
+        counts: Optional[List[int]] = None,
+    ) -> Union[DataArrayMetadata, List[DataArrayMetadata], None]:
+        """
+        Get metadata for data array(s) without loading the full array data.
+        Supports RESQML v2.2 sub-array selection metadata.
+
+        :param proxy: The object identifier/URI or the object itself that references the array
+        :param path_in_external: Optional specific path. If None, returns all array metadata for the object
+        :param start_indices: Optional start index for each dimension (RESQML v2.2 StartIndex)
+        :param counts: Optional count of elements for each dimension (RESQML v2.2 Count)
+        :return: DataArrayMetadata if path specified, List[DataArrayMetadata] if no path, or None if not found
+        """
+        obj = proxy
+        if isinstance(proxy, str) or isinstance(proxy, Uri):
+            obj = self.get_object_by_identifier(proxy)
+
+        # Get possible file paths for this object
+        file_paths = self.get_h5_file_paths(obj)
+        if not file_paths or len(file_paths) == 0:
+            file_paths = self.external_files_path
+
+        if not file_paths:
+            logging.warning(f"No external file paths found for proxy: {proxy}")
+            return None
+
+        # Get the file handler registry
+        handler_registry = get_handler_registry()
+
+        for file_path in file_paths:
+            # Get the appropriate handler for this file type
+            handler = handler_registry.get_handler_for_file(file_path)
+            if handler is None:
+                logging.debug(f"No handler found for file: {file_path}")
+                continue
+
+            try:
+                # Use handler to get metadata without loading full array
+                metadata_dict = handler.get_array_metadata(file_path, path_in_external, start_indices, counts)
+
+                if metadata_dict is None:
+                    continue
+
+                # Convert dict(s) to DataArrayMetadata
+                if isinstance(metadata_dict, list):
+                    return [
+                        DataArrayMetadata(
+                            path_in_resource=m.get("path"),
+                            array_type=m.get("dtype", "unknown"),
+                            dimensions=m.get("shape", []),
+                            start_indices=start_indices,
+                            custom_data={"size": m.get("size", 0)},
+                        )
+                        for m in metadata_dict
+                    ]
+                else:
+                    return DataArrayMetadata(
+                        path_in_resource=metadata_dict.get("path"),
+                        array_type=metadata_dict.get("dtype", "unknown"),
+                        dimensions=metadata_dict.get("shape", []),
+                        start_indices=start_indices,
+                        custom_data={"size": metadata_dict.get("size", 0)},
+                    )
+            except Exception as e:
+                logging.debug(f"Failed to get metadata from file {file_path}: {e}")
+
+        return None
+
+    def get_h5_file_paths(self, obj_or_id: Optional[Any] = None) -> List[str]:
+        """
+        Get all HDF5 file paths referenced in the EPC file (from rels to external resources)
+        :return: list of HDF5 file paths
+        """
+
+        if self.force_h5_path is not None:
+            return [self.force_h5_path]
+        h5_paths = set()
+
+        if obj_or_id is None:
+            return [self.epc_file_path.replace(".epc", ".h5")] if self.epc_file_path else []
+
+        obj = self.get_object(obj_or_id) if isinstance(obj_or_id, (str, Uri)) else obj_or_id
+
+        # for rels in self.additional_rels.get(get_obj_identifier(obj), []):
+        for rels in self._rels_cache.get_supplemental_rels(obj):
+            if rels.type_value == EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type():
+                h5_paths.add(rels.target)
+
+        h5_paths = set(make_path_relative_to_filepath_list(list(h5_paths), self.epc_file_path))
+
+        # if len(h5_paths) == 0:
+        # Collect all .h5 files in the EPC file's folder
+        epc_folder = self.get_epc_file_folder()
+        if epc_folder is not None and os.path.isdir(epc_folder):
+            for fname in os.listdir(epc_folder):
+                if fname.lower().endswith(".h5"):
+                    h5_paths.add(os.path.join(epc_folder, fname))
+
+        return list(h5_paths)
+
+    def get_object_as_dor(self, identifier: str, dor_qualified_type) -> Optional[Any]:
+        """
+        Search an object by its identifier and returns a DOR
+        :param identifier:
+        :param dor_qualified_type: the qualified type of the DOR (e.g. resqml22.DataObjectReference)
+        :return:
+        """
+        obj = self.get_object_by_identifier(identifier=identifier)
+        # if obj is None:
+
+        return as_dor(obj_or_identifier=obj or identifier, dor_qualified_type=dor_qualified_type)
+
+    def get_object_by_uuid(self, uuid: str) -> List[Any]:
+        """
+        Search all objects with the uuid :param:`uuid`.
+        :param uuid:
+        :return:
+        """
+        return self.energyml_objects.get_by_uuid(uuid)
+
+    def get_object_by_identifier(self, identifier: Union[str, Uri]) -> Optional[Any]:
+        """
+        Search an object by its identifier.
+        :param identifier: given by the function :func:`get_obj_identifier`, or a URI (or its str representation)
+        :return:
+        """
+        # Use the O(1) dict lookup from the collection
+        return self.energyml_objects.get_by_identifier(identifier)
+
+    def get_object(self, identifier: Union[str, Uri]) -> Optional[Any]:
+        return self.get_object_by_identifier(identifier)
+
+    def add_object(self, obj: Any) -> bool:
+        """
+        Add an energyml object to the EPC stream (calls put_object for consistency)
+        :param obj:
+        :return:
+        """
+        return self.put_object(obj) is not None
+
+    def remove_object(self, identifier: Union[str, Uri]) -> None:
+        """
+        Remove an energyml object from the EPC stream by its identifier (calls delete_object for consistency)
+        :param identifier:
+        :return:
+        """
+        self.delete_object(identifier)
+
+    def __len__(self) -> int:
+        return len(self.energyml_objects)
+
+    def list_objects(self, dataspace: str | None = None, object_type: str | None = None) -> List[ResourceMetadata]:
+        result = []
+        for obj in self.energyml_objects:
+            if (dataspace is None or get_obj_type(get_obj_usable_class(obj)) == dataspace) and (
+                object_type is None or get_qualified_type_from_class(type(obj)) == object_type
+            ):
+                res_meta = ResourceMetadata(
+                    uri=str(get_obj_uri(obj)),
+                    uuid=get_obj_uuid(obj),
+                    title=get_object_attribute(obj, "citation.title") or "",
+                    object_type=type(obj).__name__,
+                    version=get_obj_version(obj),
+                    content_type=get_content_type_from_class(type(obj)) or "",
+                )
+                result.append(res_meta)
+        return result
+
+    def put_object(self, obj: Any, dataspace: str | None = None) -> str | None:
+        """
+        Add or update an energyml object in the EPC stream.
+        :param obj: The energyml object to add
+        :param dataspace: Optional dataspace parameter (for interface compatibility)
+        :return: The URI of the added object, or None if failed
+        """
+        self.energyml_objects.append(obj)
+
+        # Update relationships cache
+        if self._rels_cache is None:
+            self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
+        self._rels_cache.update_cache_for_object(obj)
+
+        return str(get_obj_uri(obj))
+
+    def delete_object(self, identifier: Union[str, Any]) -> bool:
+        """
+        Delete an energyml object from the EPC stream.
+        :param identifier: The object identifier/URI or the object itself
+        :return: True if object was deleted, False otherwise
+        """
+        obj = self.get_object_by_identifier(identifier)
+        if obj is not None:
+            # Remove from collection
+            self.energyml_objects.remove(obj)
+
+            # Update relationships cache
+            if self._rels_cache is None:
+                self._rels_cache = EpcRelsCache(self, export_version=self.export_version)
+            self._rels_cache._remove_object_from_cache(obj)
+
+            return True
+        return False
+
+    def dumps_epc_content_and_files_lists(self) -> str:
+        """
+        Dumps the EPC content and files lists for debugging purposes.
+        :return: A string representation of the EPC content and files lists.
+        """
+        content_list = [
+            f"{get_obj_identifier(obj)} ({get_qualified_type_from_class(type(obj))})" for obj in self.energyml_objects
+        ]
+        raw_files_list = [raw_file.path for raw_file in self.raw_files]
+
+        return "EPC Content:\n" + "\n".join(content_list) + "\n\nRaw Files:\n" + "\n".join(raw_files_list)
+
+    def close(self) -> None:
+        """
+        Close the EPC file and release any resources.
+        :return:
+        """
+        pass
+
+    # EXPORT functions
+
+    def gen_opc_content_type(self) -> Types:
+        """
+        Generates a :class:`Types` instance and fill it with energyml objects :class:`Override` values
+        :return:
+        """
+        ct = create_default_types()
+
+        for e_obj in self.energyml_objects:
+            ct.override.append(
+                Override(
+                    content_type=get_content_type_from_class(type(e_obj)),
+                    part_name=gen_energyml_object_path(e_obj, self.export_version),
+                )
+            )
+
+        for rf in self.raw_files:
+            # file_extension = os.path.splitext(file_path)[1].lstrip(".").lower()
+            mime_type = in_epc_file_path_to_mime_type(rf.path)
+            if mime_type:
+                override = Override(content_type=mime_type, part_name=f"{rf.path}")
+                ct.override.append(override)
+
+        return ct
+
+    # @log_timestamp
+    def export_file(
+        self,
+        path: Optional[str] = None,
+        allowZip64: bool = True,
+        force_recompute_object_rels: bool = True,
+        parallel: bool = False,
+    ) -> None:
+        """
+        Export the epc file. If :param:`path` is None, the epc 'self.epc_file_path' is used
+        :param path:
+        :return:
+        """
+        if path is None:
+            path = self.epc_file_path
+
+        if path is None:
+            raise ValueError("No path provided and epc_file_path is not set")
+
+        # Ensure directory exists
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED, allowZip64=allowZip64) as zip_file:
+            if parallel:
+                self._export_io_ultra_fast(zip_file=zip_file, force_recompute_object_rels=force_recompute_object_rels)
+            else:
+                self._export_io(
+                    zip_file=zip_file, allowZip64=allowZip64, force_recompute_object_rels=force_recompute_object_rels
+                )
+
+    def export_io(self, allowZip64: bool = True, force_recompute_object_rels: bool = True) -> BytesIO:
+        """
+        Export the epc file into a :class:`BytesIO` instance. The result is an 'in-memory' zip file.
+        :return:
+        """
+        zip_buffer = BytesIO()
+
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED, allowZip64=allowZip64) as zip_file:
+            self._export_io(
+                zip_file=zip_file, allowZip64=allowZip64, force_recompute_object_rels=force_recompute_object_rels
+            )
+
+        return zip_buffer
+
+    def _export_io(
+        self, zip_file: zipfile.ZipFile, allowZip64: bool = True, force_recompute_object_rels: bool = True
+    ) -> None:
+        """
+        Export the epc file into a :class:`BytesIO` instance. The result is an 'in-memory' zip file.
+        :return:
+        """
+        # CoreProps
+        if self.core_props is None:
+            self.core_props = create_default_core_properties()
+
+        zip_file.writestr(gen_core_props_path(self.export_version), serialize_xml(self.core_props))
+
+        #  Energyml objects
+        for e_obj in self.energyml_objects:
+            e_path = gen_energyml_object_path(e_obj, self.export_version)
+            zip_file.writestr(e_path, serialize_xml(e_obj))
+
+        # Rels
+        for rels_path, rels in self.compute_rels(force_recompute_object_rels=force_recompute_object_rels).items():
+            zip_file.writestr(rels_path, serialize_xml(rels))
+
+        # Other files:
+        for raw in self.raw_files:
+            zip_file.writestr(raw.path, raw.content.read())
+
+        # ContentType
+        zip_file.writestr(get_epc_content_type_path(), serialize_xml(self.gen_opc_content_type()))
+
+    def _export_io_ultra_fast(self, zip_file: zipfile.ZipFile, force_recompute_object_rels: bool = True) -> None:
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        # 1. Préparation des données
+        if self.core_props is None:
+            self.core_props = create_default_core_properties()
+
+        # On prépare la liste des objets à sérialiser
+        # Format: { future: (path_dans_le_zip) }
+        serialization_tasks = {}
+
+        cpus = multiprocessing.cpu_count()
+        with ProcessPoolExecutor(max_workers=cpus) as executor:
+
+            # A. On lance la sérialisation des objets EnergyML
+            for e_obj in self.energyml_objects:
+                e_path = gen_energyml_object_path(e_obj, self.export_version)
+                future = executor.submit(_parallel_xml_serialize, e_obj)
+                serialization_tasks[future] = e_path
+
+            # B. On lance la sérialisation des Rels
+            # Note: on compute les rels dans le thread principal car c'est souvent
+            # une opération de logique métier sur le graphe d'objets.
+            computed_rels = self.compute_rels(force_recompute_object_rels=force_recompute_object_rels)
+            for rels_path, rels_obj in computed_rels.items():
+                future = executor.submit(_parallel_xml_serialize, rels_obj)
+                serialization_tasks[future] = rels_path
+
+            # C. Cas particuliers (souvent rapides, mais autant les paralléliser)
+            core_path = gen_core_props_path(self.export_version)
+            future_core = executor.submit(_parallel_xml_serialize, self.core_props)
+            serialization_tasks[future_core] = core_path
+
+            ct_path = get_epc_content_type_path()
+            future_ct = executor.submit(_parallel_xml_serialize, self.gen_opc_content_type())
+            serialization_tasks[future_ct] = ct_path
+
+            # 2. Récupération et Écriture I/O (Séquentielle mais rapide)
+            # On écrit dans le ZIP au fur et à mesure que les sérialisations se terminent
+            for future in as_completed(serialization_tasks):
+                path = serialization_tasks[future]
+                xml_bytes = future.result()
+
+                if isinstance(xml_bytes, Exception):
+                    logging.error(f"Erreur sérialisation sur {path}: {xml_bytes}")
+                else:
+                    zip_file.writestr(path, xml_bytes)
+
+        # 3. Fichiers bruts (Raw files)
+        # Ils sont déjà en bytes (BytesIO), donc pas besoin de paralléliser
+        for raw in self.raw_files:
+            raw.content.seek(0)  # Reset du curseur par sécurité
+            zip_file.writestr(raw.path, raw.content.read())
+
+    # ==============
     # Class methods
+    # ==============
 
     @classmethod
-    def read_file(cls, epc_file_path: str) -> "Epc":
+    # @log_timestamp
+    def read_file(
+        cls,
+        epc_file_path: str,
+        read_rels_from_files: bool = True,
+        recompute_rels: bool = False,
+        read_parallel: bool = False,
+    ) -> "Epc":
+        """
+        Read an EPC file from disk.
+        :param epc_file_path: Path to the EPC file
+        :param read_rels_from_files: If True, populate cache from energyml.utils.rels files in the EPC
+        :param recompute_rels: If True, recompute all relationships after loading
+        :param read_parallel: If True, read the EPC file in parallel
+        :return: Epc instance
+        """
         with open(epc_file_path, "rb") as f:
-            epc = cls.read_stream(BytesIO(f.read()))
-            epc.epc_file_path = epc_file_path
-            return epc
+            if read_parallel:
+                epc = (
+                    cls.read_stream_ultra_fast(
+                        BytesIO(f.read()), read_rels_from_files=read_rels_from_files, recompute_rels=recompute_rels
+                    )
+                    if not os.environ.get("EPC_FAST_V2", "0") == "1"
+                    else cls.read_stream_ultra_fast_v2(
+                        BytesIO(f.read()), read_rels_from_files=read_rels_from_files, recompute_rels=recompute_rels
+                    )
+                )
+            else:
+                epc = cls.read_stream(
+                    BytesIO(f.read()), read_rels_from_files=read_rels_from_files, recompute_rels=recompute_rels
+                )
+            if epc is not None:
+                epc.epc_file_path = epc_file_path
+                return epc
         raise IOError(f"Failed to open EPC file {epc_file_path}")
 
     @classmethod
-    def read_stream(cls, epc_file_io: BytesIO):  # returns an Epc instance
+    def read_stream(
+        cls, epc_file_io: BytesIO, read_rels_from_files: bool = True, recompute_rels: bool = False
+    ) -> Optional["Epc"]:  # returns an Epc instance
         """
-        :param epc_file_io:
+        Read an EPC file from a BytesIO stream.
+        :param epc_file_io: BytesIO containing the EPC file
+        :param read_rels_from_files: If True, populate cache from energyml.utils.rels files in the EPC
+        :param recompute_rels: If True, recompute all relationships after loading
         :return: an :class:`EPC` instance
         """
+        print("Reading EPC file seq...")
         try:
             _read_files = []
             obj_list = []
             raw_file_list = []
-            additional_rels = {}
+            # additional_rels = {}
             core_props = None
+            # Store rels files separately for potential cache population
+            rels_files_to_load = {}  # {obj_path: Relationships}
+            path_to_obj = {}
+
             with zipfile.ZipFile(epc_file_io, "r", zipfile.ZIP_DEFLATED) as epc_file:
                 content_type_file_name = get_epc_content_type_path()
                 content_type_info = None
@@ -674,7 +1654,6 @@ class Epc(EnergymlStorageInterface):
                     logging.error(f"No {content_type_file_name} file found")
                 else:
                     content_type_obj: Types = read_energyml_xml_bytes(epc_file.read(content_type_file_name))
-                    path_to_obj = {}
                     for ov in content_type_obj.override:
                         ov_ct = ov.content_type
                         ov_path = ov.part_name
@@ -724,14 +1703,11 @@ class Epc(EnergymlStorageInterface):
                                 # RELS FILES READING START
 
                                 # logging.debug(f"reading rels {f_info.filename}")
-                                (
-                                    rels_folder,
-                                    rels_file_name,
-                                ) = get_file_folder_and_name_from_path(f_info.filename)
-                                while rels_folder.endswith("/"):
-                                    rels_folder = rels_folder[:-1]
-                                obj_folder = rels_folder[: rels_folder.rindex("/") + 1] if "/" in rels_folder else ""
-                                obj_file_name = rels_file_name[:-5]  # removing the ".rels"
+                                rels_path = Path(f_info.filename)
+                                obj_folder = (
+                                    str(rels_path.parent.parent) + "/" if str(rels_path.parent.parent) != "." else ""
+                                )
+                                obj_file_name = rels_path.stem  # removing the ".rels"
                                 rels_file: Relationships = read_energyml_xml_bytes(
                                     epc_file.read(f_info.filename),
                                     Relationships,
@@ -739,18 +1715,24 @@ class Epc(EnergymlStorageInterface):
                                 obj_path = obj_folder + obj_file_name
                                 if obj_path in path_to_obj:
                                     try:
-                                        additional_rels_key = get_obj_identifier(path_to_obj[obj_path])
-                                        for rel in rels_file.relationship:
-                                            # logging.debug(f"\t\t{rel.type_value}")
-                                            if (
-                                                rel.type_value != EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
-                                                and rel.type_value != EPCRelsRelationshipType.SOURCE_OBJECT.get_type()
-                                                and rel.type_value
-                                                != EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES.get_type()
-                                            ):  # not a computable relation
-                                                if additional_rels_key not in additional_rels:
-                                                    additional_rels[additional_rels_key] = []
-                                                additional_rels[additional_rels_key].append(rel)
+
+                                        # Store all rels for potential cache population
+                                        if read_rels_from_files:
+                                            rels_files_to_load[obj_path] = rels_file
+
+                                        # additional_rels_key = get_obj_identifier(path_to_obj[obj_path])
+                                        # # Keep only non-computable rels in additional_rels (legacy support)
+                                        # for rel in rels_file.relationship:
+                                        #     # logging.debug(f"\t\t{rel.type_value}")
+                                        #     if (
+                                        #         rel.type_value != EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
+                                        #         and rel.type_value != EPCRelsRelationshipType.SOURCE_OBJECT.get_type()
+                                        #         and rel.type_value
+                                        #         != EPCRelsRelationshipType.EXTENDED_CORE_PROPERTIES.get_type()
+                                        #     ):  # not a computable relation
+                                        #         if additional_rels_key not in additional_rels:
+                                        #             additional_rels[additional_rels_key] = []
+                                        #         additional_rels[additional_rels_key].append(rel)
                                     except AttributeError:
                                         logging.error(traceback.format_exc())
                                         pass  # 'CoreProperties' object has no attribute 'object_version'
@@ -764,74 +1746,207 @@ class Epc(EnergymlStorageInterface):
                                         f" of a lack of a dependency module) "
                                     )
 
-            return Epc(
-                energyml_objects=obj_list,
+            epc = Epc(
+                energyml_objects=EnergymlObjectCollection(obj_list),
                 raw_files=raw_file_list,
                 core_props=core_props,
-                additional_rels=additional_rels,
+                # additional_rels=additional_rels,
             )
+
+            # Populate rels cache from loaded rels files if requested
+            if read_rels_from_files and rels_files_to_load:
+                for obj_path, rels_file in rels_files_to_load.items():
+                    if obj_path in path_to_obj:
+                        obj = path_to_obj[obj_path]
+                        # Only set rels for energyml objects (skip CoreProperties and other OPC objects)
+                        if obj in obj_list:
+                            epc._rels_cache.set_rels_from_file(obj, rels_file)
+
+            # Recompute relationships if requested
+            if recompute_rels:
+                epc._rels_cache.recompute_cache()
+
+            return epc
         except zipfile.BadZipFile as error:
             logging.error(error)
 
         return None
 
-    def list_objects(self, dataspace: str | None = None, object_type: str | None = None) -> List[ResourceMetadata]:
-        result = []
-        for obj in self.energyml_objects:
-            if (dataspace is None or get_obj_type(get_obj_usable_class(obj)) == dataspace) and (
-                object_type is None or get_qualified_type_from_class(type(obj)) == object_type
-            ):
-                res_meta = ResourceMetadata(
-                    uri=str(get_obj_uri(obj)),
-                    uuid=get_obj_uuid(obj),
-                    title=get_object_attribute(obj, "citation.title") or "",
-                    object_type=type(obj).__name__,
-                    version=get_obj_version(obj),
-                    content_type=get_content_type_from_class(type(obj)) or "",
-                )
-                result.append(res_meta)
-        return result
+    @classmethod
+    def read_stream_ultra_fast(
+        cls, epc_file_io: BytesIO, read_rels_from_files: bool = True, recompute_rels: bool = False
+    ) -> Optional["Epc"]:
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+        import multiprocessing
 
-    def put_object(self, obj: Any, dataspace: str | None = None) -> str | None:
-        if self.add_object(obj):
-            return str(get_obj_uri(obj))
-        return None
+        print("Reading EPC file parrallel v1...")
 
-    def delete_object(self, identifier: Union[str, Any]) -> bool:
-        obj = self.get_object_by_identifier(identifier)
-        if obj is not None:
-            self.remove_object(identifier)
-            return True
-        return False
+        obj_to_process = {}
+        rels_to_process = {}
+        raw_files = []
+        core_props = None
 
-    def get_array_metadata(
-        self, proxy: str | Uri | Any, path_in_external: str | None = None
-    ) -> DataArrayMetadata | List[DataArrayMetadata] | None:
-        array = self.read_array(proxy=proxy, path_in_external=path_in_external)
-        if array is not None:
-            if isinstance(array, np.ndarray):
-                return DataArrayMetadata.from_numpy_array(path_in_resource=path_in_external, array=array)
-            elif isinstance(array, list):
-                return DataArrayMetadata.from_list(path_in_resource=path_in_external, data=array)
+        # 1. Lecture rapide et extraction des bytes du ZIP
+        with zipfile.ZipFile(epc_file_io, "r") as epc_file:
+            ct_path = get_epc_content_type_path()
+            content_type_obj = read_energyml_xml_bytes(epc_file.read(ct_path))
 
-    def dumps_epc_content_and_files_lists(self) -> str:
-        """
-        Dumps the EPC content and files lists for debugging purposes.
-        :return: A string representation of the EPC content and files lists.
-        """
-        content_list = [
-            f"{get_obj_identifier(obj)} ({get_qualified_type_from_class(type(obj))})" for obj in self.energyml_objects
-        ]
-        raw_files_list = [raw_file.path for raw_file in self.raw_files]
+            # Identification des types via le ContentTypes
+            energyml_paths = {}
+            for ov in content_type_obj.override:
+                path = ov.part_name.lstrip("/\\")
+                if is_energyml_content_type(ov.content_type):
+                    energyml_paths[path] = ov.content_type
+                elif get_class_from_content_type(ov.content_type) == CoreProperties:
+                    core_props = read_energyml_xml_bytes(epc_file.read(path), CoreProperties)
 
-        return "EPC Content:\n" + "\n".join(content_list) + "\n\nRaw Files:\n" + "\n".join(raw_files_list)
+            # Extraction des contenus bruts
+            for info in epc_file.infolist():
+                fname = info.filename
+                if fname in energyml_paths:
+                    obj_to_process[fname] = (epc_file.read(fname), energyml_paths[fname])
+                elif read_rels_from_files and fname.lower().endswith(".rels") and fname != "_rels/.rels":
+                    rels_to_process[fname] = epc_file.read(fname)
+                elif (
+                    not fname.lower().endswith(".rels")
+                    and not fname.lower().endswith(gen_core_props_path().lower())
+                    and fname not in energyml_paths
+                    and fname != ct_path
+                ):
+                    raw_files.append(RawFile(path=fname, content=BytesIO(epc_file.read(fname))))
 
-    def close(self) -> None:
-        """
-        Close the EPC file and release any resources.
-        :return:
-        """
-        pass
+        # 2. Exécution Parallèle (Objets ET Rels)
+        path_to_obj = {}
+        obj_list = []
+        rels_content_map = {}  # {obj_path: Relationships_Object}
+
+        cpus = multiprocessing.cpu_count()
+        with ProcessPoolExecutor(max_workers=cpus) as executor:
+            # A. On lance les objets
+            obj_futures = {
+                executor.submit(_parallel_xml_read, data, ct): path for path, (data, ct) in obj_to_process.items()
+            }
+
+            # B. On lance les rels
+            rel_futures = {
+                executor.submit(_parallel_rels_read, r_data): r_path for r_path, r_data in rels_to_process.items()
+            }
+
+            # C. Récupération des objets
+            for future in as_completed(obj_futures):
+                path = obj_futures[future]
+                res = future.result()
+                if not isinstance(res, Exception):
+                    path_to_obj[path] = res
+                    obj_list.append(res)
+                else:
+                    logging.error(f"Erreur objet {path}: {res}")
+
+            # D. Récupération des rels
+            for future in as_completed(rel_futures):
+                r_path = rel_futures[future]
+                res = future.result()
+                if not isinstance(res, Exception):
+                    # Mapping rel_path -> obj_path
+                    o_path = str(Path(r_path).parent.parent / Path(r_path).stem).replace("\\", "/")
+                    rels_content_map[o_path] = res
+                else:
+                    logging.error(f"Erreur rels {r_path}: {res}")
+
+        # 3. Assemblage final dans le processus parent
+        epc = Epc(energyml_objects=EnergymlObjectCollection(obj_list), raw_files=raw_files, core_props=core_props)
+
+        if read_rels_from_files:
+            for obj_path, rels_obj in rels_content_map.items():
+                if obj_path in path_to_obj:
+                    target_obj = path_to_obj[obj_path]
+                    epc._rels_cache.set_rels_from_file(target_obj, rels_obj)
+
+        if recompute_rels:
+            epc._rels_cache.recompute_cache()
+
+        return epc
+
+    @classmethod
+    def read_stream_ultra_fast_v2(
+        cls, epc_file_io: BytesIO, read_rels_from_files: bool = True, recompute_rels: bool = False
+    ) -> Optional["Epc"]:
+        from concurrent.futures import ThreadPoolExecutor  # Passage au ThreadPool
+
+        print("Reading EPC file parrallel v2...")
+
+        obj_list = []
+        path_to_obj = {}
+        rels_content_map = {}
+        raw_files = []
+        core_props = None
+
+        # On utilise un ThreadPool pour éviter le coût de sérialisation Pickle
+        # lxml libère le GIL, donc c'est très efficace
+        with ThreadPoolExecutor() as executor:
+            futures = []
+
+            with zipfile.ZipFile(epc_file_io, "r") as epc_file:
+                # On récupère l'index d'abord
+                ct_path = get_epc_content_type_path()
+                content_type_obj = read_energyml_xml_bytes(epc_file.read(ct_path))
+
+                # Identification des types via le ContentTypes
+                energyml_paths = {}
+                for ov in content_type_obj.override:
+                    path = ov.part_name.lstrip("/\\")
+                    if is_energyml_content_type(ov.content_type):
+                        energyml_paths[path] = ov.content_type
+                    elif get_class_from_content_type(ov.content_type) == CoreProperties:
+                        core_props = read_energyml_xml_bytes(epc_file.read(path), CoreProperties)
+
+                for info in epc_file.infolist():
+                    fname = info.filename
+
+                    # STREAMING : On lance la tâche dès qu'on a les bytes
+                    if fname in energyml_paths:
+                        data = epc_file.read(fname)
+                        f = executor.submit(_parallel_xml_read, data, energyml_paths[fname])
+                        futures.append((f, "OBJ", fname))
+
+                    elif read_rels_from_files and fname.lower().endswith(".rels"):
+                        data = epc_file.read(fname)
+                        f = executor.submit(_parallel_rels_read, data)
+                        futures.append((f, "REL", fname))
+                    elif (
+                        not fname.lower().endswith(".rels")
+                        and not fname.lower().endswith(gen_core_props_path().lower())
+                        and fname not in energyml_paths
+                        and fname != ct_path
+                    ):
+                        raw_files.append(RawFile(path=fname, content=BytesIO(epc_file.read(fname))))
+
+            # 2. Récupération des résultats (pendant que le ZIP continue d'être lu si possible)
+            for future, kind, path in futures:
+                res = future.result()
+                if isinstance(res, Exception):
+                    continue
+
+                if kind == "OBJ":
+                    path_to_obj[path] = res
+                    obj_list.append(res)
+                else:
+                    o_path = str(Path(path).parent.parent / Path(path).stem).replace("\\", "/")
+                    rels_content_map[o_path] = res
+
+        # 3. Assemblage final dans le processus parent
+        epc = Epc(energyml_objects=EnergymlObjectCollection(obj_list), raw_files=raw_files, core_props=core_props)
+
+        if read_rels_from_files:
+            for obj_path, rels_obj in rels_content_map.items():
+                if obj_path in path_to_obj:
+                    target_obj = path_to_obj[obj_path]
+                    epc._rels_cache.set_rels_from_file(target_obj, rels_obj)  # type: ignore
+
+        if recompute_rels:
+            epc._rels_cache.recompute_cache()  # type: ignore
+
+        return epc
 
 
 #     ______                                      __   ____                 __  _
@@ -841,343 +1956,44 @@ class Epc(EnergymlStorageInterface):
 # /_____/_/ /_/\___/_/   \__, /\__, /_/ /_/ /_/_/  /_/  \__,_/_/ /_/\___/\__/_/\____/_/ /_/____/
 #                       /____//____/
 
-"""
-PropertyKind list: a list of Pre-defined properties
-"""
-__CACHE_PROP_KIND_DICT__ = {}
+# Backward compatibility: re-export functions that were moved to epc_utils
+# This allows existing code that imports these functions from epc.py to continue working
+from energyml.utils.epc_utils import (
+    create_default_core_properties,
+    create_default_types,
+    create_external_relationship,
+    gen_rels_path_from_obj_path,
+    get_dor_or_external_uris_from_obj,
+    get_dor_uris_from_obj,
+    get_epc_content_type_rels_path,
+    get_rels_dor_type,
+    in_epc_file_path_to_mime_type,
+    is_core_prop_or_extension_path,
+    update_prop_kind_dict_cache,
+    get_property_kind_by_uuid,
+    get_property_kind_and_parents,
+    as_dor,
+    create_energyml_object,
+    create_external_part_reference,
+    get_reverse_dor_list,
+    get_file_folder_and_name_from_path,
+)
 
+# Also export the cache dict for backward compatibility
+from energyml.utils.epc_utils import __CACHE_PROP_KIND_DICT__
 
-def update_prop_kind_dict_cache():
-    prop_kind = get_property_kind_dict_path_as_dict()
-
-    for prop in prop_kind["PropertyKind"]:
-        __CACHE_PROP_KIND_DICT__[prop["Uuid"]] = read_energyml_json_str(json.dumps(prop))[0]
-
-
-def get_property_kind_by_uuid(uuid: str) -> Optional[Any]:
-    """
-    Get a property kind by its uuid.
-    :param uuid: the uuid of the property kind
-    :return: the property kind or None if not found
-    """
-    if len(__CACHE_PROP_KIND_DICT__) == 0:
-        # update the cache to check if it is a
-        try:
-            update_prop_kind_dict_cache()
-        except FileNotFoundError as e:
-            logging.error(f"Failed to parse propertykind dict {e}")
-    return __CACHE_PROP_KIND_DICT__.get(uuid, None)
-
-
-def get_property_kind_and_parents(uuids: list) -> Dict[str, Any]:
-    """Get PropertyKind objects and their parents from a list of UUIDs.
-
-    Args:
-        uuids (list): List of PropertyKind UUIDs.
-
-    Returns:
-        Dict[str, Any]: A dictionary mapping UUIDs to PropertyKind objects and their parents.
-    """
-    dict_props: Dict[str, Any] = {}
-
-    for prop_uuid in uuids:
-        prop = get_property_kind_by_uuid(prop_uuid)
-        if prop is not None:
-            dict_props[prop_uuid] = prop
-            parent_uuid = get_object_attribute(prop, "parent.uuid")
-            if parent_uuid is not None and parent_uuid not in dict_props:
-                dict_props = get_property_kind_and_parents([parent_uuid]) | dict_props
-        else:
-            logging.warning(f"PropertyKind with UUID {prop_uuid} not found.")
-            continue
-    return dict_props
-
-
-def as_dor(obj_or_identifier: Any, dor_qualified_type: str = "eml23.DataObjectReference"):
-    """
-    Create an DOR from an object to target the latter.
-    :param obj_or_identifier:
-    :param dor_qualified_type: the qualified type of the DOR (e.g. "eml23.DataObjectReference" is the default value)
-    :return:
-    """
-    dor = None
-    if obj_or_identifier is not None:
-        cls = get_class_from_qualified_type(dor_qualified_type)
-        dor = cls()
-        if isinstance(obj_or_identifier, str):  # is an identifier or uri
-            parsed_uri = parse_uri(obj_or_identifier)
-            if parsed_uri is not None:
-                print(f"====> parsed uri {parsed_uri} : uuid is {parsed_uri.uuid}")
-                if hasattr(dor, "qualified_type"):
-                    set_attribute_from_path(dor, "qualified_type", parsed_uri.get_qualified_type())
-                if hasattr(dor, "content_type"):
-                    set_attribute_from_path(
-                        dor, "content_type", qualified_type_to_content_type(parsed_uri.get_qualified_type())
-                    )
-                set_attribute_from_path(dor, "uuid", parsed_uri.uuid)
-                set_attribute_from_path(dor, "uid", parsed_uri.uuid)
-                if hasattr(dor, "object_version"):
-                    set_attribute_from_path(dor, "object_version", parsed_uri.version)
-                if hasattr(dor, "version_string"):
-                    set_attribute_from_path(dor, "version_string", parsed_uri.version)
-                if hasattr(dor, "energistics_uri"):
-                    set_attribute_from_path(dor, "energistics_uri", obj_or_identifier)
-
-            else:  # identifier
-                if len(__CACHE_PROP_KIND_DICT__) == 0:
-                    # update the cache to check if it is a
-                    try:
-                        update_prop_kind_dict_cache()
-                    except FileNotFoundError as e:
-                        logging.error(f"Failed to parse propertykind dict {e}")
-                try:
-                    uuid, version = split_identifier(obj_or_identifier)
-                    if uuid in __CACHE_PROP_KIND_DICT__:
-                        return as_dor(__CACHE_PROP_KIND_DICT__[uuid])
-                    else:
-                        set_attribute_from_path(dor, "uuid", uuid)
-                        set_attribute_from_path(dor, "uid", uuid)
-                        set_attribute_from_path(dor, "ObjectVersion", version)
-                except AttributeError:
-                    logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
-        else:
-            if is_dor(obj_or_identifier):
-                # If it is a dor, we create a dor conversionif hasattr(dor, "qualified_type"):
-                if hasattr(dor, "qualified_type"):
-                    if hasattr(obj_or_identifier, "qualified_type"):
-                        dor.qualified_type = get_object_attribute(obj_or_identifier, "qualified_type")
-                    elif hasattr(obj_or_identifier, "content_type"):
-                        dor.qualified_type = content_type_to_qualified_type(
-                            get_object_attribute(obj_or_identifier, "content_type")
-                        )
-
-                if hasattr(dor, "content_type"):
-                    if hasattr(obj_or_identifier, "qualified_type"):
-                        dor.content_type = qualified_type_to_content_type(
-                            get_object_attribute(obj_or_identifier, "qualified_type")
-                        )
-                    elif hasattr(obj_or_identifier, "content_type"):
-                        dor.content_type = get_object_attribute(obj_or_identifier, "content_type")
-
-                set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Title"))
-                set_attribute_from_path(dor, "uuid", get_obj_uuid(obj_or_identifier))
-                set_attribute_from_path(dor, "uid", get_obj_uuid(obj_or_identifier))
-                if hasattr(dor, "object_version"):
-                    set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
-                if hasattr(dor, "version_string"):
-                    set_attribute_from_path(dor, "version_string", get_obj_version(obj_or_identifier))
-
-            else:
-
-                # for etp Resource object:
-                if hasattr(obj_or_identifier, "uri"):
-                    dor = as_dor(obj_or_identifier.uri, dor_qualified_type)
-                    if hasattr(obj_or_identifier, "name"):
-                        set_attribute_from_path(dor, "title", getattr(obj_or_identifier, "name"))
-                else:
-                    if hasattr(dor, "qualified_type"):
-                        try:
-                            set_attribute_from_path(
-                                dor, "qualified_type", get_qualified_type_from_class(obj_or_identifier)
-                            )
-                        except Exception as e:
-                            logging.error(f"Failed to set qualified_type for DOR {e}")
-                    if hasattr(dor, "content_type"):
-                        try:
-                            set_attribute_from_path(dor, "content_type", get_content_type_from_class(obj_or_identifier))
-                        except Exception as e:
-                            logging.error(f"Failed to set content_type for DOR {e}")
-
-                    set_attribute_from_path(dor, "title", get_object_attribute(obj_or_identifier, "Citation.Title"))
-
-                    set_attribute_from_path(dor, "uuid", get_obj_uuid(obj_or_identifier))
-                    set_attribute_from_path(dor, "uid", get_obj_uuid(obj_or_identifier))
-                    if hasattr(dor, "object_version"):
-                        set_attribute_from_path(dor, "object_version", get_obj_version(obj_or_identifier))
-                    if hasattr(dor, "version_string"):
-                        set_attribute_from_path(dor, "version_string", get_obj_version(obj_or_identifier))
-
-    return dor
-
-
-def create_energyml_object(
-    content_or_qualified_type: str,
-    citation: Optional[Any] = None,
-    uuid: Optional[str] = None,
-):
-    """
-    Create an energyml object instance depending on the content-type or qualified-type given in parameter.
-    The SchemaVersion is automatically assigned.
-    If no citation is given default one will be used.
-    If no uuid is given, a random uuid will be used.
-    :param content_or_qualified_type:
-    :param citation:
-    :param uuid:
-    :return:
-    """
-    if citation is None:
-        citation = {
-            "title": "New_Object",
-            "Creation": epoch_to_date(epoch()),
-            "LastUpdate": epoch_to_date(epoch()),
-            "Format": "energyml-utils",
-            "Originator": "energyml-utils python module",
-        }
-    cls = get_class_from_qualified_type(content_or_qualified_type)
-    obj = cls()
-    cit = get_obj_attribute_class(cls, "citation")()
-    copy_attributes(
-        obj_in=citation,
-        obj_out=cit,
-        only_existing_attributes=True,
-        ignore_case=True,
-    )
-    set_attribute_from_path(obj, "citation", cit)
-    set_attribute_value(obj, "uuid", uuid or gen_uuid())
-    set_attribute_value(obj, "SchemaVersion", get_class_pkg_version(obj))
-
-    return obj
-
-
-def create_external_part_reference(
-    eml_version: str,
-    h5_file_path: str,
-    citation: Optional[Any] = None,
-    uuid: Optional[str] = None,
-):
-    """
-    Create an EpcExternalPartReference depending on the energyml version (should be ["2.0", "2.1", "2.2"]).
-    The MimeType, ExistenceKind and Filename will be automatically filled.
-    :param eml_version:
-    :param h5_file_path:
-    :param citation:
-    :param uuid:
-    :return:
-    """
-    version_flat = OptimizedRegex.DOMAIN_VERSION.findall(eml_version)[0][0].replace(".", "").replace("_", "")
-    obj = create_energyml_object(
-        content_or_qualified_type="eml" + version_flat + ".EpcExternalPartReference",
-        citation=citation,
-        uuid=uuid,
-    )
-    set_attribute_value(obj, "MimeType", MimeType.HDF5.value)
-    set_attribute_value(obj, "ExistenceKind", "Actual")
-    set_attribute_value(obj, "Filename", h5_file_path)
-
-    return obj
-
-
-def get_reverse_dor_list(obj_list: List[Any], key_func: Callable = get_obj_identifier) -> Dict[str, List[Any]]:
-    """
-    Compute a dict with 'OBJ_UUID.OBJ_VERSION' as Key, and list of DOR that reference it.
-    If the object version is None, key is 'OBJ_UUID.'
-    :param obj_list:
-    :param key_func: a callable to create the key of the dict from the object instance
-    :return: str
-    """
-    rels = {}
-    for obj in obj_list:
-        for dor in search_attribute_matching_type(obj, "DataObjectReference", return_self=False):
-            key = key_func(dor)
-            if key not in rels:
-                rels[key] = []
-            rels[key] = rels.get(key, []) + [obj]
-    return rels
-
-
-# PATHS
-
-
-def gen_core_props_path(
-    export_version: EpcExportVersion = EpcExportVersion.CLASSIC,
-):
-    return "docProps/core.xml"
-
-
-def gen_energyml_object_path(
-    energyml_object: Union[str, Any],
-    export_version: EpcExportVersion = EpcExportVersion.CLASSIC,
-):
-    """
-    Generate a path to store the :param:`energyml_object` into an epc file (depending on the :param:`export_version`)
-    :param energyml_object:
-    :param export_version:
-    :return:
-    """
-    if isinstance(energyml_object, str):
-        energyml_object = read_energyml_xml_str(energyml_object)
-
-    obj_type = get_object_type_for_file_path_from_class(energyml_object.__class__)
-    # logging.debug("is_dor: ", str(is_dor(energyml_object)), "object type : " + str(obj_type))
-
-    if is_dor(energyml_object):
-        uuid, pkg, pkg_version, obj_cls, object_version = get_dor_obj_info(energyml_object)
-        obj_type = get_object_type_for_file_path_from_class(obj_cls)
-    else:
-        pkg = get_class_pkg(energyml_object)
-        pkg_version = get_class_pkg_version(energyml_object)
-        object_version = get_obj_version(energyml_object)
-        uuid = get_obj_uuid(energyml_object)
-
-    if export_version == EpcExportVersion.EXPANDED:
-        return f"namespace_{pkg}{pkg_version.replace('.', '')}/{(('version_' + object_version + '/') if object_version is not None and len(object_version) > 0 else '')}{obj_type}_{uuid}.xml"
-    else:
-        return obj_type + "_" + uuid + ".xml"
-
-
-def get_file_folder_and_name_from_path(path: str) -> Tuple[str, str]:
-    """
-    Returns a tuple (FOLDER_PATH, FILE_NAME)
-    :param path:
-    :return:
-    """
-    obj_folder = path[: path.rindex("/") + 1] if "/" in path else ""
-    obj_file_name = path[path.rindex("/") + 1 :] if "/" in path else path
-    return obj_folder, obj_file_name
-
-
-def gen_rels_path(
-    energyml_object: Any,
-    export_version: EpcExportVersion = EpcExportVersion.CLASSIC,
-) -> str:
-    """
-    Generate a path to store the :param:`energyml_object` rels file into an epc file
-    (depending on the :param:`export_version`)
-    :param energyml_object:
-    :param export_version:
-    :return:
-    """
-    if isinstance(energyml_object, CoreProperties):
-        return f"{RELS_FOLDER_NAME}/.rels"
-    else:
-        obj_path = gen_energyml_object_path(energyml_object, export_version)
-        obj_folder, obj_file_name = get_file_folder_and_name_from_path(obj_path)
-        return f"{obj_folder}{RELS_FOLDER_NAME}/{obj_file_name}.rels"
+__all__ = [
+    "Epc",
+    "update_prop_kind_dict_cache",
+    "get_property_kind_by_uuid",
+    "get_property_kind_and_parents",
+    "as_dor",
+    "create_energyml_object",
+    "create_external_part_reference",
+    "get_reverse_dor_list",
+    "get_file_folder_and_name_from_path",
+    "__CACHE_PROP_KIND_DICT__",
+]
 
 
 # def gen_rels_path_from_dor(dor: Any, export_version: EpcExportVersion = EpcExportVersion.CLASSIC) -> str:
-
-
-def get_epc_content_type_path(
-    export_version: EpcExportVersion = EpcExportVersion.CLASSIC,
-) -> str:
-    """
-    Generate a path to store the "[Content_Types].xml" file into an epc file
-    (depending on the :param:`export_version`)
-    :return:
-    """
-    return "[Content_Types].xml"
-
-
-def create_h5_external_relationship(h5_path: str, current_idx: int = 0) -> Relationship:
-    """
-    Create a Relationship object to link an external HDF5 file.
-    :param h5_path:
-    :return:
-    """
-    return Relationship(
-        target=h5_path,
-        type_value=EPCRelsRelationshipType.EXTERNAL_RESOURCE.get_type(),
-        id=f"Hdf5File{current_idx + 1 if current_idx > 0 else ''}",
-        target_mode=TargetMode.EXTERNAL,
-    )

@@ -7,7 +7,7 @@ import re
 
 from lxml import etree as ETREE  # type: Any
 
-from .constants import ENERGYML_NAMESPACES, ENERGYML_NAMESPACES_PACKAGE, OptimizedRegex, parse_content_type
+from energyml.utils.constants import ENERGYML_NAMESPACES, ENERGYML_NAMESPACES_PACKAGE, OptimizedRegex, parse_content_type
 
 
 def get_pkg_from_namespace(namespace: str) -> Optional[str]:

@@ -1,11 +1,14 @@
 # Copyright (c) 2023-2024 Geosiris.
 # SPDX-License-Identifier: Apache-2.0
+from functools import lru_cache
 import inspect
 import json
 import logging
 import random
 import re
 import sys
+import traceback
+import operator
 import typing
 from dataclasses import Field, field
 from enum import Enum
@@ -13,7 +16,8 @@ from importlib import import_module
 from types import ModuleType
 from typing import Any, List, Optional, Union, Dict, Tuple
 
-from .constants import (
+from energyml.utils.constants import (
+    path_parent_attribute,
     primitives,
     epoch_to_date,
     epoch,
@@ -24,19 +28,18 @@ from .constants import (
     path_next_attribute,
     OptimizedRegex,
 )
-from .manager import (
+from energyml.utils.manager import (
     class_has_parent_with_name,
     get_class_pkg,
     get_class_pkg_version,
-    RELATED_MODULES,
     get_related_energyml_modules_name,
     get_sub_classes,
     get_classes_matching_name,
     dict_energyml_modules,
     reshape_version_from_regex_match,
 )
-from .uri import Uri, parse_uri
-from .constants import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
+from energyml.utils.uri import Uri, parse_uri
+from energyml.utils.constants import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
 
 
 def is_enum(cls: Union[type, Any]):
@@ -50,15 +53,53 @@ def is_enum(cls: Union[type, Any]):
     return is_enum(type(cls))
 
 
-def is_primitive(cls: Union[type, Any]) -> bool:
+@lru_cache(maxsize=2048)
+def _is_primitive_type(obj_type: type) -> bool:
     """
-    Returns True if :param:`cls` is a primitiv type or extends Enum
-    :param cls:
-    :return: bool
+    Returns True if :param:`obj_type` is a primitive type or extends Enum
     """
-    if isinstance(cls, type):
-        return cls in primitives or Enum in cls.__bases__
-    return is_primitive(type(cls))
+    if obj_type in primitives:
+        return True
+    try:
+        return issubclass(obj_type, Enum)
+    except TypeError:
+        return False
+
+
+def is_primitive(cls: type) -> bool:
+    """
+    Returns True if :param:`cls` is a primitive type or extends Enum
+    """
+    t = cls if isinstance(cls, type) else type(cls)
+    return _is_primitive_type(t)
+
+
+@lru_cache(maxsize=None)
+def _is_abstract_cls(cls: type) -> bool:
+    # 1. Gestion du cache pour les instances (on récupère le type)
+    if not isinstance(cls, type):
+        return is_abstract(type(cls))
+
+    # 2. Les primitives ne sont jamais abstraites
+    if is_primitive(cls):
+        return False
+
+    # 3. Critère de nom (très commun dans Energyml)
+    if cls.__name__.startswith("Abstract"):
+        return True
+
+    # 4. Critère des champs (pour les Dataclasses)
+    # On vérifie explicitement si c'est une dataclass
+    fields = getattr(cls, "__dataclass_fields__", None)
+    has_no_fields = fields is not None and len(fields) == 0
+
+    # 5. Critère des méthodes
+    # Ta classe 'Test' a une méthode 'hello', donc len(...) == 1
+    methods = get_class_methods(cls)
+    has_no_methods = len(methods) == 0
+
+    # Une classe est "abstraite" ici si elle est vide (pas de champs, pas de méthodes)
+    return has_no_fields and has_no_methods
 
 
 def is_abstract(cls: Union[type, Any]) -> bool:
@@ -67,38 +108,74 @@ def is_abstract(cls: Union[type, Any]) -> bool:
     :param cls:
     :return: bool
     """
-    if isinstance(cls, type):
-        return (
-            not is_primitive(cls)
-            and (
-                cls.__name__.startswith("Abstract")
-                or (hasattr(cls, "__dataclass_fields__") and len(cls.__dataclass_fields__)) == 0
-            )
-            and len(get_class_methods(cls)) == 0
-        )
-    return is_abstract(type(cls))
+    t = cls if isinstance(cls, type) else type(cls)
+    return _is_abstract_cls(t)
 
 
 def get_module_classes_from_name(mod_name: str) -> List:
     return get_module_classes(sys.modules[mod_name])
 
 
-def get_module_classes(mod: ModuleType) -> List:
-    return inspect.getmembers(mod, inspect.isclass)
+@lru_cache(maxsize=None)
+def get_module_metadata_map(module_name: str) -> dict:
+    """
+    Crée un index : {NomMeta: Classe, NomPython: Classe}
+    pour une recherche instantanée.
+    """
+    mapping = {}
+    for cls_name, cls in get_module_classes_from_name(module_name):
+        # On indexe par le nom de classe Python
+        mapping[cls_name] = cls
+
+        # On indexe par le nom dans Meta (spécifique à Energyml/xsdata)
+        meta = getattr(cls, "Meta", None)
+        if meta and hasattr(meta, "name"):
+            mapping[meta.name] = cls
+
+    return mapping
 
 
-def find_class_in_module(module_name, class_name):
+def find_class_in_module(module_name: str, class_name: str):
+    # 1. Tentative rapide via sys.modules (O(1))
+    mod = sys.modules.get(module_name)
+    if not mod:
+        return None
+
     try:
-        return getattr(sys.modules[module_name], class_name)
-    except:
-        for cls_name, cls in get_module_classes_from_name(module_name):
-            try:
-                if cls_name == class_name or cls.Meta.name == class_name:
-                    return cls
-            except Exception:
-                pass
+        return getattr(mod, class_name)
+    except AttributeError:
+        # 2. Recherche via le mapping Meta pré-calculé (O(1) après premier appel)
+        mapping = get_module_metadata_map(module_name)
+        cls = mapping.get(class_name)
+
+        if cls:
+            return cls
+
     logging.error(f"Not Found : {module_name}; {class_name}")
     return None
+
+
+@lru_cache(maxsize=None)
+def get_module_classes(mod: Union[ModuleType, str]) -> List[Tuple[str, type]]:
+    if isinstance(mod, str):
+        mod = sys.modules.get(mod)
+        if not mod:
+            return []
+
+    mod_name = mod.__name__
+    return [
+        (name, value)
+        for name, value in mod.__dict__.items()
+        if isinstance(value, type) and value.__module__ == mod_name
+    ]
+
+
+@lru_cache(maxsize=None)
+def _get_module_search_index(module_name: str) -> List[Tuple[str, type]]:
+    """Retourne une liste de tuples (nom_en_minuscule, classe) pour le module."""
+    classes = get_module_classes_from_name(module_name)
+    # On pré-calcule le .lower() pour ne le faire qu'une seule fois par module
+    return [(cls_name.lower(), cls) for cls_name, cls in classes]
 
 
 def search_class_in_module_from_partial_name(module_name: str, class_partial_name: str) -> Optional[List[type]]:
@@ -110,27 +187,58 @@ def search_class_in_module_from_partial_name(module_name: str, class_partial_nam
 
     """
     try:
-        import_module(module_name)
-        # module = import_module(module_name)
-        classes = get_module_classes_from_name(module_name)
-        matching_classes = [cls for cls_name, cls in classes if class_partial_name.lower() in cls_name.lower()]
+        import_related_module(module_name)
+
+        # 2. Récupération de l'index pré-calculé (O(1) grâce au cache)
+        search_index = _get_module_search_index(module_name)
+
+        # 3. Recherche floue
+        search_term = class_partial_name.lower()
+        matching_classes = [cls for name_lower, cls in search_index if search_term in name_lower]
+
         return matching_classes
-    except ImportError as e:
-        logging.error(f"Module '{module_name}' not found: {e}")
+    except Exception as e:
+        logging.error(f"Error searching in module '{module_name}': {e}")
     return None
 
 
+@lru_cache(maxsize=None)
+def _get_class_methods(cls: Union[type, Any]) -> List[str]:
+    """
+    Return a list of method names defined directly in the given class (not inherited).
+
+    Args:
+        cls: The class or instance to inspect.
+
+    Returns:
+        List of method names defined in the class (excluding dunder methods).
+
+    Notes:
+        - Always works on the type for caching efficiency.
+        - Uses __dict__ to scan only methods defined in THIS class (not inherited).
+          If you want inherited methods, use dir(), but __dict__ is ~10x faster for EnergyML classes.
+        - Only checks if the attribute is a function or routine (more precise than callable(),
+          which includes the class itself).
+    """
+    # Always work on the type for cache efficiency
+    if not isinstance(cls, type):
+        return _get_class_methods(type(cls))
+
+    methods = []
+    # Use __dict__ to scan only methods defined in THIS class
+    for name, attr in cls.__dict__.items():
+        if name.startswith("__"):
+            continue
+        # Only check if it's a function or routine (not just callable)
+        if inspect.isroutine(attr):
+            methods.append(name)
+
+    return methods
+
+
 def get_class_methods(cls: Union[type, Any]) -> List[str]:
-    """
-    Returns the list of the methods names for a specific class.
-    :param cls:
-    :return:
-    """
-    return [
-        func
-        for func in dir(cls)
-        if callable(getattr(cls, func)) and not func.startswith("__") and not isinstance(getattr(cls, func), type)
-    ]
+    t = cls if isinstance(cls, type) else type(cls)
+    return _get_class_methods(t)
 
 
 def get_class_from_name(class_name_and_module: str) -> Optional[type]:
@@ -184,23 +292,7 @@ def get_class_from_name(class_name_and_module: str) -> Optional[type]:
     return None
 
 
-def get_energyml_module_dev_version(pkg: str, current_version: str):
-    accessible_modules = dict_energyml_modules()
-    if not current_version.startswith("v"):
-        current_version = "v" + current_version
-
-    current_version = current_version.replace("-", "_").replace(".", "_")
-    res = []
-    if pkg in accessible_modules:
-        # logging.debug("\t", pkg, current_version)
-        for am_pkg_version in accessible_modules[pkg]:
-            if am_pkg_version != current_version and am_pkg_version.startswith(current_version):
-                # logging.debug("\t\t", am_pkg_version)
-                res.append(get_module_name(pkg, am_pkg_version))
-
-    return res
-
-
+@lru_cache(maxsize=None)
 def get_energyml_class_in_related_dev_pkg(cls: type):
     class_name = cls.__name__
     class_pkg = get_class_pkg(cls)
@@ -215,6 +307,23 @@ def get_energyml_class_in_related_dev_pkg(cls: type):
             logging.error(f"FAILED {dev_module_name}.{class_name}")
             logging.error(e)
             pass
+
+    return res
+
+
+def get_energyml_module_dev_version(pkg: str, current_version: str):
+    accessible_modules = dict_energyml_modules()
+    if not current_version.startswith("v"):
+        current_version = "v" + current_version
+
+    current_version = current_version.replace("-", "_").replace(".", "_")
+    res = []
+    if pkg in accessible_modules:
+        # logging.debug("\t", pkg, current_version)
+        for am_pkg_version in accessible_modules[pkg]:
+            if am_pkg_version != current_version and am_pkg_version.startswith(current_version):
+                # logging.debug("\t\t", am_pkg_version)
+                res.append(get_module_name(pkg, am_pkg_version))
 
     return res
 
@@ -280,6 +389,9 @@ def get_module_name(domain: str, domain_version: str):
     ns = ENERGYML_NAMESPACES[domain]
     if not domain_version.startswith("v"):
         domain_version = "v" + domain_version
+
+    if "." in domain_version:
+        domain_version = domain_version.replace(".", "_")
     return f"energyml.{domain}.{domain_version}.{ns[ns.rindex('/') + 1:]}"
 
 
@@ -289,21 +401,20 @@ _FAILED_IMPORT_MODULES = set()
 
 def import_related_module(energyml_module_name: str) -> None:
     """
-    Import related modules for a specific energyml module. (See. :const:`RELATED_MODULES`)
+    Import related modules for a specific energyml module. (See. :const:`RELATED_MODULES_MAP`)
     :param energyml_module_name:
     :return:
     """
-    for related in RELATED_MODULES:
-        if energyml_module_name in related:
-            for m in related:
-                try:
-                    import_module(m)
-                except Exception as e:
-                    # Only log once per unique module
-                    if m not in _FAILED_IMPORT_MODULES:
-                        _FAILED_IMPORT_MODULES.add(m)
-                        logging.debug(f"Could not import related module {m}: {e}")
-                    # logging.error(e)
+    group = get_related_energyml_modules_name(energyml_module_name)
+    for m in group:
+        try:
+            import_module(m)
+        except Exception as e:
+            # Only log once per unique module
+            if m not in _FAILED_IMPORT_MODULES:
+                _FAILED_IMPORT_MODULES.add(m)
+                logging.debug(f"Could not import related module {m}: {e}")
+            # logging.error(e)
 
 
 def list_function_parameters_with_types(func, is_class_function: bool = False) -> Dict[str, Any]:
@@ -367,6 +478,9 @@ def get_class_attributes(cls: Union[type, Any]) -> List[str]:
 
 
 def get_class_attribute_type(cls: Union[type, Any], attribute_name: str):
+    """
+    Return the type of an attribute of a class.
+    """
     fields = get_class_fields(cls)
     try:
         return fields[attribute_name].type
@@ -379,6 +493,51 @@ def get_class_attribute_type(cls: Union[type, Any], attribute_name: str):
     return None
 
 
+def get_all_matching_class_attribute_name(
+    cls: Union[type, Any],
+    attribute_name: str,
+    re_flags=re.IGNORECASE,
+) -> List[str]:
+    """
+    From an object and an attribute name, returns all the correct attribute names of the class matching with the attribute_name.
+     Example : "\\w*.Version" --> ["object_version", "ObjectVersion", "obj_version", ...]
+     This method doesn't only transform to snake case but search into the obj class attributes (or dict keys)
+    """
+    matching_names = set()
+    if isinstance(cls, dict):
+        for name in cls.keys():
+            if snake_case(name) == snake_case(attribute_name):
+                matching_names.add(name)
+        pattern = re.compile(attribute_name, flags=re_flags)
+        for name in cls.keys():
+            if pattern.match(name):
+                matching_names.add(name)
+        return list(matching_names)
+    else:
+        class_fields = get_class_fields(cls)
+        try:
+            # a search with the exact value
+            for name, cf in class_fields.items():
+                if snake_case(name) == snake_case(attribute_name) or (
+                    hasattr(cf, "metadata") and "name" in cf.metadata and cf.metadata["name"] == attribute_name
+                ):
+                    matching_names.add(name)
+
+            # search regex after to avoid shadowing perfect match
+            pattern = re.compile(attribute_name, flags=re_flags)
+            for name, cf in class_fields.items():
+                # logging.error(f"\t->{name} : {attribute_name} {pattern.match(name)} {('name' in cf.metadata and pattern.match(cf.metadata['name']))}")
+                if pattern.match(name) or (
+                    hasattr(cf, "metadata") and "name" in cf.metadata and pattern.match(cf.metadata["name"])
+                ):
+                    matching_names.add(name)
+        except Exception as e:
+            logging.error(f"Failed to get attribute {attribute_name} from class {cls}")
+            logging.error(e)
+
+    return list(matching_names)
+
+
 def get_matching_class_attribute_name(
     cls: Union[type, Any],
     attribute_name: str,
@@ -389,36 +548,9 @@ def get_matching_class_attribute_name(
     Example : "ObjectVersion" --> object_version.
     This method doesn't only transform to snake case but search into the obj class attributes (or dict keys)
     """
-    if isinstance(cls, dict):
-        for name in cls.keys():
-            if snake_case(name) == snake_case(attribute_name):
-                return name
-        pattern = re.compile(attribute_name, flags=re_flags)
-        for name in cls.keys():
-            if pattern.match(name):
-                return name
-    else:
-        class_fields = get_class_fields(cls)
-        try:
-            # a search with the exact value
-            for name, cf in class_fields.items():
-                if snake_case(name) == snake_case(attribute_name) or (
-                    hasattr(cf, "metadata") and "name" in cf.metadata and cf.metadata["name"] == attribute_name
-                ):
-                    return name
-
-            # search regex after to avoid shadowing perfect match
-            pattern = re.compile(attribute_name, flags=re_flags)
-            for name, cf in class_fields.items():
-                # logging.error(f"\t->{name} : {attribute_name} {pattern.match(name)} {('name' in cf.metadata and pattern.match(cf.metadata['name']))}")
-                if pattern.match(name) or (
-                    hasattr(cf, "metadata") and "name" in cf.metadata and pattern.match(cf.metadata["name"])
-                ):
-                    return name
-        except Exception as e:
-            logging.error(f"Failed to get attribute {attribute_name} from class {cls}")
-            logging.error(e)
-
+    matched = get_all_matching_class_attribute_name(cls, attribute_name, re_flags)
+    if len(matched) > 0:
+        return matched[0]
     return None
 
 
@@ -429,7 +561,7 @@ def get_object_attribute(obj: Any, attr_dot_path: str, force_snake_case=True) ->
 
     :param obj:
     :param attr_dot_path:
-    :param force_snake_case:
+    :param force_snake_case: if True, the method will try to find the attribute name in snake case (only for class attribute, not for dict keys nor list index)
     :return:
     """
     current_attrib_name, path_next = path_next_attribute(attr_dot_path)
@@ -438,9 +570,6 @@ def get_object_attribute(obj: Any, attr_dot_path: str, force_snake_case=True) ->
         logging.error(f"Attribute path '{attr_dot_path}' is invalid.")
         return None
 
-    if force_snake_case:
-        current_attrib_name = snake_case(current_attrib_name)
-
     value = None
     if isinstance(obj, list):
         value = obj[int(current_attrib_name)]
@@ -448,6 +577,8 @@ def get_object_attribute(obj: Any, attr_dot_path: str, force_snake_case=True) ->
         value = obj.get(current_attrib_name, None)
     else:
         try:
+            if force_snake_case:
+                current_attrib_name = snake_case(current_attrib_name)
             value = getattr(obj, current_attrib_name)
         except AttributeError:
             return None
@@ -608,7 +739,8 @@ def get_object_attribute_no_verif(obj: Any, attr_name: str, default: Optional[An
         else:
             raise AttributeError(obj, name=attr_name)
     else:
-        res = getattr(obj, attr_name)
+        res = operator.attrgetter(attr_name)(obj)
+        # res = getattr(obj, attr_name)
         if res is None:  # we did not used the "default" of getattr to keep raising AttributeError
             return default
         return res
@@ -628,15 +760,39 @@ def get_object_attribute_rgx(obj: Any, attr_dot_path_rgx: str) -> Any:
 
     # unescape Dot
     current_attrib_name = current_attrib_name.replace("\\.", ".")
+    if isinstance(obj, list):
+        # current_attrib may be a regex for list index.
+        # first, test if it's a simple int
+        # print("TRY INDEX", current_attrib_name, obj)
+        try:
+            idx = int(current_attrib_name)
+            if idx < len(obj) and idx >= 0:
+                return obj[idx]
+            else:
+                raise AttributeError(obj, name=current_attrib_name)
+        except ValueError:
+            accumulator = []
+            for i in range(len(obj)):
+                if re.match(current_attrib_name, str(i)):
+                    accumulator.append(obj[i])
+            # print("ACCUMULATOR", accumulator)
+            if accumulator:
+                if len(attrib_list) > 1:
+                    return [
+                        get_object_attribute_rgx(v, attr_dot_path_rgx[len(current_attrib_name) + 1 :])
+                        for v in accumulator
+                    ]
+                else:
+                    return accumulator
+    else:
+        real_attrib_name = get_matching_class_attribute_name(obj, current_attrib_name)
+        if real_attrib_name is not None:
+            value = get_object_attribute_no_verif(obj, real_attrib_name)
 
-    real_attrib_name = get_matching_class_attribute_name(obj, current_attrib_name)
-    if real_attrib_name is not None:
-        value = get_object_attribute_no_verif(obj, real_attrib_name)
-
-        if len(attrib_list) > 1:
-            return get_object_attribute_rgx(value, attr_dot_path_rgx[len(current_attrib_name) + 1 :])
-        else:
-            return value
+            if len(attrib_list) > 1:
+                return get_object_attribute_rgx(value, attr_dot_path_rgx[len(current_attrib_name) + 1 :])
+            else:
+                return value
     return None
 
 
@@ -777,7 +933,8 @@ def search_attribute_matching_type_with_path(
     elif not is_primitive(obj):
         for att_name in get_class_attributes(obj):
             res = res + search_attribute_matching_type_with_path(
-                obj=get_object_attribute_rgx(obj, att_name),
+                obj=get_object_attribute_no_verif(obj, att_name),
+                # obj=get_object_attribute_rgx(obj, att_name),
                 type_rgx=type_rgx,
                 re_flags=re_flags,
                 return_self=True,
@@ -811,9 +968,10 @@ def search_attribute_in_upper_matching_name(
         return elt_list
 
     if len(current_path) != 0:  # obj != root_obj:
-        upper_path = current_path[: current_path.rindex(".")]
+        upper_path = path_parent_attribute(current_path)
+        # upper_path = current_path[: current_path.rindex(".")]
         # print(f"\t {upper_path} ")
-        if len(upper_path) > 0:
+        if upper_path is not None and len(upper_path) > 0:
             return search_attribute_in_upper_matching_name(
                 obj=get_object_attribute(root_obj, upper_path),
                 name_rgx=name_rgx,
@@ -881,7 +1039,7 @@ def search_attribute_matching_name_with_path(
     :param current_path:
     :param deep_search:
     :param search_in_sub_obj:
-    :return:
+    :return: a list of tuple (path, value) for each sub attribute with type matching param "name_rgx". The path is a dot-version like ".Citation.Title"
     """
     # while name_rgx.startswith("."):
     #     name_rgx = name_rgx[1:]
@@ -893,7 +1051,7 @@ def search_attribute_matching_name_with_path(
     #     next_match = ".".join(attrib_list[1:])
     current_match, next_match = path_next_attribute(name_rgx)
     if current_match is None:
-        logging.error(f"Attribute name regex '{name_rgx}' is invalid.")
+        # logging.error(f"Attribute name regex '{name_rgx}' is invalid.")
         return []
     res = []
 
@@ -923,22 +1081,27 @@ def search_attribute_matching_name_with_path(
             else:
                 not_match_path_and_obj.append((f"{current_path}{k}", s_o))
     elif not is_primitive(obj):
-        match_value = get_matching_class_attribute_name(obj, current_match.replace("\\.", "."))
-        if match_value is not None:
+        current_match = current_match.replace("\\.", ".")
+        # logging.debug(f"searching {current_match} in {type(obj)} with path {current_path} and next match {next_match}")
+        match_values = get_all_matching_class_attribute_name(obj, current_match, re_flags)
+        for match_value in match_values:
+            # logging.debug(f"\tmatch found : {match_value}")
             match_path_and_obj.append(
                 (
                     f"{current_path}{match_value}",
                     get_object_attribute_no_verif(obj, match_value),
                 )
             )
+        # logging.debug("f------")
         for att_name in get_class_attributes(obj):
-            if att_name != match_value:
+            if att_name not in match_values:
                 not_match_path_and_obj.append(
                     (
                         f"{current_path}{att_name}",
                         get_object_attribute_no_verif(obj, att_name),
                     )
                 )
+        # logging.debug(f"\tmatch_path_and_obj: {match_path_and_obj}")
 
     for matched_path, matched in match_path_and_obj:
         if next_match is not None:  # next_match is different, match is not final
@@ -959,7 +1122,7 @@ def search_attribute_matching_name_with_path(
                     re_flags=re_flags,
                     current_path=matched_path,
                     deep_search=deep_search,  # no deep with partial
-                    search_in_sub_obj=True,
+                    search_in_sub_obj=search_in_sub_obj,
                 )
     if search_in_sub_obj:
         for not_matched_path, not_matched in not_match_path_and_obj:
@@ -988,8 +1151,8 @@ def search_attribute_matching_name(
     :param obj:
     :param name_rgx:
     :param re_flags:
-    :param deep_search:
-    :param search_in_sub_obj:
+    :param deep_search: if True, the method will search for matching attribute in the sub attributes of a matching attribute (recursive search). If False, only the first level of attributes will be searched for a match.
+    :param search_in_sub_obj: if True, the method will search for matching attribute in the sub attributes of a non-matching attribute (recursive search). If False, only the first level of attributes will be searched for a match.
     :return:
     """
     return [
@@ -1129,13 +1292,21 @@ def copy_attributes(
 # Utility functions
 
 
-def get_obj_uuid(obj: Any) -> str:
+def get_obj_uuid(obj: Any) -> Optional[str]:
     """
     Return the object uuid (attribute must match the following regex : "[Uu]u?id|UUID").
     :param obj:
     :return:
     """
-    return get_object_attribute_rgx(obj, "[Uu]u?id|UUID")
+    try:
+        return getattr(obj, "uuid", None) or getattr(obj, "uid")
+    except AttributeError:
+        if isinstance(obj, dict):
+            for k in obj.keys():
+                if re.match(r"[Uu]u?id|UUID", k):
+                    return obj[k]
+    return None
+    # return get_object_attribute_rgx(obj, "[Uu]u?id|UUID")
 
 
 def get_obj_version(obj: Any) -> Optional[str]:
@@ -1145,14 +1316,29 @@ def get_obj_version(obj: Any) -> Optional[str]:
     :return:
     """
     try:
-        return get_object_attribute_no_verif(obj, "object_version")
+        return (
+            getattr(obj, "object_version", None)
+            or getattr(obj, "version_string", None)
+            or getattr(getattr(obj, "citation"), "version_string", None)
+        )
     except AttributeError:
-        try:
-            return get_object_attribute_no_verif(obj, "version_string")
-        except Exception:
-            logging.error(f"Error with {type(obj)}")
-            return None
-            # raise e
+        # Log with full call stack to see WHO called this function
+        # logging.error(
+        #     f"Error getting version for {type(obj)} -- {obj}",
+        #     exc_info=True,
+        #     stack_info=True,  # This shows the full call stack including caller
+        # )
+        if isinstance(obj, dict):
+            for k in obj.keys():
+                if re.match(r"object_?version|version_?string", k, re.IGNORECASE):
+                    return obj[k]
+                elif re.match(r"citation", k, re.IGNORECASE) and isinstance(obj[k], dict):
+                    for ck in obj[k].keys():
+                        if re.match(r"version_?string", ck, re.IGNORECASE):
+                            return obj[k][ck]
+        pass
+    return None
+    # raise e
 
 
 def get_obj_title(obj: Any) -> Optional[str]:
@@ -1162,9 +1348,33 @@ def get_obj_title(obj: Any) -> Optional[str]:
     :return:
     """
     try:
-        return get_object_attribute_advanced(obj, "citation.title")
+        return getattr(getattr(obj, "citation"), "title", None)
     except AttributeError:
-        return None
+        if isinstance(obj, dict):
+            for k in obj.keys():
+                if re.match(r"citation", k, re.IGNORECASE) and isinstance(obj[k], dict):
+                    for ck in obj[k].keys():
+                        if re.match(r"title", ck, re.IGNORECASE):
+                            return obj[k][ck]
+            # search for title or name if not classical citation.title found
+
+            for k in obj.keys():
+                if re.match(r"title", k, re.IGNORECASE):
+                    return obj[k]
+                elif re.match(r"name", k, re.IGNORECASE):
+                    return obj[k]
+
+        else:
+            # DOR :
+            try:
+                return getattr(obj, "title")
+            except AttributeError:
+                # etp resource meta :
+                try:
+                    return getattr(obj, "name")
+                except AttributeError:
+                    pass
+    return None
 
 
 def get_obj_pkg_pkgv_type_uuid_version(
@@ -1180,7 +1390,12 @@ def get_obj_pkg_pkgv_type_uuid_version(
     :param obj:
     :return:
     """
-    pkg: Optional[str] = get_class_pkg(obj)
+    pkg: Optional[str] = None
+    try:
+        pkg = get_class_pkg(obj)
+    except AttributeError:
+        # could occur if obj is a dict
+        pass
     pkg_v: Optional[str] = get_class_pkg_version(obj)
     obj_type: Optional[str] = get_object_type_for_file_path_from_class(obj)
     obj_uuid = get_obj_uuid(obj)
@@ -1190,8 +1405,11 @@ def get_obj_pkg_pkgv_type_uuid_version(
     try:
         ct = get_object_attribute_no_verif(obj, "content_type")
     except:
-        pass
-
+        try:
+            ct = get_object_attribute_no_verif(obj, "ContentType")
+        except:
+            pass
+    
     if ct is not None:
         ct_match = parse_content_type(ct)
         if ct_match is not None:
@@ -1199,15 +1417,21 @@ def get_obj_pkg_pkgv_type_uuid_version(
             pkg_v = ct_match.group("domainVersion")
             obj_type = ct_match.group("type")
     else:
+        qt = None
         try:
             qt = get_object_attribute_no_verif(obj, "qualified_type")
+        except:
+            try:
+                qt = get_object_attribute_no_verif(obj, "QualifiedType")
+            except:
+                pass
+        
+        if qt is not None:
             qt_match = parse_qualified_type(qt)
             if qt_match is not None:
                 pkg = qt_match.group("domain")
                 pkg_v = qt_match.group("domainVersion")
                 obj_type = qt_match.group("type")
-        except:
-            pass
 
     # flattening version
     if pkg_v is not None:
@@ -1423,6 +1647,9 @@ def get_content_type_from_class(cls: Union[type, Any], print_dev_version=True, n
 
 
 def get_object_type_for_file_path_from_class(cls) -> str:
+    """
+    Return the object type to use in file path or content type. It is not always the same as the class name, for example for resqml201, the class "TriangulatedSetRepresentation" has to be written "obj_TriangulatedSetRepresentation" in file path and content type.
+    """
     if not isinstance(cls, type):
         cls = type(cls)
     classic_type = get_obj_type(cls)
@@ -1666,6 +1893,10 @@ def get_all_possible_instanciable_classes_for_attribute(parent_obj: Any, attribu
                 )
                 return get_all_possible_instanciable_classes([sub_cls] + get_sub_classes(sub_cls), ctx)
     return []
+
+
+def get_enum_values(cls: Any) -> List[str]:
+    return cls._member_names_ if is_enum(cls) else []
 
 
 def _random_value_from_class(

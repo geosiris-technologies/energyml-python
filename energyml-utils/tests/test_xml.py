@@ -4,7 +4,7 @@
 import logging
 
 from energyml.utils.constants import parse_qualified_type
-from src.energyml.utils.xml import *
+from src.energyml.utils.xml_utils import *
 
 CT_20 = "application/x-resqml+xml;version=2.0;type=obj_TriangulatedSetRepresentation"
 CT_22 = "application/x-resqml+xml;version=2.2;type=TriangulatedSetRepresentation"

@@ -60,18 +60,23 @@ python_functions = [ "test_*" ]
 [tool.poetry.extras]
 parquet = ["pyarrow", "numpy", "pandas"]
 hdf5 = ["h5py"]
+las = ["lasio"]
+segy = ["segyio"]
+geometry = ["scipy"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
 xsdata = {version = "^24.0", extras = ["cli", "lxml"]}
 energyml-opc = "^1.12.0"
-h5py = { version = "^3.7.0", optional = false }
-pyarrow = { version = "^14.0.1", optional = false }
+h5py = { version = "^3.11.0", optional = false }
 numpy = { version = "^1.16.6", optional = false }
-flake8 = "^7.3.0"
+scipy = { version = ">=1.7", optional = true }
+pyarrow = { version = "^14.0.1", optional = true }
+pandas = { version = "^1.1.0", optional = true }
+lasio = { version = "^0.31", optional = true }
+segyio = { version = "^1.9", optional = true }
 
 [tool.poetry.group.dev.dependencies]
-pandas = { version = "^1.1.0", optional = false }
 coverage = {extras = ["toml"], version = "^6.2"}
 pytest = "^8.1.1"
 pytest-cov = "^4.1.0"
@@ -80,7 +85,8 @@ black = "^22.3.0"
 pylint = "^2.7.2"
 click = ">=8.1.3, <=8.1.3" # upper version than 8.0.2 fail with black
 pdoc3 = "^0.10.0"
-pydantic = { version =  "^2.0", optional = true }
+snakeviz = "^2.1.0" # code perf tests
+pydantic = { version =  "^2.0"}
 energyml-common2-0 = "^1.12.0"
 energyml-common2-1 = "^1.12.0"
 energyml-common2-2 = "^1.12.0"
@@ -97,7 +103,7 @@ mypy = "^0.971"
 bandit = "^1.7.0"
 safety = "^1.10.0"
 memory-profiler = "^0.60.0"
-line-profiler = "^4.0.0"
+# line-profiler = "^4.0.0"
 
 [tool.coverage.run]
 branch = true

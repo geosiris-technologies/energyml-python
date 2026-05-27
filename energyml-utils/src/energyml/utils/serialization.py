@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
 import logging
+from energyml.utils.constants import WELLKNOWN_NAMESPACES
 import numpy as np
 import traceback
 from enum import Enum
@@ -20,8 +21,8 @@ from xsdata.formats.dataclass.serializers import JsonSerializer
 from xsdata.formats.dataclass.serializers import XmlSerializer
 from xsdata.formats.dataclass.serializers.config import SerializerConfig
 
-from .exception import UnknownTypeFromQualifiedType, NotParsableType
-from .introspection import (
+from energyml.utils.exception import UnknownTypeFromQualifiedType, NotParsableType
+from energyml.utils.introspection import (
     as_obj_prefixed_class_if_possible,
     get_class_from_name,
     get_energyml_class_in_related_dev_pkg,
@@ -35,18 +36,47 @@ from .introspection import (
     get_matching_class_attribute_name,
     is_enum,
 )
-from .xml import (
+from energyml.utils.xml_utils import (
     get_class_name_from_xml,
     get_tree,
     get_xml_encoding,
-    ENERGYML_NAMESPACES,
+)
+
+from xsdata.formats.dataclass.parsers.handlers import LxmlEventHandler
+
+GLOBAL_XML_CONTEXT = XmlContext(
+    # element_name_generator=text.camel_case,
+    # attribute_name_generator=text.kebab_case
 )
 
 
 class JSON_VERSION(Enum):
     XSDATA = "XSDATA"
     OSDU_OFFICIAL = "OSDU_OFFICIAL"
+    
+class FallbackNamespaceXmlParser(XmlParser):
+    """
+    Custom XML parser that injects fallback namespaces 
+    before xsdata attempts to resolve xsi:type types.
+    """
+    def __init__(self, fallback_namespaces: dict[str, str], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fallback_namespaces = fallback_namespaces
 
+    def start(self, clazz: Any, queue: list, objects: list, qname: str, attrs: dict, ns_map: dict):
+        # 1. Prepare a new dictionary including our fallback namespaces
+        merged_ns = dict(self.fallback_namespaces)
+        
+        # 2. Update it with the namespaces actually found in the document
+        # (Document namespaces always take precedence)
+        if ns_map:
+            for prefix, uri in ns_map.items():
+                # lxml uses 'None' for the default namespace, xsdata prefers an empty string ""
+                clean_prefix = "" if prefix is None else prefix
+                merged_ns[clean_prefix] = uri
+                
+        # 3. Pass exactly the 6 expected arguments to the standard xsdata logic
+        super().start(clazz, queue, objects, qname, attrs, merged_ns)
 
 def _read_energyml_xml_bytes_as_class(
     file: bytes,
@@ -65,7 +95,12 @@ def _read_energyml_xml_bytes_as_class(
         fail_on_unknown_attributes=fail_on_unknown_attributes,
         # process_xinclude=True,
     )
-    parser = XmlParser(config=config)
+    parser = FallbackNamespaceXmlParser(
+        fallback_namespaces=WELLKNOWN_NAMESPACES,
+        config=config, 
+        context=GLOBAL_XML_CONTEXT, 
+    )
+    
     try:
         return parser.from_bytes(file, obj_class)
     except ParserError as e:
@@ -81,11 +116,6 @@ def _read_energyml_xml_bytes_as_class(
 
 
 def read_energyml_xml_tree(file: etree, obj_type: Optional[type] = None) -> Any:
-    # if obj_type is None:
-    #     obj_type = get_class_from_name(get_class_name_from_xml(file))
-    # parser = XmlParser(handler=XmlEventHandler)
-    # # parser = XmlParser(handler=LxmlEventHandler)
-    # return parser.parse(file, obj_type)
     return read_energyml_xml_bytes(etree.tostring(file, encoding="utf8"))
 
 
@@ -155,9 +185,9 @@ def _read_energyml_json_bytes_as_class(file: bytes, json_version: JSON_VERSION, 
             # fail_on_unknown_attributes=False,
             # process_xinclude=True,
         )
-        parser = JsonParser(config=config)
+        parser = JsonParser(config=config, context=GLOBAL_XML_CONTEXT)
         try:
-            return parser.from_bytes(file, obj_class)
+            return parser.from_bytes(file, obj_class, ns_map=WELLKNOWN_NAMESPACES)
         except ParserError as e:
             logging.error(f"Failed to parse file {file} as class {obj_class}")
             raise e
@@ -269,14 +299,10 @@ def serialize_xml(obj, check_obj_prefixed_classes: bool = True) -> str:
     # logging.debug(f"[1] Serializing object of type {type(obj)}")
     obj = as_obj_prefixed_class_if_possible(obj) if check_obj_prefixed_classes else obj
     # logging.debug(f"[2] Serializing object of type {type(obj)}")
-    context = XmlContext(
-        # element_name_generator=text.camel_case,
-        # attribute_name_generator=text.kebab_case
-    )
     serializer_config = SerializerConfig(indent="  ")
-    serializer = XmlSerializer(context=context, config=serializer_config)
+    serializer = XmlSerializer(context=GLOBAL_XML_CONTEXT, config=serializer_config)
     # res = serializer.render(obj)
-    res = serializer.render(obj, ns_map=ENERGYML_NAMESPACES)
+    res = serializer.render(obj, ns_map=WELLKNOWN_NAMESPACES)
     # logging.debug(f"[3] Serialized XML with meta namespace : {obj.Meta.namespace}: {serialize_json(obj)}")
     return res
 
@@ -286,12 +312,8 @@ def serialize_json(
 ) -> str:
     obj = as_obj_prefixed_class_if_possible(obj) if check_obj_prefixed_classes else obj
     if json_version == JSON_VERSION.XSDATA:
-        context = XmlContext(
-            # element_name_generator=text.camel_case,
-            # attribute_name_generator=text.kebab_case
-        )
         serializer_config = SerializerConfig(indent="  ")
-        serializer = JsonSerializer(context=context, config=serializer_config)
+        serializer = JsonSerializer(context=GLOBAL_XML_CONTEXT, config=serializer_config)
         return serializer.render(obj)
     elif json_version == JSON_VERSION.OSDU_OFFICIAL:
         return json.dumps(to_json_dict(obj), indent=4, sort_keys=True)

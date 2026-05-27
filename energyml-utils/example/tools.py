@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import pathlib
+import traceback
 from typing import Optional, List, Dict, Any
 import sys
 from pathlib import Path
@@ -12,7 +13,7 @@ from pathlib import Path
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
-from energyml.utils.validation import validate_epc
+from energyml.utils.validation import ErrorType, validate_epc
 
 from energyml.utils.constants import get_property_kind_dict_path_as_xml
 from energyml.utils.data.datasets_io import CSVFileReader, HDF5FileWriter, ParquetFileWriter, DATFileReader
@@ -20,6 +21,7 @@ from energyml.utils.data.mesh import MeshFileFormat, export_multiple_data, expor
 from energyml.utils.epc import Epc, gen_energyml_object_path
 from energyml.utils.introspection import (
     get_class_from_simple_name,
+    get_enum_values,
     get_module_name_and_type_from_content_or_qualified_type,
     random_value_from_class,
     search_class_in_module_from_partial_name,
@@ -548,6 +550,26 @@ def validate_files():
     parser = argparse.ArgumentParser()
     # parser.add_argument("--folder", type=str, help="Input folder")
     parser.add_argument("--file", "-f", type=str, help="Input file (json or xml or epc)")
+    parser.add_argument(
+        "--ignore-err-type",
+        "-i",
+        type=str,
+        help=f"Error types to ignore. Possible values {get_enum_values(ErrorType)}",
+        nargs="*",
+    )
+
+    parser.add_argument(
+        "--ignore-prodml-version-errs",
+        action="store_false",
+        dest="ignore_prodml_version_errs",
+        help="Disable ignoring errors related to Prodml version (by default, these errors are ignored)",
+    )
+
+    parser.add_argument(
+        "--group-by-err-class",
+        action="store_true",
+        help="Group errors by their class (e.g. all validation errors together, all parsing errors together, etc.)",
+    )
 
     args = parser.parse_args()
 
@@ -615,14 +637,36 @@ def validate_files():
                 else:
                     print(f"File {filename} is NOT a valid EnergyML EPC file: Empty EPC")
             except Exception as e:
+                traceback.print_exc()
                 print(f"File {filename} is NOT a valid EnergyML EPC file: {e}")
 
     epc = Epc()
     epc.energyml_objects = objects
 
-    err_json = [err.toJson() for err in validate_epc(epc)]
+    err_json = [
+        err.toJson()
+        for err in validate_epc(epc)
+        if str(err.error_type).lower() not in (et.lower() for et in (args.ignore_err_type or []))
+    ]
 
-    print(json.dumps(err_json, indent=4))
+    err_json_sorted = sorted(
+        err_json, key=lambda x: (x["err_class"], x["error_type"], x["object_uuid"] if "object_uuid" in x else "")
+    )
+
+    if args.ignore_prodml_version_errs:
+        err_json_sorted = [err for err in err_json_sorted if not ("prodml23" in err.get("msg", ""))]
+
+    if args.group_by_err_class:
+        err_json_grouped = {}
+        for err in err_json_sorted:
+            err_class = err.get("err_class", "UnknownErrorClass")
+            if err_class not in err_json_grouped:
+                err_json_grouped[err_class] = []
+            err_json_grouped[err_class].append(err)
+        print(json.dumps(err_json_grouped, indent=4))
+    else:
+        # print(json.dumps(err_json, indent=4))
+        print(json.dumps(err_json_sorted, indent=4))
 
 
 # def export_wavefront():
