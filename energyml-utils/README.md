@@ -399,6 +399,11 @@ Using qualified type:
 poetry run generate_data --type "resqml22.WellboreFeature" --file-format json
 ```
 
+Generate multiple data : 
+```bash
+poetry run generate_multiple_data -o generated -ff xml -t eml23.AbstractObject --exclude witsml --exclude prodml
+```
+
 ### XML to JSON Conversion
 
 Convert an XML file to JSON:

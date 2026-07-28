@@ -5,7 +5,7 @@ import json
 import os
 import pathlib
 import traceback
-from typing import Optional, List, Dict, Any
+from typing import Callable, Optional, List, Dict, Any
 import sys
 from pathlib import Path
 
@@ -13,15 +13,18 @@ from pathlib import Path
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
+from energyml.utils.epc_utils import get_epc_content_type_path
 from energyml.utils.validation import ErrorType, validate_epc
 
-from energyml.utils.constants import get_property_kind_dict_path_as_xml
+from energyml.utils.constants import EpcExportVersion, get_property_kind_dict_path_as_xml
 from energyml.utils.data.datasets_io import CSVFileReader, HDF5FileWriter, ParquetFileWriter, DATFileReader
 from energyml.utils.data.mesh import MeshFileFormat, export_multiple_data, export_obj, read_mesh_object
 from energyml.utils.epc import Epc, gen_energyml_object_path
 from energyml.utils.introspection import (
     get_class_from_simple_name,
     get_enum_values,
+    get_non_abstract_classes,
+    is_abstract,
     get_module_name_and_type_from_content_or_qualified_type,
     random_value_from_class,
     search_class_in_module_from_partial_name,
@@ -278,6 +281,136 @@ def csv_to_dataset():
         )
 
 
+def _find_class_from_type_name(type_name: str):
+    """
+    Search a class from a full python path (e.g. 'energyml.resqml.v2_2.resqmlv2.TriangulatedSetRepresentation')
+    or from a qualified type (e.g. 'resqml22.TriangulatedSetRepresentation').
+    :param type_name:
+    :return: the class or None if not found
+    """
+    try:
+        return get_class_from_simple_name(type_name[type_name.rindex(".") + 1 :], [type_name[: type_name.rindex(".")]])
+    except (NameError, ValueError):
+        try:
+            return get_class_from_qualified_type(type_name)
+        except ValueError:
+            return None
+
+
+def _print_close_type_names(type_name: str):
+    """Print the types that look like @type_name, to help the user to fix its input."""
+    print(f"Class not found for '{type_name}', please check the type name.")
+    try:
+        module_name, object_type = get_module_name_and_type_from_content_or_qualified_type(type_name)
+    except ValueError:
+        return
+    print("Possible types are :")
+    for cn in search_class_in_module_from_partial_name(module_name, object_type):
+        print(f" - {cn.__name__}")
+
+
+def _serialize_object(obj, file_format: str) -> str:
+    if file_format.lower() == "xml":
+        return serialize_xml(obj)
+    else:
+        return serialize_json(obj, JSON_VERSION.OSDU_OFFICIAL)
+
+
+def _file_name_prefix(obj) -> str:
+    """
+    File name prefix for a generated object : its qualified type (e.g. 'resqml22.TriangulatedSetRepresentation'),
+    or its class name if the qualified type cannot be computed.
+    :param obj:
+    :return: str
+    """
+    try:
+        return get_qualified_type_from_class(obj) or type(obj).__name__
+    except Exception:
+        return type(obj).__name__
+
+
+def _is_excluded(cls, exclude: Optional[List[str]]) -> bool:
+    """
+    Test if the class @cls must be excluded : it is the case if one of the @exclude values is contained (case
+    insensitive) in one of the following values :
+        - the module of the class (e.g. 'energyml.witsml.v2_1.witsmlv2'),
+        - the class name (e.g. 'Trajectory'),
+        - the full path 'module.ClassName',
+        - the qualified type of the class (e.g. 'witsml21.Trajectory').
+
+    E.g. '-e witsml' excludes every witsml class, '-e trajectory' excludes every class named '*Trajectory*'.
+    :param cls:
+    :param exclude:
+    :return: bool
+    """
+    if not exclude:
+        return False
+
+    module_name = getattr(cls, "__module__", "") or ""
+    class_name = getattr(cls, "__name__", "") or ""
+    searched_in = [module_name, class_name, f"{module_name}.{class_name}"]
+    try:
+        searched_in.append(get_qualified_type_from_class(cls) or "")
+    except Exception:
+        pass
+    searched_in = [value.lower() for value in searched_in if len(value) > 0]
+
+    return any(excluded.lower() in value for excluded in exclude for value in searched_in)
+
+
+def _generate_random_objects(
+    obj_class,
+    callback: Optional[Callable[[Any], None]] = None,
+    exclude: Optional[List[str]] = None,
+) -> List[Any]:
+    """
+    Generate a random object for @obj_class, or, if @obj_class is abstract, one random object per non abstract
+    sub class of @obj_class.
+    :param obj_class:
+    :param callback: if not None, it is called with each object right after its generation (e.g. to write it on the
+                     disk without waiting for the end of the whole generation). In that case, the objects are not
+                     kept in memory and an empty list is returned.
+    :param exclude: list of values : every class matching one of them (see @_is_excluded) is not generated
+    :return: a list of generated objects, or an empty list if a @callback was given
+    """
+    if is_abstract(obj_class):
+        classes_to_generate = get_non_abstract_classes(obj_class)
+        if len(classes_to_generate) == 0:
+            print(f"No instanciable sub class found for the abstract class '{obj_class.__name__}'.")
+            return []
+
+        nb_found = len(classes_to_generate)
+        classes_to_generate = [cls for cls in classes_to_generate if not _is_excluded(cls, exclude)]
+        nb_excluded = nb_found - len(classes_to_generate)
+
+        excluded_msg = f", {nb_excluded} excluded" if nb_excluded > 0 else ""
+        print(
+            f"'{obj_class.__name__}' is abstract : generating one object per sub class "
+            f"({nb_found} found{excluded_msg})."
+        )
+    elif _is_excluded(obj_class, exclude):
+        print(f"'{obj_class.__name__}' is excluded by the filter.")
+        return []
+    else:
+        classes_to_generate = [obj_class]
+
+    objs = []
+    for cls in classes_to_generate:
+        # a failure on one class must not stop the generation of the others
+        try:
+            obj = random_value_from_class(cls)
+        except Exception as e:
+            print(f"Failed to generate an object for '{cls.__name__}' : {type(e).__name__}: {e}")
+            continue
+
+        if callback is not None:
+            callback(obj)
+        else:
+            objs.append(obj)
+
+    return objs
+
+
 def generate_data():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -298,27 +431,95 @@ def generate_data():
 
     args = parser.parse_args()
 
-    obj_class = None
-    try:
-        obj_class = get_class_from_simple_name(
-            args.type[args.type.rindex(".") + 1 :], [args.type[: args.type.rindex(".")]]
-        )
-    except NameError:
-        obj_class = get_class_from_qualified_type(args.type)
+    obj_class = _find_class_from_type_name(args.type)
 
     if obj_class is None:
-        print("Class not found, please check the type name.")
-        print("Possible types are :")
-        module_name, object_type = get_module_name_and_type_from_content_or_qualified_type(args.type)
-        for cn in search_class_in_module_from_partial_name(module_name, object_type):
-            print(f" - {cn.__name__}")
+        _print_close_type_names(args.type)
         return
 
-    obj = random_value_from_class(obj_class)
-    if args.file_format.lower() == "xml":
-        print(serialize_xml(obj))
-    else:
-        print(serialize_json(obj, JSON_VERSION.OSDU_OFFICIAL))
+    for obj in _generate_random_objects(obj_class):
+        print(_serialize_object(obj, args.file_format))
+
+
+def generate_multiple_data():
+    """
+    Same as @generate_data but for several object types at once, sharing a common file format.
+    If an output folder is given, one file per object is written in it (as soon as it is generated), else all
+    objects are printed on stdout.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--type",
+        "-t",
+        type=str,
+        nargs="+",
+        default=["energyml.resqml.v2_2.resqmlv2.TriangulatedSetRepresentation"],
+        help="Object types (e.g. energyml.resqml.v2_2.resqmlv2.TriangulatedSetRepresentation "
+        "energyml.resqml.v2_2.resqmlv2.PolylineSetRepresentation)",
+    )
+
+    parser.add_argument(
+        "--file-format",
+        "-ff",
+        type=str,
+        default="json",
+        help="Type of the output files (one of : ['json', 'xml']). Default is 'json'",
+    )
+
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=str,
+        default=None,
+        help="Output folder path. If not set, the objects are printed on the standard output",
+    )
+
+    parser.add_argument(
+        "--exclude",
+        "-e",
+        type=str,
+        nargs="+",
+        action="extend",  # to support both '-e witsml prodml' and '-e witsml -e prodml'
+        default=[],
+        help="Do not generate the classes whose module, class name, 'module.ClassName' or qualified type contains "
+        "one of these values (case insensitive). E.g. '-e witsml prodml' skips every witsml and prodml class",
+    )
+
+    args = parser.parse_args()
+
+    file_format = args.file_format.lower()
+    if file_format not in ["json", "xml"]:
+        print(f"Unknown file format '{args.file_format}', please use one of : ['json', 'xml']")
+        return
+
+    if args.output is not None:
+        pathlib.Path(args.output).mkdir(parents=True, exist_ok=True)
+
+    def export_object(obj):
+        """Export an object as soon as it has been generated : one file per object, or the standard output."""
+        try:
+            content = _serialize_object(obj, file_format)
+        except Exception as e:
+            print(f"Failed to serialize an object of type '{type(obj).__name__}' : {type(e).__name__}: {e}")
+            return
+
+        if args.output is None:
+            print(f"# ----- {type(obj).__name__} -----")
+            print(content)
+        else:
+            file_path = os.path.join(args.output, f"{_file_name_prefix(obj)}_{get_obj_uuid(obj)}.{file_format}")
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print(f"Object written in {file_path}")
+
+    for type_name in args.type:
+        obj_class = _find_class_from_type_name(type_name)
+
+        if obj_class is None:
+            _print_close_type_names(type_name)
+            continue
+
+        _generate_random_objects(obj_class, callback=export_object, exclude=args.exclude)
 
 
 _sample_osdu_map_ = {
@@ -458,6 +659,81 @@ def json_to_epc():
     epc.export_file(args.out)
 
 
+def _package_file_or_folder_in_epc(input_path: str) -> Epc:
+    objects = []
+
+    if not os.path.exists(input_path):
+        print(f"File {input_path} does not exist.")
+        return
+    elif not os.path.isdir(input_path) and not input_path.lower().endswith((".json", ".xml", ".epc")):
+        print(f"File {input_path} is not a valid input file (should be a folder or a json/xml/epc file).")
+        return
+    elif os.path.isdir(input_path):
+        for filename in os.listdir(input_path):
+            f = os.path.join(input_path, filename)
+            if os.path.isfile(f):
+                if f.endswith(".json"):
+                    with open(f, "rb") as file:
+                        f_content = file.read()
+                        try:
+                            objs = read_energyml_json_bytes(f_content, JSON_VERSION.OSDU_OFFICIAL)
+                            objects.extend(objs)
+                        except Exception as e:
+                            print(f"File {filename} is NOT a valid EnergyML JSON file: {e}")
+                elif f.endswith(".xml"):
+                    if get_epc_content_type_path() not in f:
+                        with open(f, "rb") as file:
+                            f_content = file.read()
+                            try:
+                                obj = read_energyml_xml_bytes(f_content)
+                                objects.append(obj)
+                            except Exception as e:
+                                print(f"File {filename} is NOT a valid EnergyML XML file: {e}")
+                elif f.endswith(".epc"):
+                    try:
+                        epc = Epc.read_file(f)
+                        if epc is not None:
+                            objects.extend(epc.energyml_objects)
+                        else:
+                            print(f"File {filename} is NOT a valid EnergyML EPC file: Empty EPC")
+                    except Exception as e:
+                        print(f"File {filename} is NOT a valid EnergyML EPC file: {e}")
+    elif os.path.isfile(input_path):
+        f = input_path
+        filename = os.path.basename(f)
+        if f.endswith(".json"):
+            with open(f, "rb") as file:
+                f_content = file.read()
+                try:
+                    objs = read_energyml_json_bytes(f_content, JSON_VERSION.OSDU_OFFICIAL)
+                    objects.extend(objs)
+                except Exception as e:
+                    print(f"File {filename} is NOT a valid EnergyML JSON file: {e}")
+        elif f.endswith(".xml"):
+            if get_epc_content_type_path() not in f:
+                with open(f, "rb") as file:
+                    f_content = file.read()
+                    try:
+                        obj = read_energyml_xml_bytes(f_content)
+                        objects.append(obj)
+                    except Exception as e:
+                        print(f"File {filename} is NOT a valid EnergyML XML file: {e}")
+        elif f.endswith(".epc"):
+            try:
+                epc = Epc.read_file(f)
+                if epc is not None:
+                    objects.extend(epc.energyml_objects)
+                else:
+                    print(f"File {filename} is NOT a valid EnergyML EPC file: Empty EPC")
+            except Exception as e:
+                traceback.print_exc()
+                print(f"File {filename} is NOT a valid EnergyML EPC file: {e}")
+
+    epc = Epc()
+    epc.energyml_objects = objects
+    return epc
+
+
 def describe_as_csv():
     parser = argparse.ArgumentParser()
     parser.add_argument("--folder", "-f", type=str, help="Input File")
@@ -546,6 +822,28 @@ def describe_as_csv():
     print("Finished")
 
 
+def load_n_save():
+    parser = argparse.ArgumentParser()
+    # parser.add_argument("--folder", type=str, help="Input folder")
+    parser.add_argument("--file", "-f", type=str, help="Input file (json or xml or epc)")
+    parser.add_argument("--output", "-o", type=str, help="Output file epc path")
+    parser.add_argument(
+        "--pkg-classical", action="store_true", help="Use classical packaging (one file per object) instead of EPC"
+    )
+
+    args = parser.parse_args()
+
+    epc = _package_file_or_folder_in_epc(args.file)
+    export_version = EpcExportVersion.CLASSIC if args.pkg_classical else EpcExportVersion.EXPANDED
+
+    epc.export_version = export_version
+
+    output_path = args.output or (
+        args.file[:-4] + "_bis.epc" if args.file.lower().endswith(".epc") else args.file + "_bis.epc"
+    )
+    epc.export_file(output_path)
+
+
 def validate_files():
     parser = argparse.ArgumentParser()
     # parser.add_argument("--folder", type=str, help="Input folder")
@@ -573,75 +871,7 @@ def validate_files():
 
     args = parser.parse_args()
 
-    objects = []
-
-    if not os.path.exists(args.file):
-        print(f"File {args.file} does not exist.")
-        return
-    elif not os.path.isdir(args.file) and not args.file.lower().endswith((".json", ".xml", ".epc")):
-        print(f"File {args.file} is not a valid input file (should be a folder or a json/xml/epc file).")
-        return
-    elif os.path.isdir(args.file):
-        for filename in os.listdir(args.file):
-            f = os.path.join(args.file, filename)
-            if os.path.isfile(f):
-                if f.endswith(".json"):
-                    with open(f, "rb") as file:
-                        f_content = file.read()
-                        try:
-                            objs = read_energyml_json_bytes(f_content, JSON_VERSION.OSDU_OFFICIAL)
-                            objects.extend(objs)
-                        except Exception as e:
-                            print(f"File {filename} is NOT a valid EnergyML JSON file: {e}")
-                elif f.endswith(".xml"):
-                    with open(f, "rb") as file:
-                        f_content = file.read()
-                        try:
-                            obj = read_energyml_xml_bytes(f_content)
-                            objects.append(obj)
-                        except Exception as e:
-                            print(f"File {filename} is NOT a valid EnergyML XML file: {e}")
-                elif f.endswith(".epc"):
-                    try:
-                        epc = Epc.read_file(f)
-                        if epc is not None:
-                            objects.extend(epc.energyml_objects)
-                        else:
-                            print(f"File {filename} is NOT a valid EnergyML EPC file: Empty EPC")
-                    except Exception as e:
-                        print(f"File {filename} is NOT a valid EnergyML EPC file: {e}")
-    elif os.path.isfile(args.file):
-        f = args.file
-        filename = os.path.basename(f)
-        if f.endswith(".json"):
-            with open(f, "rb") as file:
-                f_content = file.read()
-                try:
-                    objs = read_energyml_json_bytes(f_content, JSON_VERSION.OSDU_OFFICIAL)
-                    objects.extend(objs)
-                except Exception as e:
-                    print(f"File {filename} is NOT a valid EnergyML JSON file: {e}")
-        elif f.endswith(".xml"):
-            with open(f, "rb") as file:
-                f_content = file.read()
-                try:
-                    obj = read_energyml_xml_bytes(f_content)
-                    objects.append(obj)
-                except Exception as e:
-                    print(f"File {filename} is NOT a valid EnergyML XML file: {e}")
-        elif f.endswith(".epc"):
-            try:
-                epc = Epc.read_file(f)
-                if epc is not None:
-                    objects.extend(epc.energyml_objects)
-                else:
-                    print(f"File {filename} is NOT a valid EnergyML EPC file: Empty EPC")
-            except Exception as e:
-                traceback.print_exc()
-                print(f"File {filename} is NOT a valid EnergyML EPC file: {e}")
-
-    epc = Epc()
-    epc.energyml_objects = objects
+    epc = _package_file_or_folder_in_epc(args.file)
 
     err_json = [
         err.toJson()

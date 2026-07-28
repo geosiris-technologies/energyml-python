@@ -690,18 +690,18 @@ def log_timestamp(func):
             file_path = kwargs["epc_file_path"]
 
         path_info = f" [{file_path}]" if file_path else ""
-        print(f"⏱️  [{timestamp_start}] Starting {func_name}{path_info}")
+        logging.debug(f"⏱️  [{timestamp_start}] Starting {func_name}{path_info}")
 
         try:
             result = func(*args, **kwargs)
             elapsed = time.perf_counter() - start_time
             timestamp_end = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            print(f"✅ [{timestamp_end}] Completed {func_name} in {elapsed:.3f}s{path_info}")
+            logging.debug(f"✅ [{timestamp_end}] Completed {func_name} in {elapsed:.3f}s{path_info}")
             return result
         except Exception as e:
             elapsed = time.perf_counter() - start_time
             timestamp_end = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            print(f"❌ [{timestamp_end}] Failed {func_name} after {elapsed:.3f}s{path_info}: {e}")
+            logging.debug(f"❌ [{timestamp_end}] Failed {func_name} after {elapsed:.3f}s{path_info}: {e}")
             raise
 
     return wrapper
@@ -1626,7 +1626,7 @@ class Epc(EnergymlStorageInterface):
         :param recompute_rels: If True, recompute all relationships after loading
         :return: an :class:`EPC` instance
         """
-        print("Reading EPC file seq...")
+        logging.debug("Reading EPC file seq...")
         try:
             _read_files = []
             obj_list = []
@@ -1779,7 +1779,7 @@ class Epc(EnergymlStorageInterface):
         from concurrent.futures import ProcessPoolExecutor, as_completed
         import multiprocessing
 
-        print("Reading EPC file parrallel v1...")
+        logging.debug("Reading EPC file parrallel v1...")
 
         obj_to_process = {}
         rels_to_process = {}
@@ -1873,7 +1873,7 @@ class Epc(EnergymlStorageInterface):
     ) -> Optional["Epc"]:
         from concurrent.futures import ThreadPoolExecutor  # Passage au ThreadPool
 
-        print("Reading EPC file parrallel v2...")
+        logging.debug("Reading EPC file parrallel v2...")
 
         obj_list = []
         path_to_obj = {}

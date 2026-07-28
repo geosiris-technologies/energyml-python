@@ -14,6 +14,11 @@ from dataclasses import Field, field
 from enum import Enum
 from importlib import import_module
 from types import ModuleType
+
+try:
+    from types import UnionType  # 'A | B' syntax, python >= 3.10
+except ImportError:
+    UnionType = ()  # isinstance(x, ()) is always False
 from typing import Any, List, Optional, Union, Dict, Tuple
 
 from energyml.utils.constants import (
@@ -40,6 +45,18 @@ from energyml.utils.manager import (
 )
 from energyml.utils.uri import Uri, parse_uri
 from energyml.utils.constants import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
+
+
+def is_union_type(cls: Any) -> bool:
+    """
+    Returns True if :param:`cls` is a union type : 'typing.Union[A, B]', 'typing.Optional[A]' or 'A | B'.
+
+    Note: do not use 'isinstance(cls, typing.Union.__class__)' for that : since python 3.14, 'typing.Union' is
+    'types.UnionType', thus 'typing.Union.__class__' is 'type' and the test is True for every class.
+    :param cls:
+    :return: bool
+    """
+    return typing.get_origin(cls) is Union or isinstance(cls, UnionType)
 
 
 def is_enum(cls: Union[type, Any]):
@@ -603,7 +620,7 @@ def create_default_value_for_type(cls: Any):
         return False
     elif is_enum(cls):
         return cls[cls._member_names_[random.randint(0, len(cls._member_names_) - 1)]]
-    elif isinstance(cls, typing.Union.__class__):
+    elif is_union_type(cls):
         type_list = list(cls.__args__)
         if type(None) in type_list:
             type_list.remove(type(None))  # we don't want to generate none value
@@ -1409,7 +1426,7 @@ def get_obj_pkg_pkgv_type_uuid_version(
             ct = get_object_attribute_no_verif(obj, "ContentType")
         except:
             pass
-    
+
     if ct is not None:
         ct_match = parse_content_type(ct)
         if ct_match is not None:
@@ -1425,7 +1442,7 @@ def get_obj_pkg_pkgv_type_uuid_version(
                 qt = get_object_attribute_no_verif(obj, "QualifiedType")
             except:
                 pass
-        
+
         if qt is not None:
             qt_match = parse_qualified_type(qt)
             if qt_match is not None:
@@ -1725,11 +1742,11 @@ def get_obj_attribute_class(
                 return get_obj_attribute_class(chosen_type, None, random_for_typing)
 
     elif cls is not None:
-        if isinstance(cls, typing.Union.__class__):
+        if is_union_type(cls):
             type_list = list(cls.__args__)
             if type(None) in type_list:
                 type_list.remove(type(None))  # we don't want to generate none value
-            chosen_type = type_list[random.randint(0, len(type_list))]
+            chosen_type = type_list[random.randint(0, len(type_list) - 1)]
         elif cls.__module__ == "typing":
             type_list = list(cls.__args__)
             if type(None) in type_list:
@@ -1761,14 +1778,25 @@ def get_class_from_simple_name(simple_name: str, energyml_module_context=None) -
     try:
         return eval(simple_name)
     except NameError:
+        # Note: the imported names must be stored in an explicit namespace shared by the 'exec' and the 'eval' :
+        # since python 3.13 (PEP 667), 'locals()' returns an independent snapshot inside a function, so what
+        # 'exec' defines is not visible from the following 'eval'.
+        namespace = {
+            "List": List,
+            "Optional": Optional,
+            "Union": Union,
+            "Dict": Dict,
+            "Tuple": Tuple,
+            "Any": Any,
+        }
         for mod in energyml_module_context:
             try:
-                exec(f"from {mod} import *")
+                exec(f"from {mod} import *", namespace)
                 # required to be able to access to type in
                 # typing values like "List[ObjectAlias]"
             except ModuleNotFoundError:
                 pass
-        return eval(simple_name)
+        return eval(simple_name, namespace)
 
 
 def _gen_str_from_attribute_name(attribute_name: Optional[str], _parent_class: Optional[type] = None) -> str:
@@ -1835,6 +1863,21 @@ def random_value_from_class(cls: type):
         )
     else:
         return None
+
+
+def get_non_abstract_classes(cls: type, include_self: bool = True) -> List[type]:
+    """
+    List all non abstract classes that can be instanciated for the type :param:`cls` : the class itself (if it is
+    not abstract and :param:`include_self` is True) and all its sub classes (recursively).
+
+    Example : get_non_abstract_classes(energyml.eml.v2_3.commonv2.AbstractObject)
+
+    :param cls: the (potentially abstract) class
+    :param include_self: if False, :param:`cls` is never returned, even if it is not abstract
+    :return: a list of non abstract classes (may be empty)
+    """
+    potential_classes = ([cls] if include_self else []) + get_sub_classes(cls)
+    return list(dict.fromkeys(filter(lambda _c: not is_abstract(_c), potential_classes)))
 
 
 def get_all_possible_instanciable_classes(
@@ -1925,12 +1968,14 @@ def _random_value_from_class(
             return random.randint(0, 1) == 1
         elif is_enum(cls):
             return cls[cls._member_names_[random.randint(0, len(cls._member_names_) - 1)]]
-        elif isinstance(cls, typing.Union.__class__):
+        elif is_union_type(cls):
             type_list = list(cls.__args__)
             if type(None) in type_list:
                 type_list.remove(type(None))  # we don't want to generate none value
-            chosen_type = type_list[random.randint(0, len(type_list))]
-            return _random_value_from_class(chosen_type, energyml_module_context, attribute_name, cls)
+            chosen_type = type_list[random.randint(0, len(type_list) - 1)]
+            # '_parent_class' must stay the real parent class (not the union alias) : it is used to generate
+            # coherent values for attributes like 'title', 'qualified_type' or 'schema_version'
+            return _random_value_from_class(chosen_type, energyml_module_context, attribute_name, _parent_class)
         elif cls.__module__ == "typing":
             type_list = list(cls.__args__)
             if type(None) in type_list:
