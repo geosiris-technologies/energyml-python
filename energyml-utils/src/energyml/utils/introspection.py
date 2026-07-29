@@ -1394,6 +1394,67 @@ def get_obj_title(obj: Any) -> Optional[str]:
     return None
 
 
+#: Citation sub-attributes exported by :func:`get_object_metadata`, mapped to the metadata key.
+_CITATION_ATTRIBUTES_ = {
+    "title": "title",
+    "originator": "originator",
+    "creation": "creation",
+    "last_update": "last_update",
+    "editor": "editor",
+    "format": "format",
+    "description": "description",
+}
+
+
+def get_object_metadata(obj: Any) -> Dict[str, Any]:
+    """
+    Extract the identification metadata of an energyml object as a plain ``dict``.
+
+    Collected values (absent / empty ones are omitted) :
+        - ``uuid``, ``object_version``
+        - ``qualified_type`` (e.g. ``resqml22.TriangulatedSetRepresentation``), ``content_type``
+        - ``uri`` (ETP URI)
+        - the ``Citation`` fields : ``title``, ``originator``, ``creation``, ``last_update``,
+          ``editor``, ``format``, ``description``.  Dates are returned as ISO 8601 strings.
+
+    Never raises : an unreadable attribute is simply skipped.
+
+    :param obj: an energyml data object
+    :return: a JSON-serializable dict
+    """
+    metadata: Dict[str, Any] = {}
+    if obj is None:
+        return metadata
+
+    for key, getter in (
+        ("uuid", lambda: get_obj_uuid(obj)),
+        ("object_version", lambda: get_obj_version(obj)),
+        ("qualified_type", lambda: get_qualified_type_from_class(obj)),
+        ("content_type", lambda: get_content_type_from_class(obj)),
+        ("uri", lambda: str(get_object_uri(obj))),
+    ):
+        try:
+            value = getter()
+        except Exception:  # a partially filled object must not break the export
+            continue
+        if value is not None and str(value) != "":
+            metadata[key] = value if isinstance(value, (int, float, bool)) else str(value)
+
+    citation = get_object_attribute_no_verif(obj, "citation", default=None)
+    if citation is not None:
+        for attribute_name, key in _CITATION_ATTRIBUTES_.items():
+            try:
+                value = get_object_attribute_no_verif(citation, attribute_name, default=None)
+            except Exception:
+                continue
+            if value is None or str(value) == "":
+                continue
+            # XmlDateTime / XmlDate values serialize to ISO 8601 through str()
+            metadata[key] = value if isinstance(value, (int, float, bool)) else str(value)
+
+    return metadata
+
+
 def get_obj_pkg_pkgv_type_uuid_version(
     obj: Any,
 ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:

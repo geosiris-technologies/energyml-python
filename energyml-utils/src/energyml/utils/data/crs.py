@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, Optional
 
 import numpy as np
@@ -106,10 +107,9 @@ class CrsInfo:
 
     vertical_unknown: Optional[str] = None
     """Free-text vertical CRS descriptor."""
-    
+
     time_uom: Optional[str] = None
     """Unit of measure for time coordinates (e.g. ``"s"``, ``"min"``, ``"h"``)."""
-
 
     # ------------------------------------------------------------------
     # Rotation / azimuth
@@ -575,6 +575,25 @@ def _from_local_engineering2d_crs(
     )
 
 
+def _from_projected_crs(crs_obj: Any) -> CrsInfo:
+    """
+    Handle a standalone ``ProjectedCrs`` document object — **EML v2.3 / RESQML v2.2**.
+
+    Such an object carries no local offset / rotation (those live in the
+    ``LocalEngineering2dCrs``); only the EPSG code, the UOM and the axis order are available.
+    """
+    type_name = type(crs_obj).__name__
+    details = _extract_projected_crs_details(crs_obj)
+    return CrsInfo(
+        projected_epsg_code=details.get("epsg_code"),
+        projected_uom=details.get("uom"),
+        projected_axis_order=details.get("axis_order"),
+        projected_wkt=details.get("wkt"),
+        projected_unknown=details.get("unknown"),
+        source_type=type_name,
+    )
+
+
 def _from_vertical_crs(crs_obj: Any) -> CrsInfo:
     """
     Handle a standalone ``VerticalCrs`` document object — **EML v2.3 / RESQML v2.2**.
@@ -627,7 +646,7 @@ def _from_local_engineering_compound_crs(
     vert_axis_uom_raw = get_object_attribute(crs_obj, "vertical_axis.uom")
     if vert_axis_uom_raw is not None:
         vert_axis_uom = _uom_to_str(vert_axis_uom_raw)
-        
+
     is_time = get_object_attribute(crs_obj, "vertical_axis.is_time")
     time_uom = None
     if is_time is not None and str(is_time).lower() in ("true", "1", "yes"):
@@ -857,6 +876,209 @@ def apply_from_crs_info(
 
 
 # ---------------------------------------------------------------------------
+# WGS84 reprojection (requires the 'crs' extra : pyproj)
+# ---------------------------------------------------------------------------
+
+#: EPSG code of WGS84 as a 2D geographic CRS (longitude, latitude).
+WGS84_2D_EPSG_CODE = 4326
+
+#: EPSG code of WGS84 as a 3D geographic CRS (longitude, latitude, ellipsoidal height).
+#: This is the target to use whenever a vertical CRS is known, since EPSG:4326 carries no height.
+WGS84_3D_EPSG_CODE = 4979
+
+
+def crs_ogc_uri(epsg_code: int) -> str:
+    """
+    Return the OGC URI of an EPSG code, e.g. ``http://www.opengis.net/def/crs/EPSG/0/32631``.
+
+    This is the identifier form used by OGC API - Features and by JSON-FG ``coordRefSys``
+    members, and is the standard way to advertise a CRS in a GeoJSON-like document.
+    """
+    return f"http://www.opengis.net/def/crs/EPSG/0/{int(epsg_code)}"
+
+
+def crs_urn(epsg_code: int) -> str:
+    """
+    Return the OGC URN of an EPSG code, e.g. ``urn:ogc:def:crs:EPSG::32631``.
+
+    This is the form used by the (deprecated but still widely supported by GDAL / QGIS)
+    GeoJSON 2008 ``crs`` member.
+    """
+    return f"urn:ogc:def:crs:EPSG::{int(epsg_code)}"
+
+
+def is_pyproj_available() -> bool:
+    """Return ``True`` when :mod:`pyproj` (the ``crs`` extra) can be imported."""
+    try:
+        import pyproj  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+def build_source_crs_id(
+    projected_epsg_code: Optional[int],
+    vertical_epsg_code: Optional[int] = None,
+) -> Optional[str]:
+    """
+    Build the CRS identifier to hand over to pyproj.
+
+    Returns ``"EPSG:<h>+EPSG:<v>"`` (compound CRS) when a vertical code is given,
+    ``"EPSG:<h>"`` when only the horizontal one is known, and ``None`` when no
+    horizontal code is available (nothing can be reprojected in that case).
+    """
+    if projected_epsg_code is None:
+        return None
+    if vertical_epsg_code is not None:
+        return f"EPSG:{int(projected_epsg_code)}+EPSG:{int(vertical_epsg_code)}"
+    return f"EPSG:{int(projected_epsg_code)}"
+
+
+@lru_cache(maxsize=32)
+def _get_transformer(source_crs_id: str, target_epsg_code: int, network_enabled: bool = False):
+    """
+    Build (and cache) a pyproj ``Transformer``.  Building one costs a few ms, reuse is free.
+
+    ``network_enabled`` is part of the cache key on purpose: PROJ selects the transformation
+    pipeline when the transformer is built, so a transformer created while the network was
+    disabled would keep ignoring the geoid grids even after the network is turned on.
+    """
+    from pyproj import Transformer
+
+    # always_xy=True : force the (longitude, latitude) order on output, whatever the
+    # axis order declared by the EPSG registry (EPSG:4326 is officially lat/lon).
+    return Transformer.from_crs(source_crs_id, f"EPSG:{int(target_epsg_code)}", always_xy=True)
+
+
+@lru_cache(maxsize=32)
+def _vertical_axis_is_down(vertical_epsg_code: int) -> bool:
+    """
+    Return ``True`` when the vertical CRS counts positive values *downward* (a depth CRS,
+    e.g. EPSG:5715 "MSL depth"), ``False`` for a height CRS (e.g. EPSG:5714 "MSL height").
+    """
+    try:
+        from pyproj import CRS
+
+        for axis in CRS.from_epsg(int(vertical_epsg_code)).axis_info:
+            if (axis.direction or "").lower() == "down":
+                return True
+    except Exception as exc:
+        logger.debug("Cannot determine the axis direction of EPSG:%s : %s", vertical_epsg_code, exc)
+    return False
+
+
+def reproject_to_wgs84(
+    points: np.ndarray,
+    crs_info: Optional["CrsInfo"] = None,
+    *,
+    projected_epsg_code: Optional[int] = None,
+    vertical_epsg_code: Optional[int] = None,
+    z_is_up: bool = True,
+    use_network: bool = False,
+    inplace: bool = False,
+) -> np.ndarray:
+    """
+    Reproject *points* from their projected CRS to WGS84 (longitude, latitude, ellipsoidal height).
+
+    The input points are expected to be **already expressed in the projected CRS**, i.e.
+    :func:`apply_from_crs_info` must have been applied first (offsets, rotation, …).
+
+    Parameters
+    ----------
+    points:
+        ``(N, 3)`` array in the source projected CRS.
+    crs_info:
+        Source :class:`CrsInfo`; its EPSG codes are used unless overridden by the
+        *projected_epsg_code* / *vertical_epsg_code* parameters.
+    projected_epsg_code, vertical_epsg_code:
+        Explicit EPSG codes, taking precedence over *crs_info*.
+    z_is_up:
+        ``True`` (default) when the Z column holds heights counted upward — which is what
+        :func:`apply_from_crs_info` produces.  When the vertical CRS is a *depth* CRS the Z
+        sign is flipped accordingly before the transformation.
+    use_network:
+        When ``True``, allow PROJ to download the geoid / datum grids it needs from the PROJ
+        CDN.  **Without them a vertical datum transformation silently does nothing** (it can
+        be off by tens of metres), so a warning is emitted when a vertical CRS is requested
+        while the network is disabled.
+    inplace:
+        When ``True`` the result is written back into *points*.
+
+    Returns
+    -------
+    np.ndarray
+        ``(N, 3)`` array of ``[longitude, latitude, height]``.
+
+    Raises
+    ------
+    MissingExtraInstallation
+        When :mod:`pyproj` is not installed (``pip install energyml-utils[crs]``).
+    NotEnoughInformationError
+        When no horizontal EPSG code is available.
+    """
+    from energyml.utils.exception import MissingExtraInstallation, NotEnoughInformationError
+
+    if projected_epsg_code is None and crs_info is not None:
+        projected_epsg_code = crs_info.projected_epsg_code
+    if vertical_epsg_code is None and crs_info is not None:
+        vertical_epsg_code = crs_info.vertical_epsg_code
+
+    source_crs_id = build_source_crs_id(projected_epsg_code, vertical_epsg_code)
+    if source_crs_id is None:
+        raise NotEnoughInformationError(
+            "Cannot reproject to WGS84: no projected (horizontal) EPSG code found in the CRS object."
+        )
+
+    if not is_pyproj_available():
+        raise MissingExtraInstallation("crs")
+
+    import pyproj
+
+    pts = np.asarray(points, dtype=np.float64).reshape(-1, 3)
+
+    if vertical_epsg_code is not None:
+        if not use_network and not pyproj.network.is_network_enabled():
+            logger.warning(
+                "reproject_to_wgs84: vertical CRS EPSG:%s requested while the PROJ network is disabled — "
+                "the geoid grid may be missing and the vertical transformation silently skipped. "
+                "Pass use_network=True (or install the grids) for an accurate height.",
+                vertical_epsg_code,
+            )
+        if z_is_up and _vertical_axis_is_down(vertical_epsg_code):
+            # The vertical CRS counts depths (positive down) but Z holds heights: flip it back.
+            pts = pts.copy()
+            pts[:, 2] = -pts[:, 2]
+
+    if crs_info is not None and crs_info.time_uom is not None:
+        logger.warning(
+            "reproject_to_wgs84: the source CRS is a time-based CRS (time_uom='%s'); "
+            "the Z column is a time, not a height — its reprojection is meaningless.",
+            crs_info.time_uom,
+        )
+
+    network_was_enabled = pyproj.network.is_network_enabled()
+    if use_network and not network_was_enabled:
+        pyproj.network.set_network_enabled(True)
+    try:
+        transformer = _get_transformer(source_crs_id, WGS84_3D_EPSG_CODE, use_network or network_was_enabled)
+        if len(pts) == 1:
+            # pyproj takes its scalar code path for a 1-element array (and numpy warns about it)
+            lon, lat, height = transformer.transform(float(pts[0, 0]), float(pts[0, 1]), float(pts[0, 2]))
+        else:
+            lon, lat, height = transformer.transform(pts[:, 0], pts[:, 1], pts[:, 2])
+    finally:
+        if use_network and not network_was_enabled:
+            pyproj.network.set_network_enabled(False)
+
+    result = points if inplace else np.empty((len(pts), 3), dtype=np.float64)
+    result[:, 0] = lon
+    result[:, 1] = lat
+    result[:, 2] = height
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Public factory
 # ---------------------------------------------------------------------------
 
@@ -926,6 +1148,9 @@ def extract_crs_info(
     if type_name_lower == "verticalcrs":
         return _from_vertical_crs(crs_obj)
 
+    if type_name_lower == "projectedcrs":
+        return _from_projected_crs(crs_obj)
+
     # ------------------------------------------------------------------
     # v2.0.1 types  (LocalDepth3dCrs, LocalTime3dCrs, AbstractLocal3dCrs)
     # ------------------------------------------------------------------
@@ -951,6 +1176,21 @@ def extract_crs_info(
         )
         return _from_local_engineering2d_crs(crs_obj, workspace)
 
+    # v2.2 pattern: has AbstractProjectedCrs / AbstractVerticalCrs → standalone CRS document
+    if get_object_attribute_rgx(crs_obj, "[Aa]bstract[Pp]rojected[Cc]rs") is not None:
+        logger.debug(
+            "extract_crs_info: unrecognised type '%s' — treating as ProjectedCrs (v2.2 pattern).",
+            type(crs_obj).__name__,
+        )
+        return _from_projected_crs(crs_obj)
+
+    if get_object_attribute_rgx(crs_obj, "[Aa]bstract[Vv]ertical[Cc]rs") is not None:
+        logger.debug(
+            "extract_crs_info: unrecognised type '%s' — treating as VerticalCrs (v2.2 pattern).",
+            type(crs_obj).__name__,
+        )
+        return _from_vertical_crs(crs_obj)
+
     # v2.2 pattern: has LocalEngineering2dCrs DOR → compound
     if get_object_attribute_rgx(crs_obj, "[Ll]ocal[Ee]ngineering2[dD][Cc]rs") is not None:
         logger.debug(
@@ -971,4 +1211,11 @@ __all__ = [
     "extract_crs_info",
     "apply_from_crs_info",
     "apply_axis_order_swap",
+    "reproject_to_wgs84",
+    "build_source_crs_id",
+    "is_pyproj_available",
+    "crs_ogc_uri",
+    "crs_urn",
+    "WGS84_2D_EPSG_CODE",
+    "WGS84_3D_EPSG_CODE",
 ]

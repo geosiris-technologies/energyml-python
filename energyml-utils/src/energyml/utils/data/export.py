@@ -148,13 +148,39 @@ class VTKExportOptions(ExportOptions):
 class GeoJSONExportOptions(ExportOptions):
     """Options for GeoJSON export."""
 
-    def __init__(self, indent: Optional[int] = 2, properties: Optional[dict] = None):
+    def __init__(
+        self,
+        indent: Optional[int] = 2,
+        properties: Optional[dict] = None,
+        to_wgs84: bool = True,
+        include_metadata: bool = True,
+        use_network: bool = False,
+        projected_epsg_code: Optional[int] = None,
+        vertical_epsg_code: Optional[int] = None,
+    ):
         """
         :param indent: JSON indentation level (None for compact output).
         :param properties: Extra properties merged into every feature.
+        :param to_wgs84: When True (default), coordinates are reprojected to WGS84
+                         (longitude, latitude, ellipsoidal height) as required by RFC 7946.
+                         Silently disabled when no EPSG code can be found or when ``pyproj``
+                         (extra ``crs``) is not installed — the source CRS is then advertised
+                         in the output instead.
+        :param include_metadata: When True (default), the ``uuid``, ``qualified_type`` and
+                                 ``Citation`` fields of the source object are written in the
+                                 properties of every feature.
+        :param use_network: Allow PROJ to download the geoid grids needed by vertical datum
+                            transformations.  Without them the height conversion is skipped.
+        :param projected_epsg_code: Force the horizontal EPSG code instead of reading it from the CRS.
+        :param vertical_epsg_code: Force the vertical EPSG code instead of reading it from the CRS.
         """
         self.indent = indent
         self.properties = properties or {}
+        self.to_wgs84 = to_wgs84
+        self.include_metadata = include_metadata
+        self.use_network = use_network
+        self.projected_epsg_code = projected_epsg_code
+        self.vertical_epsg_code = vertical_epsg_code
 
 
 # ---------------------------------------------------------------------------
@@ -399,6 +425,136 @@ def export_obj(
 # ---------------------------------------------------------------------------
 
 
+def _geojson_crs_members(
+    projected_epsg_code: Optional[int],
+    vertical_epsg_code: Optional[int],
+) -> dict:
+    """
+    Build the members advertising a **non-WGS84** CRS in a GeoJSON document.
+
+    RFC 7946 mandates WGS84 (CRS84) and removed the ``crs`` member, so when the coordinates
+    are left in their projected CRS the document is, strictly speaking, non conformant.
+    Two complementary standard-ish identifiers are then written:
+
+    - ``crs`` — the GeoJSON 2008 named-CRS member.  Deprecated, but it is what GDAL / OGR
+      and QGIS actually read.
+    - ``coordRefSys`` — the OGC JSON-FG member, given as OGC URI(s).  A list is used for a
+      compound CRS (horizontal + vertical), as allowed by JSON-FG.
+
+    Returns an empty dict when no EPSG code is available.
+    """
+    if projected_epsg_code is None:
+        return {}
+
+    from energyml.utils.data.crs import crs_ogc_uri, crs_urn
+
+    members: dict = {
+        "crs": {"type": "name", "properties": {"name": crs_urn(projected_epsg_code)}},
+    }
+    if vertical_epsg_code is not None:
+        members["coordRefSys"] = [crs_ogc_uri(projected_epsg_code), crs_ogc_uri(vertical_epsg_code)]
+    else:
+        members["coordRefSys"] = crs_ogc_uri(projected_epsg_code)
+    return members
+
+
+def _feature_id(
+    source_uuid: Optional[str],
+    patch_index: Optional[int] = None,
+    element_index: Optional[int] = None,
+) -> Optional[str]:
+    """
+    Build the RFC 7946 ``id`` member of a feature (§3.2 : "If a Feature has a commonly used
+    identifier, that identifier SHOULD be included").  The energyml uuid is used, suffixed by
+    the patch / element indices when a single object yields several features.
+    """
+    if not source_uuid:
+        return None
+    parts = [source_uuid]
+    if patch_index is not None:
+        parts.append(str(patch_index))
+    if element_index is not None:
+        parts.append(str(element_index))
+    return "_".join(parts)
+
+
+def _geojson_bbox(all_points: List[np.ndarray]) -> Optional[List[float]]:
+    """
+    Compute the RFC 7946 §5 ``bbox`` of the whole collection :
+    ``[min_x, min_y, min_z, max_x, max_y, max_z]``.
+    """
+    non_empty = [p for p in all_points if p is not None and len(p) > 0]
+    if not non_empty:
+        return None
+    stacked = np.concatenate([np.asarray(p, dtype=np.float64).reshape(-1, 3) for p in non_empty], axis=0)
+    mins = stacked.min(axis=0)
+    maxs = stacked.max(axis=0)
+    return [float(mins[0]), float(mins[1]), float(mins[2]), float(maxs[0]), float(maxs[1]), float(maxs[2])]
+
+
+def _prepare_geojson_points(
+    mesh: Any,
+    pts: np.ndarray,
+    options: "GeoJSONExportOptions",
+    workspace: Any,
+) -> tuple:
+    """
+    Reproject *pts* to WGS84 when possible and return
+    ``(points, projected_epsg_code, vertical_epsg_code, is_wgs84)``.
+
+    Falls back silently (with a warning) to the source coordinates when the EPSG codes are
+    unknown, when ``pyproj`` is missing, or when the transformation fails.
+    """
+    from energyml.utils.data.crs import extract_crs_info, is_pyproj_available, reproject_to_wgs84
+
+    projected_epsg_code = options.projected_epsg_code
+    vertical_epsg_code = options.vertical_epsg_code
+    crs_info = None
+
+    crs_obj = getattr(mesh, "crs_object", None)
+    if isinstance(crs_obj, list):
+        crs_obj = crs_obj[0] if crs_obj else None
+    if crs_obj is not None:
+        try:
+            crs_info = extract_crs_info(crs_obj, workspace)
+        except Exception as exc:  # pragma: no cover — extract_crs_info is already defensive
+            log.debug("CRS info extraction failed: %s", exc)
+
+    if crs_info is not None:
+        projected_epsg_code = projected_epsg_code or crs_info.projected_epsg_code
+        vertical_epsg_code = vertical_epsg_code or crs_info.vertical_epsg_code
+
+    if not options.to_wgs84 or projected_epsg_code is None or len(pts) == 0:
+        if options.to_wgs84 and projected_epsg_code is None:
+            log.warning(
+                "GeoJSON export: no projected EPSG code found for %s — coordinates are left in "
+                "their source CRS (non RFC 7946 conformant).",
+                getattr(mesh, "source_uuid", None) or getattr(mesh, "identifier", "?"),
+            )
+        return pts, projected_epsg_code, vertical_epsg_code, False
+
+    if not is_pyproj_available():
+        log.warning(
+            "GeoJSON export: pyproj is not installed (pip install energyml-utils[crs]) — "
+            "coordinates are left in EPSG:%s instead of WGS84.",
+            projected_epsg_code,
+        )
+        return pts, projected_epsg_code, vertical_epsg_code, False
+
+    try:
+        reprojected = reproject_to_wgs84(
+            pts,
+            crs_info,
+            projected_epsg_code=projected_epsg_code,
+            vertical_epsg_code=vertical_epsg_code,
+            use_network=options.use_network,
+        )
+        return reprojected, projected_epsg_code, vertical_epsg_code, True
+    except Exception as exc:
+        log.warning("GeoJSON export: reprojection to WGS84 failed (%s) — keeping the source coordinates.", exc)
+        return pts, projected_epsg_code, vertical_epsg_code, False
+
+
 def export_geojson(
     mesh_list: Any,
     out: TextIO,
@@ -408,6 +564,15 @@ def export_geojson(
 ) -> None:
     """Export mesh data to GeoJSON FeatureCollection.
 
+    Coordinates are reprojected to WGS84 (longitude, latitude, ellipsoidal height) by default,
+    as required by RFC 7946 — see :class:`GeoJSONExportOptions`.  When the reprojection cannot
+    be done, the source CRS is advertised through the ``crs`` (GeoJSON 2008) and
+    ``coordRefSys`` (OGC JSON-FG) members instead.
+
+    Every feature carries the identification metadata of its source object : the RFC 7946
+    ``id`` member holds the energyml uuid, and ``properties`` holds the ``uuid``,
+    ``qualified_type`` and ``Citation`` fields (title, creation, last_update, …).
+
     :param mesh_list: One or more meshes.
     :param out: Text output stream.
     :param options: GeoJSON export options.
@@ -416,6 +581,7 @@ def export_geojson(
     """
     from energyml.utils.data.mesh import PolylineSetMesh, SurfaceMesh
     from energyml.utils.data.mesh_numpy import NumpyMesh, NumpyPointSetMesh, NumpyPolylineMesh
+    from energyml.utils.introspection import get_object_metadata
 
     if options is None:
         options = GeoJSONExportOptions()
@@ -423,57 +589,76 @@ def export_geojson(
     patches = _normalize_to_patches(mesh_list)
     workspace = _workspace_from_contexts(contexts)
     features: List[dict] = []
+    exported_points: List[np.ndarray] = []
+    #: (projected_epsg, vertical_epsg, is_wgs84) of every patch — used to declare the CRS.
+    crs_states: set = set()
 
     for mesh in patches:
         pts = _get_export_points(mesh, use_crs_displacement, workspace)
+        pts, projected_epsg_code, vertical_epsg_code, is_wgs84 = _prepare_geojson_points(
+            mesh, np.asarray(pts, dtype=np.float64).reshape(-1, 3), options, workspace
+        )
+        crs_states.add((projected_epsg_code, vertical_epsg_code, is_wgs84))
+        exported_points.append(pts)
+
         source_uuid = getattr(mesh, "source_uuid", None)
         patch_idx = getattr(mesh, "patch_index", None)
         color = _get_context_color(source_uuid, contexts)
-        base_props: dict = {
-            **options.properties,
-            "source_uuid": source_uuid,
-            "patch_index": patch_idx,
-        }
+
+        base_props: dict = {**options.properties}
+        if options.include_metadata:
+            base_props.update(get_object_metadata(getattr(mesh, "energyml_object", None)))
+        base_props["source_uuid"] = source_uuid or base_props.get("uuid")
+        base_props["patch_index"] = patch_idx
+        if projected_epsg_code is not None:
+            base_props["projected_epsg_code"] = projected_epsg_code
+        if vertical_epsg_code is not None:
+            base_props["vertical_epsg_code"] = vertical_epsg_code
+        if is_wgs84:
+            # keep the provenance of the coordinates now that they have been converted
+            base_props["source_crs"] = f"EPSG:{projected_epsg_code}"
+            base_props["coordinates_crs"] = "OGC:CRS84"
         if color:
             r, g, b, a = color
             base_props["color"] = f"#{r:02x}{g:02x}{b:02x}"
             base_props["opacity"] = round(a / 255.0, 4)
 
+        def _feature(geometry: dict, element_index: Optional[int] = None, extra: Optional[dict] = None) -> dict:
+            feature: dict = {"type": "Feature"}
+            feature_id = _feature_id(source_uuid, patch_idx, element_index)
+            if feature_id is not None:
+                feature["id"] = feature_id
+            feature["geometry"] = geometry
+            feature["properties"] = base_props if extra is None else {**base_props, **extra}
+            return feature
+
         if isinstance(mesh, NumpyMesh):
             if isinstance(mesh, NumpyPointSetMesh):
-                coords = pts.tolist()
-                features.append(
-                    {
-                        "type": "Feature",
-                        "geometry": {"type": "MultiPoint", "coordinates": coords},
-                        "properties": base_props,
-                    }
-                )
+                features.append(_feature({"type": "MultiPoint", "coordinates": pts.tolist()}))
             elif isinstance(mesh, NumpyPolylineMesh):
-                for seg in _parse_vtk_flat_lines(mesh.lines):
+                for seg_idx, seg in enumerate(_parse_vtk_flat_lines(mesh.lines)):
                     if len(seg) < 2:
                         continue
-                    coords = pts[seg].tolist()
                     features.append(
-                        {
-                            "type": "Feature",
-                            "geometry": {"type": "LineString", "coordinates": coords},
-                            "properties": base_props,
-                        }
+                        _feature(
+                            {"type": "LineString", "coordinates": pts[seg].tolist()},
+                            element_index=seg_idx,
+                            extra={"element_index": seg_idx},
+                        )
                     )
             else:
                 # NumpySurfaceMesh / NumpyVolumeMesh
-                for face in _parse_vtk_flat_faces(_get_faces_or_cells(mesh)):
+                for face_idx, face in enumerate(_parse_vtk_flat_faces(_get_faces_or_cells(mesh))):
                     if len(face) < 3:
                         continue
                     coords = pts[face].tolist()
                     coords.append(coords[0])  # close ring
                     features.append(
-                        {
-                            "type": "Feature",
-                            "geometry": {"type": "Polygon", "coordinates": [coords]},
-                            "properties": base_props,
-                        }
+                        _feature(
+                            {"type": "Polygon", "coordinates": [coords]},
+                            element_index=face_idx,
+                            extra={"element_index": face_idx},
+                        )
                     )
         else:
             # AbstractMesh legacy path
@@ -482,28 +667,49 @@ def export_geojson(
                 if isinstance(mesh, PolylineSetMesh):
                     if len(elem) < 2:
                         continue
-                    coords = [list(pts[i]) for i in elem]
+                    # .tolist() : json.dump does not accept numpy scalars
+                    coords = pts[np.asarray(elem, dtype=np.int64)].tolist()
                     features.append(
-                        {
-                            "type": "Feature",
-                            "geometry": {"type": "LineString", "coordinates": coords},
-                            "properties": {**base_props, "element_index": elem_idx},
-                        }
+                        _feature(
+                            {"type": "LineString", "coordinates": coords},
+                            element_index=elem_idx,
+                            extra={"element_index": elem_idx},
+                        )
                     )
                 elif isinstance(mesh, SurfaceMesh):
                     if len(elem) < 3:
                         continue
-                    coords = [list(pts[i]) for i in elem]
+                    coords = pts[np.asarray(elem, dtype=np.int64)].tolist()
                     coords.append(coords[0])
                     features.append(
-                        {
-                            "type": "Feature",
-                            "geometry": {"type": "Polygon", "coordinates": [coords]},
-                            "properties": {**base_props, "element_index": elem_idx},
-                        }
+                        _feature(
+                            {"type": "Polygon", "coordinates": [coords]},
+                            element_index=elem_idx,
+                            extra={"element_index": elem_idx},
+                        )
                     )
 
-    json.dump({"type": "FeatureCollection", "features": features}, out, indent=options.indent)
+    collection: dict = {"type": "FeatureCollection"}
+
+    # Advertise the CRS only when the coordinates are NOT WGS84 : an RFC 7946 document is
+    # implicitly in CRS84 and must not carry a 'crs' member.
+    not_wgs84 = [state for state in crs_states if not state[2]]
+    if len(not_wgs84) == 1:
+        collection.update(_geojson_crs_members(not_wgs84[0][0], not_wgs84[0][1]))
+    elif len(not_wgs84) > 1:
+        log.warning(
+            "GeoJSON export: %d different source CRS in the same FeatureCollection — "
+            "no collection-level CRS is declared, see the per-feature 'projected_epsg_code' property.",
+            len(not_wgs84),
+        )
+
+    bbox = _geojson_bbox(exported_points)
+    if bbox is not None:
+        collection["bbox"] = bbox
+
+    collection["features"] = features
+
+    json.dump(collection, out, indent=options.indent)
 
 
 # ---------------------------------------------------------------------------

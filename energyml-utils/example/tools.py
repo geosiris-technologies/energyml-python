@@ -560,6 +560,16 @@ def extract_representation_in_3d_file():
         help=f"Type of the output files (one of : {[e.value for e in MeshFileFormat]}). Default is 'obj'",
     )
     parser.add_argument("--uuid", "-u", type=str, help="The uuids of representations to extract", nargs="+")
+    parser.add_argument(
+        "--no-wgs84",
+        action="store_true",
+        help="GeoJSON only : keep the coordinates in their source CRS instead of reprojecting them to WGS84",
+    )
+    parser.add_argument(
+        "--proj-network",
+        action="store_true",
+        help="GeoJSON only : allow PROJ to download the geoid grids needed by the vertical datum transformation",
+    )
 
     args = parser.parse_args()
 
@@ -569,6 +579,8 @@ def extract_representation_in_3d_file():
         output_folder_path=args.output,
         file_format=args.file_format,
         use_crs_displacement=not args.no_crs,
+        to_wgs84=not args.no_wgs84,
+        use_network=args.proj_network,
     )
 
 

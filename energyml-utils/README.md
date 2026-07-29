@@ -270,7 +270,7 @@ The EpcStreamReader is perfect for applications that need to work with large EPC
 
 # Poetry scripts : 
 
-- extract_3d : extract a representation into an 3D file (obj/off)
+- extract_3d : extract a representation into an 3D file (obj/off/geojson)
 - csv_to_dataset : translate csv data into h5 dataset
 - generate_data : generate a random data from a qualified_type 
 - xml_to_json : translate an energyml xml file into json.
@@ -353,6 +353,85 @@ poetry run extract_3d --epc "path/to/file.epc" --output "output_folder" --uuid "
 Extract to OFF format without CRS displacement:
 ```bash
 poetry run extract_3d --epc "path/to/file.epc" --output "output_folder" --file-format OFF --no-crs
+```
+
+### Extract 3D Representations as GeoJSON
+
+Export every exportable representation of the EPC to GeoJSON (one `.geojson` file per
+representation; a representation that cannot be read is logged and skipped):
+```bash
+poetry run extract_3d --epc "path/to/file.epc" --output "output_folder" --file-format geojson
+```
+
+Export only some representations:
+```bash
+poetry run extract_3d --epc "path/to/file.epc" --output "output_folder" --file-format geojson --uuid "uuid1" "uuid2"
+```
+
+**Coordinates are reprojected to WGS84 by default**, as required by [RFC 7946](https://www.rfc-editor.org/rfc/rfc7946).
+This needs the `crs` extra:
+```bash
+poetry install --extras crs        # or : pip install energyml-utils[crs]
+```
+
+Without it (or when no EPSG code can be found in the CRS), a warning is logged, the coordinates are
+left in their source CRS, and that CRS is advertised in the output through the `crs` (GeoJSON 2008,
+read by GDAL / QGIS) and `coordRefSys` (OGC JSON-FG) members.
+
+Keep the coordinates in the source projected CRS:
+```bash
+poetry run extract_3d --epc "path/to/file.epc" --output "output_folder" --file-format geojson --no-wgs84
+```
+
+Allow PROJ to download the geoid grids used by the vertical datum transformation. Without them the
+height conversion is silently skipped, which can be off by tens of metres:
+```bash
+poetry run extract_3d --epc "path/to/file.epc" --output "output_folder" --file-format geojson --proj-network
+```
+
+Each feature carries the identification metadata of its source object: the energyml `uuid` in the
+RFC 7946 `id` member, and the `uuid`, `qualified_type`, `content_type`, ETP `uri`, `Citation` fields
+(title, originator, creation, last_update, …) and EPSG codes in `properties`:
+
+```json
+{
+  "type": "FeatureCollection",
+  "name": "Bartonien Top",
+  "bbox": [2.3675, 48.9129, 30.13, 2.4057, 48.9198, 37.15],
+  "features": [
+    {
+      "type": "Feature",
+      "id": "02cc9411-6b90-4619-a9fd-a39ac332b367",
+      "properties": {
+        "uuid": "02cc9411-6b90-4619-a9fd-a39ac332b367",
+        "qualified_type": "resqml22.PointSetRepresentation",
+        "uri": "eml:///resqml22.PointSetRepresentation(02cc9411-6b90-4619-a9fd-a39ac332b367)",
+        "title": "Bartonien Top",
+        "originator": "Geosiris",
+        "creation": "2025-12-17T16:11:36Z",
+        "last_update": "2025-12-17T16:11:36Z",
+        "projected_epsg_code": 3949,
+        "source_crs": "EPSG:3949",
+        "coordinates_crs": "OGC:CRS84"
+      },
+      "geometry": { "type": "MultiPoint", "coordinates": [[2.4055336, 48.9140288, 37.15]] }
+    }
+  ]
+}
+```
+
+The same options are available from python:
+```python
+from energyml.utils.data.mesh import MeshFileFormat, export_multiple_data
+
+export_multiple_data(
+    epc_path="path/to/file.epc",
+    uuid_list=["uuid1"],
+    output_folder_path="output_folder",
+    file_format=MeshFileFormat.GEOJSON,
+    to_wgs84=True,       # default
+    use_network=False,   # True to download the geoid grids
+)
 ```
 
 ### CSV to Dataset

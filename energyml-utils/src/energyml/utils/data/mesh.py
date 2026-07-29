@@ -26,12 +26,18 @@ from energyml.utils.data.helper import (
     get_crs_obj,
     read_parametric_geometry,
 )
-from energyml.utils.data.crs import extract_crs_info, apply_from_crs_info
+from energyml.utils.data.crs import (
+    extract_crs_info,
+    apply_from_crs_info,
+    is_pyproj_available,
+    reproject_to_wgs84,
+)
 from energyml.utils.epc_utils import gen_energyml_object_path
 from energyml.utils.epc_stream import EpcStreamReader
 from energyml.utils.exception import NotSupportedError, ObjectNotFoundNotError
 from energyml.utils.introspection import (
     get_obj_uri,
+    get_object_metadata,
     search_attribute_matching_name,
     search_attribute_matching_name_with_path,
     snake_case,
@@ -43,6 +49,7 @@ from energyml.utils.storage_interface import EnergymlStorageInterface
 
 # Import export functions from new export module for backward compatibility
 from energyml.utils.data.export import export_obj as _export_obj_new
+from energyml.utils.data.export import _geojson_crs_members
 
 _FILE_HEADER: bytes = b"# file exported by energyml-utils python module (Geosiris)\n"
 
@@ -1627,32 +1634,55 @@ def _write_geojson_shape(
                 if _print_list_boundaries:
                     out.write(b"]")
     except Exception as e:
-        if logger is not None:
-            logger.error(e)
+        # never swallow silently: a failure here produces a geometry without coordinates
+        (logger or logging).error(
+            f"@_write_geojson_shape failed for a {geo_type.name} geometry: {type(e).__name__}: {e}"
+        )
         # raise e
     return mins, maxs
+
+
+def _as_json_ready_list(value: Any) -> Any:
+    """
+    Convert numpy arrays / numpy scalars into plain python lists and floats.
+
+    The GeoJSON writers below serialize the points with :func:`json.dumps`, which does not
+    support numpy types : depending on the representation and on the way its points were read,
+    ``AbstractMesh.point_list`` may be a ``list`` *or* an ``ndarray``.  Without this conversion
+    the serialization raises ``TypeError: Object of type ndarray is not JSON serializable``.
+    """
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, (list, tuple)):
+        return [_as_json_ready_list(v) for v in value]
+    return value
 
 
 def to_geojson_feature(
     mesh: AbstractMesh,
     geo_type: GeoJsonGeometryType = GeoJsonGeometryType.Point,
-    geo_type_prefix: Optional[str] = "AnyCrs",
+    geo_type_prefix: Optional[str] = "",
     properties: Optional[dict] = None,
     point_offset: int = 0,
     logger=None,
+    feature_id: Optional[str] = None,
 ) -> Dict:
+    """
+    Build a GeoJSON Feature as a dict.
+
+    :param geo_type_prefix: prefix of the ``type`` member. Empty (default) for a standard
+                            RFC 7946 ``"Feature"``; ``"AnyCrs"`` marks non-WGS84 coordinates.
+    :param feature_id: value of the RFC 7946 ``id`` member (the energyml uuid, typically).
+    """
     feature = {}
 
     if mesh.point_list is not None and len(mesh.point_list) > 0:
-        points = mesh.point_list
+        # point_list / indices may be numpy arrays : json.dumps only accepts plain python types
+        points = _as_json_ready_list(mesh.point_list)
 
-        #  TODO: remove :
-        # points = list(map(
-        #     lambda p: list(map(lambda x: round(x/10000., 4), p)),
-        #     mesh.point_list
-        # ))
-
-        indices = mesh.get_indices()
+        indices = _as_json_ready_list(mesh.get_indices())
         # polygon must have the first and last point as the same
         if geo_type == GeoJsonGeometryType.Polygon or geo_type == GeoJsonGeometryType.MultiPolygon:
             if logger is not None:
@@ -1694,11 +1724,11 @@ def to_geojson_feature(
             "bbox": bbox_geometry,
         }
 
-        feature = {
-            "type": f"{geo_type_prefix}Feature",
-            "properties": properties or {},
-            "geometry": geometry,
-        }
+        feature = {"type": f"{geo_type_prefix or ''}Feature"}
+        if feature_id is not None:
+            feature["id"] = feature_id
+        feature["properties"] = properties or {}
+        feature["geometry"] = geometry
 
     return feature
 
@@ -1707,15 +1737,25 @@ def write_geojson_feature(
     out: BytesIO,
     mesh: AbstractMesh,
     geo_type: GeoJsonGeometryType = GeoJsonGeometryType.Point,
-    geo_type_prefix: Optional[str] = "AnyCrs",
+    geo_type_prefix: Optional[str] = "",
     properties: Optional[dict] = None,
     point_offset: int = 0,
     logger=None,
+    feature_id: Optional[str] = None,
 ) -> None:
-    if mesh.point_list is not None and len(mesh.point_list) > 0:
-        points = mesh.point_list
+    """
+    Write a single GeoJSON Feature.
 
-        indices = mesh.get_indices()
+    :param geo_type_prefix: prefix of the ``type`` member. Empty (default) for a standard
+                            RFC 7946 ``"Feature"``; the historical ``"AnyCrs"`` value marks
+                            coordinates that are *not* in WGS84.
+    :param feature_id: value of the RFC 7946 ``id`` member (the energyml uuid, typically).
+    """
+    if mesh.point_list is not None and len(mesh.point_list) > 0:
+        # point_list / indices may be numpy arrays : json.dumps only accepts plain python types
+        points = _as_json_ready_list(mesh.point_list)
+
+        indices = _as_json_ready_list(mesh.get_indices())
         # polygon must have the first and last point as the same
         if geo_type == GeoJsonGeometryType.Polygon or geo_type == GeoJsonGeometryType.MultiPolygon:
             if logger is not None:
@@ -1730,7 +1770,9 @@ def write_geojson_feature(
             logger.debug("# to_geojson_feature > Computing shape")
 
         out.write(b"{")  # start feature
-        out.write(f'"type": "{geo_type_prefix}Feature", '.encode())
+        out.write(f'"type": "{geo_type_prefix or ""}Feature", '.encode())
+        if feature_id is not None:
+            out.write(f'"id": {json.dumps(feature_id)}, '.encode())
         out.write(f'"properties": {json.dumps(properties or {}) }, '.encode())
         out.write(b'"geometry": ')
 
@@ -1738,6 +1780,7 @@ def write_geojson_feature(
         # "type": f"{geo_type_prefix}{geo_type.name}",
         out.write(f'"type": "{geo_type.name}", '.encode())
         out.write('"coordinates": '.encode())
+        coordinates_start = out.tell()
         mins, maxs = _write_geojson_shape(
             out=out,
             geo_type=geo_type,
@@ -1746,6 +1789,15 @@ def write_geojson_feature(
             point_offset=point_offset,
             logger=logger,
         )
+        if out.tell() == coordinates_start:
+            # the shape could not be written (see the error logged by _write_geojson_shape) :
+            # write an empty coordinate list so that the document stays valid JSON
+            (logger or logging).error(
+                f"No coordinate written for the {geo_type.name} geometry of '{mesh.identifier}' "
+                f"({len(points)} points) — an empty geometry is written instead."
+            )
+            out.write(b"[]")
+
         bbox_geometry = mins + maxs  # TODO : see : https://www.rfc-editor.org/rfc/rfc7946#section-5
 
         out.write(f', "bbox": {json.dumps(bbox_geometry)}'.encode())
@@ -1772,6 +1824,75 @@ def mesh_to_geojson_type(obj: AbstractMesh) -> GeoJsonGeometryType:
         return GeoJsonGeometryType.MultiPoint
 
 
+def _geojson_mesh_metadata(mesh: AbstractMesh, workspace: Optional[EnergymlStorageInterface] = None) -> Dict:
+    """
+    Build the properties of a feature from the energyml object carried by *mesh* :
+    uuid, qualified type, Citation fields, and EPSG codes when a CRS is available.
+    """
+    properties: Dict = dict(get_object_metadata(getattr(mesh, "energyml_object", None)))
+
+    crs_obj = getattr(mesh, "crs_object", None)
+    if isinstance(crs_obj, list):
+        crs_obj = crs_obj[0] if crs_obj else None
+    if crs_obj is not None:
+        crs_info = extract_crs_info(crs_obj, workspace)
+        if crs_info.projected_epsg_code is not None:
+            properties["projected_epsg_code"] = crs_info.projected_epsg_code
+        if crs_info.vertical_epsg_code is not None:
+            properties["vertical_epsg_code"] = crs_info.vertical_epsg_code
+    if getattr(mesh, "identifier", None):
+        properties["identifier"] = mesh.identifier
+    return properties
+
+
+def _geojson_reproject_mesh(
+    mesh: AbstractMesh,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    use_network: bool = False,
+    logger: Optional[Any] = None,
+) -> Tuple[AbstractMesh, bool, Optional[int], Optional[int]]:
+    """
+    Return ``(mesh, is_wgs84, projected_epsg_code, vertical_epsg_code)`` where *mesh* is a shallow
+    copy whose ``point_list`` has been reprojected to WGS84, or the original mesh when the
+    reprojection is impossible (no EPSG code, pyproj missing, transformation error).
+    """
+    from dataclasses import replace
+
+    crs_obj = getattr(mesh, "crs_object", None)
+    if isinstance(crs_obj, list):
+        crs_obj = crs_obj[0] if crs_obj else None
+    if crs_obj is None or mesh.point_list is None or len(mesh.point_list) == 0:
+        return mesh, False, None, None
+
+    crs_info = extract_crs_info(crs_obj, workspace)
+    if crs_info.projected_epsg_code is None:
+        (logger or logging).warning(
+            "GeoJSON export: no projected EPSG code found — coordinates are left in their source CRS "
+            "(non RFC 7946 conformant)."
+        )
+        return mesh, False, None, crs_info.vertical_epsg_code
+
+    if not is_pyproj_available():
+        (logger or logging).warning(
+            "GeoJSON export: pyproj is not installed (pip install energyml-utils[crs]) — "
+            f"coordinates are left in EPSG:{crs_info.projected_epsg_code} instead of WGS84."
+        )
+        return mesh, False, crs_info.projected_epsg_code, crs_info.vertical_epsg_code
+
+    try:
+        points = np.asarray(mesh.point_list, dtype=np.float64).reshape(-1, 3)
+        reprojected = reproject_to_wgs84(points, crs_info, use_network=use_network)
+        return (
+            replace(mesh, point_list=reprojected.tolist()),
+            True,
+            crs_info.projected_epsg_code,
+            (crs_info.vertical_epsg_code),
+        )
+    except Exception as e:
+        (logger or logging).warning(f"GeoJSON export: reprojection to WGS84 failed ({e}) — keeping source coordinates.")
+        return mesh, False, crs_info.projected_epsg_code, crs_info.vertical_epsg_code
+
+
 def export_geojson_io(
     out: BytesIO,
     mesh_list: List[AbstractMesh],
@@ -1779,13 +1900,67 @@ def export_geojson_io(
     properties: Optional[List[Optional[Dict]]] = None,
     global_properties: Optional[Dict] = None,
     logger: Optional[Any] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    to_wgs84: bool = True,
+    include_metadata: bool = True,
+    use_network: bool = False,
 ):
+    """
+    Stream a list of meshes as a GeoJSON FeatureCollection.
+
+    :param out: output stream
+    :param mesh_list: meshes to export
+    :param obj_name: value of the ``name`` member of the collection
+    :param properties: explicit per-mesh properties; when None (and :param:`include_metadata` is
+                       True) they are built from the energyml object of each mesh (uuid,
+                       qualified type, Citation fields, EPSG codes)
+    :param global_properties: extra members written at the collection level
+    :param logger:
+    :param workspace: used to resolve the CRS objects (needed for the v2.2 compound CRS)
+    :param to_wgs84: when True (default), coordinates are reprojected to WGS84 as required by
+                     RFC 7946.  When the reprojection is not possible, the source CRS is
+                     advertised through the ``crs`` / ``coordRefSys`` members.
+    :param include_metadata: add the energyml metadata to the properties of every feature
+    :param use_network: allow PROJ to download the geoid grids used by vertical transformations
+    """
+    exported: List[Tuple[AbstractMesh, Dict]] = []
+    crs_states: set = set()
+
+    for mesh in mesh_list:
+        feature_properties: Dict = {}
+        if include_metadata:
+            feature_properties.update(_geojson_mesh_metadata(mesh, workspace))
+
+        is_wgs84 = False
+        projected_epsg_code = feature_properties.get("projected_epsg_code")
+        vertical_epsg_code = feature_properties.get("vertical_epsg_code")
+        if to_wgs84:
+            mesh, is_wgs84, projected_epsg_code, vertical_epsg_code = _geojson_reproject_mesh(
+                mesh, workspace=workspace, use_network=use_network, logger=logger
+            )
+        if is_wgs84:
+            feature_properties["source_crs"] = f"EPSG:{projected_epsg_code}"
+            feature_properties["coordinates_crs"] = "OGC:CRS84"
+        crs_states.add((projected_epsg_code, vertical_epsg_code, is_wgs84))
+        exported.append((mesh, feature_properties))
+
     out.write(b"{")
     out.write(b'"type": "FeatureCollection",')
     if obj_name is not None:
         out.write(b'"name": "')
         out.write(obj_name.encode())
         out.write(b'",')
+
+    # A WGS84 document is implicitly in CRS84 and must not carry a 'crs' member (RFC 7946).
+    not_wgs84 = [state for state in crs_states if not state[2] and state[0] is not None]
+    if len(not_wgs84) == 1:
+        for k, v in _geojson_crs_members(not_wgs84[0][0], not_wgs84[0][1]).items():
+            out.write(f'"{k}": {json.dumps(v)},'.encode())
+    elif len(not_wgs84) > 1:
+        (logger or logging).warning(
+            f"GeoJSON export: {len(not_wgs84)} different source CRS in the same FeatureCollection — "
+            "no collection-level CRS is declared, see the per-feature 'projected_epsg_code' property."
+        )
 
     if global_properties is not None and len(global_properties) > 0:
         for k, v in global_properties.items():
@@ -1800,17 +1975,21 @@ def export_geojson_io(
     cpt = 0
     point_offset = 0
 
-    for mesh in mesh_list:
+    for mesh, feature_properties in exported:
         pos = out.tell()
+        explicit = properties[cpt] if properties is not None and len(properties) > cpt else None
         write_geojson_feature(
             out=out,
             mesh=mesh,
             geo_type=mesh_to_geojson_type(mesh),
-            properties=properties[cpt] if properties is not None and len(properties) > cpt else None,
+            # "AnyCrsFeature" keeps flagging the features whose coordinates are not WGS84
+            geo_type_prefix="" if feature_properties.get("coordinates_crs") == "OGC:CRS84" else "AnyCrs",
+            properties={**feature_properties, **(explicit or {})},
+            feature_id=feature_properties.get("uuid"),
             point_offset=0,  # point_offset,
             logger=logger,
         )
-        if out.tell() != pos and cpt < len(mesh_list) - 1:
+        if out.tell() != pos and cpt < len(exported) - 1:
             out.write(b",")
         cpt += 1
         point_offset = point_offset + len(mesh.point_list)
@@ -1823,15 +2002,28 @@ def export_geojson_dict(
     obj_name: Optional[str] = None,
     properties: Optional[List[Optional[Dict]]] = None,
     logger: Optional[Any] = None,
+    workspace: Optional[EnergymlStorageInterface] = None,
+    include_metadata: bool = True,
 ):
+    """
+    Same as :func:`export_geojson_io` but returns a dict instead of streaming.
+
+    Note: this variant does **not** reproject to WGS84; use :func:`export_geojson_io` or
+    :func:`energyml.utils.data.export.export_geojson` when a standard RFC 7946 output is needed.
+    """
     res = {"type": "FeatureCollection", "features": []}
     cpt = 0
     point_offset = 0
     for mesh in mesh_list:
+        explicit = properties[cpt] if properties is not None and len(properties) > cpt else None
+        feature_properties = _geojson_mesh_metadata(mesh, workspace) if include_metadata else {}
+        feature_properties.update(explicit or {})
         feature = to_geojson_feature(
             mesh=mesh,
             geo_type=mesh_to_geojson_type(mesh),
-            properties=properties[cpt] if properties is not None and len(properties) > cpt else None,
+            geo_type_prefix="AnyCrs",  # coordinates are left in their source CRS here
+            properties=feature_properties,
+            feature_id=feature_properties.get("uuid"),
             point_offset=0,  # point_offset,
             logger=logger,
         )
@@ -1963,16 +2155,46 @@ def _export_obj_elt(
             # off_face_part.write(b"\n")
 
 
+def _list_exportable_uuids(epc: EpcStreamReader, logger: Optional[Any] = None) -> List[str]:
+    """
+    Return the uuids of every object of the EPC that has a mesh reader (i.e. that can be
+    exported as a 3D / GeoJSON file).
+    """
+    uuids: List[str] = []
+    for metadata in epc.list_objects():
+        object_type = getattr(metadata, "object_type", None)
+        uuid = getattr(metadata, "uuid", None)
+        if not object_type or not uuid or uuid in uuids:
+            continue
+        if get_object_reader_function(_mesh_name_mapping(object_type)) is not None:
+            uuids.append(uuid)
+    (logger or logging).debug(f"{len(uuids)} exportable representations found")
+    return uuids
+
+
 def export_multiple_data(
     epc_path: str,
-    uuid_list: List[str],
-    output_folder_path: str,
+    uuid_list: Optional[List[str]] = None,
+    output_folder_path: str = ".",
     output_file_path_suffix: str = "",
     file_format: MeshFileFormat = MeshFileFormat.OBJ,
     use_crs_displacement: bool = True,
     logger: Optional[Any] = None,
+    to_wgs84: bool = True,
+    use_network: bool = False,
 ):
+    """
+    :param uuid_list: uuids of the representations to export. When None or empty, every
+                      exportable representation of the EPC is exported.
+    :param to_wgs84: GeoJSON only — reproject the coordinates to WGS84 (RFC 7946) when the EPSG
+                     codes are available and ``pyproj`` is installed.
+    :param use_network: GeoJSON only — allow PROJ to download the geoid grids needed by the
+                        vertical datum transformation.
+    """
     epc = EpcStreamReader(epc_path)
+
+    if not uuid_list:
+        uuid_list = _list_exportable_uuids(epc, logger)
 
     # with open(epc_path.replace(".epc", ".h5"), "rb") as fh:
     #     buf = BytesIO(fh.read())
@@ -2001,30 +2223,41 @@ def export_multiple_data(
         )
         file_path = f"{output_folder_path}/{file_name}"
         logging.debug(f"Exporting : {file_path}")
-        mesh_list = read_mesh_object(
-            energyml_object=energyml_obj,
-            workspace=epc,
-            use_crs_displacement=use_crs_displacement,
-        )
-        if file_format == MeshFileFormat.OBJ:
-            with open(file_path, "wb") as f:
-                export_obj(
-                    mesh_list=mesh_list,
-                    out=f,
-                )
-        elif file_format == MeshFileFormat.OFF:
-            with open(file_path, "wb") as f:
-                export_off(
-                    mesh_list=mesh_list,
-                    out=f,
-                )
-        elif file_format == MeshFileFormat.GEOJSON:
-            with open(file_path, "wb") as f:
-                export_geojson_io(
-                    out=f,
-                    mesh_list=mesh_list,
-                    logger=logger,
-                    global_properties={"epc_path": epc_path},
-                )
-        else:
-            logging.error(f"Code is not written for format {file_format}")
+
+        # a representation that cannot be read (e.g. a trajectory without geometry) must not
+        # stop the export of the others
+        try:
+            mesh_list = read_mesh_object(
+                energyml_object=energyml_obj,
+                workspace=epc,
+                use_crs_displacement=use_crs_displacement,
+            )
+
+            if file_format == MeshFileFormat.OBJ:
+                with open(file_path, "wb") as f:
+                    export_obj(
+                        mesh_list=mesh_list,
+                        out=f,
+                    )
+            elif file_format == MeshFileFormat.OFF:
+                with open(file_path, "wb") as f:
+                    export_off(
+                        mesh_list=mesh_list,
+                        out=f,
+                    )
+            elif file_format == MeshFileFormat.GEOJSON:
+                with open(file_path, "wb") as f:
+                    export_geojson_io(
+                        out=f,
+                        mesh_list=mesh_list,
+                        obj_name=get_object_attribute(energyml_obj, "citation.title"),
+                        logger=logger,
+                        workspace=epc,
+                        to_wgs84=to_wgs84,
+                        use_network=use_network,
+                        global_properties={"epc_path": epc_path},
+                    )
+            else:
+                logging.error(f"Code is not written for format {file_format}")
+        except Exception as e:
+            (logger or logging).error(f"Failed to export the object {uuid} : {type(e).__name__}: {e}")
