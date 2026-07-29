@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import argparse
 import json
+import logging
 import os
 import pathlib
 import traceback
@@ -548,6 +549,8 @@ def osdu_schema_to_energyml(input: str, target_obj: Any, attrib_map: Dict):
 
 
 def extract_representation_in_3d_file():
+    logging.basicConfig(level=logging.DEBUG)
+    
     parser = argparse.ArgumentParser()
     parser.add_argument("--epc", "-f", type=str, help="Epc file path")
     parser.add_argument("--output", "-o", type=str, help="Output folder path")

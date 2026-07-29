@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import traceback
+from energyml.utils.epc_file import EpcAccessMode, EpcFile
 import numpy as np
 from dataclasses import dataclass, field
 from enum import Enum
@@ -2155,7 +2156,7 @@ def _export_obj_elt(
             # off_face_part.write(b"\n")
 
 
-def _list_exportable_uuids(epc: EpcStreamReader, logger: Optional[Any] = None) -> List[str]:
+def _list_exportable_uuids(epc: EnergymlStorageInterface, logger: Optional[Any] = None) -> List[str]:
     """
     Return the uuids of every object of the EPC that has a mesh reader (i.e. that can be
     exported as a 3D / GeoJSON file).
@@ -2191,7 +2192,10 @@ def export_multiple_data(
     :param use_network: GeoJSON only — allow PROJ to download the geoid grids needed by the
                         vertical datum transformation.
     """
-    epc = EpcStreamReader(epc_path)
+    # epc = EpcStreamReader(epc_path)
+    logging.debug(f"Opening epc : {epc_path}")
+    epc = EpcFile(epc_file_path=epc_path, mode=EpcAccessMode.MANUAL, compact_on_close=False)
+    logging.debug(f"Opened")
 
     if not uuid_list:
         uuid_list = _list_exportable_uuids(epc, logger)
