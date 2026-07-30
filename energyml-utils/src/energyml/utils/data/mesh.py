@@ -1504,6 +1504,83 @@ def _create_shape(
     return result, mins, maxs
 
 
+class _JsonIndent:
+    """
+    Whitespace emitter for the streaming GeoJSON writers.
+
+    Only the *structure* is indented: the collection, the features, the geometry
+    and the containers of the coordinates. The innermost coordinate arrays stay
+    on a single line — unrolling every ``[x, y, z]`` over four lines does not make
+    a document more readable, it inflates it (measured x2.5 on a real export), and
+    it would put the indentation on the only hot path of these writers, the one
+    that runs once per point.
+
+    ``_JsonIndent(None)`` is the disabled form: every method returns the exact
+    bytes the writers used before, so the single-line output is unchanged.
+    """
+
+    __slots__ = ("unit", "_depth", "_cache")
+
+    def __init__(self, indent: Optional[Union[int, str, "_JsonIndent"]] = None):
+        if indent is None:
+            self.unit: Optional[str] = None
+        elif isinstance(indent, int):
+            self.unit = " " * max(0, indent)
+        else:
+            self.unit = str(indent)
+        self._depth = 0
+        self._cache: Dict[int, bytes] = {}
+
+    @classmethod
+    def coerce(cls, indent: Optional[Union[int, str, "_JsonIndent"]]) -> "_JsonIndent":
+        """Accept an already built indenter, so it can be threaded through the recursion."""
+        return indent if isinstance(indent, cls) else cls(indent)
+
+    @property
+    def enabled(self) -> bool:
+        return self.unit is not None
+
+    def nl(self) -> bytes:
+        """Line break followed by the indentation of the current level (``b""`` when disabled)."""
+        if self.unit is None:
+            return b""
+        cached = self._cache.get(self._depth)
+        if cached is None:
+            cached = ("\n" + self.unit * self._depth).encode()
+            self._cache[self._depth] = cached
+        return cached
+
+    def open(self) -> bytes:
+        """Enter a nesting level, and return the break that starts its first item."""
+        self._depth += 1
+        return self.nl()
+
+    def close(self) -> bytes:
+        """Leave a nesting level, and return the break that puts its closing bracket in place."""
+        self._depth = max(0, self._depth - 1)
+        return self.nl()
+
+    def sep(self) -> bytes:
+        """Comma between two items or two members, with the break (or space) that follows it."""
+        return b"," + (self.nl() if self.unit is not None else b" ")
+
+
+def _dumps_at_depth(value: Any, ind: _JsonIndent) -> bytes:
+    """
+    Serialise a small value with :func:`json.dumps`, re-indenting its continuation
+    lines so that they line up with the current depth.
+
+    Only used for the metadata members (``properties``, ``name``): they weigh a few
+    dozen bytes, so the extra string work is irrelevant — unlike on the coordinates.
+    """
+    if not ind.enabled:
+        return json.dumps(value).encode()
+    text = json.dumps(value, indent=ind.unit)
+    if "\n" not in text:
+        return text.encode()
+    return text.replace("\n", ind.nl().decode()).encode()
+
+
 def _write_geojson_shape(
     out: BytesIO,
     geo_type: GeoJsonGeometryType,
@@ -1512,6 +1589,7 @@ def _write_geojson_shape(
     point_offset: int = 0,
     logger: Optional[Any] = None,
     _print_list_boundaries: Optional[bool] = True,
+    ind: Optional[Union[int, str, _JsonIndent]] = None,
 ) -> Tuple[List[float], List[float]]:
     """
     Write a shape from a point list [ [x0, y0 (, z0)? ], ..., [xn, yn (, zn)? ] ]
@@ -1523,10 +1601,13 @@ def _write_geojson_shape(
         ...
         [polyn_p0, ..., polyn_pn],
     ]
+    :param ind: indentation of the *containers* of the coordinates. The list of points of a
+                line or a ring is always written on a single line.
     :return shape, minXYZ (as list), maxXYZ (as list)
     """
     mins = []
     maxs = []
+    ind = _JsonIndent.coerce(ind)
     try:
         if geo_type == GeoJsonGeometryType.LineString:
             if indices is not None and len(indices) > 0:
@@ -1551,6 +1632,7 @@ def _write_geojson_shape(
             if indices is not None and len(indices) > 0 and isinstance(indices[0], list):
                 if _print_list_boundaries:
                     out.write(b"[")
+                    out.write(ind.open())
                 cpt = 0
                 for idx in indices:
                     _min, _max = _write_geojson_shape(
@@ -1561,16 +1643,19 @@ def _write_geojson_shape(
                         point_offset=point_offset,
                         logger=logger,
                         _print_list_boundaries=False,
+                        ind=ind,
                     )
                     if cpt < len(indices) - 1:
-                        out.write(b", ")
+                        out.write(ind.sep())
                     cpt += 1
                     _recompute_min_max(mins, maxs, _min, _max)
                 if _print_list_boundaries:
+                    out.write(ind.close())
                     out.write(b"]")
             else:
                 if _print_list_boundaries:
                     out.write(b"[")
+                    out.write(ind.open())
                 _min, _max = _write_geojson_shape(
                     out=out,
                     geo_type=GeoJsonGeometryType.LineString,
@@ -1578,9 +1663,11 @@ def _write_geojson_shape(
                     indices=indices,
                     point_offset=point_offset,
                     logger=logger,
+                    ind=ind,
                 )
                 _recompute_min_max(mins, maxs, _min, _max)
                 if _print_list_boundaries:
+                    out.write(ind.close())
                     out.write(b"]")
         elif geo_type == GeoJsonGeometryType.Polygon:
             # First and last must be the same
@@ -1598,11 +1685,13 @@ def _write_geojson_shape(
                 point_offset=point_offset,
                 logger=logger,
                 _print_list_boundaries=_print_list_boundaries,
+                ind=ind,
             )
         elif geo_type == GeoJsonGeometryType.MultiPolygon:
             if indices is not None and len(indices) > 0 and isinstance(indices[0], list):
                 if _print_list_boundaries:
                     out.write(b"[")
+                    out.write(ind.open())
                 cpt = 0
                 for idx in indices:
                     _min, _max = _write_geojson_shape(
@@ -1613,16 +1702,19 @@ def _write_geojson_shape(
                         point_offset=point_offset,
                         logger=logger,
                         _print_list_boundaries=False,
+                        ind=ind,
                     )
                     if cpt < len(indices) - 1:
-                        out.write(b", ")
+                        out.write(ind.sep())
                     cpt += 1
                     _recompute_min_max(mins, maxs, _min, _max)
                 if _print_list_boundaries:
+                    out.write(ind.close())
                     out.write(b"]")
             else:
                 if _print_list_boundaries:
                     out.write(b"[")
+                    out.write(ind.open())
                 _min, _max = _write_geojson_shape(
                     out=out,
                     geo_type=GeoJsonGeometryType.Polygon,  # Here we only provide 1 line, the external one (outer-ring)
@@ -1630,9 +1722,11 @@ def _write_geojson_shape(
                     indices=indices,
                     point_offset=point_offset,
                     logger=logger,
+                    ind=ind,
                 )
                 _recompute_min_max(mins, maxs, _min, _max)
                 if _print_list_boundaries:
+                    out.write(ind.close())
                     out.write(b"]")
     except Exception as e:
         # never swallow silently: a failure here produces a geometry without coordinates
@@ -1743,6 +1837,7 @@ def write_geojson_feature(
     point_offset: int = 0,
     logger=None,
     feature_id: Optional[str] = None,
+    indent: Optional[Union[int, str, _JsonIndent]] = None,
 ) -> None:
     """
     Write a single GeoJSON Feature.
@@ -1751,7 +1846,11 @@ def write_geojson_feature(
                             RFC 7946 ``"Feature"``; the historical ``"AnyCrs"`` value marks
                             coordinates that are *not* in WGS84.
     :param feature_id: value of the RFC 7946 ``id`` member (the energyml uuid, typically).
+    :param indent: number of spaces (or indentation string) of the pretty-printed form.
+                   None (default) keeps everything on a single line. See :class:`_JsonIndent`
+                   for what is indented and what deliberately is not.
     """
+    ind = _JsonIndent.coerce(indent)
     if mesh.point_list is not None and len(mesh.point_list) > 0:
         # point_list / indices may be numpy arrays : json.dumps only accepts plain python types
         points = _as_json_ready_list(mesh.point_list)
@@ -1771,15 +1870,22 @@ def write_geojson_feature(
             logger.debug("# to_geojson_feature > Computing shape")
 
         out.write(b"{")  # start feature
-        out.write(f'"type": "{geo_type_prefix or ""}Feature", '.encode())
+        out.write(ind.open())
+        out.write(f'"type": "{geo_type_prefix or ""}Feature"'.encode())
         if feature_id is not None:
-            out.write(f'"id": {json.dumps(feature_id)}, '.encode())
-        out.write(f'"properties": {json.dumps(properties or {}) }, '.encode())
+            out.write(ind.sep())
+            out.write(f'"id": {json.dumps(feature_id)}'.encode())
+        out.write(ind.sep())
+        out.write(b'"properties": ')
+        out.write(_dumps_at_depth(properties or {}, ind))
+        out.write(ind.sep())
         out.write(b'"geometry": ')
 
         out.write(b"{")  # start geometry
+        out.write(ind.open())
         # "type": f"{geo_type_prefix}{geo_type.name}",
-        out.write(f'"type": "{geo_type.name}", '.encode())
+        out.write(f'"type": "{geo_type.name}"'.encode())
+        out.write(ind.sep())
         out.write('"coordinates": '.encode())
         coordinates_start = out.tell()
         mins, maxs = _write_geojson_shape(
@@ -1789,6 +1895,7 @@ def write_geojson_feature(
             indices=indices,
             point_offset=point_offset,
             logger=logger,
+            ind=ind,
         )
         if out.tell() == coordinates_start:
             # the shape could not be written (see the error logged by _write_geojson_shape) :
@@ -1801,7 +1908,10 @@ def write_geojson_feature(
 
         bbox_geometry = mins + maxs  # TODO : see : https://www.rfc-editor.org/rfc/rfc7946#section-5
 
-        out.write(f', "bbox": {json.dumps(bbox_geometry)}'.encode())
+        out.write(ind.sep())
+        # the bbox is a flat list of 4 or 6 numbers: it stays on one line
+        out.write(f'"bbox": {json.dumps(bbox_geometry)}'.encode())
+        out.write(ind.close())
         out.write(b"}")  # end geometry
 
         # Pop previously added last :
@@ -1813,6 +1923,7 @@ def write_geojson_feature(
         if logger is not None:
             logger.debug("\t# to_geojson_feature > shaped")
 
+        out.write(ind.close())
         out.write(b"}")  # End feature
 
 
@@ -1905,6 +2016,7 @@ def export_geojson_io(
     to_wgs84: bool = True,
     include_metadata: bool = True,
     use_network: bool = False,
+    indent: Optional[Union[int, str]] = None,
 ):
     """
     Stream a list of meshes as a GeoJSON FeatureCollection.
@@ -1923,11 +2035,25 @@ def export_geojson_io(
                      advertised through the ``crs`` / ``coordRefSys`` members.
     :param include_metadata: add the energyml metadata to the properties of every feature
     :param use_network: allow PROJ to download the geoid grids used by vertical transformations
+    :param indent: number of spaces (or indentation string) for a pretty-printed document.
+                   None (default) keeps the historical single-line output.
+
+                   The document structure is indented but the coordinates of a line or a ring
+                   stay on one line: that is what keeps the file readable without inflating it,
+                   and it leaves the per-point write path untouched, so the export costs about
+                   the same as the compact one — far less than serialising, re-reading and
+                   re-dumping the document with ``json.dumps(indent=...)``.
     """
-    exported: List[Tuple[AbstractMesh, Dict]] = []
+    # the source index is kept so that `properties` stays aligned on `mesh_list`
+    exported: List[Tuple[int, AbstractMesh, Dict]] = []
     crs_states: set = set()
 
-    for mesh in mesh_list:
+    for mesh_index, mesh in enumerate(mesh_list):
+        if mesh.point_list is None or len(mesh.point_list) == 0:
+            # write_geojson_feature() would write nothing for it; dropping it here keeps the
+            # separator logic below exact (an empty mesh in last position used to leave a
+            # trailing comma, which is not valid JSON).
+            continue
         feature_properties: Dict = {}
         if include_metadata:
             feature_properties.update(_geojson_mesh_metadata(mesh, workspace))
@@ -1943,20 +2069,25 @@ def export_geojson_io(
             feature_properties["source_crs"] = f"EPSG:{projected_epsg_code}"
             feature_properties["coordinates_crs"] = "OGC:CRS84"
         crs_states.add((projected_epsg_code, vertical_epsg_code, is_wgs84))
-        exported.append((mesh, feature_properties))
+        exported.append((mesh_index, mesh, feature_properties))
+
+    ind = _JsonIndent(indent)
 
     out.write(b"{")
-    out.write(b'"type": "FeatureCollection",')
+    out.write(ind.open())
+    out.write(b'"type": "FeatureCollection"')
     if obj_name is not None:
-        out.write(b'"name": "')
-        out.write(obj_name.encode())
-        out.write(b'",')
+        out.write(ind.sep())
+        # json.dumps rather than a raw concatenation: a title may contain a quote
+        out.write(f'"name": {json.dumps(obj_name)}'.encode())
 
     # A WGS84 document is implicitly in CRS84 and must not carry a 'crs' member (RFC 7946).
     not_wgs84 = [state for state in crs_states if not state[2] and state[0] is not None]
     if len(not_wgs84) == 1:
         for k, v in _geojson_crs_members(not_wgs84[0][0], not_wgs84[0][1]).items():
-            out.write(f'"{k}": {json.dumps(v)},'.encode())
+            out.write(ind.sep())
+            out.write(f'"{k}": '.encode())
+            out.write(_dumps_at_depth(v, ind))
     elif len(not_wgs84) > 1:
         (logger or logging).warning(
             f"GeoJSON export: {len(not_wgs84)} different source CRS in the same FeatureCollection — "
@@ -1965,20 +2096,21 @@ def export_geojson_io(
 
     if global_properties is not None and len(global_properties) > 0:
         for k, v in global_properties.items():
-            out.write(b'"')
-            out.write(k.encode())
-            out.write(b'": ')
-            out.write(json.dumps(v).encode())
-            out.write(b",")
+            out.write(ind.sep())
+            out.write(f"{json.dumps(k)}: ".encode())
+            out.write(_dumps_at_depth(v, ind))
 
+    out.write(ind.sep())
     out.write(b'"features": [')
+    out.write(ind.open())
 
     cpt = 0
     point_offset = 0
 
-    for mesh, feature_properties in exported:
-        pos = out.tell()
-        explicit = properties[cpt] if properties is not None and len(properties) > cpt else None
+    for mesh_index, mesh, feature_properties in exported:
+        if cpt > 0:
+            out.write(ind.sep())
+        explicit = properties[mesh_index] if properties is not None and len(properties) > mesh_index else None
         write_geojson_feature(
             out=out,
             mesh=mesh,
@@ -1989,12 +2121,14 @@ def export_geojson_io(
             feature_id=feature_properties.get("uuid"),
             point_offset=0,  # point_offset,
             logger=logger,
+            indent=ind,
         )
-        if out.tell() != pos and cpt < len(exported) - 1:
-            out.write(b",")
         cpt += 1
         point_offset = point_offset + len(mesh.point_list)
+
+    out.write(ind.close())
     out.write(b"]")  # end features
+    out.write(ind.close())
     out.write(b"}")  # end geojson
 
 
