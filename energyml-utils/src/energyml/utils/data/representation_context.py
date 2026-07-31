@@ -478,7 +478,7 @@ class RepresentationContext(BaseModel):
         the given property uuid.  Returns an empty dict when the property has no
         time series reference.
         """
-        from energyml.utils.data.mesh import read_time_series, read_property
+        from energyml.utils.data.properties import read_time_series, read_property
 
         prop = self.get_property(property_uuid)
         if prop is None:
@@ -619,7 +619,7 @@ if __name__ == "__main__2":
 
     # Detail: property arrays (truncated)
     if repr_ctx._props:
-        from energyml.utils.data.mesh import read_property
+        from energyml.utils.data.properties import read_property
 
         print("\nProperty arrays (first 10 values):")
         for uuid, prop in repr_ctx._props.items():

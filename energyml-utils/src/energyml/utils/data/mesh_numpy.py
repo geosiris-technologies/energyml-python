@@ -11,11 +11,23 @@ Design goals
 ------------
 * **No list conversion** - no ``.tolist()`` calls anywhere.  Arrays stay as
   numpy throughout.
-* **Best-effort zero-copy** - geometry is read via
+* **Best-effort zero-copy read** - geometry is read via
   :meth:`EnergymlStorageInterface.read_array_view`.  For contiguous,
   uncompressed HDF5 datasets this returns a numpy view backed directly by the
   memory-mapped file buffer (no RAM copy).  Chunked / compressed datasets fall
   back silently to a copy.
+
+  That view must **not** be mutated (it is the reader's own buffer, possibly the
+  mapped file), so ``_ensure_float64_points`` takes ownership of the *points*
+  before any CRS transform is applied in place: exactly one full-size copy per
+  patch, and none at all when no transform is requested
+  (``frame=PointFrame.LOCAL``).  Connectivity arrays keep the zero-copy path —
+  they are only ever read.
+
+* **Explicit coordinate frame** - every patch carries the
+  :class:`~energyml.utils.data.crs.PointFrame` its points are in, so
+  ``read_numpy_mesh_object`` applies only the missing pipeline stages and a
+  transform can never be applied twice.
 * **PyVista-ready connectivity** - ``faces`` / ``lines`` / ``cells`` arrays
   use the VTK flat-count-prefixed format consumed directly by
   ``pyvista.PolyData`` and ``pyvista.UnstructuredGrid`` without additional
@@ -42,21 +54,18 @@ Usage
 """
 from __future__ import annotations
 
-import inspect
 import logging
 import re
 import sys
-import traceback
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
 from energyml.utils.data.helper import (
-    apply_crs_transform,
     evaluate_parametric_line_array,
     generate_vertical_well_points,
-    get_crs_offsets_and_angle,
     get_crs_obj,
     get_crs_origin_offset,
     get_datum_information,
@@ -67,7 +76,12 @@ from energyml.utils.data.helper import (
     resolve_parametric_line_array,
     get_wellbore_points,
 )
-from energyml.utils.data.crs import extract_crs_info, apply_from_crs_info
+from energyml.utils.data.crs import (
+    PointFrame,
+    apply_from_crs_info,
+    extract_crs_info,
+    to_frame,
+)
 from energyml.utils.exception import NotSupportedError, ObjectNotFoundNotError
 from energyml.utils.introspection import (
     get_obj_uri,
@@ -149,6 +163,10 @@ class NumpyMesh:
     source_uuid: Optional[str] = field(default=None)
     #: Python class name of the source RESQML object.
     source_type: Optional[str] = field(default=None)
+    #: Coordinate frame ``points`` is expressed in. Readers set it to what they produced, and
+    #: :func:`read_numpy_mesh_object` only applies the stages still missing — so a CRS transform
+    #: cannot be applied twice, whatever the representation type.
+    frame: PointFrame = field(default=PointFrame.LOCAL)
     #: Optional named arrays attached to this mesh (e.g. ``node_time_values``).
     extra_arrays: Dict[str, np.ndarray] = field(default_factory=dict)
 
@@ -268,9 +286,16 @@ def crs_displacement_np(
 ) -> np.ndarray:
     """Apply CRS origin offset and optional Z-axis inversion to *points*.
 
+    .. deprecated::
+        Use :func:`~energyml.utils.data.crs.to_frame` instead. This function only applies the
+        offsets and the Z flip — **not** the areal rotation nor the axis-order swap — so it does
+        not produce coordinates in the projected CRS. It used to be the dispatcher's fallback,
+        which is why a ``Grid2dRepresentation`` came out un-rotated from the numpy stack while the
+        same object came out rotated from :mod:`mesh`. It is kept because it is part of the public
+        API, but no reader calls it any more.
+
     Operates on an ``(N, 3)`` numpy array using broadcast arithmetic — no
-    Python-level loops.  Prefer :func:`apply_from_crs_info` for full CRS
-    transforms (rotation, axis-order swap, etc.).
+    Python-level loops.
 
     Args:
         points: Shape ``(N, 3)``, dtype ``float64``.  Modified in-place when
@@ -308,22 +333,68 @@ def crs_displacement_np(
 # ---------------------------------------------------------------------------
 
 
-def _ensure_float64_points(arr: Any) -> np.ndarray:
-    """Convert *arr* to ``(N, 3) float64``.
+def _ensure_float64_points(arr: Any, *, own: bool = True) -> np.ndarray:
+    """Convert *arr* to ``(N, 3) float64``, owning the buffer by default.
 
-    Accepts numpy arrays (any shape that contains N*3 elements) or nested
-    Python lists.  Returns a 2-D view/cast when possible, copy only when
-    dtype conversion is required.
+    Accepts numpy arrays (any shape that contains N*3 elements) or nested Python lists.
+
+    ``own=True`` (default) guarantees the result is a writeable array backed by memory this
+    module allocated. That matters because the geometry may arrive from
+    :meth:`EnergymlStorageInterface.read_array_view`, whose contract is explicit — *"the caller
+    must not mutate the returned array"*: for a contiguous uncompressed HDF5 dataset it is a view
+    on the memory-mapped file, and the CRS transform is applied in place. Mutating it would either
+    raise (read-only buffer) or corrupt the reader's cache, so that a second read of the same
+    array would come back already transformed.
+
+    Pass ``own=False`` only when the caller immediately copies anyway (e.g. feeding
+    :func:`numpy.concatenate`), to save one full-size buffer.
     """
     a = np.asarray(arr, dtype=np.float64)
+
+    # `base is not None` means we are looking at a view of someone else's buffer; a non-writeable
+    # array cannot be transformed in place either. In both cases we must own a copy first.
+    if own and (a.base is not None or not a.flags.writeable):
+        a = a.copy()
+
     if a.ndim == 1:
         a = a.reshape(-1, 3)
     elif a.ndim == 2 and a.shape[1] == 2:
-        # 2-D points (e.g. seismic / plan view) — pad Z column with zeros
-        a = np.column_stack([a, np.zeros(len(a), dtype=np.float64)])
+        # A 2-column array is ambiguous. RESQML point arrays are 3-component, and some datasets
+        # store them with a shape that does not reflect that — ``80wells_surf_modified_val_color``
+        # holds 4 XYZ points in a (6, 2) dataset. So a size divisible by 3 is read as XYZ, which
+        # is what the legacy reader did with its plain reshape(-1, 3); only a size that cannot be
+        # XYZ is treated as 2-D points (seismic / plan view) and padded with a zero Z.
+        if a.size % 3 == 0:
+            a = a.reshape(-1, 3)
+        else:
+            a = np.column_stack([a, np.zeros(len(a), dtype=np.float64)])
     elif a.ndim == 2 and a.shape[1] != 3:
         raise ValueError(f"Expected (N, 2) or (N, 3) points array, got shape {a.shape}")
     return a
+
+
+def _local_to_projected(
+    points: np.ndarray,
+    crs: Any,
+    workspace: Optional[EnergymlStorageInterface],
+    use_crs_displacement: bool,
+) -> PointFrame:
+    """Apply the local → projected transform to *points* in place and report the frame reached.
+
+    Readers call this instead of :func:`apply_from_crs_info` so that the frame they produced is
+    recorded on the mesh. :func:`read_numpy_mesh_object` then tops the points up to the requested
+    frame, and a transform can never be applied twice — which is what the hard-coded list of type
+    names used to guard, one entry per reader.
+    """
+    if not use_crs_displacement or crs is None or len(points) == 0:
+        return PointFrame.LOCAL
+    return to_frame(
+        points,
+        extract_crs_info(crs, workspace),
+        PointFrame.PROJECTED,
+        PointFrame.LOCAL,
+        inplace=True,
+    ).frame
 
 
 def _ensure_int64(arr: Any) -> np.ndarray:
@@ -352,6 +423,24 @@ def _build_vtk_faces_from_quads(quad: np.ndarray) -> np.ndarray:
     return np.concatenate([counts, quad], axis=1).ravel()
 
 
+def _build_vtk_single_polyline(n_points: int) -> np.ndarray:
+    """Build a VTK flat lines array holding *one* polyline through all *n_points* nodes.
+
+    Result: ``[n, 0, 1, …, n-1]``.
+
+    This is what a ``PolylineRepresentation`` without ``NodeCountPerPolyline`` means: a single
+    polyline, not a bag of independent segments. :func:`_build_vtk_lines_from_segments` encodes the
+    same geometry as ``n-1`` two-point cells, which renders identically but is a different
+    topology — and produces one OBJ/OFF element per segment instead of one per line.
+    """
+    if n_points < 2:
+        return np.empty(0, dtype=np.int64)
+    part = np.empty(n_points + 1, dtype=np.int64)
+    part[0] = n_points
+    part[1:] = np.arange(n_points, dtype=np.int64)
+    return part
+
+
 def _build_vtk_lines_from_segments(n_points: int) -> np.ndarray:
     """Build VTK flat lines array for a single poly-line of *n_points* nodes.
 
@@ -366,27 +455,39 @@ def _build_vtk_lines_from_segments(n_points: int) -> np.ndarray:
     return np.concatenate([counts, pairs], axis=1).ravel()
 
 
-def _build_vtk_lines_from_node_counts(node_counts: np.ndarray) -> np.ndarray:
-    """Build VTK flat lines array from per-polyline node counts.
+def _fit_grid_dimensions(sa_count: int, fa_count: int, nb_points: int) -> Tuple[int, int]:
+    """Reconcile the declared axis counts of a Grid2d patch with the points actually read.
 
-    For each polyline of length *n* we emit ``[n, 0, 1, …, n-1]`` with
-    indices local to the global point array (starting at the correct offset).
+    ``SlowestAxisCount`` / ``FastestAxisCount`` sometimes disagree with the length of the
+    points array (truncated dataset, count declared on the representation rather than on the
+    patch, …).  The fastest-axis count defines the row stride of the connectivity, so it is
+    kept and the slowest-axis count is derived from it.  The result always satisfies
+    ``sa * fa <= nb_points``, which is what keeps the generated indices in range.
 
-    Returns ``(total_entries,)`` int64 array.
+    Both readers previously decremented (then re-incremented) *both* counts until the product
+    fitted, which changed the grid shape and, with ``keep_holes=True``, could emit indices past
+    the end of the points array.
+
+    Returns:
+        The (possibly adjusted) ``(sa_count, fa_count)``; ``(0, 0)`` when no face can be built.
     """
-    result_parts = []
-    offset = 0
-    for n in node_counts:
-        n = int(n)
-        local = np.arange(offset, offset + n, dtype=np.int64)
-        part = np.empty(n + 1, dtype=np.int64)
-        part[0] = n
-        part[1:] = local
-        result_parts.append(part)
-        offset += n
-    if not result_parts:
-        return np.empty(0, dtype=np.int64)
-    return np.concatenate(result_parts)
+    if fa_count <= 0 or sa_count <= 0 or nb_points <= 0:
+        logging.warning(
+            f"Grid2d patch: unusable dimensions (slowest={sa_count}, fastest={fa_count}, "
+            f"{nb_points} points) — no face is generated."
+        )
+        return 0, 0
+
+    if sa_count * fa_count == nb_points:
+        return sa_count, fa_count
+
+    fitted_sa = nb_points // fa_count
+    logging.warning(
+        f"Grid2d patch: {sa_count} x {fa_count} = {sa_count * fa_count} nodes declared but "
+        f"{nb_points} points read — keeping the fastest axis ({fa_count}) and using "
+        f"{fitted_sa} for the slowest one."
+    )
+    return fitted_sa, fa_count
 
 
 def _read_array_np(
@@ -447,20 +548,34 @@ def _decode_jagged_array(
 
 
 def _numpy_mesh_name_mapping(arr_type_name: str) -> str:
-    """Normalise the energyml type name to match a ``read_numpy_<name>`` function."""
+    """Normalise the energyml type name to match a ``read_numpy_<name>`` function.
+
+    Accepts a python class name (``ObjTriangulatedSetRepresentation``), a schema type
+    (``obj_TriangulatedSetRepresentation``, the RESQML 2.0.1 spelling) and a qualified type
+    (``resqml20.obj_TriangulatedSetRepresentation``) alike.
+    """
+    arr_type_name = arr_type_name.rsplit(".", 1)[-1]
     arr_type_name = arr_type_name.replace("3D", "3d").replace("2D", "2d")
-    arr_type_name = re.sub(r"^[Oo]bj([A-Z])", r"\1", arr_type_name)
+    arr_type_name = re.sub(r"^[Oo]bj_?([A-Z])", r"\1", arr_type_name)
     arr_type_name = re.sub(r"(Polyline|Point)Set", r"\1", arr_type_name)
     return arr_type_name
 
 
+@lru_cache(maxsize=None)
 def get_numpy_reader_function(mesh_type_name: str) -> Optional[Callable]:
-    """Return the ``read_numpy_<type>`` function for *mesh_type_name*, or ``None``."""
-    target = f"read_numpy_{snake_case(mesh_type_name)}"
-    for name, obj in inspect.getmembers(sys.modules[__name__]):
-        if name == target:
-            return obj
-    return None
+    """Return the ``read_numpy_<type>`` function for *mesh_type_name*, or ``None``.
+
+    A cached ``getattr`` rather than a scan of the module members: the dispatcher runs once per
+    object, and ``inspect.getmembers`` sorts and reads *every* attribute of the module on each
+    call — measurable when listing the exportable objects of a large EPC.
+
+    Only functions defined in this module are eligible, so an imported helper can never be
+    mistaken for a reader (see :func:`mesh.get_object_reader_function`).
+    """
+    reader = getattr(sys.modules[__name__], f"read_numpy_{snake_case(mesh_type_name)}", None)
+    if not callable(reader) or getattr(reader, "__module__", None) != __name__:
+        return None
+    return reader
 
 
 # ---------------------------------------------------------------------------
@@ -507,15 +622,16 @@ def read_numpy_point_representation(
             pass
 
         if sub_indices is not None and len(sub_indices) > 0:
+            # total_size must advance by the number of points this patch *contributes to the
+            # global numbering*, not by the number that survived the filter — otherwise every
+            # subsequent patch shifts its sub_indices window.
+            patch_size = len(points)
             t_idx = np.asarray(sub_indices, dtype=np.int64) - total_size
-            mask = (t_idx >= 0) & (t_idx < len(points))
+            mask = (t_idx >= 0) & (t_idx < patch_size)
             points = points[t_idx[mask]]
-            total_size += len(points)
+            total_size += patch_size
 
-        # Apply full CRS transform per patch; crs_object kept for reference,
-        # outer dispatcher is guarded to skip crs_displacement_np for this type.
-        if use_crs_displacement and crs is not None and len(points) > 0:
-            apply_from_crs_info(points, extract_crs_info(crs, workspace), inplace=True)
+        frame = _local_to_projected(points, crs, workspace, use_crs_displacement)
 
         label = f"{src_type}_patch_{patch_idx}"
         multi.patches.append(
@@ -524,6 +640,7 @@ def read_numpy_point_representation(
                 energyml_object=energyml_object,
                 crs_object=crs,
                 points=points,
+                frame=frame,
                 patch_index=patch_idx,
                 patch_label=label,
                 source_uuid=src_uuid,
@@ -613,8 +730,8 @@ def read_numpy_polyline_representation(
                 offset += n if close_poly is None or poly_idx >= len(close_poly) or not close_poly[poly_idx] else n - 1
             lines = np.concatenate(parts) if parts else np.empty(0, dtype=np.int64)
         except IndexError:
-            # Single polyline — all points in sequence
-            lines = _build_vtk_lines_from_segments(len(points))
+            # No NodeCountPerPolyline: the patch is a single polyline through all its points.
+            lines = _build_vtk_single_polyline(len(points))
 
         # --- sub_indices filtering ---
         # sub_indices select individual *polylines* (by index within this patch).
@@ -661,10 +778,7 @@ def read_numpy_polyline_representation(
         else:
             total_size += 1  # at least one polyline
 
-        # Apply full CRS transform per patch; crs_object kept for reference,
-        # outer dispatcher is guarded to skip crs_displacement_np for this type.
-        if use_crs_displacement and crs is not None and len(points) > 0:
-            apply_from_crs_info(points, extract_crs_info(crs, workspace), inplace=True)
+        frame = _local_to_projected(points, crs, workspace, use_crs_displacement)
 
         if len(points) > 0:
             label = f"{src_type}_patch_{patch_idx}"
@@ -675,6 +789,7 @@ def read_numpy_polyline_representation(
                     crs_object=crs,
                     points=points,
                     lines=lines,
+                    frame=frame,
                     patch_index=patch_idx,
                     patch_label=label,
                     source_uuid=src_uuid,
@@ -737,19 +852,16 @@ def read_numpy_triangulated_set_representation(
         pts_parts: List[np.ndarray] = []
         for point_path, point_obj in search_attribute_matching_name_with_path(patch, "Geometry.Points"):
             raw = _read_array_np(point_obj, energyml_object, patch_path + "." + point_path, ws)
-            pts_parts.append(_ensure_float64_points(raw))
+            # own=False: np.concatenate below allocates the owned buffer anyway, even for a
+            # single part, so taking ownership here would cost one extra full-size copy.
+            pts_parts.append(_ensure_float64_points(raw, own=False))
 
         if not pts_parts:
             patch_idx += 1
             continue
-        points = np.concatenate(pts_parts, axis=0)  # (N, 3)
+        points = np.concatenate(pts_parts, axis=0)  # (N, 3), owned
 
-        # Apply full CRS transform (rotation + offsets + z-flip + axis-swap) per patch.
-        # Setting crs_object=None on the resulting mesh prevents the outer
-        # read_numpy_mesh_object dispatcher from calling crs_displacement_np() again.
-        if use_crs_displacement and crs is not None and len(points) > 0:
-            crs_info = extract_crs_info(crs, workspace)
-            apply_from_crs_info(points, crs_info, inplace=True)
+        frame = _local_to_projected(points, crs, workspace, use_crs_displacement)
 
         # --- Triangles ---
         tri_parts: List[np.ndarray] = []
@@ -766,12 +878,14 @@ def read_numpy_triangulated_set_representation(
         if point_offset != 0:
             triangles -= point_offset  # local 0-based indices
 
-        # sub_indices face filtering
+        # sub_indices face filtering — total_size advances by the patch's own face count, not by
+        # the number of faces that survived the filter (see read_numpy_point_representation).
+        patch_face_count = len(triangles)
         if sub_indices is not None and len(sub_indices) > 0:
             t_idx = np.asarray(sub_indices, dtype=np.int64) - total_size
-            mask = (t_idx >= 0) & (t_idx < len(triangles))
+            mask = (t_idx >= 0) & (t_idx < patch_face_count)
             triangles = triangles[t_idx[mask]]
-        total_size += len(triangles)
+        total_size += patch_face_count
 
         # Build VTK flat faces array: [3, v0, v1, v2, 3, v0, v1, v2, …]
         faces = _build_vtk_faces_from_triangles(triangles)
@@ -784,6 +898,7 @@ def read_numpy_triangulated_set_representation(
                 crs_object=crs,
                 points=points,
                 faces=faces,
+                frame=frame,
                 patch_index=patch_idx,
                 patch_label=label,
                 source_uuid=src_uuid,
@@ -848,14 +963,11 @@ def read_numpy_grid2d_representation(
         fa = int(fa_count[0])
         sa = int(sa_count[0])
 
-        # Clamp dimensions to actual number of points
+        # Reconcile the declared dimensions with the points actually read
         total_pts = len(pts)
-        while sa * fa > total_pts and sa > 0 and fa > 0:
-            sa -= 1
-            fa -= 1
-        while sa * fa < total_pts:
-            sa += 1
-            fa += 1
+        sa, fa = _fit_grid_dimensions(sa, fa, total_pts)
+        if sa == 0 or fa == 0:
+            return None
 
         z_col = pts[:, 2]
         nan_mask = np.isnan(z_col)  # True where Z is NaN (hole)
@@ -863,9 +975,7 @@ def read_numpy_grid2d_representation(
         if keep_holes:
             pts[nan_mask, 2] = 0.0
             final_pts = pts
-            # All original indices are valid
-            local_idx = np.arange(total_pts, dtype=np.int64)
-            remap = local_idx  # identity
+            remap = None  # every original index stays valid: no remapping needed
         else:
             valid_mask = ~nan_mask
             final_pts = pts[valid_mask]
@@ -873,32 +983,36 @@ def read_numpy_grid2d_representation(
             remap = np.full(total_pts, -1, dtype=np.int64)
             remap[valid_mask] = np.arange(valid_mask.sum(), dtype=np.int64)
 
-        # Build quad face list (vectorised)
-        quad_rows = []
-        for sa_i in range(sa - 1):
-            for fa_i in range(fa - 1):
-                line = sa_i * fa
-                a = line + fa_i
-                b = line + fa_i + 1
-                c = line + fa + fa_i + 1
-                d = line + fa + fa_i
-                if keep_holes:
-                    quad_rows.append([a, b, c, d])
-                else:
-                    ra, rb, rc, rd = remap[a], remap[b], remap[c], remap[d]
-                    if ra >= 0 and rb >= 0 and rc >= 0 and rd >= 0:
-                        quad_rows.append([ra, rb, rc, rd])
-
-        if not quad_rows:
+        # Build the quad connectivity. The corner indices of every cell are an affine function of
+        # (sa_i, fa_i), so the whole (sa-1) x (fa-1) grid is one broadcast instead of a Python
+        # double loop with a list append per cell.
+        if sa < 2 or fa < 2:
             return None
-        quads = np.asarray(quad_rows, dtype=np.int64)  # (M, 4)
+        sa_i = np.arange(sa - 1, dtype=np.int64).reshape(-1, 1)  # (sa-1, 1)
+        fa_i = np.arange(fa - 1, dtype=np.int64).reshape(1, -1)  # (1, fa-1)
+        corner_a = (sa_i * fa + fa_i).ravel()
+        quads = np.empty((corner_a.size, 4), dtype=np.int64)
+        quads[:, 0] = corner_a
+        quads[:, 1] = corner_a + 1
+        quads[:, 2] = corner_a + fa + 1
+        quads[:, 3] = corner_a + fa
 
-        # sub_indices filtering
+        if not keep_holes:
+            # remap sends a NaN node to -1; a cell survives only when its four corners do.
+            quads = remap[quads]
+            quads = quads[(quads >= 0).all(axis=1)]
+
+        if len(quads) == 0:
+            return None
+
+        # sub_indices filtering — total_size advances by the patch's own quad count (see
+        # read_numpy_point_representation).
+        patch_quad_count = len(quads)
         if sub_indices is not None and len(sub_indices) > 0:
             t_idx = np.asarray(sub_indices, dtype=np.int64) - total_size
-            mask = (t_idx >= 0) & (t_idx < len(quads))
+            mask = (t_idx >= 0) & (t_idx < patch_quad_count)
             quads = quads[t_idx[mask]]
-        total_size += len(quads)
+        total_size += patch_quad_count
 
         faces = _build_vtk_faces_from_quads(quads)
         label = f"{src_type}_patch_{patch_idx}"
@@ -1007,6 +1121,11 @@ def read_numpy_wellbore_trajectory_representation(
     except Exception as e:
         logging.debug(f"Could not resolve MdDatum from trajectory: {e}")
 
+    # The two paths below do not produce the same frame, which is why this reader could never be
+    # handled by the generic CRS pass: the parametric geometry is local and gets transformed,
+    # whereas the vertical fallback is built from the MD datum, whose coordinates
+    # (get_datum_information) are *already* expressed in the projected CRS.
+    frame = PointFrame.LOCAL
     try:
         crs_info = extract_crs_info(crs, workspace)
         traj_mds, traj_points, traj_tangents = read_parametric_geometry(
@@ -1018,6 +1137,7 @@ def read_numpy_wellbore_trajectory_representation(
                 np.asarray(well_points_list, dtype=np.float64),
                 crs_info,
             )
+            frame = PointFrame.PROJECTED
     except Exception as e:
         if wellbore_frame_mds is not None:
             logging.debug(f"Trajectory parametric geometry unavailable, treating as vertical: {e}")
@@ -1030,12 +1150,13 @@ def read_numpy_wellbore_trajectory_representation(
                 else np.asarray(wellbore_frame_mds),
                 z_increasing_downward=z_increasing_downward,
             )
+            # Built from the datum: already projected, whatever use_crs_displacement says.
+            frame = PointFrame.PROJECTED
         else:
-            traceback.print_exc()
             raise ValueError(
                 "Cannot read WellboreTrajectoryRepresentation: "
                 "no parametric geometry and no measured depth information available."
-            )
+            ) from e
 
     if well_points_list is None or len(well_points_list) == 0:
         return NumpyMultiMesh(
@@ -1062,6 +1183,7 @@ def read_numpy_wellbore_trajectory_representation(
                 crs_object=crs,
                 points=pts,
                 lines=lines,
+                frame=frame,
                 patch_index=0,
                 patch_label=label,
                 source_uuid=src_uuid,
@@ -1121,8 +1243,15 @@ def read_numpy_wellbore_frame_representation(
         wellbore_frame_mds=wellbore_frame_mds,
     )
     frame_uri = str(get_obj_uri(energyml_object))
+    # The geometry comes from the trajectory, but the patches were produced by reading *this*
+    # frame, and that is what they must report — like every other reader. Leaving the trajectory
+    # on them made a frame reached through a RepresentationSetRepresentation indistinguishable
+    # from the trajectory itself.
     for m in result.flat_patches():
         m.identifier = frame_uri
+        m.energyml_object = energyml_object
+        m.source_uuid = get_obj_uuid(energyml_object)
+        m.source_type = type(energyml_object).__name__
     result.identifier = frame_uri
     result.source_uuid = get_obj_uuid(energyml_object)
     result.source_type = type(energyml_object).__name__
@@ -1157,11 +1286,13 @@ def read_numpy_sub_representation(
         search_in_sub_obj=False,
     ):
         arr = _read_array_np(patch_indices, energyml_object, patch_path, ws).astype(np.int64).ravel()
+        # total_size advances by the patch's own index count (see read_numpy_point_representation).
+        patch_index_count = len(arr)
         if sub_indices is not None and len(sub_indices) > 0:
             t_idx = np.asarray(sub_indices, dtype=np.int64) - total_size
-            mask = (t_idx >= 0) & (t_idx < len(arr))
+            mask = (t_idx >= 0) & (t_idx < patch_index_count)
             arr = arr[t_idx[mask]]
-        total_size += len(arr)
+        total_size += patch_index_count
         all_indices = np.concatenate([all_indices, arr]) if all_indices is not None else arr
 
     inner = read_numpy_mesh_object(
@@ -1218,10 +1349,7 @@ def read_numpy_representation_set_representation(
 # VTK cell-type codes (subset used by RESQML readers)
 # ---------------------------------------------------------------------------
 
-_VTK_TETRA = 10
 _VTK_HEXAHEDRON = 12
-_VTK_WEDGE = 13
-_VTK_PYRAMID = 14
 _VTK_POLYHEDRON = 42
 
 
@@ -1265,8 +1393,10 @@ def read_numpy_plane_set_representation(
             root_obj=energyml_object,
             workspace=workspace,
         )
-    except (ObjectNotFoundNotError, Exception):
-        pass
+    except Exception as exc:
+        # `(ObjectNotFoundNotError, Exception)` was just `Exception` with misleading intent.
+        # get_crs_obj can fail in several ways and a missing CRS is not fatal here.
+        logging.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
 
     planes_list = search_attribute_matching_name_with_path(energyml_object, "Planes")
     patch_idx = 0
@@ -1310,8 +1440,7 @@ def read_numpy_plane_set_representation(
             patch_idx += 1
             continue
 
-        if use_crs_displacement and crs is not None and len(points) > 0:
-            apply_from_crs_info(points, extract_crs_info(crs, workspace), inplace=True)
+        frame = _local_to_projected(points, crs, workspace, use_crs_displacement)
 
         label = f"{src_type}_patch_{patch_idx}"
         multi.patches.append(
@@ -1321,6 +1450,7 @@ def read_numpy_plane_set_representation(
                 crs_object=crs,
                 points=points,
                 faces=faces,
+                frame=frame,
                 patch_index=patch_idx,
                 patch_label=label,
                 source_uuid=src_uuid,
@@ -1359,7 +1489,7 @@ def read_numpy_seismic_wellbore_frame_representation(
         node_time_values = _read_array_np(ntv_obj, energyml_object, ntv_path, ws)
         for patch in result.flat_patches():
             patch.extra_arrays["node_time_values"] = node_time_values
-    except (IndexError, Exception) as exc:
+    except Exception as exc:  # IndexError from [0] on an empty match, or any read failure
         logging.warning(f"SeismicWellboreFrameRepresentation: could not read NodeTimeValues: {exc}")
     result.source_type = type(energyml_object).__name__
     return result
@@ -1527,7 +1657,7 @@ def _read_direct_points(
         raise ValueError(
             f"IjkGridRepresentation: unexpected points array size {raw_pts.size}. "
             f"Expected {expected_3d} (3-D layout, nkl={nkl}, n_pillars={n_pillars_total}) "
-            f"or {expected_4d} (4-D layout, nkl={nkl}, nj+1={nj+1}, ni+1={ni+1})."
+            f"or {expected_4d} (4-D layout, nkl={nkl}, nj+1={nj + 1}, ni+1={ni + 1})."
         )
 
 
@@ -1799,7 +1929,9 @@ def read_numpy_ijk_grid_representation(
             nj=nj,
         )
 
-    points = pts_3d.reshape(-1, 3).astype(np.float64, copy=False)
+    # pts_3d may be a reshaped *view* of the workspace array (see _read_direct_points), and
+    # astype(copy=False) would keep it that way — the CRS transform below writes in place.
+    points = _ensure_float64_points(pts_3d.reshape(-1, 3))
 
     # --- CRS ---
     crs = None
@@ -1810,8 +1942,10 @@ def read_numpy_ijk_grid_representation(
             root_obj=energyml_object,
             workspace=workspace,
         )
-    except (ObjectNotFoundNotError, Exception):
-        pass
+    except Exception as exc:
+        # `(ObjectNotFoundNotError, Exception)` was just `Exception` with misleading intent.
+        # get_crs_obj can fail in several ways and a missing CRS is not fatal here.
+        logging.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
 
     # --- PILLAR MAP for faulted grids ---
     use_pillar_map = n_splits > 0 and pillar_indices_arr is not None
@@ -1879,8 +2013,7 @@ def read_numpy_ijk_grid_representation(
         n_cells = ni * nj * nk
         cell_types = np.full(n_cells, _VTK_HEXAHEDRON, dtype=np.uint8)
 
-    if use_crs_displacement and crs is not None and len(points) > 0:
-        apply_from_crs_info(points, extract_crs_info(crs, workspace), inplace=True)
+    frame = _local_to_projected(points, crs, workspace, use_crs_displacement)
 
     label = f"{src_type}_patch_0"
     multi = NumpyMultiMesh(
@@ -1897,6 +2030,7 @@ def read_numpy_ijk_grid_representation(
             points=points,
             cells=cells,
             cell_types=cell_types,
+            frame=frame,
             patch_index=0,
             patch_label=label,
             source_uuid=src_uuid,
@@ -1967,8 +2101,10 @@ def read_numpy_unstructured_grid_representation(
             root_obj=energyml_object,
             workspace=workspace,
         )
-    except (ObjectNotFoundNotError, Exception):
-        pass
+    except Exception as exc:
+        # `(ObjectNotFoundNotError, Exception)` was just `Exception` with misleading intent.
+        # get_crs_obj can fail in several ways and a missing CRS is not fatal here.
+        logging.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
 
     # --- JAGGED ARRAYS ---
     npf_obj = getattr(geom, "nodes_per_face", None)
@@ -2009,7 +2145,7 @@ def read_numpy_unstructured_grid_representation(
     try:
         rh_path, rh_obj = search_attribute_matching_name_with_path(geom, "CellFaceIsRightHanded")[0]
         rh_arr = _read_array_np(rh_obj, energyml_object, f"geometry.{rh_path}", ws).astype(bool)
-    except (IndexError, Exception) as exc:
+    except Exception as exc:  # IndexError from [0] on an empty match, or any read failure
         logging.debug(f"UnstructuredGridRepresentation: CellFaceIsRightHanded not readable: {exc}")
 
     # --- BUILD VTK_POLYHEDRON CELL ARRAY ---
@@ -2039,8 +2175,7 @@ def read_numpy_unstructured_grid_representation(
     cells = np.array(cells_flat, dtype=np.int64)
     cell_types = np.full(cell_count, _VTK_POLYHEDRON, dtype=np.uint8)
 
-    if use_crs_displacement and crs is not None and len(points) > 0:
-        apply_from_crs_info(points, extract_crs_info(crs, workspace), inplace=True)
+    frame = _local_to_projected(points, crs, workspace, use_crs_displacement)
 
     label = f"{src_type}_patch_0"
     multi = NumpyMultiMesh(
@@ -2057,6 +2192,7 @@ def read_numpy_unstructured_grid_representation(
             points=points,
             cells=cells,
             cell_types=cell_types,
+            frame=frame,
             patch_index=0,
             patch_label=label,
             source_uuid=src_uuid,
@@ -2076,18 +2212,31 @@ def read_numpy_mesh_object(
     workspace: Optional[EnergymlStorageInterface] = None,
     use_crs_displacement: bool = True,
     sub_indices: Optional[Union[List[int], np.ndarray]] = None,
+    frame: Optional[PointFrame] = None,
+    use_network: bool = False,
 ) -> "NumpyMultiMesh":
     """Dispatcher — equivalent to :func:`mesh.read_mesh_object` but returns
     a :class:`NumpyMultiMesh` container.
 
+    Every returned patch carries the :class:`~energyml.utils.data.crs.PointFrame` its points are
+    expressed in, and this function only applies the pipeline stages a reader has not already
+    applied. That replaces the previous list of type names — one substring per reader — where a
+    missing entry silently transformed the same points twice, and an extra one left them
+    untransformed.
+
     Args:
         energyml_object: Any supported RESQML/EnergyML geometry/representation object.
-        workspace:        Storage interface (``Epc`` or ``EpcStreamReader``).
-        use_crs_displacement: When ``True`` (default), applies
-                          :func:`crs_displacement_np` to the points of every
-                          returned mesh (excluding wellbore representations
-                          which apply the transform internally).
+        workspace:        Storage interface (``Epc``, ``EpcStreamReader`` or ``EpcFile``).
+        use_crs_displacement: Legacy switch kept for compatibility. It selects the default
+                          target frame: ``PointFrame.PROJECTED`` when ``True`` (default),
+                          ``PointFrame.LOCAL`` when ``False``. Ignored when *frame* is given.
         sub_indices:      Optional list of face/line/point indices to include.
+        frame:            Explicit target frame. ``PointFrame.WGS84`` reads the geometry directly
+                          in longitude / latitude / ellipsoidal height — convenient for mapping
+                          output, but note that X/Y are then degrees while Z stays metres, a ratio
+                          no 3-D viewer handles sensibly.
+        use_network:      Allow PROJ to download the geoid grids used by the vertical datum
+                          transformation. Only relevant for ``PointFrame.WGS84``.
 
     Returns:
         :class:`NumpyMultiMesh` containing one or more :class:`NumpyMesh` patches
@@ -2107,6 +2256,8 @@ def read_numpy_mesh_object(
                     workspace=workspace,
                     use_crs_displacement=use_crs_displacement,
                     sub_indices=sub_indices,
+                    frame=frame,
+                    use_network=use_network,
                 )
             )
         return synthetic
@@ -2115,9 +2266,7 @@ def read_numpy_mesh_object(
     reader_func = get_numpy_reader_function(type_name)
 
     if reader_func is None:
-        from energyml.utils.exception import NotSupportedError as _NSE
-
-        raise _NSE(
+        raise NotSupportedError(
             f"No numpy mesh reader found for type '{type_name}'. "
             f"Expected function 'read_numpy_{snake_case(type_name)}' in {__name__}."
         )
@@ -2129,27 +2278,22 @@ def read_numpy_mesh_object(
         use_crs_displacement=use_crs_displacement,
     )
 
-    # Apply fallback CRS displacement for readers that do NOT handle it
-    # internally (e.g. Grid2d which has no per-patch CRS apply call yet).
-    _tn = type_name.lower()
-    if (
-        use_crs_displacement
-        and "wellbore" not in _tn
-        and "triangulated" not in _tn  # per-patch CRS applied inside reader
-        and "point" not in _tn  # per-patch CRS applied inside reader
-        and "polyline" not in _tn  # per-patch CRS applied inside reader
-        and "representationset" not in _tn  # each child already had CRS applied
-        and "subrepresentation" not in _tn  # delegates entirely to inner call
-        and "planeset" not in _tn  # per-patch CRS applied inside reader
-        and "seismicwellbore" not in _tn  # delegates to wellbore reader
-        and "sealedsurface" not in _tn  # delegates to representation-set reader
-        and "unstructuredgrid" not in _tn  # per-patch CRS applied inside reader
-        and "ijkgrid" not in _tn  # per-patch CRS applied inside reader
-    ):
-        for m in result.flat_patches():
-            crs = m.crs_object[0] if isinstance(m.crs_object, list) and m.crs_object else m.crs_object
-            if crs is not None and len(m.points) > 0:
-                crs_displacement_np(m.points, crs, inplace=True)
+    target = frame if frame is not None else (PointFrame.PROJECTED if use_crs_displacement else PointFrame.LOCAL)
+
+    for m in result.flat_patches():
+        if m.frame is target or len(m.points) == 0:
+            continue
+        crs = m.crs_object[0] if isinstance(m.crs_object, list) and m.crs_object else m.crs_object
+        framed = to_frame(
+            m.points,
+            extract_crs_info(crs, workspace) if crs is not None else None,
+            target,
+            m.frame,
+            use_network=use_network,
+            inplace=True,
+        )
+        m.points = framed.points
+        m.frame = framed.frame
 
     return result
 
@@ -2248,6 +2392,8 @@ def numpy_multi_mesh_to_pyvista(multi: "NumpyMultiMesh") -> Any:
 # ---------------------------------------------------------------------------
 
 __all__ = [
+    # Coordinate frames (re-exported from crs.py for convenience)
+    "PointFrame",
     # Dataclasses
     "NumpyMesh",
     "NumpyPointSetMesh",

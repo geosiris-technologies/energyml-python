@@ -42,6 +42,11 @@ of classes it does not know at write time. Consequences that shape the whole cod
 - **Dispatch is by naming convention.** `read_array` maps an array class name to a module-level function named
   `read_<snake_case(type_name)>`; same for `read_<snake_case(type)>` in `mesh.py` and `read_numpy_<...>` in
   `mesh_numpy.py`. Supporting a new type = defining a correctly named function, no registry to update.
+  The same type comes in three spellings and `_mesh_name_mapping` / `_numpy_mesh_name_mapping` must normalise all
+  of them: the python class name (`ObjTriangulatedSetRepresentation`), the schema type carried by a content type
+  and by `ResourceMetadata.object_type` (`obj_TriangulatedSetRepresentation` — RESQML 2.0.1 keeps that prefix,
+  2.2 does not), and the qualified type (`resqml20.obj_…`). Only the first was handled, so `_list_exportable_uuids`
+  returned nothing on a 2.0.1 EPC and `extract_3d` exported no file at all.
 
 [introspection.py](src/energyml/utils/introspection.py) is the foundation of all this (attribute lookup, class
 resolution, qualified/content type generation, random object generation, `get_object_metadata`). Two subtleties:
@@ -109,17 +114,71 @@ both; `json.dumps` on numpy values raises.
 | | legacy | numpy |
 |---|---|---|
 | reader | `mesh.read_mesh_object` | `mesh_numpy.read_numpy_mesh_object` |
-| container | `AbstractMesh` (`point_list`, list-of-lists) | `NumpyMesh` / `NumpyMultiMesh` (`points`, `(N,3)` float64, VTK-flat connectivity) |
-| exporters | `mesh.export_obj/export_off/export_geojson_io` (streaming, bytes) | `export.export_obj/geojson/vtk/stl` (dict/text) |
+| container | `AbstractMesh` (`point_list`, `(N,3)` ndarray) | `NumpyMesh` / `NumpyMultiMesh` (`points`, VTK-flat connectivity) |
 
-Both are live: `export_multiple_data` (used by `extract_3d`) drives the legacy path; the numpy path feeds PyVista
-and the modern exporters. New work should prefer the numpy stack, but the legacy one cannot be deleted yet.
+**There is only one implementation left.** `mesh.py`'s geometry readers are adapters: they call the matching
+`read_numpy_*` and convert the result back into the legacy containers (`_to_legacy_meshes`), rebuilding the legacy
+identifiers from the patch metadata (`"{uri}_patch{n}"`, `"Patch num {n}"` for point sets, the bare URI for
+wellbores). Verified against the pre-adapter readers over every representation of every fixture in `rc/epc/` —
+1155 objects, 942 meshes, identical down to the index structures and edge/face counts.
 
-**CRS is applied at read time by the readers, which also keep `crs_object` on the mesh, while
-`export._get_export_points` re-applies it when a workspace is reachable.** Feeding a mesh read with
-`use_crs_displacement=True` into the modern exporters with a workspace therefore double-transforms it. The numpy
-dispatcher guards this with a hard-coded list of type names ([mesh_numpy.py](src/energyml/utils/data/mesh_numpy.py)
-`read_numpy_mesh_object`) — a new reader missing from that list gets the wrong treatment.
+Two consequences: `AbstractMesh.point_list` now holds the `(N,3)` float64 array rather than a list of lists (the
+field was already annotated for both), and volumetric types (`IjkGridRepresentation`,
+`UnstructuredGridRepresentation`) raise `NotSupportedError` from the legacy API since `AbstractMesh` cannot model
+them — the numpy stack does. `gen_surface_grid_geometry` is kept for external callers but is no longer used.
+
+**Every mesh carries the `PointFrame` its points are in** (`frame` field on `AbstractMesh` and `NumpyMesh`), and
+each dispatcher applies only the pipeline stages the reader did not. That replaced two hard-coded lists of type-name
+substrings, where a missing entry transformed the same points twice and an extra one left them raw. Adding a reader
+now only requires it to report the frame it produced.
+
+`_ensure_float64_points` takes ownership of the points before any in-place transform: the geometry may come from
+`read_array_view`, whose contract forbids mutating it (it can be the memory-mapped file). Connectivity arrays keep
+the zero-copy path — they are only read.
+
+### Coordinate frames
+
+[crs.py](src/energyml/utils/data/crs.py) owns the whole pipeline; `PointFrame` names its stages:
+
+```
+LOCAL --apply_from_crs_info--> PROJECTED --reproject_to_wgs84--> WGS84
+```
+
+They are **successive**, not alternatives: skipping the local stage hands pyproj coordinates still offset by the
+local origin. `to_frame(points, crs_info, target, current)` is the only entry point that knows the ordering, so no
+caller has to remember it and a transform cannot run twice. It degrades rather than raising — a WGS84 request with
+no EPSG code, or without pyproj, comes back as `PROJECTED` with `degraded_reason` set, which is what the GeoJSON
+writer uses to decide whether to advertise a `crs` member.
+
+`compute_origin_shift` / the `origin_shift` option recentre projected coordinates (6-7 significant digits, which
+lose precision once a viewer reads the file as float32). It must be resolved **once per export** — a per-patch
+centre would pull the patches apart.
+
+`reproject_to_wgs84` transforms in blocks of `_REPROJECT_CHUNK` points: the columns of a C-order `(N,3)` array are
+strided, so pyproj needs one contiguous buffer per axis, and blocking makes that scratch constant (6 MiB) instead
+of proportional to N.
+
+### Export package
+
+[data/export/](src/energyml/utils/data/export/) is one module per format (`obj`, `off`, `geojson`, `vtk`, `stl`)
+over a shared `_base.py`, plus `_registry.py`. Each module declares a `FormatSpec` — writer, options class,
+description, filter label, supported primitives, side-car suffix — and `export_mesh` plus every UI helper reads
+that registry. Adding a format is a module and one `register_format` call, not six places to edit.
+`__init__.py` re-exports the old flat API, so `from energyml.utils.data.export import export_obj` still resolves.
+
+Every writer takes `frame=` and `origin_shift=`, not just GeoJSON. `use_crs_displacement` is kept and simply
+selects the default frame (`PROJECTED` / `LOCAL`).
+
+GeoJSON has **one** geometry implementation: the streaming writer (bounded memory). `to_geojson_feature` and
+`export_geojson_dict` serialise through it and parse the result back. Note `export_geojson_dict` now reprojects to
+WGS84 by default, where it used to emit non-RFC-7946 output silently; pass `to_wgs84=False` for the old behaviour.
+
+### Properties
+
+[properties.py](src/energyml/utils/data/properties.py) holds `read_property`, `read_column_based_table`,
+`read_time_series` and the per-kind property readers, re-exported from `mesh.py` for compatibility. They dispatch
+on `read_<snake_case(type)>` **in their own module namespace**; while they lived in `mesh.py` that namespace also
+held the geometry readers, so `read_property` on a `PointRepresentation` returned meshes instead of raising.
 
 ### CRS pipeline
 
@@ -139,6 +198,20 @@ dispatcher guards this with a hard-coded list of type names ([mesh_numpy.py](src
 
 Callers must degrade gracefully when pyproj is absent or no EPSG is found (see `export_geojson`: keep the source
 coordinates and advertise the CRS via the `crs` / `coordRefSys` members instead).
+
+Two things a real file breaks, both handled rather than raised:
+
+- **The vertical EPSG code can be unusable.** Files write a *datum* code where a CRS code belongs (the Volve
+  export declares `EPSG:6230`, the ED50 datum). The compound source then fails to build; giving up would leave the
+  points in their projected CRS although the horizontal part is perfectly reprojectable. So
+  `_build_transformer_with_vertical_fallback` retries with the horizontal CRS alone and passes Z through untouched
+  — longitude/latitude are correct, Z stays in its source vertical frame, and a warning says so.
+- **The EPSG codes have to survive deserialisation first.** They hang off a polymorphic `xsi:type`, and energyml
+  files usually write it *unprefixed* (`xsi:type="VerticalCrsEpsgCode"`), which resolves against the document's
+  default namespace — `commonv2`, exactly where those types live. xsdata reads that default namespace as
+  `ns_map[None]`, so `FallbackNamespaceXmlParser` must keep the `None` key when it merges its fallback namespaces:
+  rewriting it to `""` built the element as its abstract base and dropped both EPSG codes, making the reprojection
+  impossible on a large share of RESQML 2.0.1 files. Covered by `tests/test_xsi_type_resolution.py`.
 
 ### Tests
 

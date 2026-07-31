@@ -464,6 +464,30 @@ def test_get_object_attribute_advanced(triangulated_set_versioned):
     assert get_object_attribute_advanced(triangulated_set_versioned, "citation.originator") == "Valentin"
 
 
+def test_get_object_attribute_advanced_walks_through_lists(triangulated_set_versioned):
+    """A list index is a path component like any other.
+
+    ``search_attribute_matching_name_with_path`` produces paths such as
+    ``line_patch.0.geometry.points``, and the index used to be handed to
+    ``get_matching_class_attribute_name`` — which never matches a digit — so the path was
+    declared invalid and the caller silently got ``None`` (that is how the RESQML 2.0.1
+    external arrays lost the element count read from their parent patch).
+    """
+    patches = get_object_attribute_advanced(triangulated_set_versioned, "TrianglePatch")
+    assert isinstance(patches, list) and patches, "fixture is expected to hold at least one patch"
+
+    assert get_object_attribute_advanced(triangulated_set_versioned, "TrianglePatch.0") is patches[0]
+    # the name written in the path (CamelCase) is longer than the python attribute it matches,
+    # which used to shift the slicing of the remaining path
+    assert get_object_attribute_advanced(
+        triangulated_set_versioned, "TrianglePatch.0.Count"
+    ) == get_object_attribute_advanced(patches[0], "Count")
+
+    # out-of-range and non-numeric components degrade to None instead of raising
+    assert get_object_attribute_advanced(triangulated_set_versioned, "TrianglePatch.99") is None
+    assert get_object_attribute_advanced(triangulated_set_versioned, "TrianglePatch.nope") is None
+
+
 # =============================================================================
 # OBJECT ATTRIBUTE MODIFICATION TESTS
 # =============================================================================
@@ -763,9 +787,9 @@ def test_get_obj_uri(triangulated_set_no_version, fault_interpretation):
         uri_str_fi_dataspace
         == f"eml:///dataspace('/MyDataspace/')/resqml20.obj_FaultInterpretation(uuid={fault_interpretation.uuid},version='{fault_interpretation.object_version}')"
     )
-    
+
     uri_dict_dor = str(get_obj_uri(json.loads(serialize_json(as_dor(fault_interpretation)))))
-    
+
     assert (
         uri_dict_dor
         == f"eml:///resqml20.obj_FaultInterpretation(uuid={fault_interpretation.uuid},version='{fault_interpretation.object_version}')"

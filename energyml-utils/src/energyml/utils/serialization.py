@@ -56,9 +56,23 @@ class JSON_VERSION(Enum):
     
 class FallbackNamespaceXmlParser(XmlParser):
     """
-    Custom XML parser that injects fallback namespaces 
+    Custom XML parser that injects fallback namespaces
     before xsdata attempts to resolve xsi:type types.
+
+    The fallback lets a prefixed ``xsi:type`` resolve even when the document forgot to declare
+    the prefix (``xsi:type="eml:VerticalCrsEpsgCode"`` without ``xmlns:eml``).
+
+    The *unprefixed* case must keep working too, and it is the common one: an
+    ``xsi:type="VerticalCrsEpsgCode"`` resolves against the **default** namespace of the
+    document, which energyml files usually set to ``commonv2`` — exactly where that type is
+    declared. :meth:`xsdata.formats.converter.QNameConverter.resolve` reads the default
+    namespace as ``ns_map[None]`` (``text.split`` returns a ``None`` prefix when the value holds
+    no colon), so the ``None`` key must be preserved. Rewriting it to ``""`` silently dropped
+    the type: the element was then built as its abstract base and every child was reported as an
+    unknown property (a v2.0.1 ``LocalDepth3dCrs`` lost both of its EPSG codes, which is enough
+    to make the WGS84 reprojection impossible).
     """
+
     def __init__(self, fallback_namespaces: dict[str, str], *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fallback_namespaces = fallback_namespaces
@@ -66,15 +80,18 @@ class FallbackNamespaceXmlParser(XmlParser):
     def start(self, clazz: Any, queue: list, objects: list, qname: str, attrs: dict, ns_map: dict):
         # 1. Prepare a new dictionary including our fallback namespaces
         merged_ns = dict(self.fallback_namespaces)
-        
+
         # 2. Update it with the namespaces actually found in the document
         # (Document namespaces always take precedence)
         if ns_map:
             for prefix, uri in ns_map.items():
-                # lxml uses 'None' for the default namespace, xsdata prefers an empty string ""
-                clean_prefix = "" if prefix is None else prefix
-                merged_ns[clean_prefix] = uri
-                
+                merged_ns[prefix] = uri
+                if prefix is None or prefix == "":
+                    # both spellings of "the default namespace" are kept: xsdata resolves an
+                    # unprefixed qname through None, other code paths use ""
+                    merged_ns[None] = uri
+                    merged_ns[""] = uri
+
         # 3. Pass exactly the 6 expected arguments to the standard xsdata logic
         super().start(clazz, queue, objects, qname, attrs, merged_ns)
 

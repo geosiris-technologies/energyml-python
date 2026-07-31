@@ -554,7 +554,10 @@ def extract_representation_in_3d_file():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epc", "-f", type=str, help="Epc file path")
     parser.add_argument("--output", "-o", type=str, help="Output folder path")
-    parser.add_argument("--no-crs", action="store_false", help="Disable crs displacement")
+    # store_true, not store_false: with store_false the flag defaulted to True, so
+    # `use_crs_displacement=not args.no_crs` was False unless --no-crs was passed — the switch
+    # was inverted and the export was written in local coordinates by default.
+    parser.add_argument("--no-crs", action="store_true", help="Disable crs displacement")
     parser.add_argument(
         "--file-format",
         "-ff",

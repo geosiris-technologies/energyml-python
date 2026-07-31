@@ -709,30 +709,49 @@ def get_object_attribute_or_create(
 def get_object_attribute_advanced(obj: Any, attr_dot_path: str) -> Any:
     """
     see @get_matching_class_attribute_name and @get_object_attribute
+
+    Unlike :func:`get_object_attribute`, the class attributes are matched loosely
+    (``LinePatch`` finds ``line_patch``), which is what makes it usable with the paths
+    :func:`search_attribute_matching_name_with_path` returns.
+
+    Two things it used to get wrong, both silent:
+
+    - a **list index** was handed to :func:`get_matching_class_attribute_name`, which of course
+      never matches a digit, so the whole path was declared invalid: ``line_patch.0.geometry``
+      logged ``Attribute path '0.geometry' is invalid`` and returned ``None``. Every RESQML
+      2.0.1 external array therefore lost the element count read from its parent patch
+      (``read_external_array``), and the HDF5 dataset was read whole.
+    - the remaining path was cut with the length of the **matched** attribute name rather than
+      the one written in the path, so any component whose spelling differs in length from the
+      python attribute (``LinePatch`` → ``line_patch``) shifted the rest of the path.
     """
-    current_attrib_name = attr_dot_path
-
-    if "." in attr_dot_path:
-        current_attrib_name = attr_dot_path.split(".")[0]
-
-    current_attrib_name = get_matching_class_attribute_name(obj, current_attrib_name)
+    current_attrib_name, path_next = path_next_attribute(attr_dot_path)
 
     if current_attrib_name is None:
         logging.error(f"Attribute path '{attr_dot_path}' is invalid.")
         return None
 
-    value = None
     if isinstance(obj, list):
-        value = obj[int(current_attrib_name)]
+        try:
+            value = obj[int(current_attrib_name)]
+        except (ValueError, IndexError):
+            logging.error(f"Attribute path '{attr_dot_path}' is invalid (not an index of the list).")
+            return None
     elif isinstance(obj, dict):
+        if current_attrib_name not in obj:
+            logging.error(f"Attribute path '{attr_dot_path}' is invalid (not a key of the dict).")
+            return None
         value = obj[current_attrib_name]
     else:
-        value = getattr(obj, current_attrib_name)
+        matched_name = get_matching_class_attribute_name(obj, current_attrib_name)
+        if matched_name is None:
+            logging.error(f"Attribute path '{attr_dot_path}' is invalid.")
+            return None
+        value = getattr(obj, matched_name)
 
-    if "." in attr_dot_path:
-        return get_object_attribute_advanced(value, attr_dot_path[len(current_attrib_name) + 1 :])
-    else:
-        return value
+    if path_next is not None:
+        return get_object_attribute_advanced(value, path_next)
+    return value
 
 
 def get_object_attribute_no_verif(obj: Any, attr_name: str, default: Optional[Any] = None) -> Any:
