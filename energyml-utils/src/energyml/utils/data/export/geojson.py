@@ -265,62 +265,67 @@ def export_geojson(
             feature["properties"] = base_props if extra is None else {**base_props, **extra}
             return feature
 
+        # --- Collect the elements of this patch as coordinate lists ---
+        # A patch is one feature. Exploding it into one feature per triangle or per segment
+        # repeats the whole metadata block — uuid, citation, EPSG codes — on every element:
+        # a 882-triangle surface became 882 features carrying 882 copies of its citation, and
+        # a wellbore came out as N-1 two-point LineStrings instead of one line.
+        # `explode_elements` restores the old behaviour for callers that relied on it.
+        lines_coords: List[list] = []
+        rings_coords: List[list] = []
+
         if isinstance(mesh, NumpyMesh):
             if isinstance(mesh, NumpyPointSetMesh):
                 features.append(_feature({"type": "MultiPoint", "coordinates": pts.tolist()}))
             elif isinstance(mesh, NumpyPolylineMesh):
-                for seg_idx, seg in enumerate(_parse_vtk_flat_lines(mesh.lines)):
-                    if len(seg) < 2:
-                        continue
-                    features.append(
-                        _feature(
-                            {"type": "LineString", "coordinates": pts[seg].tolist()},
-                            element_index=seg_idx,
-                            extra={"element_index": seg_idx},
-                        )
-                    )
+                lines_coords = [pts[seg].tolist() for seg in _parse_vtk_flat_lines(mesh.lines) if len(seg) >= 2]
             else:
                 # NumpySurfaceMesh / NumpyVolumeMesh
-                for face_idx, face in enumerate(_parse_vtk_flat_faces(_get_faces_or_cells(mesh))):
+                for face in _parse_vtk_flat_faces(_get_faces_or_cells(mesh)):
                     if len(face) < 3:
                         continue
-                    coords = pts[face].tolist()
-                    coords.append(coords[0])  # close ring
-                    features.append(
-                        _feature(
-                            {"type": "Polygon", "coordinates": [coords]},
-                            element_index=face_idx,
-                            extra={"element_index": face_idx},
-                        )
-                    )
+                    ring = pts[face].tolist()
+                    ring.append(ring[0])  # close ring
+                    rings_coords.append(ring)
         else:
-            # AbstractMesh legacy path
-            indices = mesh.get_indices()
-            for elem_idx, elem in enumerate(indices):
+            # AbstractMesh legacy path — .tolist() because json.dump rejects numpy scalars
+            for elem in mesh.get_indices():
+                idx = np.asarray(elem, dtype=np.int64)
                 if isinstance(mesh, PolylineSetMesh):
-                    if len(elem) < 2:
-                        continue
-                    # .tolist() : json.dump does not accept numpy scalars
-                    coords = pts[np.asarray(elem, dtype=np.int64)].tolist()
-                    features.append(
-                        _feature(
-                            {"type": "LineString", "coordinates": coords},
-                            element_index=elem_idx,
-                            extra={"element_index": elem_idx},
-                        )
-                    )
+                    if len(idx) >= 2:
+                        lines_coords.append(pts[idx].tolist())
                 elif isinstance(mesh, SurfaceMesh):
-                    if len(elem) < 3:
-                        continue
-                    coords = pts[np.asarray(elem, dtype=np.int64)].tolist()
-                    coords.append(coords[0])
-                    features.append(
-                        _feature(
-                            {"type": "Polygon", "coordinates": [coords]},
-                            element_index=elem_idx,
-                            extra={"element_index": elem_idx},
-                        )
+                    if len(idx) >= 3:
+                        ring = pts[idx].tolist()
+                        ring.append(ring[0])
+                        rings_coords.append(ring)
+
+        if options.explode_elements:
+            for seg_idx, coords in enumerate(lines_coords):
+                features.append(
+                    _feature(
+                        {"type": "LineString", "coordinates": coords},
+                        element_index=seg_idx,
+                        extra={"element_index": seg_idx},
                     )
+                )
+            for face_idx, ring in enumerate(rings_coords):
+                features.append(
+                    _feature(
+                        {"type": "Polygon", "coordinates": [ring]},
+                        element_index=face_idx,
+                        extra={"element_index": face_idx},
+                    )
+                )
+        else:
+            if len(lines_coords) == 1:
+                features.append(_feature({"type": "LineString", "coordinates": lines_coords[0]}))
+            elif lines_coords:
+                features.append(_feature({"type": "MultiLineString", "coordinates": lines_coords}))
+            if len(rings_coords) == 1:
+                features.append(_feature({"type": "Polygon", "coordinates": [rings_coords[0]]}))
+            elif rings_coords:
+                features.append(_feature({"type": "MultiPolygon", "coordinates": [[r] for r in rings_coords]}))
 
     collection: dict = {"type": "FeatureCollection"}
 

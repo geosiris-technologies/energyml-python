@@ -129,6 +129,7 @@ class GeoJSONExportOptions(ExportOptions):
         use_network: bool = False,
         projected_epsg_code: Optional[int] = None,
         vertical_epsg_code: Optional[int] = None,
+        explode_elements: bool = False,
     ):
         """
         :param indent: JSON indentation level (None for compact output).
@@ -145,6 +146,11 @@ class GeoJSONExportOptions(ExportOptions):
                             transformations.  Without them the height conversion is skipped.
         :param projected_epsg_code: Force the horizontal EPSG code instead of reading it from the CRS.
         :param vertical_epsg_code: Force the vertical EPSG code instead of reading it from the CRS.
+        :param explode_elements: Emit one feature per triangle / per line segment instead of one
+                            feature per patch. Off by default: a patch is the unit a RESQML
+                            representation is made of, and exploding it repeats the whole
+                            metadata block — uuid, citation, EPSG codes — on every element,
+                            which on a triangulated surface means one copy per triangle.
         """
         self.indent = indent
         self.properties = properties or {}
@@ -153,6 +159,7 @@ class GeoJSONExportOptions(ExportOptions):
         self.use_network = use_network
         self.projected_epsg_code = projected_epsg_code
         self.vertical_epsg_code = vertical_epsg_code
+        self.explode_elements = explode_elements
 
 
 # ---------------------------------------------------------------------------

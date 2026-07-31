@@ -26,6 +26,7 @@ from energyml.utils.data.mesh_numpy import (
     read_numpy_wellbore_frame_representation,
     read_numpy_wellbore_trajectory_representation,
 )
+from energyml.utils.constants import sanitize_file_name
 from energyml.utils.epc_utils import gen_energyml_object_path
 from energyml.utils.exception import NotSupportedError
 from energyml.utils.introspection import (
@@ -732,13 +733,16 @@ def export_multiple_data(
             # a bare `except` here also swallowed KeyboardInterrupt / SystemExit
             (logger or logging).error(f"Object with uuid {uuid} not found : {type(e).__name__}: {e}")
             continue
-        file_name = (
+        # A citation title is free text and lands in the file name: sanitize it, or a title
+        # containing ':' (e.g. "AUB-PRO-SP05512: Trajectory") silently writes into an NTFS
+        # alternate data stream on Windows, leaving an empty extension-less file behind.
+        # The extension is appended after sanitizing so it can never be truncated away.
+        file_name = sanitize_file_name(
             f"{gen_energyml_object_path(energyml_obj)}_"
             f"[{get_object_attribute(energyml_obj, 'citation.title')}]"
             f"{output_file_path_suffix}"
-            f".{file_format.value}"
         )
-        file_path = f"{output_folder_path}/{file_name}"
+        file_path = os.path.join(output_folder_path, f"{file_name}.{file_format.value}")
         logging.debug(f"Exporting : {file_path}")
 
         # a representation that cannot be read (e.g. a trajectory without geometry) must not

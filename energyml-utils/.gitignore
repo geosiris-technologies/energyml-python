@@ -59,6 +59,10 @@ manip*
 docs/*.md
 
 # DATA
+# Default output folder of `extract_3d` / export_multiple_data. The extensions below cover the
+# files it writes, but not the ones a malformed name produced before sanitize_file_name existed
+# (a ':' in a citation title left extension-less remnants on Windows), so ignore the folder.
+exported_meshes/
 *.obj
 *.off
 *.mtl

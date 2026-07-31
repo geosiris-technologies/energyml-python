@@ -1139,23 +1139,36 @@ def read_numpy_wellbore_trajectory_representation(
             )
             frame = PointFrame.PROJECTED
     except Exception as e:
-        if wellbore_frame_mds is not None:
+        mds = wellbore_frame_mds
+        if mds is None:
+            # A trajectory may carry no geometry at all and only declare the interval it spans
+            # — `MdInterval` plus the `Datum` it is measured from. That is enough to place a
+            # vertical well, and it is how every wellbore of a "MD interval only" package is
+            # written; raising here dropped all of them.
+            md_min = get_object_attribute(energyml_object, "md_interval.md_min")
+            md_max = get_object_attribute(energyml_object, "md_interval.md_max")
+            if md_min is not None and md_max is not None:
+                logging.info(
+                    f"WellboreTrajectoryRepresentation {get_obj_uuid(energyml_object)} has no geometry; "
+                    f"building a vertical well from MdInterval [{md_min}, {md_max}]."
+                )
+                mds = np.array([float(md_min), float(md_max)], dtype=np.float64)
+
+        if mds is not None:
             logging.debug(f"Trajectory parametric geometry unavailable, treating as vertical: {e}")
             well_points_list = generate_vertical_well_points(
                 head_x=head_x,
                 head_y=head_y,
                 head_z=head_z,
-                wellbore_mds=wellbore_frame_mds
-                if isinstance(wellbore_frame_mds, np.ndarray)
-                else np.asarray(wellbore_frame_mds),
+                wellbore_mds=mds if isinstance(mds, np.ndarray) else np.asarray(mds),
                 z_increasing_downward=z_increasing_downward,
             )
             # Built from the datum: already projected, whatever use_crs_displacement says.
             frame = PointFrame.PROJECTED
         else:
             raise ValueError(
-                "Cannot read WellboreTrajectoryRepresentation: "
-                "no parametric geometry and no measured depth information available."
+                "Cannot read WellboreTrajectoryRepresentation: no parametric geometry, no measured "
+                "depth information and no MdInterval available."
             ) from e
 
     if well_points_list is None or len(well_points_list) == 0:
@@ -1167,7 +1180,10 @@ def read_numpy_wellbore_trajectory_representation(
         )
 
     pts = _ensure_float64_points(np.asarray(well_points_list, dtype=np.float64))
-    lines = _build_vtk_lines_from_segments(len(pts))
+    # A trajectory is *one* polyline through its stations, not a bag of independent two-point
+    # cells. Both encodings render the same, but the segment one makes every consumer that
+    # iterates the cells — the GeoJSON writer, OBJ, OFF — produce N-1 elements for one well.
+    lines = _build_vtk_single_polyline(len(pts))
     src_uuid = get_obj_uuid(energyml_object)
     src_type = type(energyml_object).__name__
     label = f"{src_type}_patch_0"

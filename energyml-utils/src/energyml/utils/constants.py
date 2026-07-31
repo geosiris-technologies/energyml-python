@@ -453,6 +453,57 @@ def pascal_case(string: str) -> str:
     return snake_case(string).replace("_", " ").title().replace(" ", "")
 
 
+#: Characters no Windows file name may contain. ``/`` is added for POSIX, where it is the path
+#: separator; the ASCII control characters are rejected by every filesystem.
+_FORBIDDEN_FILE_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+#: Windows device names: reserved whatever the extension, so ``CON.geojson`` is unusable too.
+_RESERVED_FILE_NAMES = frozenset(
+    ["CON", "PRN", "AUX", "NUL"] + [f"COM{i}" for i in range(1, 10)] + [f"LPT{i}" for i in range(1, 10)]
+)
+
+
+def sanitize_file_name(name: str, replacement: str = "_", max_length: int = 150) -> str:
+    """Make *name* usable as a single file-name component on every platform.
+
+    Energyml titles go into export file names, and they are free text: ``AUB-PRO-SP05512:
+    Trajectory`` is a perfectly legal citation title. On Windows a ``:`` in a path opens an
+    *alternate data stream* instead of failing — ``open("well: Traj.geojson", "w")`` silently
+    creates an empty file called ``well`` carrying a hidden stream named ``: Traj.geojson``.
+    The export looks like it worked and leaves extension-less, apparently empty files behind.
+
+    Replaces the forbidden characters, collapses the runs they leave, strips the trailing dots
+    and spaces Windows drops silently, escapes the reserved device names, and truncates to
+    *max_length* so that a long title cannot push the whole path past the limit.
+
+    :param name: the raw file-name component (no directory separator is preserved).
+    :param replacement: what to substitute for a forbidden character.
+    :param max_length: maximum length of the returned component.
+    """
+    if not name:
+        return "unnamed"
+
+    cleaned = _FORBIDDEN_FILE_NAME_CHARS.sub(replacement, name)
+    if replacement:
+        # "a: b" would otherwise become "a__b" — one for the colon, one for the space after it.
+        cleaned = re.sub(re.escape(replacement) + r"{2,}", replacement, cleaned)
+    # Windows drops trailing dots and spaces without telling, so "x." and "x" collide.
+    cleaned = cleaned.rstrip(". ").strip()
+
+    # "///" or "..." carried no name to begin with; a bare separator is not a better answer.
+    if not cleaned or (replacement and cleaned.strip(replacement) == ""):
+        return "unnamed"
+
+    stem, dot, extension = cleaned.partition(".")
+    if stem.upper() in _RESERVED_FILE_NAMES:
+        cleaned = f"{stem}{replacement}{dot}{extension}" if dot else f"{stem}{replacement}"
+
+    if len(cleaned) > max_length:
+        cleaned = cleaned[:max_length].rstrip(". ")
+
+    return cleaned or "unnamed"
+
+
 def flatten_concatenation(matrix) -> List:
     """
     Flatten a matrix efficiently.

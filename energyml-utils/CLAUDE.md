@@ -221,6 +221,18 @@ GeoJSON has **one** geometry implementation: the streaming writer (bounded memor
 `export_geojson_dict` serialise through it and parse the result back. Note `export_geojson_dict` now reprojects to
 WGS84 by default, where it used to emit non-RFC-7946 output silently; pass `to_wgs84=False` for the old behaviour.
 
+**One patch = one feature.** `export_geojson` (the registry writer, so `export_mesh` and `extract_3d`) emits a
+`MultiPolygon` / `MultiLineString` per patch, degrading to `Polygon` / `LineString` when the patch holds a single
+element. It used to emit one feature *per triangle and per segment*, which repeated the whole metadata block — uuid,
+citation, EPSG codes — on each: an 882-triangle surface produced 882 features. `GeoJSONExportOptions.explode_elements`
+restores the old behaviour. The streaming writer already worked per mesh.
+
+**Titles reach the filesystem.** `export_multiple_data` builds its file names out of the citation title, which is
+free text, so it passes them through `constants.sanitize_file_name`. Without it a title like
+`AUB-PRO-SP05512: Trajectory` does not raise on Windows — `:` opens an NTFS *alternate data stream*, so the content
+goes into a hidden stream and an empty extension-less file is left behind. The extension is appended after
+sanitizing so truncation can never eat it.
+
 ### Properties
 
 [properties.py](src/energyml/utils/data/properties.py) holds `read_property`, `read_column_based_table`,

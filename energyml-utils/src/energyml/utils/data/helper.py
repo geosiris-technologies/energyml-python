@@ -410,7 +410,83 @@ def get_crs_obj(
                     workspace=workspace,
                 )
 
+        # Nothing named a CRS anywhere up the object. `PointGeometry.LocalCrs` is optional in
+        # RESQML 2.2, and a package may simply declare its CRS once and let every representation
+        # inherit it — the geometry then carries no reference at all. Fall back to the package's
+        # CRS when it is unambiguous, rather than returning None and leaving the coordinates
+        # unprojected and unlabelled.
+        return get_package_default_crs(workspace)
+
     return None
+
+
+#: Sentinel telling "not looked up yet" apart from "looked up, found nothing".
+_NO_DEFAULT_CRS = object()
+
+
+def _crs_rank(type_name: str) -> Optional[int]:
+    """Rank a CRS class name by how completely it describes a representation's frame."""
+    lowered = type_name.lower()
+    if any(k in lowered for k in ("localengineeringcompoundcrs", "localdepth3dcrs", "localtime3dcrs", "local3dcrs")):
+        return 0  # a full local frame: offsets, rotation and the projected/vertical chain
+    if "localengineering2dcrs" in lowered:
+        return 1
+    if lowered.endswith("projectedcrs"):
+        return 2  # no local frame, but the horizontal EPSG code is what the reprojection needs
+    return None
+
+
+def get_package_default_crs(workspace: Optional[EnergymlStorageInterface]) -> Optional[Any]:
+    """Return the CRS of a package that declares one unambiguously, or ``None``.
+
+    Used only when a representation names no CRS. The best-described kind wins — a full local
+    3-D / compound CRS over a bare ``ProjectedCrs`` — and the answer is only accepted when a
+    single object of that kind exists: picking one of several would silently place the geometry
+    in the wrong frame, which is worse than not projecting it.
+
+    A standalone ``VerticalCrs`` is deliberately never returned on its own; when several exist
+    (a package may carry both an MSL-height and an MSL-depth CRS) there is no way to tell which
+    a given representation meant.
+    """
+    if workspace is None:
+        return None
+
+    cached = getattr(workspace, "_energyml_default_crs", _NO_DEFAULT_CRS)
+    if cached is not _NO_DEFAULT_CRS:
+        return cached
+
+    result = None
+    try:
+        candidates: Dict[int, List[Any]] = {}
+        for metadata in workspace.list_objects(resolve_titles=False):
+            rank = _crs_rank(metadata.object_type or "")
+            if rank is not None:
+                candidates.setdefault(rank, []).append(metadata)
+
+        for rank in sorted(candidates):
+            found = candidates[rank]
+            if len(found) == 1:
+                result = workspace.get_object(str(found[0].uri))
+                if result is not None:
+                    logging.info(
+                        f"No CRS referenced by the representation; falling back to the only "
+                        f"{type(result).__name__} of the package ({found[0].uuid})."
+                    )
+                break
+            logging.warning(
+                f"No CRS referenced by the representation and the package declares "
+                f"{len(found)} {found[0].object_type} — none can be chosen, the coordinates "
+                "stay in their source frame."
+            )
+            break
+    except Exception as exc:
+        logging.debug(f"Cannot look for a package default CRS: {type(exc).__name__}: {exc}")
+
+    try:
+        workspace._energyml_default_crs = result
+    except Exception:
+        pass  # a workspace that refuses attributes just pays the lookup again
+    return result
 
 
 def linear_interpolation(md_target, md_start, md_end, p_start, p_end):
