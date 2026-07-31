@@ -72,6 +72,17 @@ rc/**/*.epc
 rc/**/*.h5
 rc/**/*.hdf5
 
+# ...except the FESAPI testing packages, which are the only fixtures cleared for publication.
+# `tests/` runs against real EPCs rather than mock dataclasses, so the suite needs them in CI.
+#
+# DO NOT add a fixture here without checking it may be published: the other EPCs of rc/epc/ are
+# field data (Volve, SPASS, the 80-well surveys) and stay local. A test that needs one of them
+# must skip when it is absent — see the `fixture_epc` fixture of tests/test_epc_file.py.
+!rc/epc/testingPackageCpp.epc
+!rc/epc/testingPackageCpp.h5
+!rc/epc/testingPackageCpp22.epc
+!rc/epc/testingPackageCpp22.h5
+
 
 # WIP
 src/energyml/utils/wip*

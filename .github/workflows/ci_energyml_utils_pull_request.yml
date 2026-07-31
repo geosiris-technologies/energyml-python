@@ -36,9 +36,26 @@ jobs:
         run: |
           poetry install --all-extras
 
-      - name: Run pytest
+      - name: Check the published test fixtures are present
+        # tests/ runs against real EPCs rather than mock dataclasses, and rc/**/*.epc is
+        # git-ignored with a per-file allow list. Only the FESAPI testing packages are cleared
+        # for publication; the field-data EPCs stay local and their tests skip here. Dropping
+        # one of these from the allow list would silently turn its tests into skips, so fail
+        # loudly instead.
         run: |
-          poetry run pytest -v --tb=short
+          missing=0
+          for f in rc/epc/testingPackageCpp.epc rc/epc/testingPackageCpp.h5 \
+                   rc/epc/testingPackageCpp22.epc rc/epc/testingPackageCpp22.h5; do
+            if [ ! -f "$f" ]; then echo "::error::missing test fixture $f"; missing=1; fi
+          done
+          exit $missing
+
+      - name: Run pytest (whole suite, slow tests included)
+        # pyproject.toml sets `addopts = "-m 'not slow'"` so a local run stays quick; `-m ""`
+        # clears that filter. Without it CI silently skips the tests that compare EpcFile with
+        # EpcStreamReader over the large packages.
+        run: |
+          poetry run pytest -v --tb=short -m "" --durations=15
 
   build:
     name: Build distribution

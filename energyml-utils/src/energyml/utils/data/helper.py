@@ -546,8 +546,48 @@ def _natural_cubic_spline_eval(
             "Install it with: pip install scipy   or   pip install energyml-utils[geometry]"
         ) from exc
 
+    if len(ctrl_params) < 3:
+        # RESQML special case (1): "Natural cubic splines with only two control
+        # points reduce to linear interpolation." CubicSpline also rejects n < 3
+        # for bc_type="natural".
+        return _interp1d_vectorized(ctrl_params, ctrl_pts, query)
+
     cs = CubicSpline(ctrl_params, ctrl_pts, bc_type="natural")
     return cs(query)  # shape (Q, d)
+
+
+def _trim_nan_knots(
+    ctrl_params: Optional[np.ndarray],  # (K,) or None
+    ctrl_pts: np.ndarray,  # (K, 3)
+    tangents: Optional[np.ndarray],  # (K, 3) or None
+) -> Tuple[Optional[np.ndarray], np.ndarray, Optional[np.ndarray]]:
+    """Drop the NaN padding of a single parametric line.
+
+    ``KnotCount`` is the *maximum* number of control points over the whole array of lines, and
+    the RESQML documentation of ``ParametricLineArray`` states for both ``ControlPoints`` and
+    ``ControlPointParameters``: "If you cannot provide enough control points for a parametric
+    line, then pad with NaN values." A straight pillar next to a cubic one therefore carries
+    one real knot and ``KnotCount - 1`` NaN knots.
+
+    Nothing trimmed them, so a single NaN reached ``np.interp`` / ``CubicSpline`` /
+    ``np.searchsorted`` and turned the whole pillar into NaN — silently, since NaN coordinates
+    do not raise. ``rc/epc/80wells_surf_modified_val_color.epc`` has such a grid ("Four faulted
+    sugar cubes with one cubic pillar": 3 knots, but four of its six pillars are vertical).
+
+    A knot is kept when its point *and* its parameter are finite; the retained knots keep their
+    original order, which preserves the "strictly monotonically increasing" business rule.
+    """
+    valid = np.isfinite(ctrl_pts).all(axis=1)
+    if ctrl_params is not None:
+        valid &= np.isfinite(ctrl_params)
+    if valid.all():
+        return ctrl_params, ctrl_pts, tangents
+
+    return (
+        ctrl_params[valid] if ctrl_params is not None else None,
+        ctrl_pts[valid],
+        tangents[valid] if tangents is not None else None,
+    )
 
 
 def _minimum_curvature_eval(
@@ -628,15 +668,35 @@ def _evaluate_one_pillar(
         return np.full((Q, 3), np.nan, dtype=np.float64)
 
     if kind == _PARAMETRIC_KIND_VERTICAL:
-        # Only X, Y stored; Z coordinate = P-value.
-        # ctrl_pts shape (K, 2) or (K, 3) — take only first two coords regardless.
-        x = float(ctrl_pts[0, 0])
-        y = float(ctrl_pts[0, 1])
+        # RESQML: "Vertical: (1) Control points are (X,Y,-). (2) Parameter values are
+        # interpreted as depth => (X,Y,Z)". Only knot 0 carries the X/Y of the line.
+        if len(ctrl_pts) == 0 or not np.isfinite(ctrl_pts[0, :2]).all():
+            return np.full((Q, 3), np.nan, dtype=np.float64)
         out = np.empty((Q, 3), dtype=np.float64)
-        out[:, 0] = x
-        out[:, 1] = y
+        out[:, 0] = float(ctrl_pts[0, 0])
+        out[:, 1] = float(ctrl_pts[0, 1])
         out[:, 2] = query_params
         return out
+
+    # Every remaining kind interpolates over (P, X, Y, Z), so the NaN padding that
+    # ``KnotCount`` forces onto the shorter lines has to go before anything touches it.
+    ctrl_params, ctrl_pts, tangents = _trim_nan_knots(ctrl_params, ctrl_pts, tangents)
+
+    if len(ctrl_pts) == 0:
+        return np.full((Q, 3), np.nan, dtype=np.float64)
+    if len(ctrl_pts) == 1:
+        # A single knot defines a point, not a line: the interpolant is constant.
+        return np.repeat(ctrl_pts[np.newaxis, 0, :3], Q, axis=0).astype(np.float64)
+
+    if ctrl_params is None:
+        # ControlPointParameters is optional in the schema but required to interpolate a
+        # non-vertical line. Z is the conventional parameter, and is what a writer omitting
+        # the array implies; warn rather than return NaN for the whole pillar.
+        logging.warning(
+            f"Parametric line kind={kind} has no control_point_parameters; "
+            "using the Z coordinate of the control points as the parameter."
+        )
+        ctrl_params = np.ascontiguousarray(ctrl_pts[:, 2], dtype=np.float64)
 
     if kind == _PARAMETRIC_KIND_LINEAR:
         return _interp1d_vectorized(ctrl_params, ctrl_pts[:, :3], query_params)
@@ -780,10 +840,11 @@ def evaluate_parametric_line_array(
     pla: Any,
     root_obj: Any,
     workspace: Optional[EnergymlStorageInterface],
-    query_parameters: np.ndarray,  # shape (NKL, n_pillars)
+    query_parameters: np.ndarray,  # shape (NKL, n_columns)
     ni: int,
     nj: int,
-) -> np.ndarray:  # shape (NKL, n_pillars, 3) float64
+    line_indices: Optional[np.ndarray] = None,  # (n_columns,) column → parametric line
+) -> np.ndarray:  # shape (NKL, n_columns, 3) float64
     """
     Evaluate a ``ParametricLineArray`` at the given query P-values and return
     3-D Cartesian coordinates for every grid node.
@@ -791,26 +852,62 @@ def evaluate_parametric_line_array(
     This is the core of the ``Point3dParametricArray`` reader for
     :func:`read_numpy_ijk_grid_representation`.
 
+    **The number of parametric lines is not the number of node columns.** A faulted
+    column-layer grid has ``(NI+1)(NJ+1) + splitCount`` coordinate lines but the
+    ``ParametricLineArray`` only stores the ``(NI+1)(NJ+1)`` pillars: a split coordinate line
+    reuses the parametric line of the pillar it was split from and differs only by its
+    P-values, which is exactly how a fault throw is expressed on a parametric geometry.
+    ``ColumnLayerSplitCoordinateLines.PillarIndices`` carries that mapping — the RESQML
+    documentation of ``Point3dParametricArray.ParametricLineIndices`` names it as the reason
+    the explicit index array may be omitted ("If the mapping has already been specified, as
+    with the pillar Index from the column-layer geometry of a grid").
+
+    Sizing the control-point array from ``query_parameters.shape[1]`` therefore over-counted
+    the lines by ``splitCount``; the leftover factor was absorbed into a "coordinate
+    dimension" that came out as 2 and the reshape raised
+    ``cannot reshape array of size 18 into shape (1,8,2)``. ``ControlPoints`` is an
+    ``AbstractPoint3dArray``, so the coordinate dimension is always 3 and the line count is
+    what has to be derived.
+
     :param pla: A ``ParametricLineArray`` instance (or duck-typed
         ``SimpleNamespace`` from :func:`resolve_parametric_line_array`).
     :param root_obj: Root RESQML object — passed to :func:`read_array` for
         external-dataset resolution.
     :param workspace: Workspace used for HDF5 reads.
-    :param query_parameters: ``(NKL, n_pillars)`` array of parametric
-        P-values (usually depth) at which to evaluate each pillar.
+    :param query_parameters: ``(NKL, n_columns)`` array of parametric
+        P-values (usually depth) at which to evaluate each node column.
     :param ni: Grid cell count in the I direction (``NI``).
     :param nj: Grid cell count in the J direction (``NJ``).
-    :return: ``(NKL, n_pillars, 3)`` float64 array of evaluated XYZ positions.
+    :param line_indices: Optional ``(n_columns,)`` mapping from node column to parametric
+        line index. Defaults to the identity when the counts already match.
+    :return: ``(NKL, n_columns, 3)`` float64 array of evaluated XYZ positions.
     :raises ValueError: If mandatory arrays (control_points, line_kind_indices)
         cannot be read.
     :raises ImportError: Propagated from :func:`_natural_cubic_spline_eval`
         when scipy is missing and kind-2 / kind-4 pillars are present.
     """
-    nkl, n_pillars = query_parameters.shape
+    nkl, n_columns = query_parameters.shape
 
-    knot_count: int = getattr(pla, "knot_count", None)
+    knot_count: int = int(getattr(pla, "knot_count", None) or 1)
 
-    # --- 1. Read control_points ---
+    # --- 1. Read line_kind_indices — it is what states how many lines there are ---
+    # "line_kind_indices: An array of integers indicating the parametric line kind. [...]
+    # Size = #Lines". The line count cannot be inferred from control_points alone: a
+    # (KnotCount, #Lines, 3) array and a (KnotCount, 1.5·#Lines, 2) one have the same number of
+    # values, and back-solving it from the *expected* pillar count is what raised
+    # "cannot reshape array of size 18 into shape (1,8,2)" on every faulted parametric grid.
+    lki_obj = getattr(pla, "line_kind_indices", None)
+    if lki_obj is None:
+        raise ValueError("ParametricLineArray.line_kind_indices is required but absent.")
+    raw_lki = read_array(energyml_array=lki_obj, root_obj=root_obj, workspace=workspace)
+    if not isinstance(raw_lki, np.ndarray):
+        raw_lki = np.array(raw_lki, dtype=np.int32)
+    kinds: np.ndarray = raw_lki.astype(np.int32).flatten()
+    n_lines = len(kinds)
+    if n_lines == 0:
+        raise ValueError("ParametricLineArray.line_kind_indices is empty.")
+
+    # --- 2. Read control_points ---
     cp_obj = getattr(pla, "control_points", None)
     if cp_obj is None:
         raise ValueError("ParametricLineArray.control_points is required but absent.")
@@ -819,26 +916,57 @@ def evaluate_parametric_line_array(
         raw_cp = np.array(raw_cp, dtype=np.float64)
     raw_cp = raw_cp.astype(np.float64)
 
-    # Determine coordinate dimension (2 for vertical-only, 3 otherwise).
-    # The flat array has K*P*d values; we disambiguate using knot_count and n_pillars.
-    n_pillars_base = (ni + 1) * (nj + 1)
-    coord_dim = raw_cp.size // (knot_count * n_pillars) if knot_count and knot_count * n_pillars > 0 else 3
-    if coord_dim not in (2, 3):
-        # Fallback: try 4-D layout (knot, NJ+1, NI+1, d)
-        if raw_cp.size == knot_count * (nj + 1) * (ni + 1) * 3:
-            raw_cp = raw_cp.reshape(knot_count, nj + 1, ni + 1, 3)
-            raw_cp = raw_cp.reshape(knot_count, n_pillars_base, 3)
-            coord_dim = 3
-        else:
-            coord_dim = 3  # safe default
-    ctrl_pts = raw_cp.reshape(knot_count, n_pillars, coord_dim)
+    # "Control points are ordered by lines going fastest, then by knots going slowest"
+    # → (KnotCount, #Lines, coord_dim), whatever shape the writer gave the HDF5 dataset.
+    coord_dim = raw_cp.size // (knot_count * n_lines) if knot_count * n_lines else 0
+    if coord_dim * knot_count * n_lines != raw_cp.size or coord_dim not in (2, 3):
+        raise ValueError(
+            f"ParametricLineArray.control_points holds {raw_cp.size} values, which is not "
+            f"knot_count({knot_count}) × #Lines({n_lines}) × 2 or 3."
+        )
+    if coord_dim == 3:
+        ctrl_pts = raw_cp.reshape(knot_count, n_lines, 3)
+    else:
+        # ControlPoints is an AbstractPoint3dArray, so a conformant writer stores three
+        # coordinates even for vertical lines, whose Z the doc marks unused ("(X,Y,-)").
+        ctrl_pts = np.zeros((knot_count, n_lines, 3), dtype=np.float64)
+        ctrl_pts[:, :, :2] = raw_cp.reshape(knot_count, n_lines, 2)
 
-    # Optional column selection for ParametricLineFromRepresentationLatticeArray.
+    # Optional line selection for ParametricLineFromRepresentationLatticeArray: it picks the
+    # subset of the supporting representation's lines that this grid uses, so it re-defines
+    # the line numbering that `line_indices` below is expressed in.
     col_indices: Optional[np.ndarray] = getattr(pla, "_column_indices", None)
     if col_indices is not None:
         ctrl_pts = ctrl_pts[:, col_indices, :]
+        kinds = kinds[col_indices]
+        n_lines = ctrl_pts.shape[1]
 
-    # --- 2. Read control_point_parameters (may be None for all-vertical) ---
+    # --- 3. Map each node column to its parametric line ---
+    if line_indices is not None:
+        eff_lines = np.asarray(line_indices, dtype=np.int64).flatten()
+        if len(eff_lines) != n_columns:
+            logging.warning(
+                f"line_indices length {len(eff_lines)} ≠ node column count {n_columns}; "
+                "falling back to the identity mapping."
+            )
+            eff_lines = np.arange(n_columns, dtype=np.int64)
+    else:
+        eff_lines = np.arange(n_columns, dtype=np.int64)
+
+    if n_columns != n_lines and line_indices is None:
+        logging.warning(
+            f"ParametricLineArray holds {n_lines} lines for {n_columns} node columns and no "
+            "column→line mapping was supplied; the extra columns cannot be evaluated."
+        )
+    out_of_range = (eff_lines < 0) | (eff_lines >= n_lines)
+    if out_of_range.any():
+        logging.warning(
+            f"{int(out_of_range.sum())} node column(s) reference a parametric line outside "
+            f"[0, {n_lines}); those nodes are returned as NaN."
+        )
+        eff_lines = np.where(out_of_range, 0, eff_lines)
+
+    # --- 4. Read control_point_parameters (may be None for all-vertical) ---
     cpp_obj = getattr(pla, "control_point_parameters", None)
     ctrl_params: Optional[np.ndarray] = None
     if cpp_obj is not None:
@@ -846,40 +974,26 @@ def evaluate_parametric_line_array(
         if not isinstance(raw_cpp, np.ndarray):
             raw_cpp = np.array(raw_cpp, dtype=np.float64)
         raw_cpp = raw_cpp.astype(np.float64).flatten()
-        # Layout: (K * P,) ordered knot-major → reshape to (K, P).
-        if raw_cpp.size == knot_count * n_pillars:
-            ctrl_params = raw_cpp.reshape(knot_count, n_pillars)
+        # Layout: (K * #Lines,) ordered knot-major → reshape to (K, #Lines).
+        n_lines_raw = n_lines if col_indices is None else int(np.max(col_indices)) + 1
+        if raw_cpp.size == knot_count * n_lines_raw:
+            ctrl_params = raw_cpp.reshape(knot_count, n_lines_raw)
         elif raw_cpp.size == knot_count:
-            # Same parameters for all pillars (broadcast).
-            ctrl_params = np.tile(raw_cpp[:, np.newaxis], (1, n_pillars))
+            # Same parameters for all lines (broadcast).
+            ctrl_params = np.tile(raw_cpp[:, np.newaxis], (1, n_lines_raw))
         else:
             logging.warning(
                 f"control_point_parameters size {raw_cpp.size} does not match "
-                f"knot_count={knot_count} × n_pillars={n_pillars}. "
+                f"knot_count={knot_count} × line count={n_lines_raw}. "
                 "Attempting best-effort reshape."
             )
-            ctrl_params = raw_cpp[: knot_count * n_pillars].reshape(knot_count, n_pillars)
+            padded = np.full(knot_count * n_lines_raw, np.nan, dtype=np.float64)
+            padded[: min(raw_cpp.size, padded.size)] = raw_cpp[: padded.size]
+            ctrl_params = padded.reshape(knot_count, n_lines_raw)
         if col_indices is not None:
             ctrl_params = ctrl_params[:, col_indices]
 
-    # --- 3. Read line_kind_indices ---
-    lki_obj = getattr(pla, "line_kind_indices", None)
-    if lki_obj is None:
-        raise ValueError("ParametricLineArray.line_kind_indices is required but absent.")
-    raw_lki = read_array(energyml_array=lki_obj, root_obj=root_obj, workspace=workspace)
-    if not isinstance(raw_lki, np.ndarray):
-        raw_lki = np.array(raw_lki, dtype=np.int32)
-    kinds: np.ndarray = raw_lki.astype(np.int32).flatten()
-    if col_indices is not None:
-        kinds = kinds[col_indices]
-    if len(kinds) != n_pillars:
-        logging.warning(
-            f"line_kind_indices length {len(kinds)} ≠ n_pillars {n_pillars}. "
-            "Broadcasting first kind value to all pillars."
-        )
-        kinds = np.full(n_pillars, kinds[0] if len(kinds) > 0 else _PARAMETRIC_KIND_LINEAR, dtype=np.int32)
-
-    # --- 4. Read tangent_vectors (optional, only for kinds 3 and 5) ---
+    # --- 5. Read tangent_vectors (optional, only for kinds 3 and 5) ---
     tv_obj = getattr(pla, "tangent_vectors", None)
     tangent_vecs: Optional[np.ndarray] = None
     unique_kinds = np.unique(kinds)
@@ -888,33 +1002,25 @@ def evaluate_parametric_line_array(
         raw_tv = read_array(energyml_array=tv_obj, root_obj=root_obj, workspace=workspace)
         if not isinstance(raw_tv, np.ndarray):
             raw_tv = np.array(raw_tv, dtype=np.float64)
-        tangent_vecs = raw_tv.astype(np.float64).reshape(knot_count, n_pillars, 3)
+        n_lines_raw = n_lines if col_indices is None else int(np.max(col_indices)) + 1
+        tangent_vecs = raw_tv.astype(np.float64).reshape(knot_count, n_lines_raw, 3)
         if col_indices is not None:
             tangent_vecs = tangent_vecs[:, col_indices, :]
 
-    # --- 5. Evaluate each pillar ---
-    result = np.empty((nkl, n_pillars, 3), dtype=np.float64)
+    # --- 6. Evaluate each node column on its parametric line ---
+    result = np.empty((nkl, n_columns, 3), dtype=np.float64)
 
-    for p_idx in range(n_pillars):
-        kind = int(kinds[p_idx])
-        q_p = query_parameters[:, p_idx]  # (NKL,) P-values for this pillar
-        cp_p = ctrl_pts[:, p_idx, :]  # (K, d)
-
-        # ctrl_params_p: (K,) — derived from global or pillar-specific params.
-        # For kind=0, ctrl_params is None (vertical) and we pass None.
-        if ctrl_params is not None:
-            cpp_p = ctrl_params[:, p_idx]  # (K,)
-        else:
-            cpp_p = None
-
-        tv_p = tangent_vecs[:, p_idx, :] if tangent_vecs is not None else None  # (K, 3) or None
-
-        result[:, p_idx, :] = _evaluate_one_pillar(
-            kind=kind,
-            ctrl_params=cpp_p,
-            ctrl_pts=cp_p,
-            tangents=tv_p,
-            query_params=q_p,
+    for c_idx in range(n_columns):
+        if out_of_range[c_idx]:
+            result[:, c_idx, :] = np.nan
+            continue
+        line = int(eff_lines[c_idx])
+        result[:, c_idx, :] = _evaluate_one_pillar(
+            kind=int(kinds[line]),
+            ctrl_params=ctrl_params[:, line] if ctrl_params is not None else None,
+            ctrl_pts=ctrl_pts[:, line, :],
+            tangents=tangent_vecs[:, line, :] if tangent_vecs is not None else None,
+            query_params=query_parameters[:, c_idx],
         )
 
     return result

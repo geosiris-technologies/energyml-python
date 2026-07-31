@@ -1,9 +1,10 @@
 """Conformance of the IJK / connection-set readers to the RESQML specification.
 
-Everything here runs against ``rc/epc/80wells_surf_modified_val_color.epc``, whose grids are the
-FESAPI examples: the same grid is shipped left- and right-handed, with explicit and parametric
-geometry, faulted and unfaulted, so the expected values are known from the HDF5 rather than from
-the reader itself.
+Everything here runs against ``rc/epc/testingPackageCpp22.epc`` — the FESAPI example package,
+which is the only fixture family cleared for publication, and which happens to be exactly what
+these tests need: the same grid shipped left- *and* right-handed, explicit *and* parametric
+geometry, faulted and unfaulted, K-gaps, undefined cells, an LGR, and three grid connection
+sets. Expected values are read out of ``testingPackageCpp22.h5``, not produced by the reader.
 
 Run from the workspace root:
     poetry run pytest tests/test_mesh_numpy_ijk_spec.py -v
@@ -20,11 +21,11 @@ from energyml.utils.data.mesh_numpy import (
 )
 
 _WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_EPC_COLOR = os.path.join(_WORKSPACE_ROOT, "rc", "epc", "80wells_surf_modified_val_color.epc")
+_EPC22 = os.path.join(_WORKSPACE_ROOT, "rc", "epc", "testingPackageCpp22.epc")
 
 pytestmark = pytest.mark.skipif(
-    not os.path.isfile(_EPC_COLOR),
-    reason="80wells_surf_modified_val_color.epc not found in rc/epc/",
+    not os.path.isfile(_EPC22),
+    reason="testingPackageCpp22.epc not found in rc/epc/",
 )
 
 
@@ -32,7 +33,7 @@ pytestmark = pytest.mark.skipif(
 def ws():
     from energyml.utils.epc_file import EpcFile
 
-    return EpcFile(_EPC_COLOR)
+    return EpcFile(_EPC22)
 
 
 def _unpack_vtk_cells(mesh) -> list:

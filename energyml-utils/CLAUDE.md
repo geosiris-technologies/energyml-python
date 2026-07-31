@@ -136,6 +136,54 @@ now only requires it to report the frame it produced.
 `read_array_view`, whose contract forbids mutating it (it can be the memory-mapped file). Connectivity arrays keep
 the zero-copy path — they are only read.
 
+**Reader coverage.** Every RESQML representation type has a `read_numpy_*` except `GpGridRepresentation`, which the
+schema itself calls "not expected to be used for routine data transfer". Many are one-line delegations
+(`WellboreMarkerFrame` / `BlockedWellbore` → the wellbore-frame reader, `NonSealedSurfaceFramework` /
+`SealedVolumeFramework` → the representation-set reader, `Seismic2d/3dPostStack` → the lattice or line they
+reference) — dispatch is by function name, so the entry point *is* the registration and each still needs one. Two
+readers deliberately return a partial geometry and say so: `Truncated*GridRepresentation` reads the base grid
+without applying its `TruncationCellPatch`, and an IJK grid whose geometry comes from a `ParentWindow` (an LGR)
+returns empty rather than silently producing nothing.
+
+### The IJK grid reader
+
+`rc/epc/80wells_surf_modified_val_color.epc` holds the FESAPI example grids — the same grid shipped left- *and*
+right-handed, explicit *and* parametric, faulted and not — which is what pins the four rules below.
+`tests/test_mesh_numpy_ijk_spec.py` checks them against values read out of the HDF5, not out of the reader.
+
+- **Cells come out I fastest, then J, then K.** That is the order every cell-indexed array of the grid uses, so a
+  property maps onto the cells without permutation. The arrays make the convention explicit: `CellGeometryIsDefined`
+  is stored `(NK, NJ, NI)` and `PillarGeometryIsDefined` `(NJ+1, NI+1)`.
+- **`GridIsRighthanded` sets the corner winding**, so the emitted hexahedron always has a positive Jacobian. The flag
+  is meant in the real-world sense: with a depth-positive-down local CRS a right-handed grid still measures negative
+  in the LOCAL frame and only comes out positive after `apply_from_crs_info`. Orientation is therefore correct in
+  PROJECTED — the default, and what a viewer renders.
+- **`PillarGeometryIsDefined` / `CellGeometryIsDefined` override the coordinates.** Undefined pillars have their nodes
+  NaN'd; undefined cells become `VTK_EMPTY_CELL` *in place* rather than being dropped, which is what keeps the 1:1
+  match with the cell-indexed properties.
+- **A split coordinate line has no parametric line of its own.** `ParametricLineArray` holds only the `(NI+1)(NJ+1)`
+  pillars; a split line reuses the line of `ColumnLayerSplitCoordinateLines.PillarIndices[s]` and differs only by its
+  P-values — that is how a fault throw is expressed on a parametric geometry, and the doc of
+  `Point3dParametricArray.ParametricLineIndices` names it as the reason the explicit index array may be omitted.
+  The line count must be taken from `LineKindIndices` ("Size = #Lines"), never derived from the expected pillar
+  count: `ControlPoints` is `(KnotCount, #Lines, 3)`, and back-solving a "coordinate dimension" out of it is what
+  raised `cannot reshape array of size 18 into shape (1,8,2)` on every faulted parametric grid.
+
+`KnotCount` is the *maximum* knot count over all the lines, so the shorter ones are **NaN-padded** ("if you cannot
+provide enough control points for a parametric line, then pad with NaN values"). `_trim_nan_knots` drops that
+padding per line before any interpolation; a single NaN reaching `np.interp` / `CubicSpline` / `searchsorted` turns
+the whole pillar into NaN silently, since NaN coordinates never raise.
+
+### Grid connection sets
+
+`read_numpy_grid_connection_set_representation` has no geometry of its own: it looks every face up on the grid(s) it
+references. RESQML publishes the local face-per-cell index only as a figure, stating just that "the top and bottom
+faces always come first, followed by the side faces". `_IJK_LOCAL_FACE_CORNERS` records the rest — the fault sets of
+the fixture all pair face **3** on the cell at I with face **5** on its neighbour at I+1, and those faces resolve to
+the two walls of the fault plane at X=375, which fixes 3 = I+ and 5 = I- and hence the J-, I+, J+, I- cycle of the
+side faces. Both sides of a connection are emitted: across a fault they do not coincide, and drawing one hides the
+throw.
+
 ### Coordinate frames
 
 [crs.py](src/energyml/utils/data/crs.py) owns the whole pipeline; `PointFrame` names its stages:
@@ -220,3 +268,20 @@ v2.2, `80wells_surf.epc`, `SPASS_40+80wells.epc`, …) rather than mock dataclas
 against the actual xsdata classes. Fixtures differ in meaningful ways (list vs ndarray points, CRS present or not,
 EPSG resolvable or not) — when a bug is version- or file-specific, reproduce it on the right fixture before
 concluding. Tests needing an optional dependency skip via a guard (e.g. `is_pyproj_available()`).
+
+**Only `testingPackageCpp.epc` / `testingPackageCpp22.epc` (+ their `.h5`) are committed** — every other EPC of
+`rc/epc/` is field data that stays local, and `.gitignore` re-allows exactly those four. A test that needs one of
+the others must *skip* when it is absent, never fail; on a fresh clone the suite is green with 28 skips. See
+[rc/epc/README.md](rc/epc/README.md), which also lists what the testing packages do **not** cover (no vertical EPSG
+code, no standalone `ProjectedCrs`, no rotation, HDF5 only, small packages).
+
+For grid work the 2.2 testing package is the fixture: it carries the whole FESAPI grid example set (22 IJK grids
+covering explicit and parametric geometry, both handedness values, K-gaps, split coordinate lines, undefined cells
+and an LGR, plus 6 grid connection sets). Read the expected values out of `testingPackageCpp22.h5` — the shape of a
+dataset is often the answer on its own, e.g. `CellGeometryIsDefined` being `(NK, NJ, NI)`.
+
+`pytest` deselects the `slow` marker through `addopts`; CI runs `pytest -m ""` to get everything. Mark a test slow
+when it builds an `EpcStreamReader` over a large package — that inflates every part (~50 s on
+`SPASS_40+80wells.epc`). `EpcStreamReader` also **rewrites the archive when it closes**, even after a read-only
+session, so never point one at a committed fixture: use the `writable_copy` fixture, which copies the EPC under its
+original basename into a temp directory together with its sibling `.h5`.

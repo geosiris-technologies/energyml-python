@@ -32,27 +32,41 @@ ALL_FIXTURES = [EPC_201, EPC_22, EPC_BIG]
 
 @pytest.fixture(params=ALL_FIXTURES, ids=lambda p: os.path.basename(p))
 def fixture_epc(request):
-    """Read-only access to each real EPC fixture."""
+    """Read-only access to each real EPC fixture.
+
+    ``rc/**/*.epc`` is git-ignored and only the fixtures the tests need are force-added, so a
+    working copy may legitimately be missing one. Skip rather than error: an absent fixture is
+    not a failing behaviour.
+    """
+    if not os.path.isfile(request.param):
+        pytest.skip(f"fixture {os.path.basename(request.param)} not present in rc/epc/")
     return request.param
 
 
 @pytest.fixture
 def writable_copy():
-    """A throwaway copy of a fixture, so tests may modify it."""
+    """A throwaway copy of a fixture, so tests may modify it.
+
+    The copy keeps its original basename inside a temporary directory, and any sibling ``.h5``
+    goes with it: an EPC references its external arrays by relative path, so a copy renamed to
+    ``tmpXXXX.epc`` or dropped next to no HDF5 can be indexed but not read.
+    """
     created = []
 
     def _copy(source=EPC_22):
-        fd, path = tempfile.mkstemp(suffix=".epc")
-        os.close(fd)
+        directory = tempfile.mkdtemp()
+        created.append(directory)
+        path = os.path.join(directory, os.path.basename(source))
         shutil.copy(source, path)
-        created.append(path)
+        h5 = os.path.splitext(source)[0] + ".h5"
+        if os.path.isfile(h5):
+            shutil.copy(h5, os.path.join(directory, os.path.basename(h5)))
         return path
 
     yield _copy
 
-    for path in created:
-        if os.path.exists(path):
-            os.unlink(path)
+    for directory in created:
+        shutil.rmtree(directory, ignore_errors=True)
 
 
 @pytest.fixture
@@ -82,11 +96,16 @@ def sample_objects():
 
 
 class TestIndexing:
-    def test_opening_does_not_read_the_parts(self, fixture_epc):
+    @pytest.mark.slow
+    def test_opening_does_not_read_the_parts(self, fixture_epc, writable_copy):
         """
         The index costs the central directory plus the content types. The only
         parts read are the ones the content types fail to describe, and then only
         their first bytes.
+
+        Marked slow: the comparison builds an :class:`EpcStreamReader`, which reads the full XML
+        of every part — that is the very cost this test exists to show `EpcFile` avoids, and it
+        alone accounts for ~50 s on ``SPASS_40+80wells.epc``. Run it with ``pytest -m ""``.
         """
         with EpcFile(fixture_epc, mode=EpcAccessMode.READ_ONLY) as epc:
             assert len(epc) > 0
@@ -95,7 +114,9 @@ class TestIndexing:
             content_types_size = len(epc.get_part(get_epc_content_type_path()) or b"")
             assert epc.stats.bytes_read <= 2 * content_types_size + epc.stats.head_reads * epc.head_size
 
-        reader = EpcStreamReader(fixture_epc)
+        # On a throwaway copy: EpcStreamReader rewrites the archive when it closes, even after a
+        # read-only session, and the fixtures of rc/epc/ are committed.
+        reader = EpcStreamReader(writable_copy(fixture_epc))
         try:
             assert epc.stats.bytes_read < reader.stats.bytes_read
         finally:
@@ -124,12 +145,17 @@ class TestIndexing:
             epc.list_objects(resolve_titles=True)
             assert epc.stats.head_reads > before
 
-    def test_index_agrees_with_epc_stream_reader(self, fixture_epc):
+    @pytest.mark.slow
+    def test_index_agrees_with_epc_stream_reader(self, fixture_epc, writable_copy):
         """
         Same object set as the existing implementation, on packages whose content
         types are sound.
+
+        Marked slow for the same reason as
+        :meth:`test_opening_does_not_read_the_parts`: ``EpcStreamReader.list_objects`` inflates
+        every part of the archive. Run it with ``pytest -m ""``.
         """
-        reader = EpcStreamReader(fixture_epc)
+        reader = EpcStreamReader(writable_copy(fixture_epc))  # see above: it rewrites on close
         try:
             reference = {metadata.uuid for metadata in reader.list_objects()}
         finally:
@@ -618,11 +644,11 @@ class TestExternalArrays:
             paths = epc.get_h5_file_paths(metadata.uuid)
             assert isinstance(paths, list)
 
-    def test_read_array_matches_epc_stream_reader(self):
+    def test_read_array_matches_epc_stream_reader(self, writable_copy):
         """Both implementations must return the same arrays for the same object."""
         import numpy as np
 
-        reader = EpcStreamReader(EPC_22)
+        reader = EpcStreamReader(writable_copy(EPC_22))  # it rewrites the archive on close
         try:
             candidates = [
                 metadata for metadata in reader.list_objects() if "Representation" in (metadata.object_type or "")

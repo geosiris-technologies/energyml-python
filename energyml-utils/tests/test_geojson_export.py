@@ -36,6 +36,10 @@ requires_pyproj = pytest.mark.skipif(not is_pyproj_available(), reason="requires
 
 @pytest.fixture(scope="module")
 def epc() -> Epc:
+    # rc/**/*.epc is git-ignored and only the needed fixtures are force-added, so a working copy
+    # may legitimately lack this one — skip instead of erroring out of the fixture setup.
+    if not _EPC_PATH.is_file():
+        pytest.skip(f"fixture {_EPC_PATH.name} not present in rc/epc/")
     return Epc.read_file(str(_EPC_PATH))
 
 
