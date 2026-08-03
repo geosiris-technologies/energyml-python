@@ -217,9 +217,32 @@ that registry. Adding a format is a module and one `register_format` call, not s
 Every writer takes `frame=` and `origin_shift=`, not just GeoJSON. `use_crs_displacement` is kept and simply
 selects the default frame (`PROJECTED` / `LOCAL`).
 
-GeoJSON has **one** geometry implementation: the streaming writer (bounded memory). `to_geojson_feature` and
-`export_geojson_dict` serialise through it and parse the result back. Note `export_geojson_dict` now reprojects to
-WGS84 by default, where it used to emit non-RFC-7946 output silently; pass `to_wgs84=False` for the old behaviour.
+GeoJSON has **two** collection builders, and they are not interchangeable — the claim that only the streaming one
+was left was wrong:
+
+| | `export_geojson` | `export_geojson_io` (and `export_geojson_dict`, which wraps it) |
+|---|---|---|
+| used by | the registry, so `export_mesh` | `export_multiple_data`, so `extract_3d` |
+| output | builds the dict, `json.dump` | streams, bounded memory |
+| single line | `LineString` | `MultiLineString` |
+
+Both now accept **either mesh family** and every container shape, and both declare a `bbox`. Keeping them apart is
+deliberate: the streaming one is what keeps a large export's memory bounded, the registry one is what carries
+`frame` / `origin_shift` / colour contexts. What must *not* diverge again is the geometry decision, so it lives in
+one place:
+
+- `mesh_to_geojson_type(mesh)` — the only mapping from a mesh class to a geometry kind. `export_geojson` used to
+  repeat it with an `isinstance` chain that had no point-set branch, so a legacy `PointSetMesh` — points and *no*
+  indices, by design — fell through a loop over its empty index list and exported as **zero features**.
+- `mesh_points(mesh)` / `mesh_indices(mesh)` — the coordinate and connectivity accessors. The legacy containers
+  expose `point_list` / `get_indices()`, the numpy ones `points` and a VTK-flat array; the streaming writer only
+  knew the first pair, so handing it a `NumpyMultiMesh` raised `TypeError: 'NumpyMultiMesh' object is not iterable`.
+
+`tests/test_geojson_features.py::TestEveryEntryPointAcceptsBothMeshFamilies` pins the equivalence: three builders ×
+two families × three geometry kinds.
+
+Note `export_geojson_dict` now reprojects to WGS84 by default, where it used to emit non-RFC-7946 output silently;
+pass `to_wgs84=False` for the old behaviour.
 
 **One patch = one feature.** `export_geojson` (the registry writer, so `export_mesh` and `extract_3d`) emits a
 `MultiPolygon` / `MultiLineString` per patch, degrading to `Polygon` / `LineString` when the patch holds a single

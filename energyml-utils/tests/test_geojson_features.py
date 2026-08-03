@@ -13,6 +13,7 @@ import json
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from energyml.utils.data.export._base import GeoJSONExportOptions
 from energyml.utils.data.export.geojson import export_geojson
@@ -185,3 +186,90 @@ class TestPackageDefaultCrs:
         from energyml.utils.data.helper import get_package_default_crs
 
         assert get_package_default_crs(None) is None
+
+
+class TestEveryEntryPointAcceptsBothMeshFamilies:
+    """The GeoJSON API has three public collection builders; they must agree.
+
+    ``export_geojson`` (the registry writer, so ``export_mesh``) and ``export_geojson_io`` /
+    ``export_geojson_dict`` (the streaming pair, used by ``export_multiple_data``) used to
+    accept different mesh families and different geometry kinds:
+
+    * the registry writer classified meshes with its own ``isinstance`` chain that had no
+      point-set branch, so a legacy ``PointSetMesh`` exported as **zero** features;
+    * the streaming pair reached for ``mesh.point_list``, so any numpy mesh raised
+      ``TypeError: 'NumpyMultiMesh' object is not iterable``.
+    """
+
+    @staticmethod
+    def _legacy(kind: str):
+        from energyml.utils.data.mesh import PointSetMesh, PolylineSetMesh, SurfaceMesh
+
+        points = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 1.0], [1.0, 1.0, 2.0], [0.0, 1.0, 3.0]])
+        if kind == "points":
+            return PointSetMesh(identifier="m", point_list=points)
+        if kind == "lines":
+            return PolylineSetMesh(identifier="m", point_list=points, line_indices=[[0, 1, 2, 3]])
+        return SurfaceMesh(identifier="m", point_list=points, faces_indices=[[0, 1, 2], [0, 2, 3]])
+
+    @staticmethod
+    def _numpy(kind: str):
+        points = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 1.0], [1.0, 1.0, 2.0], [0.0, 1.0, 3.0]])
+        if kind == "points":
+            return NumpyPointSetMesh(identifier="m", points=points, frame=PointFrame.PROJECTED)
+        if kind == "lines":
+            return NumpyPolylineMesh(
+                identifier="m",
+                points=points,
+                lines=np.array([4, 0, 1, 2, 3], dtype=np.int64),
+                frame=PointFrame.PROJECTED,
+            )
+        return NumpySurfaceMesh(
+            identifier="m",
+            points=points,
+            faces=np.array([3, 0, 1, 2, 3, 0, 2, 3], dtype=np.int64),
+            frame=PointFrame.PROJECTED,
+        )
+
+    @staticmethod
+    def _all_entry_points(mesh):
+        """Return the feature list produced by each of the three builders."""
+        from energyml.utils.data.export.geojson import export_geojson_dict, export_geojson_io
+
+        registry_buffer = io.StringIO()
+        export_geojson(mesh, registry_buffer, GeoJSONExportOptions(to_wgs84=False, include_metadata=False))
+        registry = json.loads(registry_buffer.getvalue())
+
+        io_buffer = io.BytesIO()
+        export_geojson_io(out=io_buffer, mesh_list=mesh, to_wgs84=False, include_metadata=False)
+        streamed = json.loads(io_buffer.getvalue().decode("utf-8"))
+
+        as_dict = export_geojson_dict(mesh, to_wgs84=False, include_metadata=False)
+        return {"export_geojson": registry, "export_geojson_io": streamed, "export_geojson_dict": as_dict}
+
+    @pytest.mark.parametrize("kind", ["points", "lines", "polygons"])
+    @pytest.mark.parametrize("family", ["legacy", "numpy"])
+    def test_every_builder_emits_one_feature(self, kind, family):
+        mesh = self._legacy(kind) if family == "legacy" else self._numpy(kind)
+        for name, doc in self._all_entry_points(mesh).items():
+            features = doc.get("features", [])
+            assert len(features) == 1, f"{name} produced {len(features)} feature(s) for {family}/{kind}"
+            geometry_type = features[0]["geometry"]["type"]
+            expected = {"points": "MultiPoint", "lines": ("LineString", "MultiLineString"),
+                        "polygons": ("Polygon", "MultiPolygon")}[kind]
+            assert geometry_type in (expected if isinstance(expected, tuple) else (expected,)), (
+                f"{name} gave {geometry_type} for {family}/{kind}"
+            )
+
+    @pytest.mark.parametrize("kind", ["points", "lines", "polygons"])
+    def test_every_builder_declares_a_bbox(self, kind):
+        for name, doc in self._all_entry_points(self._numpy(kind)).items():
+            assert doc.get("bbox"), f"{name} declared no bbox for {kind}"
+
+    @pytest.mark.parametrize("kind", ["points", "lines", "polygons"])
+    def test_the_two_families_give_the_same_coordinates(self, kind):
+        """A legacy mesh and the numpy mesh it came from must export identically."""
+        legacy = self._all_entry_points(self._legacy(kind))
+        numpy_meshes = self._all_entry_points(self._numpy(kind))
+        for name in legacy:
+            assert legacy[name]["features"][0]["geometry"] == numpy_meshes[name]["features"][0]["geometry"], name

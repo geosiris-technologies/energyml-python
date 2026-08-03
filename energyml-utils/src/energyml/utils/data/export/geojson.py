@@ -209,8 +209,8 @@ def export_geojson(
     :param contexts: Optional colour / metadata context dict.
     :param use_crs_displacement: Apply CRS displacement to ``NumpyMesh`` points.
     """
-    from energyml.utils.data.mesh import PolylineSetMesh, SurfaceMesh
-    from energyml.utils.data.mesh_numpy import NumpyMesh, NumpyPointSetMesh, NumpyPolylineMesh
+    # Only NumpyMesh is still needed: the per-class dispatch moved to mesh_to_geojson_type.
+    from energyml.utils.data.mesh_numpy import NumpyMesh
     from energyml.utils.introspection import get_object_metadata
 
     if options is None:
@@ -271,34 +271,47 @@ def export_geojson(
         # a 882-triangle surface became 882 features carrying 882 copies of its citation, and
         # a wellbore came out as N-1 two-point LineStrings instead of one line.
         # `explode_elements` restores the old behaviour for callers that relied on it.
+        #
+        # The geometry kind comes from `mesh_to_geojson_type`, shared with the streaming writer,
+        # rather than from a second isinstance chain: that chain had no point-set branch, so a
+        # legacy PointSetMesh (points, no indices) exported as an empty FeatureCollection.
         lines_coords: List[list] = []
         rings_coords: List[list] = []
+        geo_kind = mesh_to_geojson_type(mesh)
 
-        if isinstance(mesh, NumpyMesh):
-            if isinstance(mesh, NumpyPointSetMesh):
-                features.append(_feature({"type": "MultiPoint", "coordinates": pts.tolist()}))
-            elif isinstance(mesh, NumpyPolylineMesh):
+        if geo_kind == GeoJsonGeometryType.MultiPoint:
+            features.append(_feature({"type": "MultiPoint", "coordinates": pts.tolist()}))
+        elif geo_kind == GeoJsonGeometryType.MultiLineString:
+            if isinstance(mesh, NumpyMesh):
                 lines_coords = [pts[seg].tolist() for seg in _parse_vtk_flat_lines(mesh.lines) if len(seg) >= 2]
             else:
-                # NumpySurfaceMesh / NumpyVolumeMesh
-                for face in _parse_vtk_flat_faces(_get_faces_or_cells(mesh)):
-                    if len(face) < 3:
-                        continue
-                    ring = pts[face].tolist()
-                    ring.append(ring[0])  # close ring
-                    rings_coords.append(ring)
-        else:
-            # AbstractMesh legacy path — .tolist() because json.dump rejects numpy scalars
-            for elem in mesh.get_indices():
-                idx = np.asarray(elem, dtype=np.int64)
-                if isinstance(mesh, PolylineSetMesh):
+                # .tolist() because json.dump rejects numpy scalars
+                for elem in mesh.get_indices():
+                    idx = np.asarray(elem, dtype=np.int64)
                     if len(idx) >= 2:
                         lines_coords.append(pts[idx].tolist())
-                elif isinstance(mesh, SurfaceMesh):
-                    if len(idx) >= 3:
-                        ring = pts[idx].tolist()
-                        ring.append(ring[0])
-                        rings_coords.append(ring)
+        else:  # MultiPolygon
+            faces = (
+                _parse_vtk_flat_faces(_get_faces_or_cells(mesh))
+                if isinstance(mesh, NumpyMesh)
+                else [np.asarray(elem, dtype=np.int64) for elem in mesh.get_indices()]
+            )
+            for face in faces:
+                if len(face) < 3:
+                    continue
+                ring = pts[face].tolist()
+                ring.append(ring[0])  # close ring
+                rings_coords.append(ring)
+
+        if geo_kind != GeoJsonGeometryType.MultiPoint and not lines_coords and not rings_coords:
+            # Points but no usable connectivity: export the cloud rather than nothing at all.
+            log.warning(
+                "GeoJSON export: %s carries %d point(s) but no %s element — exported as a point cloud.",
+                type(mesh).__name__,
+                len(pts),
+                "line" if geo_kind == GeoJsonGeometryType.MultiLineString else "face",
+            )
+            features.append(_feature({"type": "MultiPoint", "coordinates": pts.tolist()}))
 
         if options.explode_elements:
             for seg_idx, coords in enumerate(lines_coords):
@@ -745,7 +758,8 @@ def to_geojson_feature(
                             RFC 7946 ``"Feature"``; ``"AnyCrs"`` marks non-WGS84 coordinates.
     :param feature_id: value of the RFC 7946 ``id`` member (the energyml uuid, typically).
     """
-    if mesh.point_list is None or len(mesh.point_list) == 0:
+    raw_points = mesh_points(mesh)
+    if raw_points is None or len(raw_points) == 0:
         return {}
 
     buffer = BytesIO()
@@ -775,9 +789,9 @@ def write_geojson_feature(
     logger=None,
     feature_id: Optional[str] = None,
     indent: Optional[Union[int, str, _JsonIndent]] = None,
-) -> None:
+) -> Tuple[List[float], List[float]]:
     """
-    Write a single GeoJSON Feature.
+    Write a single GeoJSON Feature, and return its ``(mins, maxs)`` extents.
 
     :param geo_type_prefix: prefix of the ``type`` member. Empty (default) for a standard
                             RFC 7946 ``"Feature"``; the historical ``"AnyCrs"`` value marks
@@ -788,11 +802,12 @@ def write_geojson_feature(
                    for what is indented and what deliberately is not.
     """
     ind = _JsonIndent.coerce(indent)
-    if mesh.point_list is not None and len(mesh.point_list) > 0:
-        # point_list / indices may be numpy arrays : json.dumps only accepts plain python types
-        points = _as_json_ready_list(mesh.point_list)
+    raw_points = mesh_points(mesh)
+    if raw_points is not None and len(raw_points) > 0:
+        # points / indices may be numpy arrays : json.dumps only accepts plain python types
+        points = _as_json_ready_list(raw_points)
 
-        indices = _as_json_ready_list(mesh.get_indices())
+        indices = _as_json_ready_list(mesh_indices(mesh))
         # polygon must have the first and last point as the same
         if geo_type == GeoJsonGeometryType.Polygon or geo_type == GeoJsonGeometryType.MultiPolygon:
             if logger is not None:
@@ -862,19 +877,68 @@ def write_geojson_feature(
 
         out.write(ind.close())
         out.write(b"}")  # End feature
+        # The extents are already computed to write the per-geometry bbox; returning them lets
+        # the caller build the collection-level one without a second pass over the coordinates.
+        return bbox_geometry[: len(bbox_geometry) // 2], bbox_geometry[len(bbox_geometry) // 2 :]
+
+    return [], []
 
 
-def mesh_to_geojson_type(obj: "AbstractMesh") -> GeoJsonGeometryType:
-    """Pick the GeoJSON geometry type matching the legacy mesh class of *obj*."""
+def mesh_points(mesh: Any) -> Any:
+    """Coordinates of *mesh*, whatever mesh family it belongs to.
+
+    The legacy containers expose ``point_list``, the numpy ones ``points``. The streaming
+    writer only knew the first, so passing it a ``NumpyMultiMesh`` raised
+    ``TypeError: 'NumpyMultiMesh' object is not iterable`` — the two halves of the GeoJSON API
+    accepted different mesh families.
+    """
+    points = getattr(mesh, "point_list", None)
+    return getattr(mesh, "points", None) if points is None else points
+
+
+def mesh_indices(mesh: Any) -> List[List[int]]:
+    """Connectivity of *mesh* as a list of index lists, whatever mesh family it belongs to.
+
+    Legacy meshes already store it that way; numpy ones store the VTK flat encoding, decoded
+    here. A point set has no connectivity in either family and yields ``[]``.
+    """
+    from energyml.utils.data.mesh_numpy import NumpyMesh, NumpyPolylineMesh
+
+    if not isinstance(mesh, NumpyMesh):
+        return mesh.get_indices()
+
+    if isinstance(mesh, NumpyPolylineMesh):
+        return [idx.tolist() for idx in _parse_vtk_flat_lines(mesh.lines)]
+    connectivity = _get_faces_or_cells(mesh)
+    if connectivity is None or len(connectivity) == 0:
+        return []
+    return [idx.tolist() for idx in _parse_vtk_flat_faces(connectivity)]
+
+
+def mesh_to_geojson_type(obj: Any) -> GeoJsonGeometryType:
+    """Pick the GeoJSON geometry type matching *obj*, whatever mesh family it belongs to.
+
+    The single place that maps a mesh class to a geometry kind. The registry writer used to
+    repeat the rule with its own ``isinstance`` chain and had no branch for a point set, so a
+    ``PointSetMesh`` — which legitimately carries points and *no* indices — went through a loop
+    over its (empty) index list and produced a FeatureCollection with zero features.
+
+    Surfaces and volumes become polygons, poly-lines become lines, and anything else is a point
+    cloud: a mesh with no connectivity still has coordinates worth exporting.
+    """
     # Imported lazily: mesh.py imports this module, so a module-level import would be circular.
     from energyml.utils.data.mesh import PolylineSetMesh, SurfaceMesh
+    from energyml.utils.data.mesh_numpy import (
+        NumpyPolylineMesh,
+        NumpySurfaceMesh,
+        NumpyVolumeMesh,
+    )
 
-    if isinstance(obj, SurfaceMesh):
+    if isinstance(obj, (SurfaceMesh, NumpySurfaceMesh, NumpyVolumeMesh)):
         return GeoJsonGeometryType.MultiPolygon
-    elif isinstance(obj, PolylineSetMesh):
+    if isinstance(obj, (PolylineSetMesh, NumpyPolylineMesh)):
         return GeoJsonGeometryType.MultiLineString
-    else:
-        return GeoJsonGeometryType.MultiPoint
+    return GeoJsonGeometryType.MultiPoint
 
 
 def _geojson_mesh_metadata(mesh: "AbstractMesh", workspace: Optional["EnergymlStorageInterface"] = None) -> Dict:
@@ -923,11 +987,12 @@ def _geojson_reproject_mesh(
     crs_obj = getattr(mesh, "crs_object", None)
     if isinstance(crs_obj, list):
         crs_obj = crs_obj[0] if crs_obj else None
-    if crs_obj is None or mesh.point_list is None or len(mesh.point_list) == 0:
+    raw_points = mesh_points(mesh)
+    if crs_obj is None or raw_points is None or len(raw_points) == 0:
         return mesh, False, None, None
 
     crs_info = extract_crs_info(crs_obj, workspace)
-    points = np.asarray(mesh.point_list, dtype=np.float64).reshape(-1, 3)
+    points = np.asarray(raw_points, dtype=np.float64).reshape(-1, 3)
     framed = to_frame(
         points,
         crs_info,
@@ -944,8 +1009,13 @@ def _geojson_reproject_mesh(
         )
         return mesh, False, crs_info.projected_epsg_code, crs_info.vertical_epsg_code
 
+    # The coordinate field is named differently in the two mesh families.
+    coordinate_field = "point_list" if hasattr(mesh, "point_list") else "points"
+    reprojected = (
+        framed.points.tolist() if coordinate_field == "point_list" else framed.points
+    )
     return (
-        replace(mesh, point_list=framed.points.tolist(), frame=framed.frame),
+        replace(mesh, **{coordinate_field: reprojected}, frame=framed.frame),
         True,
         crs_info.projected_epsg_code,
         crs_info.vertical_epsg_code,
@@ -991,12 +1061,18 @@ def export_geojson_io(
                    the same as the compact one — far less than serialising, re-reading and
                    re-dumping the document with ``json.dumps(indent=...)``.
     """
+    # Accept both mesh families and every container shape, like the registry writer: a caller
+    # holding the NumpyMultiMesh returned by read_numpy_mesh_object used to get
+    # `TypeError: 'NumpyMultiMesh' object is not iterable` here.
+    mesh_list = _normalize_to_patches(mesh_list)
+
     # the source index is kept so that `properties` stays aligned on `mesh_list`
-    exported: List[Tuple[int, AbstractMesh, Dict]] = []
+    exported: List[Tuple[int, Any, Dict]] = []
     crs_states: set = set()
 
     for mesh_index, mesh in enumerate(mesh_list):
-        if mesh.point_list is None or len(mesh.point_list) == 0:
+        mesh_pts = mesh_points(mesh)
+        if mesh_pts is None or len(mesh_pts) == 0:
             # write_geojson_feature() would write nothing for it; dropping it here keeps the
             # separator logic below exact (an empty mesh in last position used to leave a
             # trailing comma, which is not valid JSON).
@@ -1053,12 +1129,14 @@ def export_geojson_io(
 
     cpt = 0
     point_offset = 0
+    collection_mins: List[float] = []
+    collection_maxs: List[float] = []
 
     for mesh_index, mesh, feature_properties in exported:
         if cpt > 0:
             out.write(ind.sep())
         explicit = properties[mesh_index] if properties is not None and len(properties) > mesh_index else None
-        write_geojson_feature(
+        mins, maxs = write_geojson_feature(
             out=out,
             mesh=mesh,
             geo_type=mesh_to_geojson_type(mesh),
@@ -1070,11 +1148,20 @@ def export_geojson_io(
             logger=logger,
             indent=ind,
         )
+        _recompute_min_max(collection_mins, collection_maxs, mins, maxs)
         cpt += 1
-        point_offset = point_offset + len(mesh.point_list)
+        point_offset = point_offset + len(mesh_points(mesh))
 
     out.write(ind.close())
     out.write(b"]")  # end features
+
+    # RFC 7946 §5: a FeatureCollection may carry a bbox. It is written after the features
+    # because the extents are only known once they have all been streamed out — member order
+    # carries no meaning in JSON.
+    if collection_mins and collection_maxs:
+        out.write(ind.sep())
+        out.write(f'"bbox": {json.dumps(collection_mins + collection_maxs)}'.encode())
+
     out.write(ind.close())
     out.write(b"}")  # end geojson
 
