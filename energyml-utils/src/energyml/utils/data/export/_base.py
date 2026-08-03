@@ -1,3 +1,5 @@
+# Copyright (c) 2023-2024 Geosiris.
+# SPDX-License-Identifier: Apache-2.0
 """Shared building blocks of the export package: formats, options and geometry helpers."""
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ import numpy as np
 if TYPE_CHECKING:
     from energyml.utils.data.crs import PointFrame
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # VTK cell-type constants (subset)
@@ -218,7 +220,7 @@ def drop_empty_patches(meshes: Any, raise_when_empty: bool = False) -> List[Any]
         kept.append(patch)
 
     if dropped:
-        logging.warning(
+        logger.warning(
             f"{dropped} of {len(patches)} patch(es) hold no point and were dropped from the export "
             "— their external arrays were most likely unreadable."
         )
@@ -315,7 +317,7 @@ def _get_export_points(
         )
         return framed.points, framed.frame, framed.origin_shift
     except Exception as exc:  # pragma: no cover
-        log.warning("Frame conversion to %s failed for %s: %s", target.value, getattr(mesh, "source_uuid", None), exc)
+        logger.warning("Frame conversion to %s failed for %s: %s", target.value, getattr(mesh, "source_uuid", None), exc)
         return points, current, None
 
 
@@ -365,7 +367,7 @@ def _get_context_color(
     try:
         return ctx.primary_color.to_uint8()
     except Exception as exc:  # pragma: no cover
-        log.debug("Failed to read color for %s: %s", source_uuid, exc)
+        logger.debug("Failed to read color for %s: %s", source_uuid, exc)
     return None
 
 
@@ -394,3 +396,18 @@ def _get_faces_or_cells(mesh: Any) -> np.ndarray:
     if cells is not None and len(cells) > 0:
         return cells
     return np.empty(0, dtype=np.int64)
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "ExportFormat",
+    "ExportOptions",
+    "STLExportOptions",
+    "VTKFormat",
+    "VTKExportOptions",
+    "GeoJSONExportOptions",
+    "EmptyMeshError",
+    "drop_empty_patches",
+    "resolve_origin_shift",
+]

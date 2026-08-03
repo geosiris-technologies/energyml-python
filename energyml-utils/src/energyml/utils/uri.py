@@ -168,3 +168,13 @@ def create_uri_from_content_type_or_qualified_type(ct_or_qt: str, uuid: str, ver
                 f"Failed to parse content type or qualified type: {ct_or_qt} -- {m}"
             ) from e
     raise NotUriError(f"Unable to parse content type: {ct_or_qt}")
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "Uri",
+    "parse_uri_raise_if_failed",
+    "parse_uri",
+    "create_uri_from_content_type_or_qualified_type",
+]

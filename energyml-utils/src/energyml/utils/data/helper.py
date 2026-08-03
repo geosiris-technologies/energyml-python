@@ -94,7 +94,7 @@ def is_z_reversed(crs: Optional[Any], workspace: Optional[EnergymlStorageInterfa
     :return: By default, ``False`` is returned when *crs* is ``None``.
     """
     result = extract_crs_info(crs, workspace).z_increasing_downward
-    # logging.debug(f"is_z_reversed: {result}")
+    # logger.debug(f"is_z_reversed: {result}")
     return result
 
 
@@ -222,7 +222,7 @@ def get_crs_origin_offset(crs_obj: Any) -> np.ndarray:
             dtype=np.float64,
         )
     except Exception as e:
-        logging.info(f"ERR reading crs offset {e}")
+        logger.info(f"ERR reading crs offset {e}")
         return np.zeros(3, dtype=np.float64)
 
 
@@ -311,18 +311,18 @@ def prod_n_tab(val: Union[float, int, str], tab: List[Union[float, int, str]]):
     """
     if val is None:
         return [None] * len(tab)
-    # logging.debug(f"Multiplying list by {val}: {tab}")
+    # logger.debug(f"Multiplying list by {val}: {tab}")
     # Convert to numpy array for vectorized operations, handling None values
     arr = np.array(tab, dtype=object)
-    # logging.debug(f"arr: {arr}")
+    # logger.debug(f"arr: {arr}")
     # Create mask for non-None values
     mask = arr != None  # noqa: E711
     # Create result array filled with None
     result = np.full(len(tab), None, dtype=object)
-    # logging.debug(f"result before multiplication: {result}")
+    # logger.debug(f"result before multiplication: {result}")
     # Multiply only non-None values
     result[mask] = arr[mask].astype(float) * val
-    # logging.debug(f"result after multiplication: {result}")
+    # logger.debug(f"result after multiplication: {result}")
     return result.tolist()
 
 
@@ -379,25 +379,25 @@ def get_crs_obj(
     :return:
     """
     if workspace is None:
-        logging.error("@get_crs_obj no Epc file given")
+        logger.error("@get_crs_obj no Epc file given")
     else:
         crs_list = search_attribute_matching_name(context_obj, r"\.*Crs", search_in_sub_obj=True, deep_search=False)
         if crs_list is not None and len(crs_list) > 0 and crs_list[0] is not None:
-            # logging.debug(crs_list[0])
+            # logger.debug(crs_list[0])
             crs = workspace.get_object(get_obj_uri(crs_list[0]))
-            # logging.debug(f"CRS found for {get_obj_title(context_obj)} ({type(context_obj).__name__}): {crs}")
+            # logger.debug(f"CRS found for {get_obj_title(context_obj)} ({type(context_obj).__name__}): {crs}")
             if crs is None:
                 # if a wrong version is written in DOR
-                # logging.debug(f"CRS {crs_list[0]} not found (or not read correctly)")
+                # logger.debug(f"CRS {crs_list[0]} not found (or not read correctly)")
                 _crs_list = workspace.get_object_by_uuid(get_obj_uuid(crs_list[0]))
                 crs = _crs_list[0] if _crs_list is not None and len(_crs_list) > 0 else None
             if crs is None:
-                logging.error(f"CRS {crs_list[0]} not found (or not read correctly)")
+                logger.error(f"CRS {crs_list[0]} not found (or not read correctly)")
                 raise ObjectNotFoundNotError(get_obj_uri(crs_list[0]))
             if crs is not None:
                 return crs
         else:
-            logging.debug(f"No CRS found for {get_obj_title(context_obj)} with type {type(context_obj).__name__}")
+            logger.debug(f"No CRS found for {get_obj_title(context_obj)} with type {type(context_obj).__name__}")
 
         if context_obj != root_obj:
             upper_path = path_parent_attribute(path_in_root)
@@ -468,19 +468,19 @@ def get_package_default_crs(workspace: Optional[EnergymlStorageInterface]) -> Op
             if len(found) == 1:
                 result = workspace.get_object(str(found[0].uri))
                 if result is not None:
-                    logging.info(
+                    logger.info(
                         f"No CRS referenced by the representation; falling back to the only "
                         f"{type(result).__name__} of the package ({found[0].uuid})."
                     )
                 break
-            logging.warning(
+            logger.warning(
                 f"No CRS referenced by the representation and the package declares "
                 f"{len(found)} {found[0].object_type} — none can be chosen, the coordinates "
                 "stay in their source frame."
             )
             break
     except Exception as exc:
-        logging.debug(f"Cannot look for a package default CRS: {type(exc).__name__}: {exc}")
+        logger.debug(f"Cannot look for a package default CRS: {type(exc).__name__}: {exc}")
 
     try:
         workspace._energyml_default_crs = result
@@ -768,7 +768,7 @@ def _evaluate_one_pillar(
         # ControlPointParameters is optional in the schema but required to interpolate a
         # non-vertical line. Z is the conventional parameter, and is what a writer omitting
         # the array implies; warn rather than return NaN for the whole pillar.
-        logging.warning(
+        logger.warning(
             f"Parametric line kind={kind} has no control_point_parameters; "
             "using the Z coordinate of the control points as the parameter."
         )
@@ -782,7 +782,7 @@ def _evaluate_one_pillar(
 
     if kind == _PARAMETRIC_KIND_HERMITE:
         if tangents is None:
-            logging.warning(
+            logger.warning(
                 "Pillar kind=3 (tangential cubic Hermite) requested but no tangent_vectors "
                 "found — falling back to linear interpolation."
             )
@@ -816,7 +816,7 @@ def _evaluate_one_pillar(
 
     if kind == _PARAMETRIC_KIND_MIN_CURVATURE:
         if tangents is None:
-            logging.warning(
+            logger.warning(
                 "Pillar kind=5 (minimum-curvature) requested but no tangent_vectors "
                 "found — falling back to linear interpolation."
             )
@@ -824,7 +824,7 @@ def _evaluate_one_pillar(
         return _minimum_curvature_eval(ctrl_params, ctrl_pts[:, :3], tangents, query_params)
 
     # Unknown kind: warn and fall back to linear.
-    logging.warning(f"Unknown parametric line kind={kind}; falling back to linear interpolation.")
+    logger.warning(f"Unknown parametric line kind={kind}; falling back to linear interpolation.")
     return _interp1d_vectorized(ctrl_params, ctrl_pts[:, :3], query_params)
 
 
@@ -1021,7 +1021,7 @@ def evaluate_parametric_line_array(
     if line_indices is not None:
         eff_lines = np.asarray(line_indices, dtype=np.int64).flatten()
         if len(eff_lines) != n_columns:
-            logging.warning(
+            logger.warning(
                 f"line_indices length {len(eff_lines)} ≠ node column count {n_columns}; "
                 "falling back to the identity mapping."
             )
@@ -1030,13 +1030,13 @@ def evaluate_parametric_line_array(
         eff_lines = np.arange(n_columns, dtype=np.int64)
 
     if n_columns != n_lines and line_indices is None:
-        logging.warning(
+        logger.warning(
             f"ParametricLineArray holds {n_lines} lines for {n_columns} node columns and no "
             "column→line mapping was supplied; the extra columns cannot be evaluated."
         )
     out_of_range = (eff_lines < 0) | (eff_lines >= n_lines)
     if out_of_range.any():
-        logging.warning(
+        logger.warning(
             f"{int(out_of_range.sum())} node column(s) reference a parametric line outside "
             f"[0, {n_lines}); those nodes are returned as NaN."
         )
@@ -1058,7 +1058,7 @@ def evaluate_parametric_line_array(
             # Same parameters for all lines (broadcast).
             ctrl_params = np.tile(raw_cpp[:, np.newaxis], (1, n_lines_raw))
         else:
-            logging.warning(
+            logger.warning(
                 f"control_point_parameters size {raw_cpp.size} does not match "
                 f"knot_count={knot_count} × line count={n_lines_raw}. "
                 "Attempting best-effort reshape."
@@ -1274,7 +1274,7 @@ def read_parametric_geometry(
             workspace=workspace,
         )
     except Exception as e:
-        logging.debug(f"No tangent vectors found for {geometry}, fallback to linear interpolation: {e}")
+        logger.debug(f"No tangent vectors found for {geometry}, fallback to linear interpolation: {e}")
 
     if traj_tangents is not None:
         if not isinstance(traj_tangents, np.ndarray):
@@ -1288,7 +1288,7 @@ def read_parametric_geometry(
             or len(traj_points) != knot_count
             or (traj_tangents is not None and len(traj_tangents) != knot_count)
         ):
-            logging.warning(
+            logger.warning(
                 f"Mismatch between knot_count ({knot_count}) and actual control points count (mds: {len(traj_mds)}, points: {len(traj_points)}, tangents: {len(traj_tangents) if traj_tangents is not None else 'N/A'})"
             )
 
@@ -1424,7 +1424,7 @@ def read_external_array(
                 workspace=workspace,
             )
         except ObjectNotFoundNotError as e:
-            logging.debug(f"CRS not found for {get_obj_title(root_obj)}: {e}")
+            logger.debug(f"CRS not found for {get_obj_title(root_obj)}: {e}")
 
         # Search for ExternalDataArrayPart type objects (RESQML v2.2)
         external_parts = search_attribute_matching_type(
@@ -1437,7 +1437,7 @@ def read_external_array(
             for ext_part in external_parts:
                 start_indices, counts, external_uri = _extract_external_data_array_part_params(ext_part)
                 pief_list = get_path_in_external_with_path(obj=ext_part)
-                # logging.debug(f"Pief : {pief_list}")
+                # logger.debug(f"Pief : {pief_list}")
                 for pief_path_in_obj, pief in pief_list:
                     arr = workspace.read_array(
                         proxy=crs or root_obj,
@@ -1448,7 +1448,7 @@ def read_external_array(
                     )
                     if arr is not None:
                         array = arr if array is None else np.concatenate((array, arr))
-                    # logging.debug(f"\t ExternalDataArrayPart read successfully. arr : {arr} : array : {array}")
+                    # logger.debug(f"\t ExternalDataArrayPart read successfully. arr : {arr} : array : {array}")
         else:
             # RESQML v2.0.1: Extract count from parent object, no StartIndex or URI
             counts = None
@@ -1463,7 +1463,7 @@ def read_external_array(
                                 # Extract count from parent using simplified function
                                 _, counts, _ = _extract_external_data_array_part_params(parent_obj)
                         except Exception as e:
-                            logging.debug(f"Failed to extract count from parent: {e}")
+                            logger.debug(f"Failed to extract count from parent: {e}")
 
             # Read array using path_in_external from the array object itself
             pief_list = get_path_in_external_with_path(obj=energyml_array)
@@ -1492,7 +1492,7 @@ def read_external_array(
             # Fallback for non-numpy arrays
             array = [array[idx] for idx in sub_indices]
 
-    # logging.debug(f"External array read successfully. => {array}")
+    # logger.debug(f"External array read successfully. => {array}")
     return array
 
 
@@ -1528,8 +1528,8 @@ def read_array(
         # if isinstance(energyml_array, list):
         return energyml_array
     elif isinstance(energyml_array, list):
-        # logging.debug("Warning: the array is a list, not a numpy array, be careful with the performance !")
-        # logging.debug(energyml_array)
+        # logger.debug("Warning: the array is a list, not a numpy array, be careful with the performance !")
+        # logger.debug(energyml_array)
         if len(energyml_array) > 0 and is_primitive(energyml_array[0]):
             return energyml_array
         else:
@@ -1556,7 +1556,7 @@ def read_array(
             sub_indices=sub_indices,
         )
     else:
-        logging.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
+        logger.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
         raise Exception(
             f"Type {array_type_name} is not supported\n\t{energyml_array}: \n\tfunction read_{snake_case(array_type_name)} not found"
         )
@@ -1616,7 +1616,7 @@ def read_xml_array(
 
     values = get_object_attribute_no_verif(energyml_array, "values")
     # count = get_object_attribute_no_verif(energyml_array, "count_per_value")
-    # logging.debug("values: ", values)
+    # logger.debug("values: ", values)
 
     if sub_indices is not None and len(sub_indices) > 0:
         if isinstance(values, np.ndarray):
@@ -1772,7 +1772,7 @@ def read_point3d_zvalue_array(
         # Vectorized assignment for NumPy arrays
         min_len = min(len(sup_geom_array), len(zvalues_array))
         if min_len < len(sup_geom_array):
-            logging.warning(
+            logger.warning(
                 f"Z-values array ({len(zvalues_array)}) is shorter than geometry array ({len(sup_geom_array)}), only updating first {min_len} values"
             )
         sup_geom_array[:min_len, 2] = zvalues_array[:min_len]
@@ -1783,7 +1783,7 @@ def read_point3d_zvalue_array(
                 sup_geom_array[i][2] = zvalues_array[i]
             except (IndexError, TypeError) as e:
                 if not error_logged:
-                    logging.error(f"{type(e).__name__}: index {i} is out of bound of {len(zvalues_array)}")
+                    logger.error(f"{type(e).__name__}: index {i} is out of bound of {len(zvalues_array)}")
                     error_logged = True
 
     return sup_geom_array
@@ -1886,7 +1886,7 @@ def read_point3d_from_representation_lattice_array(
         result = all_sup_points[node_indices]
     else:
         # No index array: use all points in order (identity mapping)
-        logging.debug(
+        logger.debug(
             "Point3DFromRepresentationLatticeArray: no NodeIndices found, " "using all supporting rep points in order"
         )
         result = all_sup_points
@@ -1970,15 +1970,15 @@ def read_point3d_lattice_array(
         slowest_size = len(slowest_table)
         fastest_size = len(fastest_table)
 
-        # logging.debug(f"slowest vector: {slowest_vec}, spacing: {slowest_spacing}, size: {slowest_size}")
-        # logging.debug(f"fastest vector: {fastest_vec}, spacing: {fastest_spacing}, size: {fastest_size}")
-        # logging.debug(f"origin: {origin}")
+        # logger.debug(f"slowest vector: {slowest_vec}, spacing: {slowest_spacing}, size: {slowest_size}")
+        # logger.debug(f"fastest vector: {fastest_vec}, spacing: {fastest_spacing}, size: {fastest_size}")
+        # logger.debug(f"origin: {origin}")
 
         if crs_sa_count is not None and len(crs_sa_count) > 0 and crs_fa_count is not None and len(crs_fa_count) > 0:
             if (crs_sa_count[0] == fastest_size and crs_fa_count[0] == slowest_size) or (
                 crs_sa_count[0] == fastest_size - 1 and crs_fa_count[0] == slowest_size - 1
             ):
-                logging.debug("reversing order")
+                logger.debug("reversing order")
                 # if offset were given in the wrong order
                 tmp_table = slowest_table
                 slowest_table = fastest_table
@@ -2027,7 +2027,7 @@ def read_point3d_lattice_array(
 
         except (ValueError, TypeError) as e:
             # Fallback to original implementation if NumPy conversion fails.
-            logging.warning(f"NumPy vectorization failed ({e}), falling back to iterative approach")
+            logger.warning(f"NumPy vectorization failed ({e}), falling back to iterative approach")
             fallback: List = []
             for i in range(slowest_size):
                 for j in range(fastest_size):
@@ -2065,7 +2065,7 @@ def read_point3d_lattice_array(
 #         path_in_root: Optional[str] = None,
 #         workspace: Optional[EnergymlStorageInterface] = None
 # ):
-#     logging.debug(energyml_array)
+#     logger.debug(energyml_array)
 
 
 #    ______                 __    _            __              __
@@ -2110,6 +2110,8 @@ def read_point3d_lattice_array(
 
 import colorsys
 from dataclasses import dataclass, field as dc_field
+
+logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2438,7 +2440,7 @@ def read_color_map(color_map_obj: Any) -> Optional[ColorMapInfo]:
         return read_continuous_color_map(color_map_obj)
     if "discrete" in type_name:
         return read_discrete_color_map(color_map_obj)
-    logging.warning(f"read_color_map: unsupported color-map type '{type(color_map_obj).__name__}'")
+    logger.warning(f"read_color_map: unsupported color-map type '{type(color_map_obj).__name__}'")
     return None
 
 
@@ -2585,7 +2587,7 @@ def read_graphical_rendering_info(
                     try:
                         pts.append((float(idx), float(a)))
                     except (TypeError, ValueError) as exc:
-                        logging.warning(
+                        logger.warning(
                             f"read_graphical_rendering_info: skipping invalid AlphaInformation"
                             f" control point ({idx!r}, {a!r}): {exc}"
                         )
@@ -2663,4 +2665,53 @@ def read_graphical_rendering_info(
 #     :return: A RESQML array object containing the data from the NumPy array.
 #     """
 #     dtype = np_array.dtype
-    
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "CrsInfo",
+    "extract_crs_info",
+    "is_z_reversed",
+    "get_vertical_epsg_code",
+    "get_projected_epsg_code",
+    "get_projected_uom",
+    "get_crs_offsets_and_angle",
+    "apply_crs_transform",
+    "get_crs_origin_offset",
+    "get_datum_information",
+    "prod_n_tab",
+    "sum_lists",
+    "get_crs_obj",
+    "get_package_default_crs",
+    "linear_interpolation",
+    "hermite_interpolation",
+    "resolve_parametric_line_array",
+    "evaluate_parametric_line_array",
+    "get_wellbore_points",
+    "generate_smooth_trajectory",
+    "generate_vertical_well_points",
+    "read_parametric_geometry",
+    "get_supported_array",
+    "get_not_supported_array",
+    "read_external_array",
+    "get_array_reader_function",
+    "read_array",
+    "read_constant_array",
+    "read_xml_array",
+    "read_jagged_array",
+    "read_int_double_lattice_array",
+    "read_point3d_zvalue_array",
+    "read_point3d_from_representation_lattice_array",
+    "read_grid2d_patch",
+    "read_point3d_lattice_array",
+    "RgbaColor",
+    "ColorMapEntry",
+    "ColorMapInfo",
+    "IndexableElementRenderingInfo",
+    "ScalarRenderingInfo",
+    "read_continuous_color_map",
+    "read_discrete_color_map",
+    "read_color_map",
+    "read_graphical_rendering_info",
+]

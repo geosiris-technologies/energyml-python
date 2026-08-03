@@ -616,3 +616,13 @@ def validate_epc_file(
     """
     validator = EpcValidator(epc_path, strict=strict, check_relationships=check_relationships)
     return validator.validate()
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "ValidationResult",
+    "EpcParser",
+    "EpcValidator",
+    "validate_epc_file",
+]

@@ -25,7 +25,7 @@ from energyml.utils.data.export._registry import FormatSpec, register_format
 if TYPE_CHECKING:
     from energyml.utils.data.crs import PointFrame
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # STL export
@@ -169,3 +169,10 @@ register_format(
         supports_pointsets=False,
     )
 )
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "export_stl",
+]

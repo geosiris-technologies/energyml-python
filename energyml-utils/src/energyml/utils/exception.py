@@ -125,3 +125,27 @@ class CorePropertiesValidationError(EpcValidationError):
 class NotUriError(Exception):
     def __init__(self, uri: Optional[str] = None):
         super().__init__(f"Not a valid URI: {uri}")
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "DetailedNotImplementedError",
+    "MissingExtraInstallation",
+    "NoCrsError",
+    "ObjectNotFoundNotError",
+    "UnknownTypeFromQualifiedType",
+    "NotParsableType",
+    "UnparsableFile",
+    "NotSupportedError",
+    "NotEnoughInformationError",
+    "EpcValidationError",
+    "ZipIntegrityError",
+    "MissingRequiredFileError",
+    "InvalidXmlStructureError",
+    "RelationshipValidationError",
+    "NamingConventionError",
+    "ContentTypeValidationError",
+    "CorePropertiesValidationError",
+    "NotUriError",
+]

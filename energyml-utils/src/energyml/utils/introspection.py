@@ -46,6 +46,8 @@ from energyml.utils.manager import (
 from energyml.utils.uri import Uri, parse_uri
 from energyml.utils.constants import parse_content_type, ENERGYML_NAMESPACES, parse_qualified_type
 
+logger = logging.getLogger(__name__)
+
 
 def is_union_type(cls: Any) -> bool:
     """
@@ -168,7 +170,7 @@ def find_class_in_module(module_name: str, class_name: str):
         if cls:
             return cls
 
-    logging.error(f"Not Found : {module_name}; {class_name}")
+    logger.error(f"Not Found : {module_name}; {class_name}")
     return None
 
 
@@ -215,7 +217,7 @@ def search_class_in_module_from_partial_name(module_name: str, class_partial_nam
 
         return matching_classes
     except Exception as e:
-        logging.error(f"Error searching in module '{module_name}': {e}")
+        logger.error(f"Error searching in module '{module_name}': {e}")
     return None
 
 
@@ -274,7 +276,7 @@ def get_class_from_name(class_name_and_module: str) -> Optional[type]:
         return find_class_in_module(module_name, last_ns_part)
     except AttributeError as e:
         # if "2d" in last_ns_part:
-        #     logging.debug("replace 2D")
+        #     logger.debug("replace 2D")
         #     return get_class_from_name(
         #         class_name_and_module.replace("2d", "2D")
         #     )
@@ -288,7 +290,7 @@ def get_class_from_name(class_name_and_module: str) -> Optional[type]:
         #     )
         # elif "2D" in last_ns_part or "3D" in last_ns_part:
         #     idx = -1
-        #     logging.debug(class_name_and_module)
+        #     logger.debug(class_name_and_module)
         #     try:
         #         idx = class_name_and_module.rindex("2D") + 2
         #     except:
@@ -299,13 +301,13 @@ def get_class_from_name(class_name_and_module: str) -> Optional[type]:
         #                 + class_name_and_module[idx].lower()
         #                 + class_name_and_module[idx + 1:]
         #         )
-        #         logging.debug(f"reformated {reformated}")
+        #         logger.debug(f"reformated {reformated}")
         #         return get_class_from_name(reformated)
         # else:
-        #     logging.debug(e)
-        logging.error(e)
+        #     logger.debug(e)
+        logger.error(e)
     except KeyError:
-        logging.error(f"[ERR] module not found : '{module_name}'")
+        logger.error(f"[ERR] module not found : '{module_name}'")
     return None
 
 
@@ -321,8 +323,8 @@ def get_energyml_class_in_related_dev_pkg(cls: type):
         try:
             res.append(get_class_from_name(f"{dev_module_name}.{class_name}"))
         except Exception as e:
-            logging.error(f"FAILED {dev_module_name}.{class_name}")
-            logging.error(e)
+            logger.error(f"FAILED {dev_module_name}.{class_name}")
+            logger.error(e)
             pass
 
     return res
@@ -336,10 +338,10 @@ def get_energyml_module_dev_version(pkg: str, current_version: str):
     current_version = current_version.replace("-", "_").replace(".", "_")
     res = []
     if pkg in accessible_modules:
-        # logging.debug("\t", pkg, current_version)
+        # logger.debug("\t", pkg, current_version)
         for am_pkg_version in accessible_modules[pkg]:
             if am_pkg_version != current_version and am_pkg_version.startswith(current_version):
-                # logging.debug("\t\t", am_pkg_version)
+                # logger.debug("\t\t", am_pkg_version)
                 res.append(get_module_name(pkg, am_pkg_version))
 
     return res
@@ -364,7 +366,7 @@ def get_module_name_and_type_from_content_or_qualified_type(cqt: str) -> Tuple[s
 
     domain = ct.group("domain")
     if domain is None:
-        # logging.debug(f"\tdomain {domain} xmlDomain {ct.group('xmlDomain')} ")
+        # logger.debug(f"\tdomain {domain} xmlDomain {ct.group('xmlDomain')} ")
         domain = "opc"
 
     if domain == "opc":
@@ -430,8 +432,8 @@ def import_related_module(energyml_module_name: str) -> None:
             # Only log once per unique module
             if m not in _FAILED_IMPORT_MODULES:
                 _FAILED_IMPORT_MODULES.add(m)
-                logging.debug(f"Could not import related module {m}: {e}")
-            # logging.error(e)
+                logger.debug(f"Could not import related module {m}: {e}")
+            # logger.error(e)
 
 
 def list_function_parameters_with_types(func, is_class_function: bool = False) -> Dict[str, Any]:
@@ -543,14 +545,14 @@ def get_all_matching_class_attribute_name(
             # search regex after to avoid shadowing perfect match
             pattern = re.compile(attribute_name, flags=re_flags)
             for name, cf in class_fields.items():
-                # logging.error(f"\t->{name} : {attribute_name} {pattern.match(name)} {('name' in cf.metadata and pattern.match(cf.metadata['name']))}")
+                # logger.error(f"\t->{name} : {attribute_name} {pattern.match(name)} {('name' in cf.metadata and pattern.match(cf.metadata['name']))}")
                 if pattern.match(name) or (
                     hasattr(cf, "metadata") and "name" in cf.metadata and pattern.match(cf.metadata["name"])
                 ):
                     matching_names.add(name)
         except Exception as e:
-            logging.error(f"Failed to get attribute {attribute_name} from class {cls}")
-            logging.error(e)
+            logger.error(f"Failed to get attribute {attribute_name} from class {cls}")
+            logger.error(e)
 
     return list(matching_names)
 
@@ -584,7 +586,7 @@ def get_object_attribute(obj: Any, attr_dot_path: str, force_snake_case=True) ->
     current_attrib_name, path_next = path_next_attribute(attr_dot_path)
 
     if current_attrib_name is None:
-        logging.error(f"Attribute path '{attr_dot_path}' is invalid.")
+        logger.error(f"Attribute path '{attr_dot_path}' is invalid.")
         return None
 
     value = None
@@ -679,7 +681,7 @@ def get_object_attribute_or_create(
     current_attrib_name, path_next = path_next_attribute(attr_dot_path)
 
     if current_attrib_name is None:
-        logging.error(f"Attribute path '{attr_dot_path}' is invalid.")
+        logger.error(f"Attribute path '{attr_dot_path}' is invalid.")
         return None
 
     if force_snake_case:
@@ -728,24 +730,24 @@ def get_object_attribute_advanced(obj: Any, attr_dot_path: str) -> Any:
     current_attrib_name, path_next = path_next_attribute(attr_dot_path)
 
     if current_attrib_name is None:
-        logging.error(f"Attribute path '{attr_dot_path}' is invalid.")
+        logger.error(f"Attribute path '{attr_dot_path}' is invalid.")
         return None
 
     if isinstance(obj, list):
         try:
             value = obj[int(current_attrib_name)]
         except (ValueError, IndexError):
-            logging.error(f"Attribute path '{attr_dot_path}' is invalid (not an index of the list).")
+            logger.error(f"Attribute path '{attr_dot_path}' is invalid (not an index of the list).")
             return None
     elif isinstance(obj, dict):
         if current_attrib_name not in obj:
-            logging.error(f"Attribute path '{attr_dot_path}' is invalid (not a key of the dict).")
+            logger.error(f"Attribute path '{attr_dot_path}' is invalid (not a key of the dict).")
             return None
         value = obj[current_attrib_name]
     else:
         matched_name = get_matching_class_attribute_name(obj, current_attrib_name)
         if matched_name is None:
-            logging.error(f"Attribute path '{attr_dot_path}' is invalid.")
+            logger.error(f"Attribute path '{attr_dot_path}' is invalid.")
             return None
         value = getattr(obj, matched_name)
 
@@ -1087,7 +1089,7 @@ def search_attribute_matching_name_with_path(
     #     next_match = ".".join(attrib_list[1:])
     current_match, next_match = path_next_attribute(name_rgx)
     if current_match is None:
-        # logging.error(f"Attribute name regex '{name_rgx}' is invalid.")
+        # logger.error(f"Attribute name regex '{name_rgx}' is invalid.")
         return []
     res = []
 
@@ -1118,17 +1120,17 @@ def search_attribute_matching_name_with_path(
                 not_match_path_and_obj.append((f"{current_path}{k}", s_o))
     elif not is_primitive(obj):
         current_match = current_match.replace("\\.", ".")
-        # logging.debug(f"searching {current_match} in {type(obj)} with path {current_path} and next match {next_match}")
+        # logger.debug(f"searching {current_match} in {type(obj)} with path {current_path} and next match {next_match}")
         match_values = get_all_matching_class_attribute_name(obj, current_match, re_flags)
         for match_value in match_values:
-            # logging.debug(f"\tmatch found : {match_value}")
+            # logger.debug(f"\tmatch found : {match_value}")
             match_path_and_obj.append(
                 (
                     f"{current_path}{match_value}",
                     get_object_attribute_no_verif(obj, match_value),
                 )
             )
-        # logging.debug("f------")
+        # logger.debug("f------")
         for att_name in get_class_attributes(obj):
             if att_name not in match_values:
                 not_match_path_and_obj.append(
@@ -1137,7 +1139,7 @@ def search_attribute_matching_name_with_path(
                         get_object_attribute_no_verif(obj, att_name),
                     )
                 )
-        # logging.debug(f"\tmatch_path_and_obj: {match_path_and_obj}")
+        # logger.debug(f"\tmatch_path_and_obj: {match_path_and_obj}")
 
     for matched_path, matched in match_path_and_obj:
         if next_match is not None:  # next_match is different, match is not final
@@ -1249,7 +1251,7 @@ def set_attribute_from_path(obj: Any, attribute_path: str, value: Any) -> None:
     current_attrib_name, path_next = path_next_attribute(attribute_path)
 
     if current_attrib_name is None:
-        logging.error(f"Attribute path '{attribute_path}' is invalid.")
+        logger.error(f"Attribute path '{attribute_path}' is invalid.")
         return
 
     if path_next is not None:
@@ -1359,7 +1361,7 @@ def get_obj_version(obj: Any) -> Optional[str]:
         )
     except AttributeError:
         # Log with full call stack to see WHO called this function
-        # logging.error(
+        # logger.error(
         #     f"Error getting version for {type(obj)} -- {obj}",
         #     exc_info=True,
         #     stack_info=True,  # This shows the full call stack including caller
@@ -1630,7 +1632,7 @@ def as_obj_prefixed_class_if_possible(o: Any) -> Any:
     if o is not None:
         if not isinstance(o, type):
             o_type = type(o)
-            # logging.info(
+            # logger.info(
             #     f"Trying to convert object of type {o_type.__module__} -- {o_type.__name__} to obj prefixed class : {o_type.__name__.lower().startswith('obj')}"
             # )
             if o_type.__name__.lower().startswith("obj"):
@@ -1639,21 +1641,21 @@ def as_obj_prefixed_class_if_possible(o: Any) -> Any:
                     try:
                         sub_name = str(o_type.__name__).replace(o_type.__name__, o_type.__name__[3:])
                         sub_class_name = f"{o_type.__module__}.{sub_name}"
-                        # logging.info(f"\n\nSearching subclass {sub_class_name} for {o_type}")
+                        # logger.info(f"\n\nSearching subclass {sub_class_name} for {o_type}")
                         sub = get_class_from_name(sub_class_name)
-                        # logging.info(f"Found subclass {sub} for {sub}")
+                        # logger.info(f"Found subclass {sub} for {sub}")
                         if sub is not None and issubclass(sub, o_type):
                             try:
                                 try:
                                     if sub.Meta is not None:
                                         o_type.Meta.namespace = sub.Meta.namespace  # keep the same namespace
                                 except Exception:
-                                    logging.debug(f"Failed to set namespace for {sub}")
+                                    logger.debug(f"Failed to set namespace for {sub}")
                             except Exception as e:
-                                # logging.debug(f"Failed to convert {o} to {sub}")
-                                logging.debug(e)
+                                # logger.debug(f"Failed to convert {o} to {sub}")
+                                logger.debug(e)
                     except Exception:
-                        logging.debug(f"Error using Meta class for {o_type}")
+                        logger.debug(f"Error using Meta class for {o_type}")
                 return o
             if o_type.__bases__ is not None:
                 for bc in o_type.__bases__:
@@ -1664,11 +1666,11 @@ def as_obj_prefixed_class_if_possible(o: Any) -> Any:
                                 if bc.Meta is not None:
                                     bc.Meta.namespace = o_type.Meta.namespace  # keep the same namespace
                             except Exception:
-                                logging.error(f"Failed to set namespace for {bc}")
+                                logger.error(f"Failed to set namespace for {bc}")
                             return bc(**o.__dict__)
                         except Exception as e:
-                            logging.error(f"Failed to convert {o} to {bc}")
-                            logging.error(e)
+                            logger.error(f"Failed to convert {o} to {bc}")
+                            logger.error(e)
                             return o
         return o
     return None
@@ -1702,12 +1704,12 @@ def dor_to_uris(dor: Any, dataspace: Optional[str] = None) -> Optional[Uri]:
         value = get_object_attribute_no_verif(dor, "qualified_type")
         result = parse_qualified_type(value)
     except Exception as e:
-        logging.error(e)
+        logger.error(e)
         try:
             value = get_object_attribute_no_verif(dor, "content_type")
             result = parse_content_type(value)
         except Exception as e2:
-            logging.error(e2)
+            logger.error(e2)
 
     if result is None:
         return None
@@ -1739,7 +1741,7 @@ def get_content_type_from_class(cls: Union[type, Any], print_dev_version=True, n
             + get_object_type_for_file_path_from_class(cls)
         )
 
-    logging.error(f"@get_content_type_from_class not supported type : {cls}")
+    logger.error(f"@get_content_type_from_class not supported type : {cls}")
     return None
 
 
@@ -2007,8 +2009,8 @@ def get_all_possible_instanciable_classes_for_attribute(parent_obj: Any, attribu
         else:
             if attribute_name is not None and len(attribute_name) > 0:
                 ctx = get_related_energyml_modules_name(parent_obj)
-                # logging.debug(get_class_fields(cls)[attribute_name])
-                # logging.debug(get_class_fields(cls)[attribute_name].type)
+                # logger.debug(get_class_fields(cls)[attribute_name])
+                # logger.debug(get_class_fields(cls)[attribute_name].type)
                 sub_cls = get_class_from_simple_name(
                     simple_name=get_class_fields(cls)[attribute_name].type,
                     energyml_module_context=ctx,
@@ -2038,6 +2040,13 @@ def _random_value_from_class(
     """
 
     try:
+        if cls is object or cls is Any:
+            # An `xs:any` / `Any` field carries no schema, so there is no meaningful value to
+            # invent for it. Instantiating a bare `object()` — what this used to do — produced an
+            # object with no `__module__` matching an energyml package, and every serializer then
+            # died on it: `generate_data` crashed with
+            # `AttributeError: 'object' object has no attribute '__module__'` for *every* type.
+            return None
         if isinstance(cls, str) or cls == str:
             return _gen_str_from_attribute_name(attribute_name, _parent_class)
         elif isinstance(cls, int) or cls == int:
@@ -2094,7 +2103,7 @@ def _random_value_from_class(
                 chosen_type = potential_classes[random.randint(0, len(potential_classes) - 1)]
                 args = {}
                 for k, v in get_class_fields(chosen_type).items():
-                    # logging.debug(f"get_class_fields {k} : {v}, { isinstance(v, type)}, {v}")
+                    # logger.debug(f"get_class_fields {k} : {v}, { isinstance(v, type)}, {v}")
                     args[k] = _random_value_from_class(
                         cls=(
                             get_class_from_simple_name(
@@ -2115,8 +2124,84 @@ def _random_value_from_class(
                 return chosen_type(**args)
 
     except Exception as e:
-        logging.error(f"exception on attribute '{attribute_name}' for class {cls} :")
+        logger.error(f"exception on attribute '{attribute_name}' for class {cls} :")
         raise e
 
-    logging.error(f"@_random_value_from_class Not supported object type generation {cls}")
+    logger.error(f"@_random_value_from_class Not supported object type generation {cls}")
     return None
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "UnionType",
+    "is_union_type",
+    "is_enum",
+    "is_primitive",
+    "is_abstract",
+    "get_module_classes_from_name",
+    "get_module_metadata_map",
+    "find_class_in_module",
+    "get_module_classes",
+    "search_class_in_module_from_partial_name",
+    "get_class_methods",
+    "get_class_from_name",
+    "get_energyml_class_in_related_dev_pkg",
+    "get_energyml_module_dev_version",
+    "get_module_name_and_type_from_content_or_qualified_type",
+    "get_class_from_qualified_type",
+    "get_class_from_content_type",
+    "get_module_name",
+    "import_related_module",
+    "list_function_parameters_with_types",
+    "get_class_fields",
+    "get_class_attributes",
+    "get_class_attribute_type",
+    "get_all_matching_class_attribute_name",
+    "get_matching_class_attribute_name",
+    "get_object_attribute",
+    "create_default_value_for_type",
+    "get_object_attribute_or_create",
+    "get_object_attribute_advanced",
+    "get_object_attribute_no_verif",
+    "get_object_attribute_rgx",
+    "get_obj_type",
+    "class_match_rgx",
+    "get_dor_obj_info",
+    "is_dor",
+    "search_attribute_matching_type_with_path",
+    "search_attribute_in_upper_matching_name",
+    "search_attribute_matching_type",
+    "search_attribute_matching_name_with_path",
+    "search_attribute_matching_name",
+    "set_attribute_from_json_str",
+    "set_attribute_from_dict",
+    "set_attribute_from_path",
+    "set_attribute_value",
+    "copy_attributes",
+    "get_obj_uuid",
+    "get_obj_version",
+    "get_obj_title",
+    "get_object_metadata",
+    "get_obj_pkg_pkgv_type_uuid_version",
+    "get_obj_qualified_type",
+    "get_obj_content_type",
+    "get_obj_identifier",
+    "get_obj_uri",
+    "get_direct_dor_list",
+    "get_obj_usable_class",
+    "as_obj_prefixed_class_if_possible",
+    "get_data_object_type",
+    "get_qualified_type_from_class",
+    "get_object_uri",
+    "dor_to_uris",
+    "get_content_type_from_class",
+    "get_object_type_for_file_path_from_class",
+    "get_obj_attribute_class",
+    "get_class_from_simple_name",
+    "random_value_from_class",
+    "get_non_abstract_classes",
+    "get_all_possible_instanciable_classes",
+    "get_all_possible_instanciable_classes_for_attribute",
+    "get_enum_values",
+]

@@ -93,6 +93,8 @@ from energyml.utils.introspection import (
 )
 from energyml.utils.storage_interface import EnergymlStorageInterface
 
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
 # Internal helper: thin proxy that makes read_array_view look like read_array
 # so that helper.read_array benefits from zero-copy semantics transparently.
@@ -472,7 +474,7 @@ def _fit_grid_dimensions(sa_count: int, fa_count: int, nb_points: int) -> Tuple[
         The (possibly adjusted) ``(sa_count, fa_count)``; ``(0, 0)`` when no face can be built.
     """
     if fa_count <= 0 or sa_count <= 0 or nb_points <= 0:
-        logging.warning(
+        logger.warning(
             f"Grid2d patch: unusable dimensions (slowest={sa_count}, fastest={fa_count}, "
             f"{nb_points} points) — no face is generated."
         )
@@ -482,7 +484,7 @@ def _fit_grid_dimensions(sa_count: int, fa_count: int, nb_points: int) -> Tuple[
         return sa_count, fa_count
 
     fitted_sa = nb_points // fa_count
-    logging.warning(
+    logger.warning(
         f"Grid2d patch: {sa_count} x {fa_count} = {sa_count * fa_count} nodes declared but "
         f"{nb_points} points read — keeping the fastest axis ({fa_count}) and using "
         f"{fitted_sa} for the slowest one."
@@ -679,7 +681,7 @@ def read_numpy_polyline_representation(
         if not pts_list:
             pts_list = search_attribute_matching_name_with_path(patch, "Points")
         if not pts_list:
-            logging.error(f"Cannot find points for patch {patch_path_in_obj}")
+            logger.error(f"Cannot find points for patch {patch_path_in_obj}")
             continue
 
         points_path, points_obj = pts_list[0]
@@ -1057,7 +1059,7 @@ def read_numpy_grid2d_representation(
                 workspace=workspace,
             )
         except ObjectNotFoundNotError as e:
-            logging.error(e)
+            logger.error(e)
         m = _process_patch(energyml_object, "", crs)
         if m is not None:
             multi.patches.append(m)
@@ -1098,7 +1100,7 @@ def read_numpy_wellbore_trajectory_representation(
         else:
             raise ObjectNotFoundNotError("LocalCrs not found")
     except Exception:
-        logging.debug("Could not get CRS from trajectory geometry")
+        logger.debug("Could not get CRS from trajectory geometry")
 
     # MD datum / reference point (fixes always-at-origin bug)
     try:
@@ -1119,7 +1121,7 @@ def read_numpy_wellbore_trajectory_representation(
                     md_datum_obj, workspace
                 )
     except Exception as e:
-        logging.debug(f"Could not resolve MdDatum from trajectory: {e}")
+        logger.debug(f"Could not resolve MdDatum from trajectory: {e}")
 
     # The two paths below do not produce the same frame, which is why this reader could never be
     # handled by the generic CRS pass: the parametric geometry is local and gets transformed,
@@ -1148,14 +1150,14 @@ def read_numpy_wellbore_trajectory_representation(
             md_min = get_object_attribute(energyml_object, "md_interval.md_min")
             md_max = get_object_attribute(energyml_object, "md_interval.md_max")
             if md_min is not None and md_max is not None:
-                logging.info(
+                logger.info(
                     f"WellboreTrajectoryRepresentation {get_obj_uuid(energyml_object)} has no geometry; "
                     f"building a vertical well from MdInterval [{md_min}, {md_max}]."
                 )
                 mds = np.array([float(md_min), float(md_max)], dtype=np.float64)
 
         if mds is not None:
-            logging.debug(f"Trajectory parametric geometry unavailable, treating as vertical: {e}")
+            logger.debug(f"Trajectory parametric geometry unavailable, treating as vertical: {e}")
             well_points_list = generate_vertical_well_points(
                 head_x=head_x,
                 head_y=head_y,
@@ -1230,7 +1232,7 @@ def read_numpy_wellbore_frame_representation(
         if not isinstance(wellbore_frame_mds, np.ndarray):
             wellbore_frame_mds = np.asarray(wellbore_frame_mds, dtype=np.float64)
     except (IndexError, AttributeError) as e:
-        logging.warning(f"Could not read NodeMd from wellbore frame: {e}")
+        logger.warning(f"Could not read NodeMd from wellbore frame: {e}")
         return empty
 
     md_min = float(wellbore_frame_mds.min()) if len(wellbore_frame_mds) > 0 else 0.0
@@ -1350,7 +1352,7 @@ def read_numpy_representation_set_representation(
         rpr_uri = get_obj_uri(repr_dor)
         repr_obj = workspace.get_object(rpr_uri)
         if repr_obj is None:
-            logging.error(f"Representation {rpr_uri} not found in RepresentationSetRepresentation")
+            logger.error(f"Representation {rpr_uri} not found in RepresentationSetRepresentation")
             continue
         child = read_numpy_mesh_object(
             energyml_object=repr_obj,
@@ -1413,7 +1415,7 @@ def read_numpy_plane_set_representation(
     except Exception as exc:
         # `(ObjectNotFoundNotError, Exception)` was just `Exception` with misleading intent.
         # get_crs_obj can fail in several ways and a missing CRS is not fatal here.
-        logging.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
+        logger.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
 
     planes_list = search_attribute_matching_name_with_path(energyml_object, "Planes")
     patch_idx = 0
@@ -1453,7 +1455,7 @@ def read_numpy_plane_set_representation(
             faces = _build_vtk_faces_from_triangles(tris)
 
         else:
-            logging.warning(f"PlaneSetRepresentation: unknown geometry type {geom_type!r} — skipping patch {patch_idx}")
+            logger.warning(f"PlaneSetRepresentation: unknown geometry type {geom_type!r} — skipping patch {patch_idx}")
             patch_idx += 1
             continue
 
@@ -1507,7 +1509,7 @@ def read_numpy_seismic_wellbore_frame_representation(
         for patch in result.flat_patches():
             patch.extra_arrays["node_time_values"] = node_time_values
     except Exception as exc:  # IndexError from [0] on an empty match, or any read failure
-        logging.warning(f"SeismicWellboreFrameRepresentation: could not read NodeTimeValues: {exc}")
+        logger.warning(f"SeismicWellboreFrameRepresentation: could not read NodeTimeValues: {exc}")
     result.source_type = type(energyml_object).__name__
     return result
 
@@ -1665,11 +1667,11 @@ def _blank_undefined_pillars(
     try:
         defined = _read_array_np(flag_obj, energyml_object, f"geometry.{flag_path}", ws).astype(bool).ravel()
     except Exception as exc:
-        logging.debug(f"Cannot read PillarGeometryIsDefined: {type(exc).__name__}: {exc}")
+        logger.debug(f"Cannot read PillarGeometryIsDefined: {type(exc).__name__}: {exc}")
         return
 
     if defined.size != n_pillars_base:
-        logging.warning(
+        logger.warning(
             f"PillarGeometryIsDefined holds {defined.size} entries for {n_pillars_base} pillars; ignoring it."
         )
         return
@@ -1685,7 +1687,7 @@ def _blank_undefined_pillars(
         valid = (pi >= 0) & (pi < n_pillars_base)
         line_defined[n_pillars_base : n_pillars_base + len(pi)] = np.where(valid, defined[np.where(valid, pi, 0)], True)
 
-    logging.info(
+    logger.info(
         f"IjkGridRepresentation: {int((~line_defined).sum())}/{n_pillars_total} coordinate lines "
         "flagged PillarGeometryIsDefined=false; their nodes are set to NaN."
     )
@@ -1715,12 +1717,12 @@ def _read_cell_geometry_undefined(
     try:
         defined = _read_array_np(flag_obj, energyml_object, f"geometry.{flag_path}", ws).astype(bool).ravel()
     except Exception as exc:
-        logging.debug(f"Cannot read CellGeometryIsDefined: {type(exc).__name__}: {exc}")
+        logger.debug(f"Cannot read CellGeometryIsDefined: {type(exc).__name__}: {exc}")
         return None
 
     n_cells = ni * nj * nk
     if defined.size != n_cells:
-        logging.warning(f"CellGeometryIsDefined holds {defined.size} entries for {n_cells} cells; ignoring it.")
+        logger.warning(f"CellGeometryIsDefined holds {defined.size} entries for {n_cells} cells; ignoring it.")
         return None
     return ~defined
 
@@ -1830,7 +1832,7 @@ def _read_point3d_parametric_array(
             pad = np.full((nkl, n_pillars_total - n_pillars_base), np.nan, dtype=np.float64)
             query_params = np.concatenate([query_params, pad], axis=1)
     else:
-        logging.warning(
+        logger.warning(
             f"Point3dParametricArray.parameters size {raw_params.size} does not match "
             f"expected {expected_3d} (3-D) or {expected_4d} (4-D). Attempting flat reshape."
         )
@@ -1855,7 +1857,7 @@ def _read_point3d_parametric_array(
         raw_pli = _read_array_np(pli_obj, energyml_object, "geometry.Points.parametric_line_indices", ws)
         line_indices = raw_pli.astype(np.int64).flatten()
         if len(line_indices) != n_pillars_total:
-            logging.warning(
+            logger.warning(
                 f"Point3dParametricArray.parametric_line_indices holds {len(line_indices)} "
                 f"entries for {n_pillars_total} coordinate lines; ignoring it."
             )
@@ -1866,7 +1868,7 @@ def _read_point3d_parametric_array(
         n_splits = n_pillars_total - n_pillars_base
         if n_splits > 0:
             if pillar_indices_arr is None:
-                logging.warning(
+                logger.warning(
                     f"{n_splits} split coordinate line(s) but no "
                     "ColumnLayerSplitCoordinateLines.PillarIndices: their parametric lines "
                     "cannot be resolved."
@@ -1878,7 +1880,7 @@ def _read_point3d_parametric_array(
     # --- 3. Handle optional truncated_line_indices ---
     tli_obj = getattr(pts_obj, "truncated_line_indices", None)
     if tli_obj is not None:
-        logging.warning(
+        logger.warning(
             "Point3dParametricArray.truncated_line_indices is present. "
             "Full truncated-pillar support is not yet implemented — "
             "truncation metadata will be ignored and results may be geometrically "
@@ -1953,7 +1955,7 @@ def read_numpy_ijk_grid_representation(
     nj = getattr(energyml_object, "nj", None)
     nk = getattr(energyml_object, "nk", None)
     if ni is None or nj is None or nk is None:
-        logging.warning("IjkGridRepresentation: ni/nj/nk not set — returning empty mesh")
+        logger.warning("IjkGridRepresentation: ni/nj/nk not set — returning empty mesh")
         return NumpyMultiMesh(
             energyml_object=energyml_object,
             identifier=str(src_uuid),
@@ -1965,13 +1967,13 @@ def read_numpy_ijk_grid_representation(
     geom = getattr(energyml_object, "geometry", None)
     if geom is None:
         if getattr(energyml_object, "parent_window", None) is not None:
-            logging.warning(
+            logger.warning(
                 f"IjkGridRepresentation {src_uuid} is a local grid refinement: its geometry is "
                 "inherited from the parent grid through ParentWindow, which is not implemented — "
                 "returning an empty mesh."
             )
         else:
-            logging.warning("IjkGridRepresentation has no geometry — returning empty mesh")
+            logger.warning("IjkGridRepresentation has no geometry — returning empty mesh")
         return NumpyMultiMesh(
             energyml_object=energyml_object,
             identifier=str(src_uuid),
@@ -2036,7 +2038,7 @@ def read_numpy_ijk_grid_representation(
     # --- POINTS ---
     pts_results = search_attribute_matching_name_with_path(geom, "Points")
     if not pts_results:
-        logging.warning("IjkGridRepresentation: cannot find Points in geometry")
+        logger.warning("IjkGridRepresentation: cannot find Points in geometry")
         return empty
     pts_path, pts_obj = pts_results[0]
 
@@ -2084,7 +2086,7 @@ def read_numpy_ijk_grid_representation(
     except Exception as exc:
         # `(ObjectNotFoundNotError, Exception)` was just `Exception` with misleading intent.
         # get_crs_obj can fail in several ways and a missing CRS is not fatal here.
-        logging.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
+        logger.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
 
     # --- PILLAR MAP for faulted grids ---
     use_pillar_map = n_splits > 0 and pillar_indices_arr is not None
@@ -2154,7 +2156,7 @@ def read_numpy_ijk_grid_representation(
     # is the default and the one a viewer renders.
     righthanded = getattr(geom, "grid_is_righthanded", None)
     if righthanded is None:
-        logging.debug("IjkGridRepresentation: GridIsRighthanded absent, assuming right-handed.")
+        logger.debug("IjkGridRepresentation: GridIsRighthanded absent, assuming right-handed.")
         righthanded = True
     base_corners = (p_tl, p_tr, p_br, p_bl) if righthanded else (p_tl, p_bl, p_br, p_tr)
 
@@ -2168,7 +2170,7 @@ def read_numpy_ijk_grid_representation(
     # --- CELLS WITHOUT GEOMETRY ---
     undefined = _read_cell_geometry_undefined(geom, energyml_object, ws, ni, nj, nk)
     if undefined is not None and undefined.any():
-        logging.info(
+        logger.info(
             f"IjkGridRepresentation: {int(undefined.sum())}/{n_cells} cells flagged "
             "CellGeometryIsDefined=false; emitted as empty cells."
         )
@@ -2233,7 +2235,7 @@ def read_numpy_unstructured_grid_representation(
 
     geom = getattr(energyml_object, "geometry", None)
     if geom is None:
-        logging.warning("UnstructuredGridRepresentation has no geometry — returning empty mesh")
+        logger.warning("UnstructuredGridRepresentation has no geometry — returning empty mesh")
         return NumpyMultiMesh(
             energyml_object=energyml_object,
             identifier=str(src_uuid),
@@ -2255,7 +2257,7 @@ def read_numpy_unstructured_grid_representation(
     # --- POINTS ---
     pts_results = search_attribute_matching_name_with_path(geom, "Points")
     if not pts_results:
-        logging.warning("UnstructuredGridRepresentation: cannot find Points in geometry")
+        logger.warning("UnstructuredGridRepresentation: cannot find Points in geometry")
         return empty
     pts_path, pts_obj = pts_results[0]
     raw_pts = _read_array_np(pts_obj, energyml_object, pts_path, ws)
@@ -2273,13 +2275,13 @@ def read_numpy_unstructured_grid_representation(
     except Exception as exc:
         # `(ObjectNotFoundNotError, Exception)` was just `Exception` with misleading intent.
         # get_crs_obj can fail in several ways and a missing CRS is not fatal here.
-        logging.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
+        logger.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
 
     # --- JAGGED ARRAYS ---
     npf_obj = getattr(geom, "nodes_per_face", None)
     fpc_obj = getattr(geom, "faces_per_cell", None)
     if npf_obj is None or fpc_obj is None:
-        logging.warning(
+        logger.warning(
             "UnstructuredGridRepresentation: missing nodes_per_face or faces_per_cell " "— returning point-set mesh"
         )
         label = f"{src_type}_patch_0"
@@ -2315,7 +2317,7 @@ def read_numpy_unstructured_grid_representation(
         rh_path, rh_obj = search_attribute_matching_name_with_path(geom, "CellFaceIsRightHanded")[0]
         rh_arr = _read_array_np(rh_obj, energyml_object, f"geometry.{rh_path}", ws).astype(bool)
     except Exception as exc:  # IndexError from [0] on an empty match, or any read failure
-        logging.debug(f"UnstructuredGridRepresentation: CellFaceIsRightHanded not readable: {exc}")
+        logger.debug(f"UnstructuredGridRepresentation: CellFaceIsRightHanded not readable: {exc}")
 
     # --- BUILD VTK_POLYHEDRON CELL ARRAY ---
     # VTK polyhedron flat format per cell:
@@ -2463,7 +2465,7 @@ def read_numpy_sealed_volume_framework_representation(
     )
     result.source_type = type(energyml_object).__name__
     if getattr(energyml_object, "regions", None):
-        logging.debug(
+        logger.debug(
             "SealedVolumeFrameworkRepresentation: returning the bounding surfaces only; "
             "the volume regions are not assembled into closed shells."
         )
@@ -2532,23 +2534,23 @@ def read_numpy_unstructured_column_layer_grid_representation(
     geom = getattr(energyml_object, "geometry", None)
     if nk is None or column_count is None or geom is None:
         if geom is None and getattr(energyml_object, "parent_window", None) is not None:
-            logging.warning(
+            logger.warning(
                 f"{src_type} {src_uuid} is a local grid refinement: its geometry is inherited "
                 "through ParentWindow, which is not implemented — returning an empty mesh."
             )
         else:
-            logging.warning(f"{src_type} {src_uuid}: nk / column_count / geometry missing — returning empty mesh.")
+            logger.warning(f"{src_type} {src_uuid}: nk / column_count / geometry missing — returning empty mesh.")
         return multi
     nk, column_count = int(nk), int(column_count)
 
     pillar_count = int(getattr(geom, "pillar_count", 0) or 0)
     ppc_obj = getattr(geom, "pillars_per_column", None)
     if ppc_obj is None:
-        logging.warning(f"{src_type} {src_uuid}: PillarsPerColumn is required but absent.")
+        logger.warning(f"{src_type} {src_uuid}: PillarsPerColumn is required but absent.")
         return multi
     pillars_per_column = _decode_jagged_array(ppc_obj, energyml_object, "geometry.pillars_per_column", ws)
     if len(pillars_per_column) < column_count:
-        logging.warning(
+        logger.warning(
             f"{src_type} {src_uuid}: PillarsPerColumn describes {len(pillars_per_column)} columns "
             f"for ColumnCount={column_count}."
         )
@@ -2596,12 +2598,12 @@ def read_numpy_unstructured_column_layer_grid_representation(
     # --- POINTS ---
     pts_results = [(p, o) for p, o in search_attribute_matching_name_with_path(geom, "Points") if o is not None]
     if not pts_results:
-        logging.warning(f"{src_type} {src_uuid}: cannot find Points in geometry.")
+        logger.warning(f"{src_type} {src_uuid}: cannot find Points in geometry.")
         return multi
     pts_path, pts_obj = pts_results[0]
     raw_pts = _read_array_np(pts_obj, energyml_object, f"geometry.{pts_path}", ws)
     if raw_pts.size != nkl * n_lines * 3:
-        logging.warning(
+        logger.warning(
             f"{src_type} {src_uuid}: points array holds {raw_pts.size} values, expected "
             f"NKL({nkl}) × lines({n_lines}) × 3 = {nkl * n_lines * 3}."
         )
@@ -2623,7 +2625,7 @@ def read_numpy_unstructured_column_layer_grid_representation(
     try:
         crs = get_crs_obj(context_obj=geom, path_in_root="geometry", root_obj=energyml_object, workspace=workspace)
     except Exception as exc:
-        logging.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
+        logger.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
 
     # --- Corner coordinate line of every column, split lines substituted in ---
     corner_lines: List[np.ndarray] = [np.asarray(pillars_per_column[c], dtype=np.int64) for c in range(column_count)]
@@ -2644,7 +2646,7 @@ def read_numpy_unstructured_column_layer_grid_representation(
                 _read_array_np(rh_obj, energyml_object, "geometry.column_is_right_handed", ws).astype(bool).ravel()
             )
         except Exception as exc:
-            logging.debug(f"Cannot read ColumnIsRightHanded: {type(exc).__name__}: {exc}")
+            logger.debug(f"Cannot read ColumnIsRightHanded: {type(exc).__name__}: {exc}")
 
     undefined = _read_cell_geometry_undefined(geom, energyml_object, ws, column_count, 1, nk)
 
@@ -2712,7 +2714,7 @@ def read_numpy_truncated_unstructured_column_layer_grid_representation(
     applied.
     """
     if getattr(energyml_object, "truncation_cell_patch", None) is not None:
-        logging.warning(
+        logger.warning(
             f"{type(energyml_object).__name__} {get_obj_uuid(energyml_object)}: the TruncationCellPatch "
             "is not applied — the truncated cells are returned in their untruncated form."
         )
@@ -2743,7 +2745,7 @@ def read_numpy_truncated_ijk_grid_representation(
     are therefore returned in their untruncated form, which is reported once per object.
     """
     if getattr(energyml_object, "truncation_cell_patch", None) is not None:
-        logging.warning(
+        logger.warning(
             f"TruncatedIjkGridRepresentation {get_obj_uuid(energyml_object)}: the TruncationCellPatch "
             "is not applied — the truncated cells are returned as full hexahedra."
         )
@@ -2784,12 +2786,12 @@ def _read_numpy_via_supporting_representation(
         found = search_attribute_matching_name(obj=energyml_object, name_rgx=attribute)
         dor = found[0] if found else None
     if dor is None or workspace is None:
-        logging.warning(f"{src_type} {src_uuid}: no '{attribute}' to take the geometry from.")
+        logger.warning(f"{src_type} {src_uuid}: no '{attribute}' to take the geometry from.")
         return empty
 
     target = workspace.get_object(get_obj_uri(dor))
     if target is None:
-        logging.warning(f"{src_type} {src_uuid}: {get_obj_uri(dor)} not found in the workspace.")
+        logger.warning(f"{src_type} {src_uuid}: {get_obj_uri(dor)} not found in the workspace.")
         return empty
 
     result = read_numpy_mesh_object(
@@ -2877,7 +2879,7 @@ def read_numpy_redefined_geometry_representation(
         target_idx = getattr(pog, "representation_patch_index", None)
         target_idx = 0 if target_idx is None else int(target_idx)
         if target_idx >= len(patches):
-            logging.warning(f"{src_type} {src_uuid}: PatchOfGeometry targets patch {target_idx}, which does not exist.")
+            logger.warning(f"{src_type} {src_uuid}: PatchOfGeometry targets patch {target_idx}, which does not exist.")
             continue
         pts_list = [(p, o) for p, o in search_attribute_matching_name_with_path(pog, "Points") if o is not None]
         if not pts_list:
@@ -2888,11 +2890,11 @@ def read_numpy_redefined_geometry_representation(
                 _read_array_np(pts_obj, energyml_object, f"patch_of_geometry.{pts_path}", ws)
             )
         except Exception as exc:
-            logging.warning(f"{src_type} {src_uuid}: cannot read the redefined points: {type(exc).__name__}: {exc}")
+            logger.warning(f"{src_type} {src_uuid}: cannot read the redefined points: {type(exc).__name__}: {exc}")
             continue
         patch = patches[target_idx]
         if len(new_pts) != len(patch.points):
-            logging.warning(
+            logger.warning(
                 f"{src_type} {src_uuid}: PatchOfGeometry {target_idx} holds {len(new_pts)} points but the "
                 f"supporting patch has {len(patch.points)}; keeping the original geometry."
             )
@@ -2957,12 +2959,12 @@ def read_numpy_streamlines_representation(
 
     geom = getattr(energyml_object, "geometry", None)
     if geom is None:
-        logging.warning(f"StreamlinesRepresentation {src_uuid} has no geometry.")
+        logger.warning(f"StreamlinesRepresentation {src_uuid} has no geometry.")
         return multi
 
     pts_list = search_attribute_matching_name_with_path(geom, "Points")
     if not pts_list:
-        logging.warning(f"StreamlinesRepresentation {src_uuid}: no points in geometry.")
+        logger.warning(f"StreamlinesRepresentation {src_uuid}: no points in geometry.")
         return multi
     pts_path, pts_obj = pts_list[0]
     points = _ensure_float64_points(_read_array_np(pts_obj, energyml_object, f"geometry.{pts_path}", ws))
@@ -2975,7 +2977,7 @@ def read_numpy_streamlines_representation(
 
     line_count = int(getattr(energyml_object, "line_count", 0) or 0)
     if node_counts is not None and line_count and len(node_counts) != line_count:
-        logging.warning(
+        logger.warning(
             f"StreamlinesRepresentation {src_uuid}: NodeCountPerPolyline holds "
             f"{len(node_counts)} entries for LineCount={line_count}."
         )
@@ -2985,7 +2987,7 @@ def read_numpy_streamlines_representation(
     try:
         crs = get_crs_obj(context_obj=geom, path_in_root="geometry", root_obj=energyml_object, workspace=workspace)
     except Exception as exc:
-        logging.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
+        logger.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
     frame = _local_to_projected(points, crs, workspace, use_crs_displacement)
 
     label = f"{src_type}_patch_0"
@@ -3030,7 +3032,7 @@ def read_numpy_graph2d_representation(
     geom = getattr(energyml_object, "geometry", None)
     pts_list = search_attribute_matching_name_with_path(geom, "Points") if geom is not None else []
     if not pts_list:
-        logging.warning(f"Graph2dRepresentation {src_uuid} has no geometry.")
+        logger.warning(f"Graph2dRepresentation {src_uuid} has no geometry.")
         return multi
     pts_path, pts_obj = pts_list[0]
     points = _ensure_float64_points(_read_array_np(pts_obj, energyml_object, f"geometry.{pts_path}", ws))
@@ -3043,15 +3045,15 @@ def read_numpy_graph2d_representation(
             if raw.size % 2 == 0:
                 edges = raw.reshape(-1, 2)
             else:
-                logging.warning(f"Graph2dRepresentation {src_uuid}: Edges holds an odd number of values.")
+                logger.warning(f"Graph2dRepresentation {src_uuid}: Edges holds an odd number of values.")
         except Exception as exc:
-            logging.warning(f"Graph2dRepresentation {src_uuid}: cannot read Edges: {type(exc).__name__}: {exc}")
+            logger.warning(f"Graph2dRepresentation {src_uuid}: cannot read Edges: {type(exc).__name__}: {exc}")
 
     crs = None
     try:
         crs = get_crs_obj(context_obj=geom, path_in_root="geometry", root_obj=energyml_object, workspace=workspace)
     except Exception as exc:
-        logging.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
+        logger.debug(f"No CRS resolved: {type(exc).__name__}: {exc}")
     frame = _local_to_projected(points, crs, workspace, use_crs_displacement)
 
     label = f"{src_type}_patch_0"
@@ -3069,7 +3071,7 @@ def read_numpy_graph2d_representation(
     if edges is not None and len(edges) > 0:
         valid = (edges >= 0).all(axis=1) & (edges < len(points)).all(axis=1)
         if not valid.all():
-            logging.warning(
+            logger.warning(
                 f"Graph2dRepresentation {src_uuid}: {int((~valid).sum())} edge(s) reference a "
                 f"node outside [0, {len(points)}); dropped."
             )
@@ -3135,14 +3137,14 @@ def read_numpy_deviation_survey_representation(
         try:
             return _read_array_np(obj, energyml_object, path, ws).astype(np.float64).ravel()
         except Exception as exc:
-            logging.warning(f"DeviationSurveyRepresentation {src_uuid}: cannot read {name}: {exc}")
+            logger.warning(f"DeviationSurveyRepresentation {src_uuid}: cannot read {name}: {exc}")
             return None
 
     mds = _read("Mds")
     incs = _read("Inclinations")
     azis = _read("Azimuths")
     if mds is None or incs is None or azis is None:
-        logging.warning(f"DeviationSurveyRepresentation {src_uuid}: Mds/Inclinations/Azimuths missing.")
+        logger.warning(f"DeviationSurveyRepresentation {src_uuid}: Mds/Inclinations/Azimuths missing.")
         return multi
     n = min(len(mds), len(incs), len(azis))
     if n < 1:
@@ -3152,7 +3154,7 @@ def read_numpy_deviation_survey_representation(
     angle_uom = getattr(energyml_object, "angle_uom", None)
     uom_name = str(getattr(angle_uom, "value", angle_uom) or "dega")
     if uom_name not in _ANGLE_TO_RAD:
-        logging.warning(f"DeviationSurveyRepresentation {src_uuid}: unknown AngleUom '{uom_name}'; assuming degrees.")
+        logger.warning(f"DeviationSurveyRepresentation {src_uuid}: unknown AngleUom '{uom_name}'; assuming degrees.")
     k = _ANGLE_TO_RAD.get(uom_name, _ANGLE_TO_RAD["dega"])
     inc = incs * k
     azi = azis * k
@@ -3177,7 +3179,7 @@ def read_numpy_deviation_survey_representation(
                 if first is None:
                     origin = np.array([dx, dy, dz], dtype=np.float64)
         except Exception as exc:
-            logging.debug(f"Cannot resolve MdDatum of {src_uuid}: {type(exc).__name__}: {exc}")
+            logger.debug(f"Cannot resolve MdDatum of {src_uuid}: {type(exc).__name__}: {exc}")
 
     # --- Minimum-curvature integration ---
     points = np.empty((n, 3), dtype=np.float64)
@@ -3373,12 +3375,12 @@ def read_numpy_grid_connection_set_representation(
 
     count = int(getattr(energyml_object, "count", 0) or 0)
     if count <= 0:
-        logging.warning(f"GridConnectionSetRepresentation {src_uuid} declares no connection.")
+        logger.warning(f"GridConnectionSetRepresentation {src_uuid} declares no connection.")
         return multi
 
     cell_pairs, cip_obj = _read_index_pairs(energyml_object, "CellIndexPairs", ws)
     if cell_pairs is None:
-        logging.warning(f"GridConnectionSetRepresentation {src_uuid} has no CellIndexPairs.")
+        logger.warning(f"GridConnectionSetRepresentation {src_uuid} has no CellIndexPairs.")
         return multi
     cell_null = _array_null_value(cip_obj)
 
@@ -3394,7 +3396,7 @@ def read_numpy_grid_connection_set_representation(
     elif not isinstance(grid_dors, list):
         grid_dors = [grid_dors]
     if not grid_dors:
-        logging.warning(f"GridConnectionSetRepresentation {src_uuid} references no grid.")
+        logger.warning(f"GridConnectionSetRepresentation {src_uuid} references no grid.")
         return multi
 
     grid_objs: List[Any] = []
@@ -3411,7 +3413,7 @@ def read_numpy_grid_connection_set_representation(
     for dor in grid_dors:
         grid_obj = workspace.get_object(get_obj_uri(dor)) if workspace is not None else None
         if grid_obj is None:
-            logging.warning(f"GridConnectionSetRepresentation {src_uuid}: grid {get_obj_uri(dor)} not found.")
+            logger.warning(f"GridConnectionSetRepresentation {src_uuid}: grid {get_obj_uri(dor)} not found.")
             grid_objs.append(None)
             grid_points.append(np.empty((0, 3), dtype=np.float64))
             grid_cells.append([])
@@ -3429,7 +3431,7 @@ def read_numpy_grid_connection_set_representation(
         )
         patches = [p for p in grid_mesh.flat_patches() if isinstance(p, NumpyVolumeMesh)]
         if not patches:
-            logging.warning(
+            logger.warning(
                 f"GridConnectionSetRepresentation {src_uuid}: grid {get_obj_uuid(grid_obj)} "
                 f"({type(grid_obj).__name__}) produced no volume cells."
             )
@@ -3448,7 +3450,7 @@ def read_numpy_grid_connection_set_representation(
             grid_crs = patch.crs_object
 
     if n_points == 0:
-        logging.warning(f"GridConnectionSetRepresentation {src_uuid}: no grid geometry available.")
+        logger.warning(f"GridConnectionSetRepresentation {src_uuid}: no grid geometry available.")
         return multi
     points = np.concatenate(all_points, axis=0) if len(all_points) > 1 else all_points[0]
 
@@ -3542,7 +3544,7 @@ def read_numpy_grid_connection_set_representation(
         )
         conn_idx = np.array(line_conn, dtype=np.int64)
     else:
-        logging.warning(
+        logger.warning(
             f"GridConnectionSetRepresentation {src_uuid}: none of the {n_conn} connections "
             "resolved to a face or a cell pair."
         )
@@ -3573,11 +3575,11 @@ def _read_index_pairs(
     try:
         arr = _read_array_np(obj, energyml_object, path, ws)
     except Exception as exc:
-        logging.warning(f"Cannot read {name}: {type(exc).__name__}: {exc}")
+        logger.warning(f"Cannot read {name}: {type(exc).__name__}: {exc}")
         return None, None
     arr = np.asarray(arr).astype(np.int64).ravel()
     if arr.size % 2 != 0:
-        logging.warning(f"{name} holds an odd number of values ({arr.size}); ignoring it.")
+        logger.warning(f"{name} holds an odd number of values ({arr.size}); ignoring it.")
         return None, None
     return arr.reshape(-1, 2), obj
 
@@ -3613,7 +3615,7 @@ def _first_interpretation_per_connection(
             idx_obj, energyml_object, "connection_interpretations.interpretation_indices", ws
         )
     except Exception as exc:
-        logging.debug(f"Cannot read ConnectionInterpretations.InterpretationIndices: {type(exc).__name__}: {exc}")
+        logger.debug(f"Cannot read ConnectionInterpretations.InterpretationIndices: {type(exc).__name__}: {exc}")
         return None
     out = np.full(count, -1, dtype=np.int64)
     for i, entry in enumerate(per_conn[:count]):
@@ -3777,7 +3779,7 @@ def numpy_mesh_to_pyvista(mesh: NumpyMesh) -> Any:
         return pv.PolyData(pts)
 
     # Generic fallback: just export points
-    logging.warning(f"numpy_mesh_to_pyvista: unknown mesh type {type(mesh).__name__}, exporting points only.")
+    logger.warning(f"numpy_mesh_to_pyvista: unknown mesh type {type(mesh).__name__}, exporting points only.")
     return pv.PolyData(pts)
 
 

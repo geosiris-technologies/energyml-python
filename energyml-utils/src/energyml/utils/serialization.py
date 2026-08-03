@@ -44,6 +44,8 @@ from energyml.utils.xml_utils import (
 
 from xsdata.formats.dataclass.parsers.handlers import LxmlEventHandler
 
+logger = logging.getLogger(__name__)
+
 GLOBAL_XML_CONTEXT = XmlContext(
     # element_name_generator=text.camel_case,
     # attribute_name_generator=text.kebab_case
@@ -121,11 +123,11 @@ def _read_energyml_xml_bytes_as_class(
     try:
         return parser.from_bytes(file, obj_class)
     except ParserError as e:
-        logging.error(f"Failed to parse file {file} as class {obj_class}")
+        logger.error(f"Failed to parse file {file} as class {obj_class}")
         if len(e.args) > 0:
             if "unknown property" in e.args[0].lower():
-                logging.error(e)
-                logging.error(
+                logger.error(e)
+                logger.error(
                     "A property has not been found, please check if your 'xsi::type' values contains "
                     "the xml namespace (e.g. 'xsi:type=\"eml:VerticalCrsEpsgCode\"')."
                 )
@@ -150,18 +152,18 @@ def read_energyml_xml_bytes(file: bytes, obj_type: Optional[type] = None) -> Any
     except xsdata.exceptions.ParserError as e:
         if len(e.args) > 0:
             if "unknown property" in e.args[0].lower():
-                logging.error("Trying reading without fail on unknown attribute/property")
+                logger.error("Trying reading without fail on unknown attribute/property")
                 try:
                     return _read_energyml_xml_bytes_as_class(file, obj_type, False, False)
                 except Exception:
-                    logging.error(traceback.print_stack())
+                    logger.error(traceback.print_stack())
                     pass
         # Otherwise
         for obj_type_dev in get_energyml_class_in_related_dev_pkg(obj_type):
             try:
-                logging.debug(f"Trying with class : {obj_type_dev}")
+                logger.debug(f"Trying with class : {obj_type_dev}")
                 obj = _read_energyml_xml_bytes_as_class(file, obj_type_dev)
-                logging.debug(f" ==> succeed read with {obj_type_dev}")
+                logger.debug(f" ==> succeed read with {obj_type_dev}")
                 return obj
             except Exception:
                 pass
@@ -206,7 +208,7 @@ def _read_energyml_json_bytes_as_class(file: bytes, json_version: JSON_VERSION, 
         try:
             return parser.from_bytes(file, obj_class, ns_map=WELLKNOWN_NAMESPACES)
         except ParserError as e:
-            logging.error(f"Failed to parse file {file} as class {obj_class}")
+            logger.error(f"Failed to parse file {file} as class {obj_class}")
             raise e
     elif json_version == JSON_VERSION.OSDU_OFFICIAL:
         return read_json_dict(json.loads(file))
@@ -243,14 +245,14 @@ def read_energyml_json_bytes(
                 try:
                     result = result + _read_energyml_json_bytes_as_class(obj, obj_type)
                 except xsdata.exceptions.ParserError as e:
-                    logging.error(
+                    logger.error(
                         f"Failed to read file with type {obj_type}: {get_energyml_class_in_related_dev_pkg(obj_type)}"
                     )
                     for obj_type_dev in get_energyml_class_in_related_dev_pkg(obj_type):
                         try:
-                            logging.debug(f"Trying with class : {obj_type_dev}")
+                            logger.debug(f"Trying with class : {obj_type_dev}")
                             obj = _read_energyml_json_bytes_as_class(obj, obj_type_dev)
-                            logging.debug(f" ==> succeed read with {obj_type_dev}")
+                            logger.debug(f" ==> succeed read with {obj_type_dev}")
                             result = result + obj
                         except Exception:
                             pass
@@ -258,8 +260,8 @@ def read_energyml_json_bytes(
             elif json_version == JSON_VERSION.OSDU_OFFICIAL:
                 result = result + read_json_dict(obj)
         except Exception as e:
-            logging.error(e)
-            logging.error(obj)
+            logger.error(e)
+            logger.error(obj)
             raise e
         obj_type = None
 
@@ -313,14 +315,14 @@ def read_energyml_obj(data: Union[str, bytes], format_: str = "xml") -> Any:
 
 
 def serialize_xml(obj, check_obj_prefixed_classes: bool = True) -> str:
-    # logging.debug(f"[1] Serializing object of type {type(obj)}")
+    # logger.debug(f"[1] Serializing object of type {type(obj)}")
     obj = as_obj_prefixed_class_if_possible(obj) if check_obj_prefixed_classes else obj
-    # logging.debug(f"[2] Serializing object of type {type(obj)}")
+    # logger.debug(f"[2] Serializing object of type {type(obj)}")
     serializer_config = SerializerConfig(indent="  ")
     serializer = XmlSerializer(context=GLOBAL_XML_CONTEXT, config=serializer_config)
     # res = serializer.render(obj)
     res = serializer.render(obj, ns_map=WELLKNOWN_NAMESPACES)
-    # logging.debug(f"[3] Serialized XML with meta namespace : {obj.Meta.namespace}: {serialize_json(obj)}")
+    # logger.debug(f"[3] Serialized XML with meta namespace : {obj.Meta.namespace}: {serialize_json(obj)}")
     return res
 
 
@@ -411,11 +413,11 @@ def _read_json_dict(obj_json: Any, sub_obj: List) -> Any:
                                 _read_json_dict(val, sub_obj),
                             )
                         else:
-                            logging.error(f"No matching attribute for attribute {att} in {obj}")
+                            logger.error(f"No matching attribute for attribute {att} in {obj}")
                     except Exception:
-                        logging.error(f"Error assign attribute value for attribute {att} in {obj}")
+                        logger.error(f"Error assign attribute value for attribute {att} in {obj}")
         except Exception as e:
-            logging.error(
+            logger.error(
                 f"Err on {att}",
                 search_attribute_matching_name(
                     obj=obj,
@@ -430,7 +432,7 @@ def _read_json_dict(obj_json: Any, sub_obj: List) -> Any:
     elif isinstance(obj_json, list):
         return [_read_json_dict(o, sub_obj) for o in obj_json]
     elif is_primitive(obj_json):
-        # logging.debug(f"PRIM : {obj_json}")
+        # logger.debug(f"PRIM : {obj_json}")
         return obj_json
     else:
         raise NotParsableType(type(obj_json) + " " + obj_json)
@@ -477,7 +479,7 @@ def _fill_dict_with_attribs(
         value = getattr(obj, att_name)
 
         if "Any_element" in str(field_name):
-            logging.debug(f"\t> {field_name}, {att_name} : {value}, {type(obj)}")
+            logger.debug(f"\t> {field_name}, {att_name} : {value}, {type(obj)}")
 
         if (value is not None or mandatory) and (not isinstance(value, list) or len(value) > 0):
             res[field_name] = _to_json_dict_fn(value, f_identifier_to_obj, obj)
@@ -490,7 +492,7 @@ def _fill_dict_with_attribs(
                     if ref_value is not None:
                         res["_data"] = to_json_dict_fn(ref_value, f_identifier_to_obj)
                     else:
-                        # logging.debug(f"NotFound : {ref_identifier}")
+                        # logger.debug(f"NotFound : {ref_identifier}")
                         pass
 
 
@@ -511,7 +513,7 @@ def _to_json_dict_fn(
     if obj is None:
         return None
     elif isinstance(obj, float) and np.isnan(obj):
-        print("NaN found")
+        logger.warning("NaN value found while serializing: it is written as null.")
         return None
     elif is_enum(obj):
         return obj.value
@@ -535,5 +537,30 @@ def _to_json_dict_fn(
             _fill_dict_with_attribs(res, obj, f_identifier_to_obj, _parent)
             return res
         except Exception as e:
-            logging.error(f"Except on qt: {obj} - {type(obj)}")
+            logger.error(f"Except on qt: {obj} - {type(obj)}")
             raise e
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "GLOBAL_XML_CONTEXT",
+    "JSON_VERSION",
+    "FallbackNamespaceXmlParser",
+    "read_energyml_xml_tree",
+    "read_energyml_xml_bytes",
+    "read_energyml_xml_io",
+    "read_energyml_xml_str",
+    "read_energyml_xml_file",
+    "read_energyml_json_bytes",
+    "read_energyml_json_io",
+    "read_energyml_json_str",
+    "read_energyml_json_file",
+    "read_energyml_obj",
+    "serialize_xml",
+    "serialize_json",
+    "get_class_from_json_dict",
+    "read_json_dict",
+    "to_json_dict",
+    "to_json_dict_fn",
+]

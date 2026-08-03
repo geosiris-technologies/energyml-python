@@ -29,6 +29,8 @@ from energyml.utils.introspection import (
 )
 from energyml.utils.storage_interface import EnergymlStorageInterface
 
+logger = logging.getLogger(__name__)
+
 
 @lru_cache(maxsize=None)
 def get_property_reader_function(property_type_name: str) -> Optional[Callable]:
@@ -68,7 +70,7 @@ def read_property(
     if reader_func is not None:
         return reader_func(energyml_object=energyml_object, workspace=workspace)
     else:
-        # logging.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
+        # logger.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
         raise NotSupportedError(
             f"Type {property_type} is not supported\n\tfunction read_{snake_case(property_type)} not found"
         )
@@ -129,7 +131,7 @@ def read_property_interpreted_with_cbt(
                 )
             elif isinstance(category_lookup_data, dict):
                 # Transpose so that each index corresponds to a category (column), not a row.
-                # logging.debug(f"category_lookup_data dict : {category_lookup_data}")
+                # logger.debug(f"category_lookup_data dict : {category_lookup_data}")
 
                 # Guard against inhomogeneous column lengths (e.g. one column is
                 # empty while another is not).  Pad all columns with None up to
@@ -143,7 +145,7 @@ def read_property_interpreted_with_cbt(
 
                 padded = [c + [None] * (max_len - len(c)) for c in col_values]
                 category_lookup_matrice = np.array(padded, dtype=object).T
-                # logging.debug(f"category_lookup_matrice : {category_lookup_matrice}")
+                # logger.debug(f"category_lookup_matrice : {category_lookup_matrice}")
                 # return a matrice with the same shape as prop_arrays but with the values from the category lookup array using the prop value as key in the category lookup array
                 result = (
                     np.array(
@@ -263,7 +265,7 @@ def read_categorical_property(
         np.ndarray: The integer-coded property values.
     """
     # TODO: the categorical values should be converted to strings using the code list of the property, but for now we keep the integer values and let the user manage the conversion if needed.
-    logging.warning(
+    logger.warning(
         "CategoricalProperty is read as a continuous property, the categorical values are not converted to strings but kept as integers. Use the 'code_list' attribute of the property to get the list of possible string values corresponding to the integer values in the array"
     )
     return read_abstract_values_property(energyml_object, workspace)
@@ -360,3 +362,19 @@ def read_time_series(
         )
 
     return steps_data
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "get_property_reader_function",
+    "read_property",
+    "read_property_interpreted_with_cbt",
+    "read_abstract_values_property",
+    "read_discrete_property",
+    "read_continuous_property",
+    "read_categorical_property",
+    "read_comment_property",
+    "read_column_based_table",
+    "read_time_series",
+]

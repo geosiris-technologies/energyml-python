@@ -90,6 +90,8 @@ from energyml.utils.serialization import read_energyml_xml_bytes, serialize_xml
 
 from energyml.utils.xml_utils import is_energyml_content_type
 
+logger = logging.getLogger(__name__)
+
 
 def get_dor_identifiers_from_obj(obj: Any) -> Set[str]:
     """Get identifiers of all Data Object References (DORs) directly referenced by the given object."""
@@ -102,9 +104,9 @@ def get_dor_identifiers_from_obj(obj: Any) -> Set[str]:
                 if identifier:
                     identifiers.add(identifier)
             except Exception as e:
-                logging.warning(f"Failed to extract identifier from DOR: {e}")
+                logger.warning(f"Failed to extract identifier from DOR: {e}")
     except Exception as e:
-        logging.warning(f"Failed to get DOR list from object: {e}")
+        logger.warning(f"Failed to get DOR list from object: {e}")
     return identifiers
 
 
@@ -284,7 +286,7 @@ def process_object_for_rels_worker(
                         referenced_objects.append((target_identifier, target_type))
             except Exception as e:
                 # Don't fail entire object for one bad DOR
-                logging.debug(f"Skipping invalid DOR URI in {identifier}: {e}")
+                logger.debug(f"Skipping invalid DOR URI in {identifier}: {e}")
 
         return {
             "identifier": identifier,
@@ -294,7 +296,7 @@ def process_object_for_rels_worker(
         }
 
     except Exception as e:
-        logging.warning(f"Worker failed to process {identifier}: {e}")
+        logger.warning(f"Worker failed to process {identifier}: {e}")
         return None
 
 
@@ -366,7 +368,7 @@ class _ZipFileAccessor:
             try:
                 self._persistent_zip.close()
             except Exception as e:
-                logging.debug(f"Error closing persistent ZIP file: {e}")
+                logger.debug(f"Error closing persistent ZIP file: {e}")
             finally:
                 self._persistent_zip = None
 
@@ -432,7 +434,7 @@ class _MetadataManager:
                         elif self._is_core_properties(override.content_type):
                             self._process_core_properties_metadata(override)
                         else:
-                            logging.debug(
+                            logger.debug(
                                 f"Epc_StreamReader @load_metadata Skipping non-EnergyML content type: {override.content_type}"
                             )
 
@@ -444,13 +446,13 @@ class _MetadataManager:
                                 (EXPANDED_EXPORT_FOLDER_PREFIX, f"/{EXPANDED_EXPORT_FOLDER_PREFIX}")
                             )
                         ):
-                            logging.debug(f"Detected EXPANDED EPC version based on path: {override.part_name}")
+                            logger.debug(f"Detected EXPANDED EPC version based on path: {override.part_name}")
                             self._export_version = EpcExportVersion.EXPANDED
 
                 self.stats.total_objects = len(self._metadata)
 
         except Exception as e:
-            logging.error(f"Failed to load metadata from EPC file: {e}")
+            logger.error(f"Failed to load metadata from EPC file: {e}")
             raise
 
     def get_metadata(self, identifier: str) -> Optional[EpcObjectMetadata]:
@@ -539,7 +541,7 @@ class _MetadataManager:
                     self.stats.bytes_read += len(core_data)
                     self._core_props = read_energyml_xml_bytes(core_data, CoreProperties)
             except Exception as e:
-                logging.error(f"Failed to load core properties, creating a default one: {e}")
+                logger.error(f"Failed to load core properties, creating a default one: {e}")
                 self._core_props = create_default_core_properties()
 
         return self._core_props
@@ -583,7 +585,7 @@ class _MetadataManager:
             # Reopen the zip file to reflect changes
             self.zip_accessor.reopen_persistent_zip()
 
-            logging.info(f"Successfully updated core properties in {self.zip_accessor.epc_file_path}")
+            logger.info(f"Successfully updated core properties in {self.zip_accessor.epc_file_path}")
 
         except Exception as e:
             # Clean up temp file if it exists
@@ -614,15 +616,15 @@ class _MetadataManager:
                     if file_path.startswith("namespace_"):
                         path_parts = file_path.split("/")
                         if len(path_parts) >= 2:
-                            logging.info(f"Detected EXPANDED EPC version based on path: {file_path}")
+                            logger.info(f"Detected EXPANDED EPC version based on path: {file_path}")
                             return EpcExportVersion.EXPANDED
 
                 # If no EXPANDED patterns found, assume CLASSIC
-                logging.info("Detected CLASSIC EPC version")
+                logger.info("Detected CLASSIC EPC version")
                 return EpcExportVersion.CLASSIC
 
         except Exception as e:
-            logging.warning(f"Failed to detect EPC version, defaulting to CLASSIC: {e}")
+            logger.warning(f"Failed to detect EPC version, defaulting to CLASSIC: {e}")
             return EpcExportVersion.CLASSIC
 
     def get_content_type(self, zf: zipfile.ZipFile) -> Types:
@@ -726,7 +728,7 @@ class _MetadataManager:
                             pass
 
             except Exception as e:
-                logging.debug(f"Failed to extract version/title/last_update from XML content for {file_path}: {e}")
+                logger.debug(f"Failed to extract version/title/last_update from XML content for {file_path}: {e}")
 
             if uuid:  # Only process if we successfully extracted UUID
                 uri = create_uri_from_content_type_or_qualified_type(ct_or_qt=content_type, uuid=uuid, version=version)
@@ -746,7 +748,7 @@ class _MetadataManager:
 
         except Exception as e:
             traceback.print_exc()
-            logging.warning(f"Failed to process metadata for {file_path}: {e}")
+            logger.warning(f"Failed to process metadata for {file_path}: {e}")
 
     def _is_core_properties(self, content_type: str) -> bool:
         """Check if content type is CoreProperties."""
@@ -834,12 +836,12 @@ class _RelationshipManager:
         """Update relationships when a new object is added (UPDATE_AT_MODIFICATION mode)."""
         metadata = self.metadata_manager.get_metadata(obj_identifier)
         if not metadata:
-            logging.warning(f"Metadata not found for {obj_identifier}")
+            logger.warning(f"Metadata not found for {obj_identifier}")
             return
 
         # Get all objects this new object references
         dest_target_uris = get_dor_uris_from_obj(obj)
-        # logging.debug(f"Updating relationships for new object {obj_identifier}, found DOR targets: {dest_target_uris}")
+        # logger.debug(f"Updating relationships for new object {obj_identifier}, found DOR targets: {dest_target_uris}")
 
         obj_file_path = metadata.file_path(export_version=self.metadata_manager._export_version)
 
@@ -872,7 +874,7 @@ class _RelationshipManager:
         """Update relationships when an object is modified (UPDATE_AT_MODIFICATION mode)."""
         metadata = self.metadata_manager.get_metadata(obj_identifier)
         if not metadata:
-            logging.warning(f"Metadata not found for {obj_identifier}")
+            logger.warning(f"Metadata not found for {obj_identifier}")
             return
 
         obj_path = metadata.file_path(export_version=self.metadata_manager._export_version)
@@ -884,7 +886,7 @@ class _RelationshipManager:
         }
         # Latest DORs from the modified object
         dest_target_uris = get_dor_uris_from_obj(obj)
-        # logging.debug(f"Updating relationships for new object {obj_identifier}, found DOR targets: {dest_target_uris}")
+        # logger.debug(f"Updating relationships for new object {obj_identifier}, found DOR targets: {dest_target_uris}")
 
         # Build new SOURCE relationships
         current_rels_additions: List[Relationship] = []
@@ -1000,13 +1002,13 @@ class _RelationshipManager:
         # - Handling different update modes (immediate vs on close)
 
         # 1st : debug log the inputs
-        # logging.debug(
+        # logger.debug(
         #     f"Writing rels updates for current_object_id={current_object_id}, current_rels_additions={current_rels_additions}, current_rels_removals={current_rels_removals}, target_path_rels_additions={target_path_rels_additions}, target_path_rels_removals={target_path_rels_removals}, delete_current_obj_rels_file_and_file={delete_current_obj_rels_file_and_file}\n\n"
         # )
 
         current_obj_meta = self.metadata_manager.get_metadata(current_object_id)
         if not current_obj_meta:
-            logging.warning(f"Metadata not found for {current_object_id}, cannot write rels updates")
+            logger.warning(f"Metadata not found for {current_object_id}, cannot write rels updates")
             return
         current_object_path = current_obj_meta.file_path(export_version=self.metadata_manager._export_version)
         current_rels_path = self.metadata_manager.gen_rels_path_from_metadata(current_obj_meta)
@@ -1051,7 +1053,7 @@ class _RelationshipManager:
                 else:
                     target_meta = self.metadata_manager.get_metadata(target_id)
                     if not target_meta:
-                        logging.warning(
+                        logger.warning(
                             f"Metadata not found for target {target_id}, skipping rels updates for this target"
                         )
                         continue
@@ -1088,7 +1090,7 @@ class _RelationshipManager:
 
         files_to_skip = set(files_to_delete).union(set(rels_updates.keys()))
 
-        # logging.debug(
+        # logger.debug(
         #     f"====\nFiles to delete: {files_to_delete}, rels updates to write: {list(rels_updates.keys())}, files to skip in copy: {files_to_skip}\n\n"
         # )
 
@@ -1111,7 +1113,7 @@ class _RelationshipManager:
                     # Write updated rels files
                     for rels_path, rels_xml in rels_updates.items():
                         target_zf.writestr(rels_path, rels_xml)
-                        # logging.debug(f"Wrote updated rels file: {rels_path} -> {rels_xml}")
+                        # logger.debug(f"Wrote updated rels file: {rels_path} -> {rels_xml}")
 
                     if delete_current_obj_rels_file_and_file:
                         ct_object: Optional[Types] = None
@@ -1139,7 +1141,7 @@ class _RelationshipManager:
         except Exception as e:
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
-            logging.error(f"Failed to write rels updates: {e}")
+            logger.error(f"Failed to write rels updates: {e}")
             raise
 
 
@@ -1184,7 +1186,7 @@ class EpcStreamReader(EnergymlStorageInterface):
         # Validate file exists and is readable
         # =====================================
         if not self.epc_file_path.exists():
-            logging.info(f"EPC file not found: {self.epc_file_path}. Creating a new empty EPC file.")
+            logger.info(f"EPC file not found: {self.epc_file_path}. Creating a new empty EPC file.")
             create_mandatory_structure_epc(self.epc_file_path)
             is_new_file = True
 
@@ -1254,11 +1256,11 @@ class EpcStreamReader(EnergymlStorageInterface):
         if not replace_if_exists:
             obj_uri: Uri = get_obj_uri(obj=obj, dataspace=None)
             if obj_uri is None:
-                logging.error("Failed to get URI for the object, cannot add to EPC")
+                logger.error("Failed to get URI for the object, cannot add to EPC")
                 return None
             obj_identifier = obj_uri.as_identifier()
             if self._metadata_mgr.get_metadata(obj_identifier) is not None:
-                logging.warning(
+                logger.warning(
                     f"Object with identifier {obj_identifier} already exists and replace_if_exists is False, skipping add"
                 )
                 raise ValueError(
@@ -1313,7 +1315,7 @@ class EpcStreamReader(EnergymlStorageInterface):
         _id = self._id_from_uri_or_identifier(identifier=identifier, get_first_if_simple_uuid=True)
 
         if _id is None:
-            logging.warning(f"Invalid identifier provided for adding relationships: {identifier}")
+            logger.warning(f"Invalid identifier provided for adding relationships: {identifier}")
             return
 
         if not isinstance(relationships, list):
@@ -1425,12 +1427,12 @@ class EpcStreamReader(EnergymlStorageInterface):
         """
         _id = self._id_from_uri_or_identifier(identifier=identifier, get_first_if_simple_uuid=True)
         if _id is None:
-            logging.warning(f"Invalid identifier provided: {identifier}")
+            logger.warning(f"Invalid identifier provided: {identifier}")
             return None
         metadata = self._metadata_mgr.get_metadata(_id)
 
         if metadata is None:
-            logging.warning(f"Object with identifier {_id} not found in metadata")
+            logger.warning(f"Object with identifier {_id} not found in metadata")
             return None
 
         # Check cache first
@@ -1456,7 +1458,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                 return obj
 
         except Exception as e:
-            logging.error(f"Failed to load object {identifier}: {e}")
+            logger.error(f"Failed to load object {identifier}: {e}")
         return None
 
     def get_object_by_uuid(self, uuid: str) -> List[Any]:
@@ -1493,17 +1495,17 @@ class EpcStreamReader(EnergymlStorageInterface):
         """
         # Type guard: ensure uuid is a string
         if not isinstance(uuid, str):
-            logging.warning(f"get_object_by_uuid called with non-string uuid: {type(uuid)}")
+            logger.warning(f"get_object_by_uuid called with non-string uuid: {type(uuid)}")
             return []
 
         # Type guard: ensure uuid is not empty
         if not uuid or not uuid.strip():
-            logging.warning("get_object_by_uuid called with empty UUID")
+            logger.warning("get_object_by_uuid called with empty UUID")
             return []
 
         # Type guard: validate UUID format
         if OptimizedRegex.UUID.fullmatch(uuid) is None:
-            logging.warning(f"get_object_by_uuid called with invalid UUID format: {uuid}")
+            logger.warning(f"get_object_by_uuid called with invalid UUID format: {uuid}")
             return []
 
         # Get all identifiers for this UUID
@@ -1511,11 +1513,11 @@ class EpcStreamReader(EnergymlStorageInterface):
 
         # Guard: check if identifiers list is valid
         if identifiers is None or not isinstance(identifiers, list):
-            logging.debug(f"No identifiers found for UUID: {uuid}")
+            logger.debug(f"No identifiers found for UUID: {uuid}")
             return []
 
         if len(identifiers) == 0:
-            # logging.debug(f"No objects found with UUID: {uuid}")
+            # logger.debug(f"No objects found with UUID: {uuid}")
             return []
 
         # Phase 1: Collect cached objects and prepare list of non-cached identifiers
@@ -1525,13 +1527,13 @@ class EpcStreamReader(EnergymlStorageInterface):
         for identifier in identifiers:
             # Type guard: ensure identifier is valid
             if not identifier or not isinstance(identifier, str):
-                logging.warning(f"Skipping invalid identifier in UUID lookup: {identifier}")
+                logger.warning(f"Skipping invalid identifier in UUID lookup: {identifier}")
                 continue
 
             # Get metadata first to validate object exists
             metadata = self._metadata_mgr.get_metadata(identifier)
             if metadata is None:
-                logging.warning(f"Metadata not found for identifier {identifier}, skipping")
+                logger.warning(f"Metadata not found for identifier {identifier}, skipping")
                 continue
 
             # Check cache first for consistency
@@ -1543,7 +1545,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                     objects.append(obj)
                 else:
                     # Remove invalid cached entry and mark for re-loading
-                    logging.warning(f"Removing invalid cached object for {identifier}")
+                    logger.warning(f"Removing invalid cached object for {identifier}")
                     del self._object_cache[identifier]
                     non_cached_metadata.append((identifier, metadata))
                     self.stats.cache_misses += 1
@@ -1568,7 +1570,7 @@ class EpcStreamReader(EnergymlStorageInterface):
 
                             # Guard: validate deserialized object
                             if obj is None:
-                                logging.warning(f"Deserialization returned None for {identifier}")
+                                logger.warning(f"Deserialization returned None for {identifier}")
                                 continue
 
                             # Add to cache with consistency check
@@ -1577,12 +1579,12 @@ class EpcStreamReader(EnergymlStorageInterface):
                             objects.append(obj)
 
                         except KeyError:
-                            logging.error(f"File not found in ZIP for identifier {identifier}: {file_path}")
+                            logger.error(f"File not found in ZIP for identifier {identifier}: {file_path}")
                         except Exception as e:
-                            logging.error(f"Failed to deserialize object {identifier}: {e}")
+                            logger.error(f"Failed to deserialize object {identifier}: {e}")
 
             except Exception as e:
-                logging.error(f"Failed to open ZIP file for batch loading: {e}")
+                logger.error(f"Failed to open ZIP file for batch loading: {e}")
 
         return objects
 
@@ -1612,7 +1614,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                 # Copy all existing files except the one being updated (if update) and its .rels file
                 with self._zip_accessor.get_zip_file() as source_zf:
                     for item in source_zf.infolist():
-                        # logging.debug(
+                        # logger.debug(
                         #     f"Test {get_epc_content_type_path() in item.filename} with {item.filename} and {get_epc_content_type_path()} "
                         # )
                         if get_epc_content_type_path() in item.filename:
@@ -1630,19 +1632,19 @@ class EpcStreamReader(EnergymlStorageInterface):
                 if not file_allready_exists:
                     ct_object = None
                     if epc_content_type is not None:
-                        # logging.debug("Existing content type found, adding new object to it")
+                        # logger.debug("Existing content type found, adding new object to it")
                         # add the new object to the existing content type and write it
                         ct_object = read_energyml_xml_bytes(epc_content_type, Types)
-                        # logging.debug("Existing content type before adding object: " + str(ct_object))
+                        # logger.debug("Existing content type before adding object: " + str(ct_object))
                         ct_object.override.append(
                             Override(part_name=file_path, content_type=get_content_type_from_class(obj))
                         )
                     if ct_object is None:
-                        # logging.debug("No existing content type found, generating new one from metadata manager")
+                        # logger.debug("No existing content type found, generating new one from metadata manager")
                         ct_object = self._metadata_mgr.get_content_type(zf)
-                    # logging.debug("New content type after adding object: " + str(ct_object))
+                    # logger.debug("New content type after adding object: " + str(ct_object))
                     zf.writestr(get_epc_content_type_path(), serialize_xml(ct_object))
-                    # logging.debug("Written content type to EPC with new object : " + serialize_xml(ct_object))
+                    # logger.debug("Written content type to EPC with new object : " + serialize_xml(ct_object))
                 elif epc_content_type is not None:
                     zf.writestr(get_epc_content_type_path(), epc_content_type)
             # Replace original
@@ -1673,11 +1675,11 @@ class EpcStreamReader(EnergymlStorageInterface):
         # 4. Return True if deletion was successful, False otherwise
         _id = self._id_from_uri_or_identifier(identifier=identifier)
         if _id is None:
-            logging.warning(f"Invalid identifier provided for deletion: {identifier}")
+            logger.warning(f"Invalid identifier provided for deletion: {identifier}")
             return False
         metadata = self._metadata_mgr.get_metadata(_id)
         if metadata is None:
-            logging.warning(f"Object with identifier {_id} not found in metadata, cannot delete")
+            logger.warning(f"Object with identifier {_id} not found in metadata, cannot delete")
             return False
 
         if self.rels_update_mode == RelsUpdateMode.UPDATE_AT_MODIFICATION:
@@ -1724,7 +1726,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             file_paths.insert(0, make_path_relative_to_other_file(external_uri, self.epc_file_path))
 
         if not file_paths:
-            logging.warning(f"No external file paths found for proxy: {proxy}")
+            logger.warning(f"No external file paths found for proxy: {proxy}")
             return None
 
         # Get the file handler registry
@@ -1734,7 +1736,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             # Get the appropriate handler for this file type
             handler = handler_registry.get_handler_for_file(file_path)
             if handler is None:
-                logging.debug(f"No handler found for file: {file_path}")
+                logger.debug(f"No handler found for file: {file_path}")
                 continue
 
             try:
@@ -1743,10 +1745,10 @@ class EpcStreamReader(EnergymlStorageInterface):
                 if array is not None:
                     return array
             except Exception as e:
-                # logging.debug(f"Failed to read dataset from {file_path}: {e}")
+                # logger.debug(f"Failed to read dataset from {file_path}: {e}")
                 pass
 
-        logging.error(f"Failed to read array from any available file paths: {file_paths}")
+        logger.error(f"Failed to read array from any available file paths: {file_paths}")
         return None
 
     def read_array_view(
@@ -1784,8 +1786,8 @@ class EpcStreamReader(EnergymlStorageInterface):
                 if array is not None:
                     return array
             except Exception as e:
-                logging.debug(f"Failed to read the array from {file_path}: {e}")
-        logging.warning(
+                logger.debug(f"Failed to read the array from {file_path}: {e}")
+        logger.warning(
             f"No external array could be read for '{path_in_external}' — tried {len(file_paths)} file(s). "
             "The object will come back without geometry."
         )
@@ -1835,7 +1837,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             file_paths = self.get_h5_file_paths(proxy)
 
         if not file_paths:
-            logging.warning(f"No external file paths found for proxy: {proxy}")
+            logger.warning(f"No external file paths found for proxy: {proxy}")
             return False
 
         # Get the file handler registry
@@ -1846,7 +1848,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             # Get the appropriate handler for this file type
             handler = handler_registry.get_handler_for_file(file_path)
             if handler is None:
-                logging.debug(f"No handler found for file: {file_path}")
+                logger.debug(f"No handler found for file: {file_path}")
                 continue
 
             try:
@@ -1855,9 +1857,9 @@ class EpcStreamReader(EnergymlStorageInterface):
                 if success:
                     return True
             except Exception as e:
-                logging.error(f"Failed to write dataset to {file_path}: {e}")
+                logger.error(f"Failed to write dataset to {file_path}: {e}")
 
-        logging.error(f"Failed to write array to any available file paths: {file_paths}")
+        logger.error(f"Failed to write array to any available file paths: {file_paths}")
         return False
 
     def get_array_metadata(
@@ -1891,7 +1893,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             file_paths = self.get_h5_file_paths(proxy)
 
         if not file_paths:
-            logging.warning(f"No external file paths found for proxy: {proxy}")
+            logger.warning(f"No external file paths found for proxy: {proxy}")
             return None
         # Get the file handler registry
         handler_registry = get_handler_registry()
@@ -1900,7 +1902,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             # Get the appropriate handler for this file type
             handler = handler_registry.get_handler_for_file(file_path)
             if handler is None:
-                logging.debug(f"No handler found for file: {file_path}")
+                logger.debug(f"No handler found for file: {file_path}")
                 continue
 
             try:
@@ -1931,7 +1933,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                         custom_data={"size": metadata_dict.get("size", 0)},
                     )
             except Exception as e:
-                logging.debug(f"Failed to get metadata from file {file_path}: {e}")
+                logger.debug(f"Failed to get metadata from file {file_path}: {e}")
 
         return None
 
@@ -1944,12 +1946,12 @@ class EpcStreamReader(EnergymlStorageInterface):
         _id = self._id_from_uri_or_identifier(obj)
 
         if _id is None:
-            logging.warning(f"Could not resolve identifier for object {obj}, cannot get relationships")
+            logger.warning(f"Could not resolve identifier for object {obj}, cannot get relationships")
             return []
 
         metadata = self._metadata_mgr.get_metadata(_id)
         if metadata is None:
-            logging.warning(f"Object with identifier {_id} not found in metadata, cannot get relationships")
+            logger.warning(f"Object with identifier {_id} not found in metadata, cannot get relationships")
             return []
 
         return self._rels_mgr.get_obj_rels(_id)
@@ -1965,9 +1967,9 @@ class EpcStreamReader(EnergymlStorageInterface):
         if self.rels_update_mode == RelsUpdateMode.UPDATE_ON_CLOSE:
             try:
                 self.rebuild_all_rels(clean_first=True)
-                logging.info("Rebuilt all relationships on close (UPDATE_ON_CLOSE mode)")
+                logger.info("Rebuilt all relationships on close (UPDATE_ON_CLOSE mode)")
             except Exception as e:
-                logging.warning(f"Error rebuilding rels on close: {e}")
+                logger.warning(f"Error rebuilding rels on close: {e}")
 
         # Close file cache
         if hasattr(self, "_file_cache"):
@@ -1978,7 +1980,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             try:
                 self.cache_opened_h5.close()
             except Exception as e:
-                logging.debug(f"Error closing cache_opened_h5: {e}")
+                logger.debug(f"Error closing cache_opened_h5: {e}")
             self.cache_opened_h5 = None
 
         # Delegate to ZIP accessor
@@ -2053,7 +2055,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             return as_identifier(identifier)
         except Exception:
             if not get_first_if_simple_uuid:
-                logging.warning(
+                logger.warning(
                     f"Identifier {identifier} is a simple UUID, but get_first_if_simple_uuid is False, cannot resolve to full identifier"
                 )
                 return None
@@ -2064,7 +2066,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                     0
                 ]  # If multiple metadata entries for the same UUID, we take the first one (this should not happen in a well-formed EPC file)
             else:
-                logging.warning(f"No metadata found for UUID {identifier}, cannot get relationships")
+                logger.warning(f"No metadata found for UUID {identifier}, cannot get relationships")
             return None
 
     def _rebuild_all_rels_sequential(self, clean_first: bool = True) -> Dict[str, int]:
@@ -2094,7 +2096,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             "destination_relationships": 0,
         }
 
-        logging.info(f"Starting rebuild of all .rels files for {len(self._metadata)} objects...")
+        logger.info(f"Starting rebuild of all .rels files for {len(self._metadata)} objects...")
 
         # Build a map of which objects are referenced by which objects
         # Key: target identifier, Value: list of (source_identifier, source_obj)
@@ -2127,7 +2129,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                         pass
 
             except Exception as e:
-                logging.warning(f"Failed to analyze object {identifier}: {e}")
+                logger.warning(f"Failed to analyze object {identifier}: {e}")
 
         # Second pass: create the .rels files
         # Map of rels_file_path -> Relationships object
@@ -2167,7 +2169,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                                 stats["destination_relationships"] += 1
 
                         except Exception as e:
-                            logging.debug(f"Failed to create DESTINATION relationship: {e}")
+                            logger.debug(f"Failed to create DESTINATION relationship: {e}")
 
                     if relationships and obj_rels_path:
                         if obj_rels_path not in rels_files:
@@ -2175,7 +2177,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                         rels_files[obj_rels_path].relationship.extend(relationships)
 
             except Exception as e:
-                logging.warning(f"Failed to create DESTINATION rels for {identifier}: {e}")
+                logger.warning(f"Failed to create DESTINATION rels for {identifier}: {e}")
 
         # Add SOURCE relationships (in target's .rels file, pointing back to sources)
         for target_identifier, source_list in reverse_references.items():
@@ -2206,10 +2208,10 @@ class EpcStreamReader(EnergymlStorageInterface):
                         stats["source_relationships"] += 1
 
                     except Exception as e:
-                        logging.debug(f"Failed to create SOURCE relationship: {e}")
+                        logger.debug(f"Failed to create SOURCE relationship: {e}")
 
             except Exception as e:
-                logging.warning(f"Failed to create SOURCE rels for {target_identifier}: {e}")
+                logger.warning(f"Failed to create SOURCE rels for {target_identifier}: {e}")
 
         stats["rels_files_created"] = len(rels_files)
 
@@ -2253,7 +2255,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                                 # Create new entry with only preserved relationships
                                 rels_files[filename] = Relationships(relationship=preserved_rels)
                 except Exception as e:
-                    logging.debug(f"Could not preserve existing rels from {filename}: {e}")
+                    logger.debug(f"Could not preserve existing rels from {filename}: {e}")
 
         # Update core_prop_rels with extended props if needed
         new_core_prop_rels = Relationships(
@@ -2309,7 +2311,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             shutil.move(temp_path, self.epc_file_path)
             self._zip_accessor.reopen_persistent_zip()
 
-            logging.info(
+            logger.info(
                 f"Rebuilt .rels files: processed {stats['objects_processed']} objects, "
                 f"created {stats['rels_files_created']} .rels files, "
                 f"added {stats['source_relationships']} SOURCE and "
@@ -2351,7 +2353,7 @@ class EpcStreamReader(EnergymlStorageInterface):
         }
 
         num_objects = len(self._metadata)
-        logging.info(f"Starting PARALLEL rebuild of all .rels files for {num_objects} objects...")
+        logger.info(f"Starting PARALLEL rebuild of all .rels files for {num_objects} objects...")
 
         # Prepare work items for parallel processing
         # Pass metadata as dict (serializable) instead of keeping references
@@ -2365,7 +2367,7 @@ class EpcStreamReader(EnergymlStorageInterface):
         # Don't spawn more workers than CPUs; use user-configurable ratio for workload per worker
         worker_ratio = self.parallel_worker_ratio if hasattr(self, "parallel_worker_ratio") else _WORKER_POOL_SIZE_RATIO
         num_workers = min(cpu_count(), max(1, num_objects // worker_ratio))
-        logging.info(f"Using {num_workers} worker processes for {num_objects} objects (ratio: {worker_ratio})")
+        logger.info(f"Using {num_workers} worker processes for {num_objects} objects (ratio: {worker_ratio})")
 
         # ============================================================================
         # PHASE 1: PARALLEL - Compute SOURCE relationships across worker processes
@@ -2451,10 +2453,10 @@ class EpcStreamReader(EnergymlStorageInterface):
                         stats["source_relationships"] += 1
 
                     except Exception as e:
-                        logging.debug(f"Failed to create SOURCE relationship: {e}")
+                        logger.debug(f"Failed to create SOURCE relationship: {e}")
 
             except Exception as e:
-                logging.warning(f"Failed to create SOURCE rels for {target_identifier}: {e}")
+                logger.warning(f"Failed to create SOURCE rels for {target_identifier}: {e}")
 
         stats["rels_files_created"] = len(rels_files)
 
@@ -2500,7 +2502,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                             else:
                                 rels_files[filename] = Relationships(relationship=preserved_rels)
                 except Exception as e:
-                    logging.debug(f"Could not preserve existing rels from {filename}: {e}")
+                    logger.debug(f"Could not preserve existing rels from {filename}: {e}")
 
         # update core_prop_rels with extended props if needed
         new_core_prop_rels = Relationships(
@@ -2526,7 +2528,7 @@ class EpcStreamReader(EnergymlStorageInterface):
                     core_prop_rels.relationship.append(new_rel)
 
         rels_files[gen_core_props_rels_path()] = core_prop_rels
-        print(f"Coreprops : {core_prop_rels}")
+        logger.debug("Core properties relationships: %s", core_prop_rels)
 
         # ============================================================================
         # PHASE 5: SEQUENTIAL - Write all relationships to ZIP file
@@ -2564,7 +2566,7 @@ class EpcStreamReader(EnergymlStorageInterface):
             execution_time = time.time() - start_time
             stats["execution_time"] = execution_time
 
-            logging.info(
+            logger.info(
                 f"Rebuilt .rels files (PARALLEL): processed {stats['objects_processed']} objects, "
                 f"created {stats['rels_files_created']} .rels files, "
                 f"added {stats['source_relationships']} SOURCE and "
@@ -2593,3 +2595,15 @@ class EpcStreamReader(EnergymlStorageInterface):
     def get_object_by_identifier(self, identifier: Union[str, Uri]) -> Optional[Any]:
         """Alias for get_object for backward compatibility."""
         return self.get_object(identifier)
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "get_dor_identifiers_from_obj",
+    "RelsUpdateMode",
+    "EpcObjectMetadata",
+    "EpcStreamingStats",
+    "process_object_for_rels_worker",
+    "EpcStreamReader",
+]

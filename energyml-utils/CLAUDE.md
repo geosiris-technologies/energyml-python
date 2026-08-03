@@ -21,7 +21,7 @@ poetry run pre-commit run --all-files   # black + isort + flake8
 `[tool.pytest.ini_options]` puts `src` on `pythonpath`, so tests import `energyml.utils.*` without installing.
 If a `poetry run <script>` fails on imports, set `$env:PYTHONPATH="src"`.
 
-CLI entry points live in `[tool.poetry.scripts]` and all resolve to functions in [example/tools.py](example/tools.py)
+CLI entry points live in `[tool.poetry.scripts]` and all resolve to functions re-exported by [src/energyml/utils/cli/](src/energyml/utils/cli/__init__.py). They must stay inside the distributed `energyml` package: anything under `example/` is not shipped in the wheel, so an entry point pointing there is created by `pip install` and then fails at import. `tests/test_cli.py` reads the declarations out of `pyproject.toml` and checks exactly that
 (`extract_3d`, `csv_to_dataset`, `generate_data`, `generate_multiple_data`, `xml_to_json`, `json_to_xml`,
 `json_to_epc`, `loadNsave`, `describe_as_csv`, `validate`). Adding a CLI = adding a function there **and** a
 line in `[tool.poetry.scripts]`. See README.md for per-script examples.

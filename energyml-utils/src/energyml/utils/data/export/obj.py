@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from energyml.utils.data.crs import PointFrame
     from energyml.utils.data.representation_context import RepresentationContext
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # OBJ export
@@ -173,3 +173,10 @@ register_format(
         companion_suffix=".mtl",
     )
 )
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "export_obj",
+]

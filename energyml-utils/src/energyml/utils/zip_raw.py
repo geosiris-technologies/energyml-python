@@ -37,6 +37,8 @@ import zipfile
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, Optional, Set, Tuple, Union
 
+logger = logging.getLogger(__name__)
+
 _LOCAL_HEADER_SIGNATURE = b"PK\x03\x04"
 _LOCAL_HEADER_SIZE = 30
 
@@ -86,7 +88,7 @@ def _read_raw_entry(src_fp, info: zipfile.ZipInfo) -> Optional[bytes]:
             return None
         return data
     except Exception as e:  # pragma: no cover - defensive
-        logging.debug(f"Raw read failed for {info.filename}: {e}")
+        logger.debug(f"Raw read failed for {info.filename}: {e}")
         return None
 
 
@@ -129,7 +131,7 @@ def _copy_entry_raw(src_fp, info: zipfile.ZipInfo, dst: zipfile.ZipFile) -> bool
         dst._didModify = True
         return True
     except Exception as e:  # pragma: no cover - defensive
-        logging.debug(f"Raw copy failed for {info.filename}, falling back: {e}")
+        logger.debug(f"Raw copy failed for {info.filename}, falling back: {e}")
         return False
 
 

@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from energyml.utils.data.crs import PointFrame
     from energyml.utils.data.representation_context import RepresentationContext
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # VTK export — private helpers
@@ -562,3 +562,10 @@ for _fmt, _label, _desc, _sub in (
             force_options={"vtk_format": _sub} if _sub is not None else None,
         )
     )
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "export_vtk",
+]

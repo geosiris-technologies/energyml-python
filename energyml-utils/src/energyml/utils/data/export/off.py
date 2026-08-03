@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from energyml.utils.data.crs import PointFrame
     from energyml.utils.data.representation_context import RepresentationContext
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def _face_list(mesh: Any) -> List[np.ndarray]:
@@ -184,3 +184,11 @@ register_format(
         options_class=None,
     )
 )
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "export_off",
+    "export_off_part",
+]

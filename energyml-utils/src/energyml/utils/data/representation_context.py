@@ -15,6 +15,8 @@ from energyml.utils.introspection import get_obj_uri, get_obj_uuid, get_object_a
 from energyml.utils.data.helper import RgbaColor, ScalarRenderingInfo, IndexableElementRenderingInfo, read_color_map, read_graphical_rendering_info
 from energyml.utils.data.crs import extract_crs_info
 
+logger = logging.getLogger(__name__)
+
 NO_KIND = "NO_KIND"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -99,7 +101,7 @@ def collect_graphical_info_from_rels(
             uuid, version = extract_uuid_and_version_from_obj_path(r.target)
             graphical_info_set = workspace.get_object_by_uuid_versioned(uuid, version)
             if graphical_info_set is None:
-                logging.warning(f"GraphicalInformationSet {r.target} not found in workspace")
+                logger.warning(f"GraphicalInformationSet {r.target} not found in workspace")
                 continue
             graphical_info_set_uri = get_obj_uri(graphical_info_set)
             for graphical_info in getattr(graphical_info_set, "graphical_information", []):
@@ -140,7 +142,7 @@ def get_color(cell_type: Union[str, CellType], object_type: str, graphical_info:
                             color_map = read_color_map(cmap_obj)
                             return color_map.entries[value_vector_index].color
                 except Exception as exc:
-                    logging.debug(f"Error reading ColorInformation: {exc}")
+                    logger.debug(f"Error reading ColorInformation: {exc}")
                     
     # Search for DefaultGraphicalInformation with matching cell_type
     info_whole_color = []
@@ -156,7 +158,7 @@ def get_color(cell_type: Union[str, CellType], object_type: str, graphical_info:
                         if elem_info.constant_color is not None:
                             return RgbaColor.from_hsv(elem_info.constant_color)
             except Exception as exc:
-                logging.debug(f"Error reading DefaultGraphicalInformation: {exc}")
+                logger.debug(f"Error reading DefaultGraphicalInformation: {exc}")
 
     if info_whole_color:
         return info_whole_color[0].to_rgb()
@@ -230,7 +232,7 @@ class RepresentationContext(BaseModel):
                 if ts_obj is not None:
                     self.time_series.append(ts_obj)
                 else:
-                    logging.warning(f"TimeSeries {get_obj_uri(ts_dor)} not found in workspace")
+                    logger.warning(f"TimeSeries {get_obj_uri(ts_dor)} not found in workspace")
 
     def _collect_properties(self, rels: List[Relationship]):
         # Collect related properties keyed by property uuid
@@ -241,7 +243,7 @@ class RepresentationContext(BaseModel):
                 uuid, version = extract_uuid_and_version_from_obj_path(r.target)
                 prop = self.workspace.get_object_by_uuid_versioned(uuid, version)
                 if prop is None:
-                    logging.warning(f"Property {r.target} not found in workspace")
+                    logger.warning(f"Property {r.target} not found in workspace")
                     continue
                 prop_uuid = getattr(prop, "uuid", NO_KIND)
                 self._props[prop_uuid] = prop
@@ -282,7 +284,7 @@ class RepresentationContext(BaseModel):
                             crs_uuids.add(crs_uuid)
                             self.crs_infos.append(extract_crs_info(crs, self.workspace))
                     else:
-                        logging.warning(f"CRS {get_obj_uri(crs_ref)} not found in workspace")
+                        logger.warning(f"CRS {get_obj_uri(crs_ref)} not found in workspace")
 
     def _collect_graphical_info(self, rels: List[Relationship]):
         # Collect graphical information entries whose target matches this representation
@@ -313,7 +315,7 @@ class RepresentationContext(BaseModel):
                             if ri.contour_minor_line_info is not None:
                                 accumulated.contour_minor_line_info = ri.contour_minor_line_info
                     except Exception as exc:
-                        logging.debug(f"Error reading graphical rendering info: {exc}")
+                        logger.debug(f"Error reading graphical rendering info: {exc}")
             self._rendering_info = accumulated
         return self._rendering_info
     
@@ -331,7 +333,9 @@ class RepresentationContext(BaseModel):
             for r in self.rels + (self.interpretation_as_context.rels if self.interpretation_as_context is not None else []):
                 if "Unit" in r.target:
                     uuid, version = extract_uuid_and_version_from_obj_path(r.target)
-                    print(f"Found Unit reference in relationship: {r.target} (uuid={uuid}, version={version})")
+                    logger.debug(
+                        "Found Unit reference in relationship: %s (uuid=%s, version=%s)", r.target, uuid, version
+                    )
                     if uuid not in cached_uuids:
                         cached_uuids.add(uuid)
                         unit_obj = self.workspace.get_object_by_uuid_versioned(uuid, version)
@@ -402,7 +406,7 @@ class RepresentationContext(BaseModel):
             try:
                 return interp.domain.value
             except Exception as e:
-                print(f"Error accessing interpretation domain: {e}")
+                logger.warning("Error accessing interpretation domain: %s", e)
                 pass
         return None
     
@@ -482,7 +486,7 @@ class RepresentationContext(BaseModel):
 
         prop = self.get_property(property_uuid)
         if prop is None:
-            logging.warning(f"Property {property_uuid} not found in context")
+            logger.warning(f"Property {property_uuid} not found in context")
             return {}
 
         time_series_dor = search_attribute_matching_name(prop, r"TimeSeries")
@@ -504,7 +508,7 @@ class RepresentationContext(BaseModel):
     def seach_same_representation_in_other_time_step(self) -> List[Uri]:
         """Search for another representation that has the same interpretation, and same TimeSeries reference (if any), but different time step."""
         if self.time_series is None or len(self.time_series) == 0:
-            logging.debug(
+            logger.debug(
                 f"Representation {self.uri} has no TimeSeries reference, skipping search for same representation in other time step"
             )
             return []
@@ -577,6 +581,19 @@ class RepresentationContext(BaseModel):
 
         lines.append("=" * 60)
         return "\n".join(lines)
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "NO_KIND",
+    "CellType",
+    "collect_graphical_info",
+    "collect_graphical_info_from_rels",
+    "get_color",
+    "get_color_from_object",
+    "RepresentationContext",
+]
 
 
 if __name__ == "__main__2":

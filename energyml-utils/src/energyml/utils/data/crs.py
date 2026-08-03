@@ -326,7 +326,7 @@ def _extract_vertical_crs_details(vertical_crs_obj: Any) -> dict:
     **must not** override a parent-level ``ZIncreasingDownward`` when this
     value is ``None``.
     """
-    # logging.debug(
+    # logger.debug(
     #     f"Extracting vertical CRS details from object of type {type(vertical_crs_obj).__name__} with URI {get_obj_uri(vertical_crs_obj)}"
     # )
     result: dict = {
@@ -414,7 +414,7 @@ def _from_abstract_local3dcrs(
     DORs when provided.
     """
     type_name = type(crs_obj).__name__
-    # logging.debug(f"@_from_abstract_local3dcrs Extracting CRS info from {type_name} with URI {get_obj_uri(crs_obj)}")
+    # logger.debug(f"@_from_abstract_local3dcrs Extracting CRS info from {type_name} with URI {get_obj_uri(crs_obj)}")
 
     # --- Offsets -----------------------------------------------------------
     x_offset = 0.0
@@ -436,7 +436,7 @@ def _from_abstract_local3dcrs(
     # --- Z direction -------------------------------------------------------
     z_increasing_downward: bool = False
     zid_raw = get_object_attribute_no_verif(crs_obj, "zincreasing_downward")
-    logging.debug(f"v2.0.1 ZIncreasingDownward raw value: {zid_raw}")
+    logger.debug(f"v2.0.1 ZIncreasingDownward raw value: {zid_raw}")
     if zid_raw is not None:
         if isinstance(zid_raw, bool):
             z_increasing_downward = zid_raw
@@ -478,8 +478,8 @@ def _from_abstract_local3dcrs(
 
     # Direction from VerticalCrs overrides the top-level ZIncreasingDownward
     # only when explicitly set.
-    # logging.debug("z_increasing_downward before vertical CRS details: %s", z_increasing_downward)
-    # logging.debug(
+    # logger.debug("z_increasing_downward before vertical CRS details: %s", z_increasing_downward)
+    # logger.debug(
     #     f"Vertical CRS details: {vertical_details} -- vertical_crs_obj type: {type(vertical_crs_obj).__name__ if vertical_crs_obj else 'None'}"
     # )
     if vertical_crs_obj is not None and vertical_details.get("z_increasing_downward") is not None:
@@ -487,7 +487,7 @@ def _from_abstract_local3dcrs(
     if vertical_details.get("uom"):
         vertical_uom = vertical_details["uom"]
 
-    # logging.debug("z_increasing_downward after vertical CRS details: %s", z_increasing_downward)
+    # logger.debug("z_increasing_downward after vertical CRS details: %s", z_increasing_downward)
 
     return CrsInfo(
         x_offset=x_offset,

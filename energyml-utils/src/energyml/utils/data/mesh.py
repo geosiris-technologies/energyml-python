@@ -67,6 +67,11 @@ from energyml.utils.data.export.geojson import (  # noqa: F401
     write_geojson_feature,
 )
 
+logger = logging.getLogger(__name__)
+#: Alias of the module logger, for the functions that take a caller-supplied
+#: ``logger`` parameter — the parameter shadows the module-level name in their body.
+_MODULE_LOGGER = logger
+
 _FILE_HEADER: bytes = b"# file exported by energyml-utils python module (Geosiris)\n"
 
 Point = list[float]
@@ -265,7 +270,7 @@ def read_mesh_object(
             if s.frame is target or s.point_list is None or len(s.point_list) == 0:
                 continue
             crs = s.crs_object[0] if isinstance(s.crs_object, list) and s.crs_object else s.crs_object
-            logging.debug(f"Bringing surface {s.identifier} from {s.frame.value} to {target.value}")
+            logger.debug(f"Bringing surface {s.identifier} from {s.frame.value} to {target.value}")
             pts_arr = np.asarray(s.point_list, dtype=np.float64).reshape(-1, 3)
             framed = to_frame(
                 pts_arr,
@@ -279,7 +284,7 @@ def read_mesh_object(
             s.frame = framed.frame
         return surfaces
     else:
-        # logging.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
+        # logger.error(f"Type {array_type_name} is not supported: function read_{snake_case(array_type_name)} not found")
         raise NotSupportedError(
             f"Type {array_type_name} is not supported\n\tfunction read_{snake_case(array_type_name)} not found"
         )
@@ -568,8 +573,8 @@ def gen_surface_grid_geometry(
         path_in_root=patch_path,
         workspace=workspace,
     )
-    logging.debug(f"Total points read: {len(points)}")
-    logging.debug(f"Sample points: {points[0:5]}")
+    logger.debug(f"Total points read: {len(points)}")
+    logger.debug(f"Sample points: {points[0:5]}")
 
     fa_count = search_attribute_matching_name(patch, "FastestAxisCount")
     if fa_count is None:
@@ -582,7 +587,7 @@ def gen_surface_grid_geometry(
     fa_count = fa_count[0]
     sa_count = sa_count[0]
 
-    # logging.debug(f"sa_count {sa_count} fa_count {fa_count}")
+    # logger.debug(f"sa_count {sa_count} fa_count {fa_count}")
 
     points_no_nan = []
 
@@ -602,13 +607,13 @@ def gen_surface_grid_geometry(
 
     sa_count, fa_count = _fit_grid_dimensions(sa_count, fa_count, len(points))
 
-    logging.debug(f"sa_count {sa_count} fa_count {fa_count} : {sa_count * fa_count} - {len(points)} ")
+    logger.debug(f"sa_count {sa_count} fa_count {fa_count} : {sa_count * fa_count} - {len(points)} ")
 
     for sa in range(sa_count - 1):
         for fa in range(fa_count - 1):
             line = sa * fa_count
             # if sa+1 == int(sa_count / 2) and fa == int(fa_count / 2):
-            #     logging.debug(
+            #     logger.debug(
             #         "\n\t", (line + fa), " : ", (line + fa) in indice_to_final_indice,
             #         "\n\t", (line + fa + 1), " : ", (line + fa + 1) in indice_to_final_indice,
             #         "\n\t", (line + fa_count + fa + 1), " : ", (line + fa_count + fa + 1) in indice_to_final_indice,
@@ -644,7 +649,7 @@ def gen_surface_grid_geometry(
             if 0 <= t_idx < len(indices):
                 new_indices.append(indices[t_idx])
         indices = new_indices
-    # logging.debug(indices)
+    # logger.debug(indices)
 
     return points if keep_holes else points_no_nan, indices
 
@@ -686,7 +691,7 @@ def _list_exportable_uuids(epc: EnergymlStorageInterface, logger: Optional[Any] 
             continue
         if get_object_reader_function(_mesh_name_mapping(object_type)) is not None:
             uuids.append(uuid)
-    (logger or logging).debug(f"{len(uuids)} exportable representations found")
+    (logger or _MODULE_LOGGER).debug(f"{len(uuids)} exportable representations found")
     return uuids
 
 
@@ -709,9 +714,9 @@ def export_multiple_data(
     :param use_network: GeoJSON only — allow PROJ to download the geoid grids needed by the
                         vertical datum transformation.
     """
-    logging.debug(f"Opening epc : {epc_path}")
+    _MODULE_LOGGER.debug(f"Opening epc : {epc_path}")
     epc = EpcFile(epc_file_path=epc_path, mode=EpcAccessMode.MANUAL, compact_on_close=False)
-    logging.debug("Opened")
+    _MODULE_LOGGER.debug("Opened")
 
     if not uuid_list:
         uuid_list = _list_exportable_uuids(epc, logger)
@@ -731,7 +736,7 @@ def export_multiple_data(
             energyml_obj = epc.get_object_by_uuid(uuid)[0]
         except Exception as e:
             # a bare `except` here also swallowed KeyboardInterrupt / SystemExit
-            (logger or logging).error(f"Object with uuid {uuid} not found : {type(e).__name__}: {e}")
+            (logger or _MODULE_LOGGER).error(f"Object with uuid {uuid} not found : {type(e).__name__}: {e}")
             continue
         # A citation title is free text and lands in the file name: sanitize it, or a title
         # containing ':' (e.g. "AUB-PRO-SP05512: Trajectory") silently writes into an NTFS
@@ -743,7 +748,7 @@ def export_multiple_data(
             f"{output_file_path_suffix}"
         )
         file_path = os.path.join(output_folder_path, f"{file_name}.{file_format.value}")
-        logging.debug(f"Exporting : {file_path}")
+        _MODULE_LOGGER.debug(f"Exporting : {file_path}")
 
         # a representation that cannot be read (e.g. a trajectory without geometry) must not
         # stop the export of the others
@@ -780,6 +785,52 @@ def export_multiple_data(
                         indent=2,
                     )
             else:
-                logging.error(f"Code is not written for format {file_format}")
+                _MODULE_LOGGER.error(f"Code is not written for format {file_format}")
         except Exception as e:
-            (logger or logging).error(f"Failed to export the object {uuid} : {type(e).__name__}: {e}")
+            (logger or _MODULE_LOGGER).error(f"Failed to export the object {uuid} : {type(e).__name__}: {e}")
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "get_property_reader_function",
+    "read_abstract_values_property",
+    "read_categorical_property",
+    "read_column_based_table",
+    "read_comment_property",
+    "read_continuous_property",
+    "read_discrete_property",
+    "read_property",
+    "read_property_interpreted_with_cbt",
+    "read_time_series",
+    "export_off",
+    "export_off_part",
+    "GeoJsonGeometryType",
+    "energyml_type_to_geojson_type",
+    "export_geojson_dict",
+    "export_geojson_io",
+    "mesh_to_geojson_type",
+    "to_geojson_feature",
+    "write_geojson_feature",
+    "Point",
+    "MeshFileFormat",
+    "AbstractMesh",
+    "PointSetMesh",
+    "PolylineSetMesh",
+    "SurfaceMesh",
+    "get_object_reader_function",
+    "get_mesh_reader_function",
+    "read_mesh_object",
+    "read_ijk_grid_representation",
+    "read_point_representation",
+    "read_polyline_representation",
+    "read_grid2d_representation",
+    "read_triangulated_set_representation",
+    "read_wellbore_frame_representation",
+    "read_wellbore_trajectory_representation",
+    "read_sub_representation",
+    "read_representation_set_representation",
+    "gen_surface_grid_geometry",
+    "export_obj",
+    "export_multiple_data",
+]

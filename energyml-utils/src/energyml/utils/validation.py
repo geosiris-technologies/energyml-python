@@ -30,6 +30,8 @@ from energyml.utils.introspection import (
     get_object_uri,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class ErrorType(Enum):
     CRITICAL = "critical"
@@ -236,12 +238,12 @@ def dor_validation_object(
 
         # debug
         if isinstance(target, list):
-            # logging.error(
+            # logger.error(
             #     f"Multiple objects found with uuid '{dor_uuid}' for DOR in object '{get_obj_identifier(obj)}' at path '{dor_path}'. This should not happen and can lead to wrong validation results.",
             #     exc_info=True,
             #     stack_info=True,  # This shows the full call stack including caller
             # )
-            # logging.error(
+            # logger.error(
             #     f'\t{target} => Object ct and qt {get_object_attribute_rgx(dor, "content_type")} : {get_object_attribute_rgx(dor, "qualified_type")}'
             # )
             if len(target) == 0:
@@ -370,9 +372,9 @@ def _patterns_validation(obj: Any, root_obj: Any, current_attribute_dot_path: st
         for k, val in obj.items():
             error_list = error_list + _patterns_validation(val, root_obj, f"{current_attribute_dot_path}.{k}")
     else:
-        # logging.debug(get_class_fields(obj))
+        # logger.debug(get_class_fields(obj))
         for att_name, att_field in get_class_fields(obj).items():
-            # logging.debug(f"att_name : {att_field.metadata}")
+            # logger.debug(f"att_name : {att_field.metadata}")
             error_list = error_list + validate_attribute(
                 get_object_attribute(obj, att_name, False),
                 root_obj,
@@ -492,8 +494,14 @@ def validate_attribute(value: Any, root_obj: Any, att_field: Field, path: str) -
                             )
                         )
         except Exception as e:
-            print(f"Error while validating attribute '{att_field}' with value '{value}': {str(e)} for {path}")
-            print(f"att_field : {att_field}, is primitive : {is_primitive(att_field)}")
+            logger.warning(
+                "Error while validating attribute '%s' with value '%s' at '%s' (primitive: %s): %s",
+                att_field,
+                value,
+                path,
+                is_primitive(att_field),
+                e,
+            )
             errs.append(
                 ValidationObjectError(
                     _msg=f"Error while validating attribute '{att_field}' with value '{value}': {str(e)}",
@@ -556,3 +564,23 @@ def correct_dor(energyml_objects: List[Any]) -> None:
                     dor_qualified_type = get_object_attribute_no_verif(dor, "qualified_type")
                     if dor_qualified_type != target_qualified_type:
                         dor.qualified_type = target_qualified_type
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "ErrorType",
+    "ValidationError",
+    "ValidationObjectError",
+    "ValidationObjectInfo",
+    "MandatoryError",
+    "MissingEntityError",
+    "validate_epc",
+    "validate_objects",
+    "validate_obj",
+    "dor_validation_object",
+    "dor_validation",
+    "patterns_validation",
+    "validate_attribute",
+    "correct_dor",
+]

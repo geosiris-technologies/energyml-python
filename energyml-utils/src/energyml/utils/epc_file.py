@@ -110,6 +110,8 @@ from energyml.utils.xml_utils import (
 )
 from energyml.utils.zip_raw import append_to_zip, count_shadowed_entries, rewrite_zip
 
+logger = logging.getLogger(__name__)
+
 __all__ = [
     "EpcAccessMode",
     "EpcFile",
@@ -258,7 +260,7 @@ def _read_array_from_handler(
             if array is not None:
                 return array
         except Exception as exc:
-            logging.debug(
+            logger.debug(
                 f"read_array_view failed on {file_path} for '{path_in_external}' "
                 f"({type(exc).__name__}: {exc}) — retrying with a plain read."
             )
@@ -266,7 +268,7 @@ def _read_array_from_handler(
     try:
         return handler.read_array(file_path, path_in_external, start_indices, counts)
     except Exception as exc:
-        logging.debug(f"read_array failed on {file_path} for '{path_in_external}': {type(exc).__name__}: {exc}")
+        logger.debug(f"read_array failed on {file_path} for '{path_in_external}': {type(exc).__name__}: {exc}")
         return None
 
 
@@ -283,7 +285,7 @@ def _sniff_root_element(head: bytes) -> Optional[Any]:
         for _, element in parser.read_events():
             return element
     except Exception as e:
-        logging.debug(f"Failed to sniff XML head: {e}")
+        logger.debug(f"Failed to sniff XML head: {e}")
     return None
 
 
@@ -318,7 +320,7 @@ def _content_type_from_head(head: bytes) -> Optional[str]:
             return None
         return f"application/x-{package}+xml;version={version};type={object_type}"
     except Exception as e:
-        logging.debug(f"Failed to derive the content type from the XML head: {e}")
+        logger.debug(f"Failed to derive the content type from the XML head: {e}")
         return None
 
 
@@ -445,7 +447,7 @@ class EpcFile(EnergymlStorageInterface):
             try:
                 self._zip.close()
             except Exception as e:  # pragma: no cover - defensive
-                logging.debug(f"Error closing ZIP handle: {e}")
+                logger.debug(f"Error closing ZIP handle: {e}")
             self._zip = None
 
     def _build_index(self) -> None:
@@ -494,7 +496,7 @@ class EpcFile(EnergymlStorageInterface):
             self._core_props_path = gen_core_props_path()
 
         if self.stats.parts_sniffed:
-            logging.info(
+            logger.info(
                 f"{self.epc_file_path}: {self.stats.parts_sniffed} part(s) identified by reading their root element "
                 f"because {get_epc_content_type_path()} does not describe them usably"
             )
@@ -517,13 +519,13 @@ class EpcFile(EnergymlStorageInterface):
                     data = self._read_part(name)
                     break
         if data is None:
-            logging.warning(f"No {get_epc_content_type_path()} in {self.epc_file_path}, indexing from the ZIP listing")
+            logger.warning(f"No {get_epc_content_type_path()} in {self.epc_file_path}, indexing from the ZIP listing")
             return {}
 
         try:
             types = read_energyml_xml_bytes(data, Types)
         except Exception as e:
-            logging.warning(f"Unreadable {get_epc_content_type_path()} ({e}), indexing from the ZIP listing")
+            logger.warning(f"Unreadable {get_epc_content_type_path()} ({e}), indexing from the ZIP listing")
             return {}
 
         result: Dict[str, str] = {}
@@ -532,7 +534,7 @@ class EpcFile(EnergymlStorageInterface):
                 continue
             part_name = override.part_name.lstrip("/\\")
             if part_name not in self._zip_entries:
-                logging.debug(f"Content type declares a missing part, ignored: {part_name}")
+                logger.debug(f"Content type declares a missing part, ignored: {part_name}")
                 continue
             result[part_name] = override.content_type
         return result
@@ -556,12 +558,12 @@ class EpcFile(EnergymlStorageInterface):
             return
         content_type = _content_type_from_head(head)
         if content_type is None:
-            logging.debug(f"Undeclared part not recognised as energyml, ignored: {part_name}")
+            logger.debug(f"Undeclared part not recognised as energyml, ignored: {part_name}")
             return
         entry = self._register_part(part_name, content_type, declared=False, head=head)
         if entry is not None:
             self.stats.parts_sniffed += 1
-            logging.debug(f"Part not usable from the content types, recovered by sniffing: {part_name}")
+            logger.debug(f"Part not usable from the content types, recovered by sniffing: {part_name}")
 
     def _register_part(
         self, part_name: str, content_type: str, declared: bool, head: Optional[bytes] = None
@@ -573,7 +575,7 @@ class EpcFile(EnergymlStorageInterface):
             match = _RE_UUID_ATTR.search(head or b"")
             uuid = _decode(match.group(1)) if match else None
         if not uuid:
-            logging.warning(f"Cannot determine the uuid of part {part_name}, ignored")
+            logger.warning(f"Cannot determine the uuid of part {part_name}, ignored")
             return None
 
         entry = _ObjectEntry(path=part_name, content_type=content_type, uuid=uuid, declared=declared)
@@ -607,7 +609,7 @@ class EpcFile(EnergymlStorageInterface):
             self.stats.head_reads += 1
             return data
         except Exception as e:
-            logging.debug(f"Failed to read the head of {part_name}: {e}")
+            logger.debug(f"Failed to read the head of {part_name}: {e}")
             return None
 
     def _fill_from_head(self, entry: _ObjectEntry, head: bytes) -> None:
@@ -768,10 +770,10 @@ class EpcFile(EnergymlStorageInterface):
     def get_object(self, identifier: Union[str, Uri]) -> Optional[Any]:
         entries = self._find_entries(identifier)
         if not entries:
-            logging.debug(f"No object found for identifier {identifier}")
+            logger.debug(f"No object found for identifier {identifier}")
             return None
         if len(entries) > 1:
-            logging.debug(f"{len(entries)} objects share the uuid of {identifier}, returning the first one")
+            logger.debug(f"{len(entries)} objects share the uuid of {identifier}, returning the first one")
         return self._load(entries[0])
 
     def get_object_by_uuid(self, uuid: str) -> List[Any]:
@@ -789,13 +791,13 @@ class EpcFile(EnergymlStorageInterface):
 
         data = self._read_part(entry.path)
         if data is None:
-            logging.warning(f"Part {entry.path} is indexed but unreadable")
+            logger.warning(f"Part {entry.path} is indexed but unreadable")
             return None
         try:
             cls = get_class_from_content_type(entry.content_type)
             obj = read_energyml_xml_bytes(data, cls)
         except Exception as e:
-            logging.error(f"Failed to deserialise {entry.path}: {e}")
+            logger.error(f"Failed to deserialise {entry.path}: {e}")
             return None
 
         self.stats.objects_deserialized += 1
@@ -855,7 +857,7 @@ class EpcFile(EnergymlStorageInterface):
         try:
             return read_energyml_xml_bytes(data, CoreProperties)
         except Exception as e:
-            logging.warning(f"Failed to read the core properties: {e}")
+            logger.warning(f"Failed to read the core properties: {e}")
             return None
 
     @core_properties.setter
@@ -941,7 +943,7 @@ class EpcFile(EnergymlStorageInterface):
 
         entries = self._find_entries(identifier)
         if not entries:
-            logging.warning(f"No object to delete for identifier {identifier}")
+            logger.warning(f"No object to delete for identifier {identifier}")
             return False
 
         for entry in entries:
@@ -994,7 +996,7 @@ class EpcFile(EnergymlStorageInterface):
         try:
             return list(read_energyml_xml_bytes(data, Relationships).relationship or [])
         except Exception as e:
-            logging.warning(f"Failed to read {rels_path}: {e}")
+            logger.warning(f"Failed to read {rels_path}: {e}")
             return []
 
     def _write_rels(self, rels_path: str, rels: List[Relationship]) -> None:
@@ -1025,7 +1027,7 @@ class EpcFile(EnergymlStorageInterface):
         try:
             dor_uris, external_uris = get_dor_or_external_uris_from_obj(obj)
         except Exception as e:
-            logging.warning(f"Failed to extract the references of {entry.path}: {e}")
+            logger.warning(f"Failed to extract the references of {entry.path}: {e}")
             return
 
         own_path = entry.path
@@ -1035,7 +1037,7 @@ class EpcFile(EnergymlStorageInterface):
         for dor_uri in dor_uris:
             target_entries = self._find_entries(dor_uri)
             if not target_entries:
-                logging.debug(f"{own_path} references {dor_uri}, absent from the package")
+                logger.debug(f"{own_path} references {dor_uri}, absent from the package")
                 continue
             target_path = target_entries[0].path
             additions.append(
@@ -1158,7 +1160,7 @@ class EpcFile(EnergymlStorageInterface):
         if not self.has_pending_changes:
             return False
         if self.mode is EpcAccessMode.IN_MEMORY:
-            logging.warning(
+            logger.warning(
                 f"{self.epc_file_path} is opened in IN_MEMORY mode: modifications are not written. Use save_as()."
             )
             return False
@@ -1261,7 +1263,7 @@ class EpcFile(EnergymlStorageInterface):
             if self.mode is EpcAccessMode.ON_CLOSE and self.has_pending_changes:
                 self.flush()
             elif self.mode is EpcAccessMode.MANUAL and self.has_pending_changes:
-                logging.warning(
+                logger.warning(
                     f"{self.epc_file_path} is closed with unsaved modifications "
                     f"({len(self._pending)} parts written, {len(self._deleted)} removed): "
                     f"they are discarded. Call save() to keep them."
@@ -1318,7 +1320,7 @@ class EpcFile(EnergymlStorageInterface):
     ) -> Optional[np.ndarray]:
         file_paths = self._candidate_array_files(proxy, external_uri)
         if not file_paths:
-            logging.warning(f"No external file found for proxy: {proxy}")
+            logger.warning(f"No external file found for proxy: {proxy}")
             return None
 
         registry = get_handler_registry()
@@ -1331,8 +1333,8 @@ class EpcFile(EnergymlStorageInterface):
                 if array is not None:
                     return array
             except Exception as e:
-                logging.debug(f"Failed to read {path_in_external} from {file_path}: {e}")
-        logging.error(f"Failed to read {path_in_external} from any of: {file_paths}")
+                logger.debug(f"Failed to read {path_in_external} from {file_path}: {e}")
+        logger.error(f"Failed to read {path_in_external} from any of: {file_paths}")
         return None
 
     def read_array_view(
@@ -1355,7 +1357,7 @@ class EpcFile(EnergymlStorageInterface):
             array = _read_array_from_handler(handler, file_path, path_in_external, start_indices, counts)
             if array is not None:
                 return array
-        logging.warning(
+        logger.warning(
             f"No external array could be read for '{path_in_external}' — tried {len(file_paths)} file(s): "
             f"{[str(p) for p in file_paths]}. The object will come back without geometry."
         )
@@ -1381,7 +1383,7 @@ class EpcFile(EnergymlStorageInterface):
             file_paths = self.get_h5_file_paths(proxy)
 
         if not file_paths:
-            logging.warning(f"No external file found for proxy: {proxy}")
+            logger.warning(f"No external file found for proxy: {proxy}")
             return False
 
         registry = get_handler_registry()
@@ -1393,7 +1395,7 @@ class EpcFile(EnergymlStorageInterface):
                 if handler.write_array(file_path, array, path_in_external, start_indices, **kwargs):
                     return True
             except Exception as e:
-                logging.error(f"Failed to write {path_in_external} to {file_path}: {e}")
+                logger.error(f"Failed to write {path_in_external} to {file_path}: {e}")
         return False
 
     def get_array_metadata(
@@ -1405,7 +1407,7 @@ class EpcFile(EnergymlStorageInterface):
     ) -> Union[DataArrayMetadata, List[DataArrayMetadata], None]:
         file_paths = [self.force_h5_path] if self.force_h5_path is not None else self.get_h5_file_paths(proxy)
         if not file_paths:
-            logging.warning(f"No external file found for proxy: {proxy}")
+            logger.warning(f"No external file found for proxy: {proxy}")
             return None
 
         registry = get_handler_registry()
@@ -1416,7 +1418,7 @@ class EpcFile(EnergymlStorageInterface):
             try:
                 raw = handler.get_array_metadata(file_path, path_in_external, start_indices, counts)
             except Exception as e:
-                logging.debug(f"Failed to read the array metadata of {file_path}: {e}")
+                logger.debug(f"Failed to read the array metadata of {file_path}: {e}")
                 continue
             if raw is None:
                 continue
@@ -1461,7 +1463,7 @@ class EpcFile(EnergymlStorageInterface):
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
         if exc_type is not None and self.mode is EpcAccessMode.ON_CLOSE and self.has_pending_changes:
-            logging.warning(
+            logger.warning(
                 f"Leaving the context of {self.epc_file_path} on {exc_type.__name__}: "
                 f"the pending modifications are discarded rather than written."
             )

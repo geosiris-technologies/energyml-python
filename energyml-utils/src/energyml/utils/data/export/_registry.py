@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from energyml.utils.data.crs import PointFrame
     from energyml.utils.data.representation_context import RepresentationContext
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -231,3 +231,22 @@ def supports_pointsets(format: Union[str, ExportFormat]) -> bool:
         return get_format_spec(format).supports_pointsets
     except ValueError:
         return False
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "FormatSpec",
+    "register_format",
+    "get_format_spec",
+    "registered_formats",
+    "export_mesh",
+    "supported_formats",
+    "format_description",
+    "format_filter_string",
+    "all_formats_filter_string",
+    "get_format_options_class",
+    "supports_lines",
+    "supports_triangles",
+    "supports_pointsets",
+]

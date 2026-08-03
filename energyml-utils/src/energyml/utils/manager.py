@@ -15,6 +15,8 @@ from energyml.utils.constants import (
     RGX_PROJECT_VERSION,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def get_related_energyml_modules_name(cls: Union[type, Any]) -> List[str]:
     """
@@ -41,10 +43,10 @@ def dict_energyml_modules() -> Dict:
     modules = {}
 
     energyml_module = importlib.import_module("energyml")
-    # logging.debug("> energyml")
+    # logger.debug("> energyml")
 
     for mod in pkgutil.iter_modules(energyml_module.__path__):
-        # logging.debug(f"{mod.name}")
+        # logger.debug(f"{mod.name}")
         if mod.name in ENERGYML_MODULES_NAMES:
             energyml_sub_module = importlib.import_module(f"energyml.{mod.name}")
             if mod.name not in modules:
@@ -61,7 +63,7 @@ def list_energyml_modules() -> List:
         energyml_module = importlib.import_module("energyml")
         modules = []
         for obj in pkgutil.iter_modules(energyml_module.__path__):
-            # logging.debug(f"{obj.name}")
+            # logger.debug(f"{obj.name}")
             if obj.name in ENERGYML_MODULES_NAMES:
                 modules.append(obj.name)
         return modules
@@ -83,7 +85,7 @@ def list_classes(module_path: str) -> List:
                 class_list.append(obj)
         return class_list
     except ModuleNotFoundError:
-        logging.error(f"Err : module {module_path} not found")
+        logger.error(f"Err : module {module_path} not found")
         return []
 
 
@@ -183,8 +185,8 @@ def get_class_pkg(cls):
         match = p.search(cls.__module__)
         return match.group("pkg")  # type: ignore
     except AttributeError as e:
-        logging.debug(f"Exception to get class package for '{cls}'")
-        logging.debug(
+        logger.debug(f"Exception to get class package for '{cls}'")
+        logger.debug(
             f"Error getting package for {type(cls)} -- {cls}",
             exc_info=True,
             stack_info=True,  # This shows the full call stack including caller
@@ -265,3 +267,22 @@ def get_class_pkg_version(cls, print_dev_version: bool = True, nb_max_version_di
 #             except Exception:
 #                 pass
 #     return protocolDict
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "get_related_energyml_modules_name",
+    "dict_energyml_modules",
+    "list_energyml_modules",
+    "list_classes",
+    "get_sub_classes",
+    "class_has_parent_with_name",
+    "get_classes_matching_name",
+    "get_all_energyml_classes",
+    "get_all_classes",
+    "get_class_pkg",
+    "reshape_version",
+    "reshape_version_from_regex_match",
+    "get_class_pkg_version",
+]

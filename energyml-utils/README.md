@@ -268,15 +268,30 @@ finally:
 The EpcStreamReader is perfect for applications that need to work with large EPC files efficiently, such as data processing pipelines, web applications, or analysis tools where memory usage is a concern.
 
 
-# Poetry scripts : 
+# Command line scripts :
 
-- extract_3d : extract a representation into an 3D file (obj/off/geojson)
-- csv_to_dataset : translate csv data into h5 dataset
-- generate_data : generate a random data from a qualified_type 
-- xml_to_json : translate an energyml xml file into json.
-- json_to_xml : translate an energyml json file into an xml file
+Installing the package (`pip install energyml-utils`) creates these executables. They live in
+`energyml.utils.cli`, so they work from an installed wheel as well as from a checkout.
+
+- extract_3d : extract a representation into a 3D / GIS file (obj/off/stl/vtk/geojson)
+- csv_to_dataset : translate csv data into h5 or parquet datasets (needs the `parquet` extra for the csv reader)
+- generate_data : generate a random object from a qualified_type
+- generate_multiple_data : same, for several types at once, optionally one file per object
+- xml_to_json : translate an energyml xml file (or every object of an EPC) into json
+- json_to_xml : translate an energyml json file into one xml file per object
+- json_to_epc : package every object of an energyml json file into a single EPC
+- loadNsave : read a file or a folder (json/xml/epc) and write it back as an EPC
 - describe_as_csv : create a csv description of an EPC content
 - validate : validate an energyml object or an EPC instance (or a folder containing energyml objects)
+
+Every command accepts `--help`, and `-v` / `-vv` to raise the log level (`-q` to only report
+errors). They can also be called from python, passing the arguments explicitly:
+
+```python
+from energyml.utils.cli import extract_representation_in_3d_file
+
+extract_representation_in_3d_file(["--epc", "file.epc", "--output", "out", "-ff", "geojson"])
+```
 
 
 

@@ -3,8 +3,12 @@
 
 import logging
 
-from energyml.utils.constants import parse_qualified_type
-from src.energyml.utils.xml_utils import *
+from energyml.utils.constants import ENERGYML_NAMESPACES_PACKAGE, parse_content_type, parse_qualified_type
+
+# `xml_utils` now declares an `__all__`, so `import *` no longer leaks the names it imports
+# itself (`parse_content_type`, `ENERGYML_NAMESPACES_PACKAGE`, ...) — they are imported above,
+# from the module that actually defines them.
+from src.energyml.utils.xml_utils import *  # noqa: F403
 
 CT_20 = "application/x-resqml+xml;version=2.0;type=obj_TriangulatedSetRepresentation"
 CT_22 = "application/x-resqml+xml;version=2.2;type=TriangulatedSetRepresentation"
