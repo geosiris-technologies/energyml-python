@@ -207,6 +207,30 @@ class ExternalArrayHandler(ABC):
     def __init__(self, max_open_files: int = 3):
         self.file_cache = FileCacheManager(max_open_files=max_open_files)
 
+    def close(self) -> None:
+        """Close every file handle this handler still holds open."""
+        cache = getattr(self, "file_cache", None)
+        if cache is not None:
+            cache.close_all()
+
+    def __del__(self):
+        # The cache is per-handler and owns its handles, so releasing the handler must release
+        # them. Nothing used to do it: the read methods wrapped the *cached* handle in `with`,
+        # which closed a handle the cache went on serving — the next read on the same file then
+        # failed with "invalid identifier type to function". Closing here instead keeps the
+        # handles valid for as long as the handler lives, and still frees them afterwards
+        # (on Windows an open HDF5 handle keeps the file locked).
+        try:
+            self.close()
+        except Exception:  # interpreter shutdown can pull the rug from under us
+            pass
+
+    def __enter__(self) -> "ExternalArrayHandler":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
+
     @abstractmethod
     def read_array(
         self,

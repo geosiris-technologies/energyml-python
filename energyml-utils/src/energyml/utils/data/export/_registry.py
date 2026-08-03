@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
-from energyml.utils.data.export._base import ExportFormat, ExportOptions
+from energyml.utils.data.export._base import ExportFormat, ExportOptions, drop_empty_patches
 
 if TYPE_CHECKING:
     from energyml.utils.data.crs import PointFrame
@@ -156,6 +156,8 @@ def export_mesh(
         "frame": frame,
         "origin_shift": origin_shift,
     }
+
+    mesh_list = drop_empty_patches(mesh_list, raise_when_empty=True)
 
     with ExitStack() as stack:
         if spec.binary:

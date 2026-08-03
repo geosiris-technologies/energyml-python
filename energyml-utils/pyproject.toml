@@ -70,7 +70,11 @@ python = "^3.9"
 xsdata = {version = "^24.0", extras = ["cli", "lxml"]}
 energyml-opc = "^1.12.0"
 h5py = { version = "^3.11.0", optional = false }
-numpy = { version = "^1.16.6", optional = false }
+# `^1.16.6` meant `<2.0.0`. NumPy 2 is the default in most new environments, and consumers ended
+# up on it anyway — where `np.array(x, copy=False)` changed meaning and made every HDF5 array
+# silently unreadable (see datasets_io.read_array_view). The spelling is fixed and the suite runs
+# on 1.26 and 2.3 alike, so the ceiling is now the next major.
+numpy = { version = ">=1.16.6,<3.0.0", optional = false }
 scipy = { version = ">=1.7", optional = true }
 pyarrow = { version = "^14.0.1", optional = true }
 pandas = { version = "^1.1.0", optional = true }

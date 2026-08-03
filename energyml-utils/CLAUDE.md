@@ -105,6 +105,27 @@ registered in `FileHandlerRegistry`; each is defined inside a `try: import` bloc
 the package imports fine without the optional dependency. Note that an older `*FileReader` / `*FileWriter` API
 coexists with the newer `ExternalArrayHandler` one.
 
+**A failed read must never look like an absent one.** Three defects stacked up to make a whole EPC export as
+empty files, each individually silent:
+
+- `read_array_view` used `np.array(dataset, copy=False)`. NumPy 2.0 **redefined** that argument — it used to mean
+  "avoid a copy if possible" and now means "never copy, raise if you would have to". An HDF5 dataset lives on disk,
+  so every external array became unreadable on a numpy≥2 install. `np.asarray()` means the old thing under both
+  majors. The `numpy = "^1.16.6"` pin (i.e. `<2.0.0`) is why the suite never saw it; the constraint now allows
+  numpy 2 and the suite is checked on 1.26 and 2.3.
+- The workspaces treated a failing view as a failing *file* and moved to the next candidate, so when the view
+  raised for all of them the array came back `None`. The view is an optimisation:
+  `epc_file._read_array_from_handler` retries the same file with a plain read, and the "nothing could be read"
+  case is now a WARNING, not a DEBUG line.
+- `read_array` / `read_array_view` wrapped the **cached** handle in `with`, closing a file the cache went on
+  serving; the next read on it raised *invalid identifier type to function*. Whether it worked depended on the
+  order the two were called in. The cache owns its handles now, and `ExternalArrayHandler` closes them in
+  `__del__` / `close()` / on `with` exit.
+
+On top of that, `export_mesh` calls `drop_empty_patches(..., raise_when_empty=True)`: patches with no point are
+dropped, and an export with nothing left raises `EmptyMeshError` instead of writing
+`{"type": "FeatureCollection", "features": []}` and leaving the caller to believe the data was simply absent.
+
 `read_array` returns **either a `list` or an `np.ndarray`** depending on the reader — callers normalise
 (`_read_array_np`, `_ensure_float64_points`, `_as_json_ready_list`). Anything that serialises points must handle
 both; `json.dumps` on numpy values raises.

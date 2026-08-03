@@ -878,8 +878,11 @@ if __H5PY_MODULE_EXISTS__:
                     return full_array
                 return None
             else:
-                with self.file_cache.get_or_open(source, self, "r") as f:  # type: ignore
-                    return self.read_array(f, path_in_external_file, start_indices, counts)
+                # The cache owns the handle's lifetime — see the note in read_array_view.
+                f = self.file_cache.get_or_open(source, self, "r")  # type: ignore
+                if f is None:
+                    return None
+                return self.read_array(f, path_in_external_file, start_indices, counts)
 
         def read_array_view(
             self,
@@ -906,13 +909,26 @@ if __H5PY_MODULE_EXISTS__:
                     # h5py reads only the required chunks/slabs from disk
                     slices = tuple(slice(start, start + count) for start, count in zip(start_indices, counts))
                     return d_group[slices]  # type: ignore
-                # np.array with copy=False returns a view for contiguous datasets
-                # Note: copy= kwarg on np.asarray requires numpy >=2.0;
-                # np.array(x, copy=False) works on all numpy versions.
-                return np.array(d_group, copy=False)  # type: ignore
+                # NumPy 2.0 redefined `copy=False`: it used to mean "avoid a copy *if possible*"
+                # and now means "never copy — raise if you would have to". An HDF5 dataset lives
+                # on disk, so h5py always has to allocate, and `np.array(d_group, copy=False)`
+                # raises on numpy>=2 with
+                #   "Dataset.__array__ received copy=False but memory allocation cannot be
+                #    avoided on read".
+                # It made every external array unreadable on a numpy>=2 install while the
+                # numpy 1.26 lockfile of this repository kept the tests green. np.asarray() is
+                # the spelling that means the same thing under both majors.
+                return np.asarray(d_group)  # type: ignore
             else:
-                with self.file_cache.get_or_open(source, self, "r") as f:  # type: ignore
-                    return self.read_array_view(f, path_in_external_file, start_indices, counts)
+                # `get_or_open` returns a *cached* handle: the cache owns it and closes it in
+                # `close_all`. Wrapping it in `with` closed it at the end of the first read while
+                # the cache kept serving it, so the next read on the same file got a dead handle
+                # and raised "invalid identifier type to function" — the order in which
+                # read_array and read_array_view happened to be called decided whether it worked.
+                f = self.file_cache.get_or_open(source, self, "r")  # type: ignore
+                if f is None:
+                    return None
+                return self.read_array_view(f, path_in_external_file, start_indices, counts)
 
         def write_array(
             self,

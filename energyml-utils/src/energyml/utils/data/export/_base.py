@@ -191,6 +191,45 @@ def _normalize_to_patches(meshes: Any) -> List[Any]:
     return [meshes]
 
 
+class EmptyMeshError(ValueError):
+    """Raised when an export would produce a file with no geometry in it."""
+
+
+def drop_empty_patches(meshes: Any, raise_when_empty: bool = False) -> List[Any]:
+    """Return the patches of *meshes* that actually carry points.
+
+    A representation whose external arrays could not be read still yields patches — with zero
+    points. Writing them produced a valid but useless file: ``{"type": "FeatureCollection",
+    "features": []}``, 54 bytes, with nothing to say that the data was missing rather than
+    absent. Worse, a partially readable object exported its readable patches next to empty ones.
+
+    :param raise_when_empty: raise :class:`EmptyMeshError` when *nothing* survives, so the caller
+        fails loudly instead of writing an empty file.
+    """
+    patches = _normalize_to_patches(meshes)
+    kept, dropped = [], 0
+    for patch in patches:
+        points = getattr(patch, "point_list", None)
+        if points is None:
+            points = getattr(patch, "points", None)
+        if points is None or len(points) == 0:
+            dropped += 1
+            continue
+        kept.append(patch)
+
+    if dropped:
+        logging.warning(
+            f"{dropped} of {len(patches)} patch(es) hold no point and were dropped from the export "
+            "— their external arrays were most likely unreadable."
+        )
+    if not kept and raise_when_empty:
+        raise EmptyMeshError(
+            f"Nothing to export: all {len(patches)} patch(es) are empty. The geometry could not be "
+            "read — check that the external (HDF5) arrays are reachable from the workspace."
+        )
+    return kept
+
+
 def _parse_vtk_flat_faces(flat: np.ndarray) -> List[np.ndarray]:
     """Decode VTK flat face array ``[nv, v0, …, nv, v0, …]`` into a list of
     per-face index arrays."""

@@ -1124,16 +1124,17 @@ class Epc(EnergymlStorageInterface):
             handler = handler_registry.get_handler_for_file(file_path)
             if handler is None:
                 continue
-            try:
-                read_view_fn = getattr(handler, "read_array_view", None)
-                if read_view_fn is not None:
-                    array = read_view_fn(file_path, path_in_external, start_indices, counts)
-                else:
-                    array = handler.read_array(file_path, path_in_external, start_indices, counts)
-                if array is not None:
-                    return array
-            except Exception as e:
-                logging.debug(f"Failed to read_array_view from {file_path}: {e}")
+            # The zero-copy view is an optimisation: when it fails, retry the same file with a
+            # plain read instead of giving up on it (see _read_array_from_handler).
+            from energyml.utils.epc_file import _read_array_from_handler
+
+            array = _read_array_from_handler(handler, file_path, path_in_external, start_indices, counts)
+            if array is not None:
+                return array
+        logging.warning(
+            f"No external array could be read for '{path_in_external}' — tried {len(file_paths)} file(s). "
+            "The object will come back without geometry."
+        )
         return None
 
     def write_array(

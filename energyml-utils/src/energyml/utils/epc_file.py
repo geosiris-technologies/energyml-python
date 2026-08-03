@@ -233,6 +233,43 @@ class _ObjectEntry:
         return create_resource_metadata_from_uri(self.uri, title=self.title, last_changed=self.last_changed)
 
 
+def _read_array_from_handler(
+    handler: Any,
+    file_path: Any,
+    path_in_external: Optional[str],
+    start_indices: Optional[List[int]] = None,
+    counts: Optional[List[int]] = None,
+) -> Optional[np.ndarray]:
+    """Read an external array through *handler*, preferring the zero-copy view.
+
+    The view is an **optimisation**, so a failure to obtain one must fall back to the ordinary
+    read *of the same file* — not skip the file. It used to move straight on to the next
+    candidate, so when ``read_array_view`` raised for every candidate the array came back as
+    ``None`` and the representation was silently exported with no geometry. That is what an
+    ``h5py``/``numpy>=2`` pair did to every HDF5 array (see the ``copy=False`` note in
+    ``datasets_io``): empty GeoJSON files, and only a DEBUG line to say why.
+
+    Returns ``None`` only when this file genuinely has nothing to offer.
+    """
+    read_view = getattr(handler, "read_array_view", None)
+    if read_view is not None:
+        try:
+            array = read_view(file_path, path_in_external, start_indices, counts)
+            if array is not None:
+                return array
+        except Exception as exc:
+            logging.debug(
+                f"read_array_view failed on {file_path} for '{path_in_external}' "
+                f"({type(exc).__name__}: {exc}) — retrying with a plain read."
+            )
+
+    try:
+        return handler.read_array(file_path, path_in_external, start_indices, counts)
+    except Exception as exc:
+        logging.debug(f"read_array failed on {file_path} for '{path_in_external}': {type(exc).__name__}: {exc}")
+        return None
+
+
 def _sniff_root_element(head: bytes) -> Optional[Any]:
     """
     Parse just enough of ``head`` to get the root element with its attributes.
@@ -1315,17 +1352,13 @@ class EpcFile(EnergymlStorageInterface):
             handler = registry.get_handler_for_file(file_path)
             if handler is None:
                 continue
-            try:
-                read_view = getattr(handler, "read_array_view", None)
-                array = (
-                    read_view(file_path, path_in_external, start_indices, counts)
-                    if read_view is not None
-                    else handler.read_array(file_path, path_in_external, start_indices, counts)
-                )
-                if array is not None:
-                    return array
-            except Exception as e:
-                logging.debug(f"Failed to read_array_view from {file_path}: {e}")
+            array = _read_array_from_handler(handler, file_path, path_in_external, start_indices, counts)
+            if array is not None:
+                return array
+        logging.warning(
+            f"No external array could be read for '{path_in_external}' — tried {len(file_paths)} file(s): "
+            f"{[str(p) for p in file_paths]}. The object will come back without geometry."
+        )
         return None
 
     def write_array(
