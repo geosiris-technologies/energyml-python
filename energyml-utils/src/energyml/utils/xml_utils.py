@@ -9,6 +9,8 @@ from lxml import etree as ETREE  # type: Any
 
 from energyml.utils.constants import ENERGYML_NAMESPACES, ENERGYML_NAMESPACES_PACKAGE, OptimizedRegex, parse_content_type
 
+logger = logging.getLogger(__name__)
+
 
 def get_pkg_from_namespace(namespace: str) -> Optional[str]:
     for k, v in ENERGYML_NAMESPACES_PACKAGE.items():
@@ -31,7 +33,7 @@ def get_class_name_from_xml(tree: ETREE.Element) -> Optional[str]:
     root_namespace = get_root_namespace(tree)
     pkg = get_pkg_from_namespace(root_namespace)
     if pkg is None:
-        logging.error(f"No pkg found for elt {tree}")
+        logger.error(f"No pkg found for elt {tree}")
         return None
     else:
         if pkg == "opc":
@@ -120,3 +122,20 @@ def find_schema_version_in_element(tree: ETREE.ElementTree) -> str:
         if match_version is not None:
             return match_version.group(0).replace("dev", "-dev")
     return None
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "get_pkg_from_namespace",
+    "is_energyml_content_type",
+    "get_root_namespace",
+    "get_class_name_from_xml",
+    "get_xml_encoding",
+    "get_tree",
+    "energyml_xpath",
+    "search_element_has_child_xpath",
+    "get_uuid",
+    "get_root_type",
+    "find_schema_version_in_element",
+]

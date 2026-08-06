@@ -10,6 +10,8 @@ from typing import Dict, Optional, List, Union, Any
 
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class DatasetReader:
@@ -70,12 +72,12 @@ class FileCacheManager:
                 self._cache.move_to_end(file_path)
                 return cached_handle
             # Otherwise, close and reopen with new mode
-            # logging.debug(f"Mode change for cached file {file_path}: {cached_mode} -> {mode}. Reopening.")
+            # logger.debug(f"Mode change for cached file {file_path}: {cached_mode} -> {mode}. Reopening.")
             try:
                 if hasattr(cached_handle, "close"):
                     cached_handle.close()
             except Exception as e:
-                logging.debug(f"Error closing cached file {file_path}: {e}")
+                logger.debug(f"Error closing cached file {file_path}: {e}")
             del self._cache[file_path]
             if file_path in self._handlers:
                 del self._handlers[file_path]
@@ -98,7 +100,7 @@ class FileCacheManager:
             return file_handle
 
         except Exception as e:
-            logging.debug(f"Failed to open file {file_path}: {e}")
+            logger.debug(f"Failed to open file {file_path}: {e}")
             return None
 
     def _evict_oldest(self) -> None:
@@ -114,7 +116,7 @@ class FileCacheManager:
             if hasattr(oldest_handle, "close"):
                 oldest_handle.close()
         except Exception as e:
-            logging.debug(f"Error closing cached file {oldest_path}: {e}")
+            logger.debug(f"Error closing cached file {oldest_path}: {e}")
 
         # Remove handler reference
         if oldest_path in self._handlers:
@@ -127,7 +129,7 @@ class FileCacheManager:
                 if hasattr(file_handle, "close"):
                     file_handle.close()
             except Exception as e:
-                logging.debug(f"Error closing file {file_path}: {e}")
+                logger.debug(f"Error closing file {file_path}: {e}")
 
         self._cache.clear()
         self._handlers.clear()
@@ -147,7 +149,7 @@ class FileCacheManager:
                 if hasattr(file_handle, "close"):
                     file_handle.close()
             except Exception as e:
-                logging.debug(f"Error closing file {file_path}: {e}")
+                logger.debug(f"Error closing file {file_path}: {e}")
 
         if file_path in self._handlers:
             del self._handlers[file_path]
@@ -173,7 +175,7 @@ class FileCacheManager:
         rw_modes = {"r+", "a"}
         destructive_modes = {"w", "w+", "x"}
 
-        # logging.debug(f"Checking mode compatibility: cached_mode={cached_mode}, requested_mode={requested_mode}")
+        # logger.debug(f"Checking mode compatibility: cached_mode={cached_mode}, requested_mode={requested_mode}")
 
         result = False
 
@@ -184,7 +186,7 @@ class FileCacheManager:
         if cached_mode in rw_modes and (requested_mode in rw_modes or requested_mode in readonly_modes):
             result = True
 
-        # logging.debug(f"\tMode compatibility result: {result}")
+        # logger.debug(f"\tMode compatibility result: {result}")
 
         return result
 
@@ -206,6 +208,30 @@ class ExternalArrayHandler(ABC):
 
     def __init__(self, max_open_files: int = 3):
         self.file_cache = FileCacheManager(max_open_files=max_open_files)
+
+    def close(self) -> None:
+        """Close every file handle this handler still holds open."""
+        cache = getattr(self, "file_cache", None)
+        if cache is not None:
+            cache.close_all()
+
+    def __del__(self):
+        # The cache is per-handler and owns its handles, so releasing the handler must release
+        # them. Nothing used to do it: the read methods wrapped the *cached* handle in `with`,
+        # which closed a handle the cache went on serving — the next read on the same file then
+        # failed with "invalid identifier type to function". Closing here instead keeps the
+        # handles valid for as long as the handler lives, and still frees them afterwards
+        # (on Windows an open HDF5 handle keeps the file locked).
+        try:
+            self.close()
+        except Exception:  # interpreter shutdown can pull the rug from under us
+            pass
+
+    def __enter__(self) -> "ExternalArrayHandler":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
 
     @abstractmethod
     def read_array(
@@ -305,7 +331,27 @@ class ExternalArrayHandler(ABC):
         """
         pass
 
-    @abstractmethod
+    #: Human-readable name of the format, used in the diagnostics of :meth:`open_file_no_cache`.
+    format_name: str = "file"
+
+    def _open_file(self, file_path: str, mode: str = "r") -> Optional[Any]:
+        """
+        Open *file_path* with the underlying library, letting any failure propagate.
+
+        This is the **only** thing a concrete handler has to provide: the error handling and the
+        diagnostic message are shared, in :meth:`open_file_no_cache`. Each of the five real
+        handlers used to carry its own copy of the same four-line try / log / return-None block,
+        two of which were byte-for-byte identical, and one of which had had its log commented out
+        — so an unreadable HDF5 file failed with no message at all.
+
+        Args:
+            file_path: Path to the file
+            mode: File open mode
+        Returns:
+            Open file handle, or None when this handler cannot open files at all
+        """
+        raise NotImplementedError
+
     def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
         """
         Open a file without using the cache. This is for handlers that manage their own file handles.
@@ -316,7 +362,11 @@ class ExternalArrayHandler(ABC):
         Returns:
             Open file handle, or None if opening failed
         """
-        pass
+        try:
+            return self._open_file(file_path, mode)
+        except Exception as e:
+            logger.error("Failed to open %s file %s: %s", self.format_name, file_path, e)
+            return None
 
 
 # @dataclass
@@ -326,3 +376,12 @@ class ExternalArrayHandler(ABC):
 
 #     def get_array_dimension(self, source: str, path_in_external_file: str) -> Optional[np.ndarray]:
 #         return None
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "DatasetReader",
+    "FileCacheManager",
+    "ExternalArrayHandler",
+]

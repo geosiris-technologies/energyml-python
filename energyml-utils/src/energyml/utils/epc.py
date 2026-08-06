@@ -604,9 +604,8 @@ class EpcRelsCache:
 
     def _handle_error(self, msg: str) -> None:
         if self._error_policy == EpcRelsCacheErrorPolicy.LOG:
-            import logging
 
-            logging.error(msg)
+            logger.error(msg)
         elif self._error_policy == EpcRelsCacheErrorPolicy.RAISE:
             raise RuntimeError(msg)
         # else: SKIP
@@ -690,18 +689,18 @@ def log_timestamp(func):
             file_path = kwargs["epc_file_path"]
 
         path_info = f" [{file_path}]" if file_path else ""
-        print(f"⏱️  [{timestamp_start}] Starting {func_name}{path_info}")
+        logger.debug(f"⏱️  [{timestamp_start}] Starting {func_name}{path_info}")
 
         try:
             result = func(*args, **kwargs)
             elapsed = time.perf_counter() - start_time
             timestamp_end = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            print(f"✅ [{timestamp_end}] Completed {func_name} in {elapsed:.3f}s{path_info}")
+            logger.debug(f"✅ [{timestamp_end}] Completed {func_name} in {elapsed:.3f}s{path_info}")
             return result
         except Exception as e:
             elapsed = time.perf_counter() - start_time
             timestamp_end = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            print(f"❌ [{timestamp_end}] Failed {func_name} after {elapsed:.3f}s{path_info}: {e}")
+            logger.debug(f"❌ [{timestamp_end}] Failed {func_name} after {elapsed:.3f}s{path_info}: {e}")
             raise
 
     return wrapper
@@ -849,7 +848,7 @@ class Epc(EnergymlStorageInterface):
                     elif not f_ext.lower().endswith(".rels"):
                         self.add_file(RawFile(f_name, BytesIO(file_content)))
                     else:
-                        logging.error(f"Not supported file extension {f_name}")
+                        logger.error(f"Not supported file extension {f_name}")
             else:
                 try:
                     xml_obj = read_energyml_xml_str(obj)
@@ -869,7 +868,7 @@ class Epc(EnergymlStorageInterface):
             # another specific package comes in the future
             self.energyml_objects.append(obj)
         else:
-            logging.error(f"unsupported type {str(type(obj))}")
+            logger.error(f"unsupported type {str(type(obj))}")
 
     # === Relationships management functions ===
 
@@ -1067,7 +1066,7 @@ class Epc(EnergymlStorageInterface):
             file_paths = self.external_files_path
 
         if not file_paths:
-            logging.warning(f"No external file paths found for proxy: {proxy}")
+            logger.warning(f"No external file paths found for proxy: {proxy}")
             return None
 
         # Get the file handler registry
@@ -1077,7 +1076,7 @@ class Epc(EnergymlStorageInterface):
             # Get the appropriate handler for this file type
             handler = handler_registry.get_handler_for_file(file_path)
             if handler is None:
-                logging.debug(f"No handler found for file: {file_path}")
+                logger.debug(f"No handler found for file: {file_path}")
                 continue
 
             try:
@@ -1086,10 +1085,10 @@ class Epc(EnergymlStorageInterface):
                 if array is not None:
                     return array
             except Exception as e:
-                # logging.debug(f"Failed to read dataset from {file_path}: {e}")
+                # logger.debug(f"Failed to read dataset from {file_path}: {e}")
                 pass
 
-        logging.error(f"Failed to read array from any available file paths: {file_paths}")
+        logger.error(f"Failed to read array from any available file paths: {file_paths}")
         return None
 
     def read_array_view(
@@ -1124,16 +1123,17 @@ class Epc(EnergymlStorageInterface):
             handler = handler_registry.get_handler_for_file(file_path)
             if handler is None:
                 continue
-            try:
-                read_view_fn = getattr(handler, "read_array_view", None)
-                if read_view_fn is not None:
-                    array = read_view_fn(file_path, path_in_external, start_indices, counts)
-                else:
-                    array = handler.read_array(file_path, path_in_external, start_indices, counts)
-                if array is not None:
-                    return array
-            except Exception as e:
-                logging.debug(f"Failed to read_array_view from {file_path}: {e}")
+            # The zero-copy view is an optimisation: when it fails, retry the same file with a
+            # plain read instead of giving up on it (see _read_array_from_handler).
+            from energyml.utils.epc_file import _read_array_from_handler
+
+            array = _read_array_from_handler(handler, file_path, path_in_external, start_indices, counts)
+            if array is not None:
+                return array
+        logger.warning(
+            f"No external array could be read for '{path_in_external}' — tried {len(file_paths)} file(s). "
+            "The object will come back without geometry."
+        )
         return None
 
     def write_array(
@@ -1169,7 +1169,7 @@ class Epc(EnergymlStorageInterface):
             file_paths = self.external_files_path
 
         if not file_paths:
-            logging.warning(f"No external file paths found for proxy: {proxy}")
+            logger.warning(f"No external file paths found for proxy: {proxy}")
             return False
 
         # Get the file handler registry
@@ -1180,7 +1180,7 @@ class Epc(EnergymlStorageInterface):
             # Get the appropriate handler for this file type
             handler = handler_registry.get_handler_for_file(file_path)
             if handler is None:
-                logging.debug(f"No handler found for file: {file_path}")
+                logger.debug(f"No handler found for file: {file_path}")
                 continue
 
             try:
@@ -1189,9 +1189,9 @@ class Epc(EnergymlStorageInterface):
                 if success:
                     return True
             except Exception as e:
-                logging.error(f"Failed to write dataset to {file_path}: {e}")
+                logger.error(f"Failed to write dataset to {file_path}: {e}")
 
-        logging.error(f"Failed to write array to any available file paths: {file_paths}")
+        logger.error(f"Failed to write array to any available file paths: {file_paths}")
         return False
 
     def get_array_metadata(
@@ -1221,7 +1221,7 @@ class Epc(EnergymlStorageInterface):
             file_paths = self.external_files_path
 
         if not file_paths:
-            logging.warning(f"No external file paths found for proxy: {proxy}")
+            logger.warning(f"No external file paths found for proxy: {proxy}")
             return None
 
         # Get the file handler registry
@@ -1231,7 +1231,7 @@ class Epc(EnergymlStorageInterface):
             # Get the appropriate handler for this file type
             handler = handler_registry.get_handler_for_file(file_path)
             if handler is None:
-                logging.debug(f"No handler found for file: {file_path}")
+                logger.debug(f"No handler found for file: {file_path}")
                 continue
 
             try:
@@ -1262,7 +1262,7 @@ class Epc(EnergymlStorageInterface):
                         custom_data={"size": metadata_dict.get("size", 0)},
                     )
             except Exception as e:
-                logging.debug(f"Failed to get metadata from file {file_path}: {e}")
+                logger.debug(f"Failed to get metadata from file {file_path}: {e}")
 
         return None
 
@@ -1564,7 +1564,7 @@ class Epc(EnergymlStorageInterface):
                 xml_bytes = future.result()
 
                 if isinstance(xml_bytes, Exception):
-                    logging.error(f"Erreur sérialisation sur {path}: {xml_bytes}")
+                    logger.error(f"Erreur sérialisation sur {path}: {xml_bytes}")
                 else:
                     zip_file.writestr(path, xml_bytes)
 
@@ -1626,7 +1626,7 @@ class Epc(EnergymlStorageInterface):
         :param recompute_rels: If True, recompute all relationships after loading
         :return: an :class:`EPC` instance
         """
-        print("Reading EPC file seq...")
+        logger.debug("Reading EPC file seq...")
         try:
             _read_files = []
             obj_list = []
@@ -1651,13 +1651,13 @@ class Epc(EnergymlStorageInterface):
                 _read_files.append(content_type_file_name)
 
                 if content_type_info is None:
-                    logging.error(f"No {content_type_file_name} file found")
+                    logger.error(f"No {content_type_file_name} file found")
                 else:
                     content_type_obj: Types = read_energyml_xml_bytes(epc_file.read(content_type_file_name))
                     for ov in content_type_obj.override:
                         ov_ct = ov.content_type
                         ov_path = ov.part_name
-                        # logging.debug(ov_ct)
+                        # logger.debug(ov_ct)
                         while ov_path.startswith("/") or ov_path.startswith("\\"):
                             ov_path = ov_path[1:]
                         if is_energyml_content_type(ov_ct):
@@ -1672,12 +1672,12 @@ class Epc(EnergymlStorageInterface):
                                 path_to_obj[ov_path] = ov_obj
                                 obj_list.append(ov_obj)
                             except Exception:
-                                logging.error(traceback.format_exc())
-                                logging.error(
+                                logger.error(traceback.format_exc())
+                                logger.error(
                                     f"Epc.@read_stream failed to parse file {ov_path} for content-type: {ov_ct} => {str(get_class_from_content_type(ov_ct))}\n\n",
                                 )
                                 try:
-                                    logging.debug(epc_file.read(ov_path))
+                                    logger.debug(epc_file.read(ov_path))
                                 except:
                                     pass
                                 # raise e
@@ -1698,11 +1698,11 @@ class Epc(EnergymlStorageInterface):
                                         )
                                     )
                                 except IOError:
-                                    logging.error(traceback.format_exc())
+                                    logger.error(traceback.format_exc())
                             elif f_info.filename != "_rels/.rels":  # CoreProperties rels file
                                 # RELS FILES READING START
 
-                                # logging.debug(f"reading rels {f_info.filename}")
+                                # logger.debug(f"reading rels {f_info.filename}")
                                 rels_path = Path(f_info.filename)
                                 obj_folder = (
                                     str(rels_path.parent.parent) + "/" if str(rels_path.parent.parent) != "." else ""
@@ -1723,7 +1723,7 @@ class Epc(EnergymlStorageInterface):
                                         # additional_rels_key = get_obj_identifier(path_to_obj[obj_path])
                                         # # Keep only non-computable rels in additional_rels (legacy support)
                                         # for rel in rels_file.relationship:
-                                        #     # logging.debug(f"\t\t{rel.type_value}")
+                                        #     # logger.debug(f"\t\t{rel.type_value}")
                                         #     if (
                                         #         rel.type_value != EPCRelsRelationshipType.DESTINATION_OBJECT.get_type()
                                         #         and rel.type_value != EPCRelsRelationshipType.SOURCE_OBJECT.get_type()
@@ -1734,13 +1734,13 @@ class Epc(EnergymlStorageInterface):
                                         #             additional_rels[additional_rels_key] = []
                                         #         additional_rels[additional_rels_key].append(rel)
                                     except AttributeError:
-                                        logging.error(traceback.format_exc())
+                                        logger.error(traceback.format_exc())
                                         pass  # 'CoreProperties' object has no attribute 'object_version'
                                     except Exception as e:
-                                        logging.error(f"Error with obj path {obj_path} {path_to_obj[obj_path]}")
+                                        logger.error(f"Error with obj path {obj_path} {path_to_obj[obj_path]}")
                                         raise e
                                 else:
-                                    logging.error(
+                                    logger.error(
                                         f"xml file '{f_info.filename}' is not associate to any readable object "
                                         f"(or the object type is not supported because"
                                         f" of a lack of a dependency module) "
@@ -1768,7 +1768,7 @@ class Epc(EnergymlStorageInterface):
 
             return epc
         except zipfile.BadZipFile as error:
-            logging.error(error)
+            logger.error(error)
 
         return None
 
@@ -1779,7 +1779,7 @@ class Epc(EnergymlStorageInterface):
         from concurrent.futures import ProcessPoolExecutor, as_completed
         import multiprocessing
 
-        print("Reading EPC file parrallel v1...")
+        logger.debug("Reading EPC file parrallel v1...")
 
         obj_to_process = {}
         rels_to_process = {}
@@ -1840,7 +1840,7 @@ class Epc(EnergymlStorageInterface):
                     path_to_obj[path] = res
                     obj_list.append(res)
                 else:
-                    logging.error(f"Erreur objet {path}: {res}")
+                    logger.error(f"Erreur objet {path}: {res}")
 
             # D. Récupération des rels
             for future in as_completed(rel_futures):
@@ -1851,7 +1851,7 @@ class Epc(EnergymlStorageInterface):
                     o_path = str(Path(r_path).parent.parent / Path(r_path).stem).replace("\\", "/")
                     rels_content_map[o_path] = res
                 else:
-                    logging.error(f"Erreur rels {r_path}: {res}")
+                    logger.error(f"Erreur rels {r_path}: {res}")
 
         # 3. Assemblage final dans le processus parent
         epc = Epc(energyml_objects=EnergymlObjectCollection(obj_list), raw_files=raw_files, core_props=core_props)
@@ -1873,7 +1873,7 @@ class Epc(EnergymlStorageInterface):
     ) -> Optional["Epc"]:
         from concurrent.futures import ThreadPoolExecutor  # Passage au ThreadPool
 
-        print("Reading EPC file parrallel v2...")
+        logger.debug("Reading EPC file parrallel v2...")
 
         obj_list = []
         path_to_obj = {}
@@ -1981,6 +1981,8 @@ from energyml.utils.epc_utils import (
 
 # Also export the cache dict for backward compatibility
 from energyml.utils.epc_utils import __CACHE_PROP_KIND_DICT__
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "Epc",

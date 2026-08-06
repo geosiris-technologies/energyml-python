@@ -58,23 +58,36 @@ python_classes = [ "Test*" ]
 python_functions = [ "test_*" ]
 
 [tool.poetry.extras]
-parquet = ["pyarrow", "numpy", "pandas"]
-hdf5 = ["h5py"]
+# A dependency listed here is made *optional* by poetry, whatever `optional = false` says below.
+# `numpy` and `h5py` used to be listed in `parquet` / `hdf5`, so the published wheel declared them
+# as `; extra == "parquet"` / `; extra == "hdf5"` — a plain `pip install energyml-utils` installed
+# neither, and `import energyml.utils.epc` then died on `ModuleNotFoundError: No module named
+# 'numpy'`. They are hard dependencies (numpy is imported at module level, HDF5 is the default
+# external-array format of EnergyML) and are therefore declared only in `dependencies` now.
+parquet = ["pyarrow", "pandas"]
 las = ["lasio"]
 segy = ["segyio"]
 geometry = ["scipy"]
+crs = ["pyproj"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
 xsdata = {version = "^24.0", extras = ["cli", "lxml"]}
 energyml-opc = "^1.12.0"
 h5py = { version = "^3.11.0", optional = false }
-numpy = { version = "^1.16.6", optional = false }
+# `^1.16.6` meant `<2.0.0`. NumPy 2 is the default in most new environments, and consumers ended
+# up on it anyway — where `np.array(x, copy=False)` changed meaning and made every HDF5 array
+# silently unreadable (see datasets_io.read_array_view). The spelling is fixed and the suite runs
+# on 1.26 and 2.3 alike, so the ceiling is now the next major.
+numpy = { version = ">=1.16.6,<3.0.0", optional = false }
 scipy = { version = ">=1.7", optional = true }
 pyarrow = { version = "^14.0.1", optional = true }
 pandas = { version = "^1.1.0", optional = true }
 lasio = { version = "^0.31", optional = true }
 segyio = { version = "^1.9", optional = true }
+# CRS reprojection (WGS84). pyproj >=3.7 requires python >=3.10, so keep a loose constraint
+# and let the resolver pick 3.6.x on python 3.9.
+pyproj = { version = ">=3.4", optional = true }
 
 [tool.poetry.group.dev.dependencies]
 coverage = {extras = ["toml"], version = "^6.2"}
@@ -149,11 +162,13 @@ format-jinja = """
 """
 
 [tool.poetry.scripts]
-extract_3d = "example.tools:extract_representation_in_3d_file"
-csv_to_dataset = "example.tools:csv_to_dataset"
-generate_data = "example.tools:generate_data"
-xml_to_json = "example.tools:xml_to_json"
-json_to_xml = "example.tools:json_to_xml"
-json_to_epc = "example.tools:json_to_epc"
-describe_as_csv = "example.tools:describe_as_csv"
-validate = "example.tools:validate_files"
+extract_3d = "energyml.utils.cli:extract_representation_in_3d_file"
+csv_to_dataset = "energyml.utils.cli:csv_to_dataset"
+generate_data = "energyml.utils.cli:generate_data"
+generate_multiple_data = "energyml.utils.cli:generate_multiple_data"
+xml_to_json = "energyml.utils.cli:xml_to_json"
+json_to_xml = "energyml.utils.cli:json_to_xml"
+json_to_epc = "energyml.utils.cli:json_to_epc"
+loadNsave = "energyml.utils.cli:load_n_save"
+describe_as_csv = "energyml.utils.cli:describe_as_csv"
+validate = "energyml.utils.cli:validate_files"

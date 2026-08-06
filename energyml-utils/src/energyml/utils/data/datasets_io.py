@@ -167,7 +167,7 @@ if __H5PY_MODULE_EXISTS__:
         ):
             if isinstance(array, list):
                 array = np.asarray(array)
-            print("writing array", target)
+            logger.debug("Writing array to %s", target)
             if dtype is not None and not isinstance(dtype, np.dtype):
                 dtype = np.dtype(dtype)
 
@@ -322,16 +322,16 @@ class DATFileReader:
 
             source.seek(s_pos)
 
-            logging.debug(comments)
+            logger.debug(comments)
 
             items = []
 
             if len(comments) > 0:
                 _delim = re.search(r'Default\s+delimiter:\s*"(?P<delim>[^"])"', comments, re.IGNORECASE)
                 if _delim is not None:
-                    logging.debug("delim", _delim, _delim.group("delim"))
+                    logger.debug("delim", _delim, _delim.group("delim"))
                     _delim = _delim.group("delim")
-                    logging.debug(_delim, "<==")
+                    logger.debug(_delim, "<==")
                     if len(_delim) > 0:
                         delimiter = _delim
 
@@ -340,14 +340,14 @@ class DATFileReader:
                     comments,
                     re.IGNORECASE,
                 )
-                logging.debug("items", items)
+                logger.debug("items", items)
 
                 items = list(map(lambda it: (it[0], int(it[1]), int(it[2])), items))
 
                 _cst = re.findall(
                     r"Item\s*:\s*(?P<itemName>[\w]+)\s+constant\s*:\s*(?P<value>\w+)", comments, re.IGNORECASE
                 )
-                logging.debug("cst", _cst)
+                logger.debug("cst", _cst)
 
                 max_line_number = 0
                 for _, n, _ in items:
@@ -356,11 +356,11 @@ class DATFileReader:
 
                 for i in range(max_line_number - 1):
                     source.readline()  # on skip les values des autres items, on ne garde que le tableau de valeurs
-                logging.debug(max_line_number)
-                logging.debug(items)
+                logger.debug(max_line_number)
+                logger.debug(items)
                 # removing items not related to the columns titles items
                 items = list(filter(lambda it: it[1] == max_line_number, items))
-                logging.debug(items)
+                logger.debug(items)
 
             if isinstance(source, BytesIO) or isinstance(source, BinaryIO) or isinstance(source, BufferedReader):
                 source = TextIOWrapper(source, encoding=encoding)
@@ -380,6 +380,15 @@ class DATFileReader:
     def read_array_as_panda_dict(
         self, source: Union[BytesIO, TextIO, str], delimiter: Optional[str] = ",", has_header: bool = True, **fmtparams
     ) -> Optional[Any]:
+        """
+        Read the whole file as a pandas object.
+
+        :raise MissingExtraInstallation: pandas comes with the ``parquet`` extra. Without it this
+            used to fail with ``NameError: name 'pd' is not defined``, which says nothing about
+            what to install.
+        """
+        if not __PARQUET_MODULE_EXISTS__:
+            raise MissingExtraInstallation(extra_name="parquet")
         if isinstance(source, str):
             with open(source, "r", newline="") as datFile:
                 return self.read_array_as_panda_dict(datFile, delimiter, has_header=has_header, **fmtparams)
@@ -439,6 +448,15 @@ class CSVFileReader:
     def read_array_as_panda_dict(
         self, source: Union[BytesIO, TextIO, str], delimiter: Optional[str] = ",", has_header: bool = True, **fmtparams
     ) -> Optional[Any]:
+        """
+        Read the whole file as a pandas object.
+
+        :raise MissingExtraInstallation: pandas comes with the ``parquet`` extra. Without it this
+            used to fail with ``NameError: name 'pd' is not defined``, which says nothing about
+            what to install.
+        """
+        if not __PARQUET_MODULE_EXISTS__:
+            raise MissingExtraInstallation(extra_name="parquet")
         if isinstance(source, str):
             with open(source, "r", newline="") as csvFile:
                 return self.read_array_as_panda_dict(csvFile, delimiter, has_header=has_header, **fmtparams)
@@ -534,12 +552,12 @@ def get_external_file_path_from_external_path(
     # resqml 2.0.1
     if hdf_proxy_lst is not None and len(hdf_proxy_lst) > 0:
         hdf_proxy = hdf_proxy_lst
-        # logging.debug("h5Proxy", hdf_proxy)
+        # logger.debug("h5Proxy", hdf_proxy)
         while isinstance(hdf_proxy, list):
             hdf_proxy = hdf_proxy[0]
         hdf_proxy_obj = epc.get_object_by_identifier(get_obj_identifier(hdf_proxy))
         try:
-            logging.debug(f"hdf_proxy_obj : {hdf_proxy_obj} {hdf_proxy} : {hdf_proxy}")
+            logger.debug(f"hdf_proxy_obj : {hdf_proxy_obj} {hdf_proxy} : {hdf_proxy}")
         except:
             pass
         if hdf_proxy_obj is not None:
@@ -570,7 +588,7 @@ def get_external_file_path_from_external_path(
         result = [epc.epc_file_path[:-4] + ".h5"]
 
     try:
-        logging.debug(f"{external_path_obj} {result} \n\t{hdf_proxy_lst}\n\t{ext_file_proxy_lst}")
+        logger.debug(f"{external_path_obj} {result} \n\t{hdf_proxy_lst}\n\t{ext_file_proxy_lst}")
     except:
         pass
     return result
@@ -640,7 +658,7 @@ def read_external_dataset_array(
             except MissingExtraInstallation as mei:
                 raise mei
             except Exception as e:
-                logging.debug(f"Failed to read external file {s} for {path_in_obj} with path {path_in_external} : {e}")
+                logger.debug(f"Failed to read external file {s} for {path_in_obj} with path {path_in_external} : {e}")
                 pass
         if not succeed:
             raise Exception(f"Failed to read external file. Paths tried : {sources}")
@@ -696,18 +714,18 @@ def get_proxy_uri_for_path_in_external(obj: Any, dataspace_name_or_uri: Union[st
     uri_path_map = {}
     _piefs = get_path_in_external_with_path(obj)
     if _piefs is not None and len(_piefs) > 0:
-        # logging.info(f"Found {_piefs} datasets in object {get_obj_uuid(obj)}")
+        # logger.info(f"Found {_piefs} datasets in object {get_obj_uuid(obj)}")
 
         # uri_path_map[uri] = _piefs
         for item in _piefs:
             uri = str(get_obj_uri(obj, dataspace=ds_name))
             if isinstance(item, tuple):
-                logging.info(
+                logger.info(
                     f"Item: {item}, type: {type(item)}, len: {len(item) if hasattr(item, '__len__') else 'N/A'}"
                 )
                 # Then unpack
                 path, pief = item
-                # logging.info(f"\t test : {path_last_attribute(path)}")
+                # logger.info(f"\t test : {path_last_attribute(path)}")
                 if "hdf" in path_last_attribute(path).lower():
                     dor = get_object_attribute(
                         obj=obj, attr_dot_path=path[: -len(path_last_attribute(path))] + "hdf_proxy"
@@ -720,7 +738,7 @@ def get_proxy_uri_for_path_in_external(obj: Any, dataspace_name_or_uri: Union[st
                     uri_path_map[uri] = []
                 uri_path_map[uri].append(pief)
     else:
-        logging.debug(f"No datasets found in object {str(get_obj_uri(obj))}")
+        logger.debug(f"No datasets found in object {str(get_obj_uri(obj))}")
     return uri_path_map
 
 
@@ -731,6 +749,8 @@ def get_proxy_uri_for_path_in_external(obj: Any, dataspace_name_or_uri: Union[st
 
 from typing import Callable
 from energyml.utils.data.model import ExternalArrayHandler
+
+logger = logging.getLogger(__name__)
 
 
 class FileHandlerRegistry:
@@ -851,13 +871,10 @@ if __H5PY_MODULE_EXISTS__:
         def __init__(self, max_open_files: int = 3):
             super().__init__(max_open_files=max_open_files)
 
-        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
-            """Open an HDF5 file without using the cache."""
-            try:
-                return h5py.File(file_path, mode)  # type: ignore
-            except Exception as e:
-                # logging.debug(f"Failed to open HDF5 file {file_path}: {e}")
-                return None
+        format_name = "HDF5"
+
+        def _open_file(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            return h5py.File(file_path, mode)  # type: ignore
 
         def read_array(
             self,
@@ -878,8 +895,11 @@ if __H5PY_MODULE_EXISTS__:
                     return full_array
                 return None
             else:
-                with self.file_cache.get_or_open(source, self, "r") as f:  # type: ignore
-                    return self.read_array(f, path_in_external_file, start_indices, counts)
+                # The cache owns the handle's lifetime — see the note in read_array_view.
+                f = self.file_cache.get_or_open(source, self, "r")  # type: ignore
+                if f is None:
+                    return None
+                return self.read_array(f, path_in_external_file, start_indices, counts)
 
         def read_array_view(
             self,
@@ -906,13 +926,26 @@ if __H5PY_MODULE_EXISTS__:
                     # h5py reads only the required chunks/slabs from disk
                     slices = tuple(slice(start, start + count) for start, count in zip(start_indices, counts))
                     return d_group[slices]  # type: ignore
-                # np.array with copy=False returns a view for contiguous datasets
-                # Note: copy= kwarg on np.asarray requires numpy >=2.0;
-                # np.array(x, copy=False) works on all numpy versions.
-                return np.array(d_group, copy=False)  # type: ignore
+                # NumPy 2.0 redefined `copy=False`: it used to mean "avoid a copy *if possible*"
+                # and now means "never copy — raise if you would have to". An HDF5 dataset lives
+                # on disk, so h5py always has to allocate, and `np.array(d_group, copy=False)`
+                # raises on numpy>=2 with
+                #   "Dataset.__array__ received copy=False but memory allocation cannot be
+                #    avoided on read".
+                # It made every external array unreadable on a numpy>=2 install while the
+                # numpy 1.26 lockfile of this repository kept the tests green. np.asarray() is
+                # the spelling that means the same thing under both majors.
+                return np.asarray(d_group)  # type: ignore
             else:
-                with self.file_cache.get_or_open(source, self, "r") as f:  # type: ignore
-                    return self.read_array_view(f, path_in_external_file, start_indices, counts)
+                # `get_or_open` returns a *cached* handle: the cache owns it and closes it in
+                # `close_all`. Wrapping it in `with` closed it at the end of the first read while
+                # the cache kept serving it, so the next read on the same file got a dead handle
+                # and raised "invalid identifier type to function" — the order in which
+                # read_array and read_array_view happened to be called decided whether it worked.
+                f = self.file_cache.get_or_open(source, self, "r")  # type: ignore
+                if f is None:
+                    return None
+                return self.read_array_view(f, path_in_external_file, start_indices, counts)
 
         def write_array(
             self,
@@ -960,7 +993,7 @@ if __H5PY_MODULE_EXISTS__:
 
                 return True
             except Exception as e:
-                logging.error(f"Failed to write array to HDF5: {e}")
+                logger.error(f"Failed to write array to HDF5: {e}")
                 return False
 
         def get_array_metadata(
@@ -1000,7 +1033,7 @@ if __H5PY_MODULE_EXISTS__:
                         self.file_cache.get_or_open(source, self, "r"), path_in_external_file, start_indices, counts
                     )
             except Exception as e:
-                logging.debug(f"Failed to get HDF5 metadata: {e}")
+                logger.debug(f"Failed to get HDF5 metadata: {e}")
                 return None
 
         def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
@@ -1020,9 +1053,10 @@ else:
         def __init__(self, max_open_files: int = 3):
             super().__init__(max_open_files=max_open_files)
 
-        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
-            """Open an HDF5 file without using the cache."""
-            return None
+        format_name = "HDF5"
+
+        def _open_file(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            return None  # h5py is not installed: there is nothing to open
 
         def read_array(
             self,
@@ -1071,13 +1105,10 @@ if __PARQUET_MODULE_EXISTS__:
         def __init__(self, max_open_files: int = 3):
             super().__init__(max_open_files=max_open_files)
 
-        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
-            """Open a Parquet file without using the cache."""
-            try:
-                return pq.ParquetFile(file_path)  # type: ignore
-            except Exception as e:
-                logging.error(f"Failed to open Parquet file {file_path}: {e}")
-                return None
+        format_name = "Parquet"
+
+        def _open_file(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            return pq.ParquetFile(file_path)  # type: ignore
 
         def read_array(
             self,
@@ -1132,7 +1163,7 @@ if __PARQUET_MODULE_EXISTS__:
                     array_as_pd_df = pd.DataFrame({col_name: array})
                 else:
                     # For higher dimensions, flatten or handle as needed
-                    logging.warning(f"Parquet writer received {array.ndim}D array, flattening to 2D")
+                    logger.warning(f"Parquet writer received {array.ndim}D array, flattening to 2D")
                     array_2d = array.reshape(array.shape[0], -1)
                     if column_titles is None:
                         column_titles = [str(i) for i in range(array_2d.shape[1])]
@@ -1146,7 +1177,7 @@ if __PARQUET_MODULE_EXISTS__:
                 )
                 return True
             except Exception as e:
-                logging.error(f"Failed to write array to Parquet: {e}")
+                logger.error(f"Failed to write array to Parquet: {e}")
                 return False
 
         def get_array_metadata(
@@ -1187,7 +1218,7 @@ if __PARQUET_MODULE_EXISTS__:
                     # Get all columns
                     return [self.get_array_metadata(source, field.name, start_indices, counts) for field in schema]
             except Exception as e:
-                logging.debug(f"Failed to get Parquet metadata: {e}")
+                logger.debug(f"Failed to get Parquet metadata: {e}")
                 return None
 
         def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
@@ -1213,9 +1244,10 @@ else:
         def __init__(self, max_open_files: int = 3):
             super().__init__(max_open_files=max_open_files)
 
-        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
-            """Open a Parquet file without using the cache."""
-            return None
+        format_name = "Parquet"
+
+        def _open_file(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            return None  # pyarrow is not installed: there is nothing to open
 
         def read_array(
             self,
@@ -1264,13 +1296,10 @@ if __CSV_MODULE_EXISTS__:
         def __init__(self, max_open_files: int = 3):
             super().__init__(max_open_files=max_open_files)
 
-        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
-            """Open a CSV file without using the cache."""
-            try:
-                return open(file_path, mode)
-            except Exception as e:
-                logging.error(f"Failed to open CSV file {file_path}: {e}")
-                return None
+        format_name = "CSV"
+
+        def _open_file(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            return open(file_path, mode)
 
         def read_array(
             self,
@@ -1294,7 +1323,7 @@ if __CSV_MODULE_EXISTS__:
                     return data[slices]
                 return data
             except Exception as e:
-                logging.debug(f"Failed to read CSV: {e}")
+                logger.debug(f"Failed to read CSV: {e}")
                 return None
 
         def write_array(
@@ -1312,7 +1341,7 @@ if __CSV_MODULE_EXISTS__:
                 np.savetxt(target, array, delimiter=",")
                 return True
             except Exception as e:
-                logging.error(f"Failed to write CSV: {e}")
+                logger.error(f"Failed to write CSV: {e}")
                 return False
 
         def get_array_metadata(
@@ -1333,7 +1362,7 @@ if __CSV_MODULE_EXISTS__:
                         "size": data.size,
                     }
             except Exception as e:
-                logging.debug(f"Failed to get CSV metadata: {e}")
+                logger.debug(f"Failed to get CSV metadata: {e}")
             return None
 
         def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
@@ -1355,13 +1384,10 @@ if __LASIO_MODULE_EXISTS__:
         def __init__(self, max_open_files: int = 3):
             super().__init__(max_open_files=max_open_files)
 
-        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
-            """Open a LAS file without using the cache."""
-            try:
-                return lasio.read(file_path)  # type: ignore
-            except Exception as e:
-                logging.error(f"Failed to open LAS file {file_path}: {e}")
-                return None
+        format_name = "LAS"
+
+        def _open_file(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            return lasio.read(file_path)  # type: ignore
 
         def read_array(
             self,
@@ -1399,10 +1425,10 @@ if __LASIO_MODULE_EXISTS__:
                         if mnemonic in las.keys():
                             curves_data.append(las[mnemonic])
                         else:
-                            logging.warning(f"Mnemonic '{mnemonic}' not found in LAS file")
+                            logger.warning(f"Mnemonic '{mnemonic}' not found in LAS file")
 
                     if not curves_data:
-                        logging.error("No valid mnemonics found in LAS file")
+                        logger.error("No valid mnemonics found in LAS file")
                         return None
 
                     # Stack curves horizontally
@@ -1420,7 +1446,7 @@ if __LASIO_MODULE_EXISTS__:
                 return np.array(data)
 
             except Exception as e:
-                logging.error(f"Failed to read LAS file: {e}")
+                logger.error(f"Failed to read LAS file: {e}")
                 return None
 
         def write_array(
@@ -1487,7 +1513,7 @@ if __LASIO_MODULE_EXISTS__:
                 return True
 
             except Exception as e:
-                logging.error(f"Failed to write LAS file: {e}")
+                logger.error(f"Failed to write LAS file: {e}")
                 return False
 
         def get_array_metadata(
@@ -1538,7 +1564,7 @@ if __LASIO_MODULE_EXISTS__:
                 return metadata
 
             except Exception as e:
-                logging.error(f"Failed to get LAS metadata: {e}")
+                logger.error(f"Failed to get LAS metadata: {e}")
                 return None
 
         def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
@@ -1547,7 +1573,7 @@ if __LASIO_MODULE_EXISTS__:
                 las = lasio.read(source)
                 return [curve.mnemonic for curve in las.curves]
             except Exception as e:
-                logging.error(f"Failed to list LAS curves: {e}")
+                logger.error(f"Failed to list LAS curves: {e}")
                 return []
 
         def can_handle_file(self, file_path: str) -> bool:
@@ -1563,9 +1589,10 @@ else:
         def __init__(self, max_open_files: int = 3):
             super().__init__(max_open_files=max_open_files)
 
-        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
-            """Open a LAS file without using the cache."""
-            return None
+        format_name = "LAS"
+
+        def _open_file(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            return None  # lasio is not installed: there is nothing to open
 
         def read_array(
             self,
@@ -1616,13 +1643,10 @@ if __SEGYIO_MODULE_EXISTS__:
         def __init__(self, max_open_files: int = 3):
             super().__init__(max_open_files=max_open_files)
 
-        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
-            """Open a SEG-Y file without using the cache."""
-            try:
-                return segyio.open(file_path, mode, ignore_geometry=True)  # type: ignore
-            except Exception as e:
-                logging.error(f"Failed to open SEG-Y file {file_path}: {e}")
-                return None
+        format_name = "SEG-Y"
+
+        def _open_file(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            return segyio.open(file_path, mode, ignore_geometry=True)  # type: ignore
 
         def read_array(
             self,
@@ -1646,7 +1670,7 @@ if __SEGYIO_MODULE_EXISTS__:
             try:
                 # SEG-Y requires file path, not BytesIO
                 if not isinstance(source, str):
-                    logging.error("SEG-Y handler requires file path, not BytesIO")
+                    logger.error("SEG-Y handler requires file path, not BytesIO")
                     return None
 
                 with segyio.open(source, "r", ignore_geometry=True) as f:
@@ -1686,7 +1710,7 @@ if __SEGYIO_MODULE_EXISTS__:
                         return np.array(header_data)
 
             except Exception as e:
-                logging.error(f"Failed to read SEG-Y file: {e}")
+                logger.error(f"Failed to read SEG-Y file: {e}")
                 return None
 
         def write_array(
@@ -1711,7 +1735,7 @@ if __SEGYIO_MODULE_EXISTS__:
             """
             try:
                 if not isinstance(target, str):
-                    logging.error("SEG-Y handler requires file path for writing")
+                    logger.error("SEG-Y handler requires file path for writing")
                     return False
 
                 if not isinstance(array, np.ndarray):
@@ -1741,7 +1765,7 @@ if __SEGYIO_MODULE_EXISTS__:
                 return True
 
             except Exception as e:
-                logging.error(f"Failed to write SEG-Y file: {e}")
+                logger.error(f"Failed to write SEG-Y file: {e}")
                 return False
 
         def get_array_metadata(
@@ -1759,7 +1783,7 @@ if __SEGYIO_MODULE_EXISTS__:
             """
             try:
                 if not isinstance(source, str):
-                    logging.error("SEG-Y handler requires file path")
+                    logger.error("SEG-Y handler requires file path")
                     return None
 
                 with segyio.open(source, "r", ignore_geometry=True) as f:
@@ -1776,7 +1800,7 @@ if __SEGYIO_MODULE_EXISTS__:
                     return metadata
 
             except Exception as e:
-                logging.error(f"Failed to get SEG-Y metadata: {e}")
+                logger.error(f"Failed to get SEG-Y metadata: {e}")
                 return None
 
         def list_arrays(self, source: Union[BytesIO, str, Any]) -> List[str]:
@@ -1796,9 +1820,10 @@ else:
         def __init__(self, max_open_files: int = 3):
             super().__init__(max_open_files=max_open_files)
 
-        def open_file_no_cache(self, file_path: str, mode: str = "r") -> Optional[Any]:
-            """Open a SEG-Y file without using the cache."""
-            return None
+        format_name = "SEG-Y"
+
+        def _open_file(self, file_path: str, mode: str = "r") -> Optional[Any]:
+            return None  # segyio is not installed: there is nothing to open
 
         def read_array(
             self,
@@ -1838,3 +1863,51 @@ else:
 
     # Alias so the public name is always importable
     SEGYArrayHandler = MockSEGYArrayHandler
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "h5_list_datasets",
+    "DATFileReader",
+    "CSVFileReader",
+    "CSVFileWriter",
+    "get_external_file_path_possibilities",
+    "get_external_file_path_from_external_path",
+    "get_external_file_path_possibilities_from_folder",
+    "read_dataset",
+    "read_external_dataset_array",
+    "get_path_in_external",
+    "get_path_in_external_with_path",
+    "get_proxy_uri_for_path_in_external",
+    "FileHandlerRegistry",
+    "get_handler_registry",
+]
+
+# The readers, the writers and the array handlers below are defined only when their optional
+# dependency is installed — `HDF5ArrayHandler` when h5py is there, `MockHDF5ArrayHandler`
+# otherwise. Listing them unconditionally in `__all__` would make `import *` fail with
+# AttributeError on an installation without the extra, so the list is completed at import time
+# with the names that really exist.
+__all__ += [
+    _name
+    for _name in (
+        "h5py",
+        "lasio",
+        "segyio",
+        "HDF5FileReader",
+        "HDF5FileWriter",
+        "ParquetFileReader",
+        "ParquetFileWriter",
+        "HDF5ArrayHandler",
+        "MockHDF5ArrayHandler",
+        "ParquetArrayHandler",
+        "MockParquetArrayHandler",
+        "CSVArrayHandler",
+        "LASArrayHandler",
+        "MockLASArrayHandler",
+        "SEGYArrayHandler",
+        "MockSEGYArrayHandler",
+    )
+    if _name in globals()
+]

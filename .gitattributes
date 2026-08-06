@@ -1,0 +1,95 @@
+# Copyright (c) 2023-2024 Geosiris.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Normalise line endings and, above all, keep the binary test fixtures binary.
+#
+# An EPC is a ZIP and an .h5 is an HDF5 container: a single CRLF<->LF substitution inside one
+# corrupts the archive, and git would happily do it on a Windows checkout for any file it
+# guesses is text. The `binary` macro below is `-text -diff`, which turns both the eol
+# conversion and the textual diff off.
+
+# ---------------------------------------------------------------------------
+# Default: let git detect, and store text with LF in the repository.
+# ---------------------------------------------------------------------------
+*               text=auto
+
+# ---------------------------------------------------------------------------
+# Source and data formats that are always text
+# ---------------------------------------------------------------------------
+*.py            text diff=python
+*.pyi           text diff=python
+*.md            text diff=markdown
+*.rst           text
+*.txt           text
+*.xml           text
+*.json          text
+*.yml           text
+*.yaml          text
+*.toml          text
+*.cfg           text
+*.ini           text
+*.csv           text
+*.html          text diff=html
+*.css           text
+*.js            text
+*.sql           text
+*.sh            text eol=lf
+*.bash          text eol=lf
+Dockerfile      text
+Makefile        text
+.gitattributes  text
+.gitignore      text
+
+# Windows-only scripts keep CRLF or cmd.exe mis-parses them
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+*.ps1           text eol=crlf
+
+# ---------------------------------------------------------------------------
+# Energyml / geoscience binaries — never touch, never diff
+# ---------------------------------------------------------------------------
+*.epc           binary
+*.h5            binary
+*.hdf5          binary
+*.parquet       binary
+*.las           binary
+*.segy          binary
+*.sgy           binary
+*.resqml        binary
+
+# ---------------------------------------------------------------------------
+# Generic binaries
+# ---------------------------------------------------------------------------
+*.zip           binary
+*.gz            binary
+*.tgz           binary
+*.bz2           binary
+*.xz            binary
+*.7z            binary
+*.jar           binary
+*.whl           binary
+*.pdf           binary
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.bmp           binary
+*.tif           binary
+*.tiff          binary
+*.woff          binary
+*.woff2         binary
+*.ttf           binary
+*.otf           binary
+*.eot           binary
+*.so            binary
+*.dll           binary
+*.dylib         binary
+*.pyd           binary
+*.exe           binary
+*.pyc           binary
+
+# ---------------------------------------------------------------------------
+# Keep generated / vendored trees out of the language stats and of PR diffs
+# ---------------------------------------------------------------------------
+poetry.lock     linguist-generated=true -diff

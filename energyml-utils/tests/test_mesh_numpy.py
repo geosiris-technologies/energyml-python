@@ -421,15 +421,23 @@ class TestReadNumpyMeshObjectEPC22:
             assert m.points.shape[1] == 3
 
     def test_wellbore_frame_lines_vtk_format(self, epc22):
+        """A wellbore is *one* polyline through its stations, not N-1 two-point cells.
+
+        Both encodings draw the same picture, but every consumer that iterates the cells —
+        the GeoJSON writer, OBJ, OFF — turns the segment one into N-1 elements for a single
+        well, each repeating the object's whole metadata block.
+        """
         obj = epc22.get_object_by_uuid("d873e243-d893-41ab-9a3e-d20b851c099f")
         if not obj:
             pytest.skip("WellboreFrame UUID not found in fixture EPC")
         multi = read_numpy_mesh_object(obj[0], workspace=epc22)
         for m in multi.flat_patches():
             assert isinstance(m, NumpyPolylineMesh)
-            if len(m.lines) > 0:
-                # First element is count (number of points in first line segment)
-                assert m.lines[0] == 2, "VTK segment should start with count=2"
+            if len(m.lines) == 0:
+                continue
+            # VTK flat format: [n, i0, i1, ..., i(n-1)] — a single cell spanning every point.
+            assert m.lines[0] == len(m.points), "the frame should be one polyline through all its points"
+            assert len(m.lines) == len(m.points) + 1, "expected exactly one VTK cell"
 
     # --- Grid2dRepresentation ---
     def test_grid2d_returns_surface_mesh(self, epc22):

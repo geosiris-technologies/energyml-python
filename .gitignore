@@ -4,6 +4,14 @@
 *.sublime-project
 *.sublime-workspace
 
+# AI coding assistants: local instructions / settings, not part of the project
+.claude/
+CLAUDE.md
+AGENTS.md
+.cursor/
+.aider*
+.github/copilot-instructions.md
+
 # Checkpoints
 .ipynb_checkpoints
 __pycache__/

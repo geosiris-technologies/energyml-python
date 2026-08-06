@@ -453,6 +453,57 @@ def pascal_case(string: str) -> str:
     return snake_case(string).replace("_", " ").title().replace(" ", "")
 
 
+#: Characters no Windows file name may contain. ``/`` is added for POSIX, where it is the path
+#: separator; the ASCII control characters are rejected by every filesystem.
+_FORBIDDEN_FILE_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+#: Windows device names: reserved whatever the extension, so ``CON.geojson`` is unusable too.
+_RESERVED_FILE_NAMES = frozenset(
+    ["CON", "PRN", "AUX", "NUL"] + [f"COM{i}" for i in range(1, 10)] + [f"LPT{i}" for i in range(1, 10)]
+)
+
+
+def sanitize_file_name(name: str, replacement: str = "_", max_length: int = 150) -> str:
+    """Make *name* usable as a single file-name component on every platform.
+
+    Energyml titles go into export file names, and they are free text: ``AUB-PRO-SP05512:
+    Trajectory`` is a perfectly legal citation title. On Windows a ``:`` in a path opens an
+    *alternate data stream* instead of failing — ``open("well: Traj.geojson", "w")`` silently
+    creates an empty file called ``well`` carrying a hidden stream named ``: Traj.geojson``.
+    The export looks like it worked and leaves extension-less, apparently empty files behind.
+
+    Replaces the forbidden characters, collapses the runs they leave, strips the trailing dots
+    and spaces Windows drops silently, escapes the reserved device names, and truncates to
+    *max_length* so that a long title cannot push the whole path past the limit.
+
+    :param name: the raw file-name component (no directory separator is preserved).
+    :param replacement: what to substitute for a forbidden character.
+    :param max_length: maximum length of the returned component.
+    """
+    if not name:
+        return "unnamed"
+
+    cleaned = _FORBIDDEN_FILE_NAME_CHARS.sub(replacement, name)
+    if replacement:
+        # "a: b" would otherwise become "a__b" — one for the colon, one for the space after it.
+        cleaned = re.sub(re.escape(replacement) + r"{2,}", replacement, cleaned)
+    # Windows drops trailing dots and spaces without telling, so "x." and "x" collide.
+    cleaned = cleaned.rstrip(". ").strip()
+
+    # "///" or "..." carried no name to begin with; a bare separator is not a better answer.
+    if not cleaned or (replacement and cleaned.strip(replacement) == ""):
+        return "unnamed"
+
+    stem, dot, extension = cleaned.partition(".")
+    if stem.upper() in _RESERVED_FILE_NAMES:
+        cleaned = f"{stem}{replacement}{dot}{extension}" if dot else f"{stem}{replacement}"
+
+    if len(cleaned) > max_length:
+        cleaned = cleaned[:max_length].rstrip(". ")
+
+    return cleaned or "unnamed"
+
+
 def flatten_concatenation(matrix) -> List:
     """
     Flatten a matrix efficiently.
@@ -747,6 +798,92 @@ def get_property_kind_dict_path_as_xml() -> str:
 # ===================================
 # MAIN EXECUTION (for testing)
 # ===================================
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "ENERGYML_NAMESPACES",
+    "WELLKNOWN_NAMESPACES",
+    "ENERGYML_NAMESPACES_PACKAGE",
+    "ENERGYML_MODULES_NAMES",
+    "RELATED_MODULES_MAP",
+    "RGX_ENERGYML_MODULE_NAME",
+    "RGX_PROJECT_VERSION",
+    "RGX_UUID_NO_GRP",
+    "RGX_UUID",
+    "RGX_DOMAIN_VERSION",
+    "RGX_DOMAIN_VERSION_FLAT",
+    "RGX_MIME_TYPE_MEDIA",
+    "RGX_CT_ENERGYML_DOMAIN",
+    "RGX_CT_XML_DOMAIN",
+    "RGX_CT_TOKEN_VERSION",
+    "RGX_CT_TOKEN_TYPE",
+    "RGX_CONTENT_TYPE",
+    "RGX_QUALIFIED_TYPE",
+    "RGX_SCHEMA_VERSION",
+    "RGX_ENERGYML_FILE_NAME_OLD",
+    "RGX_ENERGYML_FILE_NAME_NEW",
+    "RGX_ENERGYML_FILE_NAME",
+    "RGX_XML_HEADER",
+    "RGX_IDENTIFIER",
+    "URI_RGX_GRP_DOMAIN",
+    "URI_RGX_GRP_DOMAIN_VERSION",
+    "URI_RGX_GRP_UUID",
+    "URI_RGX_GRP_DATASPACE",
+    "URI_RGX_GRP_VERSION",
+    "URI_RGX_GRP_OBJECT_TYPE",
+    "URI_RGX_GRP_UUID2",
+    "URI_RGX_GRP_COLLECTION_DOMAIN",
+    "URI_RGX_GRP_COLLECTION_DOMAIN_VERSION",
+    "URI_RGX_GRP_COLLECTION_TYPE",
+    "URI_RGX_GRP_QUERY",
+    "URI_RGX",
+    "DOT_PATH_ATTRIBUTE",
+    "DOT_PATH",
+    "OptimizedRegex",
+    "RELS_CONTENT_TYPE",
+    "RELS_FOLDER_NAME",
+    "CORE_PROPERTIES_FOLDER_NAME",
+    "primitives",
+    "MimeType",
+    "EpcExportVersion",
+    "EPCRelsRelationshipType",
+    "RawFile",
+    "MIME_TYPE_TO_EXTENSION",
+    "MIME_TYPE_ALIASES",
+    "EXTENSION_ALIASES",
+    "mime_type_to_file_extension",
+    "file_extension_to_mime_type",
+    "snake_case",
+    "snake_case_old",
+    "pascal_case",
+    "sanitize_file_name",
+    "flatten_concatenation",
+    "parse_content_type",
+    "parse_qualified_type",
+    "parse_content_or_qualified_type",
+    "content_type_to_qualified_type",
+    "qualified_type_to_content_type",
+    "get_domain_version_from_content_or_qualified_type",
+    "get_obj_type_from_content_or_qualified_type",
+    "split_identifier",
+    "now",
+    "epoch",
+    "date_to_epoch",
+    "date_to_datetime",
+    "epoch_to_date",
+    "gen_uuid",
+    "extract_uuid_from_string",
+    "path_next_attribute",
+    "path_last_attribute",
+    "path_iter",
+    "path_parent_attribute",
+    "get_property_kind_dict_path_as_json",
+    "get_property_kind_dict_path_as_dict",
+    "get_property_kind_dict_path_as_xml",
+]
+
 
 if __name__ == "__main__":
     # Test optimized regex patterns

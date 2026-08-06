@@ -68,6 +68,8 @@ from energyml.utils.serialization import read_energyml_xml_str, serialize_xml, r
 from energyml.utils.uri import Uri, parse_uri
 from energyml.utils.storage_interface import ResourceMetadata
 
+logger = logging.getLogger(__name__)
+
 #     ____  ___  ________  __
 #    / __ \/   |/_  __/ / / /
 #   / /_/ / /| | / / / /_/ /
@@ -144,7 +146,7 @@ def gen_energyml_object_path(
         return get_epc_content_type_path()
     else:
         obj_type = get_object_type_for_file_path_from_class(energyml_object.__class__)
-        # logging.debug("is_dor: ", str(is_dor(energyml_object)), "object type : " + str(obj_type))
+        # logger.debug("is_dor: ", str(is_dor(energyml_object)), "object type : " + str(obj_type))
         pkg = get_class_pkg(energyml_object)
         pkg_version = get_class_pkg_version(energyml_object)
         object_version = get_obj_version(energyml_object)
@@ -455,7 +457,7 @@ def valdiate_basic_epc_structure(epc: Union[str, Path, zipfile.ZipFile, BytesIO]
         epc_files = set(epc_io.namelist())
         missing_files = required_files - epc_files
         if missing_files:
-            logging.warning(f"The EPC file is missing the following required files: {missing_files}")
+            logger.warning(f"The EPC file is missing the following required files: {missing_files}")
             return False
     finally:
         if should_close:
@@ -511,7 +513,7 @@ def create_mandatory_structure_epc(epc: Union[str, Path, zipfile.ZipFile, BytesI
 
 def repair_epc_structure_if_not_valid(epc: Union[str, Path, zipfile.ZipFile, BytesIO]) -> None:
     if not valdiate_basic_epc_structure(epc):
-        logging.warning("EPC structure validation failed. Attempting auto-repair.")
+        logger.warning("EPC structure validation failed. Attempting auto-repair.")
         create_mandatory_structure_epc(epc)
 
 
@@ -547,7 +549,7 @@ def get_property_kind_by_uuid(uuid: str) -> Optional[Any]:
         try:
             update_prop_kind_dict_cache()
         except FileNotFoundError as e:
-            logging.error(f"Failed to parse propertykind dict {e}")
+            logger.error(f"Failed to parse propertykind dict {e}")
     return __CACHE_PROP_KIND_DICT__.get(uuid, None)
 
 def get_property_kind_by_title(title: str) -> Optional[Any]:
@@ -565,7 +567,7 @@ def get_property_kind_by_title(title: str) -> Optional[Any]:
         try:
             update_prop_kind_dict_cache()
         except FileNotFoundError as e:
-            logging.error(f"Failed to parse propertykind dict {e}")
+            logger.error(f"Failed to parse propertykind dict {e}")
     title_reshaped = title.replace(" ", "_").lower()
     for prop in __CACHE_PROP_KIND_DICT__.values():
         pk_title_reshaped = prop.citation.title.replace(" ", "_").lower() if prop.citation and prop.citation.title else ""
@@ -593,7 +595,7 @@ def get_property_kind_and_parents(uuids: list) -> Dict[str, Any]:
             if parent_uuid is not None and parent_uuid not in dict_props:
                 dict_props = get_property_kind_and_parents([parent_uuid]) | dict_props
         else:
-            logging.warning(f"PropertyKind with UUID {prop_uuid} not found.")
+            logger.warning(f"PropertyKind with UUID {prop_uuid} not found.")
             continue
     return dict_props
 
@@ -637,7 +639,7 @@ def as_dor(obj_or_identifier: Union[str, Uri, Any], dor_qualified_type: str = "e
         parsed_uri = obj_or_identifier if isinstance(obj_or_identifier, Uri) else parse_uri(obj_or_identifier)
         if parsed_uri is not None:
             # From URI
-            logging.debug(f"====> parsed uri {parsed_uri} : uuid is {parsed_uri.uuid}")
+            logger.debug(f"====> parsed uri {parsed_uri} : uuid is {parsed_uri.uuid}")
             dor_uuid = parsed_uri.uuid
             dor_version = parsed_uri.version
             dor_qualified_type_str = parsed_uri.get_qualified_type()
@@ -648,7 +650,7 @@ def as_dor(obj_or_identifier: Union[str, Uri, Any], dor_qualified_type: str = "e
                 try:
                     update_prop_kind_dict_cache()
                 except FileNotFoundError as e:
-                    logging.error(f"Failed to parse propertykind dict {e}")
+                    logger.error(f"Failed to parse propertykind dict {e}")
             try:
                 uuid, version = split_identifier(obj_or_identifier)
                 if uuid in __CACHE_PROP_KIND_DICT__:
@@ -657,7 +659,7 @@ def as_dor(obj_or_identifier: Union[str, Uri, Any], dor_qualified_type: str = "e
                     dor_uuid = uuid
                     dor_version = version
             except AttributeError:
-                logging.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
+                logger.error(f"Failed to parse identifier {obj_or_identifier}. DOR will be empty")
     else:
         if is_dor(obj_or_identifier):
             # DOR conversion
@@ -690,12 +692,12 @@ def as_dor(obj_or_identifier: Union[str, Uri, Any], dor_qualified_type: str = "e
                 try:
                     dor_qualified_type_str = get_qualified_type_from_class(obj_or_identifier)
                 except Exception as e:
-                    logging.error(f"Failed to set qualified_type for DOR {e}")
+                    logger.error(f"Failed to set qualified_type for DOR {e}")
 
                 try:
                     dor_content_type_str = get_content_type_from_class(obj_or_identifier)
                 except Exception as e:
-                    logging.error(f"Failed to set content_type for DOR {e}")
+                    logger.error(f"Failed to set content_type for DOR {e}")
 
                 dor_title = get_object_attribute(obj_or_identifier, "Citation.Title")
                 dor_uuid = get_obj_uuid(obj_or_identifier)
@@ -841,9 +843,9 @@ def get_dor_uris_from_obj(obj: Any) -> Set[Uri]:
                 if uri and uri.is_object_uri():
                     uri_set.add(uri)
             except Exception as e:
-                logging.warning(f"Failed to extract uri from DOR: {e}")
+                logger.warning(f"Failed to extract uri from DOR: {e}")
     except Exception as e:
-        logging.warning(f"Failed to get DOR list from object: {e}")
+        logger.warning(f"Failed to get DOR list from object: {e}")
     return uri_set
 
 
@@ -906,7 +908,7 @@ def get_dor_or_external_uris_from_obj(obj: Any) -> Tuple[Set[Uri], Set[Tuple[str
                     if uri and uri.is_object_uri():
                         dor_uris.add(uri)
                 except Exception as e:
-                    logging.warning(f"Failed to extract uri from DOR: {e}")
+                    logger.warning(f"Failed to extract uri from DOR: {e}")
             else:
                 # External reference case (e.g. ExternalDataArrayPart)
                 try:
@@ -915,9 +917,9 @@ def get_dor_or_external_uris_from_obj(obj: Any) -> Tuple[Set[Uri], Set[Tuple[str
                     if ext_uri:
                         external_uris.add((ext_uri, ext_mime_type))
                 except Exception as e:
-                    logging.warning(f"Failed to extract uri from external reference: {e}")
+                    logger.warning(f"Failed to extract uri from external reference: {e}")
     except Exception as e:
-        logging.warning(f"Failed to get DOR list from object: {e}")
+        logger.warning(f"Failed to get DOR list from object: {e}")
     return dor_uris, external_uris
 
 
@@ -937,3 +939,47 @@ def get_file_folder_and_name_from_path(path: str) -> Tuple[str, str]:
     obj_folder = path[: path.rindex("/") + 1] if "/" in path else ""
     obj_file_name = path[path.rindex("/") + 1 :] if "/" in path else path
     return obj_folder, obj_file_name
+
+
+#: Public API of this module. Declared explicitly so that renaming or removing anything
+#: else is not a breaking change, and so `from ... import *` does not leak the imports.
+__all__ = [
+    "EXPANDED_EXPORT_FOLDER_PREFIX",
+    "PATH_VERSION_PREFIX",
+    "gen_core_props_rels_path",
+    "is_core_prop_or_extension_path",
+    "gen_core_props_path",
+    "gen_energyml_object_path",
+    "gen_rels_path",
+    "gen_rels_path_from_obj_path",
+    "get_epc_content_type_path",
+    "get_epc_content_type_rels_path",
+    "extract_uuid_and_version_from_obj_path",
+    "in_epc_file_path_to_mime_type",
+    "get_file_folder",
+    "make_path_relative_to_other_file",
+    "make_path_relative_to_filepath_list",
+    "as_identifier",
+    "create_external_relationship",
+    "create_h5_external_relationship",
+    "relationships_equal",
+    "create_default_core_properties",
+    "create_default_types",
+    "match_external_proxy_type",
+    "get_rels_dor_type",
+    "valdiate_basic_epc_structure",
+    "create_mandatory_structure_epc",
+    "repair_epc_structure_if_not_valid",
+    "update_prop_kind_dict_cache",
+    "get_property_kind_by_uuid",
+    "get_property_kind_by_title",
+    "get_property_kind_and_parents",
+    "get_property_kind_uuid_from_property_object",
+    "as_dor",
+    "create_energyml_object",
+    "create_external_part_reference",
+    "get_reverse_dor_list",
+    "get_dor_uris_from_obj",
+    "get_dor_or_external_uris_from_obj",
+    "get_file_folder_and_name_from_path",
+]

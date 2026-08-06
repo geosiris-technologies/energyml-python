@@ -24,6 +24,8 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
+from enum import Enum
+from functools import lru_cache
 from typing import Any, Optional
 
 import numpy as np
@@ -106,10 +108,9 @@ class CrsInfo:
 
     vertical_unknown: Optional[str] = None
     """Free-text vertical CRS descriptor."""
-    
+
     time_uom: Optional[str] = None
     """Unit of measure for time coordinates (e.g. ``"s"``, ``"min"``, ``"h"``)."""
-
 
     # ------------------------------------------------------------------
     # Rotation / azimuth
@@ -325,7 +326,7 @@ def _extract_vertical_crs_details(vertical_crs_obj: Any) -> dict:
     **must not** override a parent-level ``ZIncreasingDownward`` when this
     value is ``None``.
     """
-    # logging.debug(
+    # logger.debug(
     #     f"Extracting vertical CRS details from object of type {type(vertical_crs_obj).__name__} with URI {get_obj_uri(vertical_crs_obj)}"
     # )
     result: dict = {
@@ -413,7 +414,7 @@ def _from_abstract_local3dcrs(
     DORs when provided.
     """
     type_name = type(crs_obj).__name__
-    # logging.debug(f"@_from_abstract_local3dcrs Extracting CRS info from {type_name} with URI {get_obj_uri(crs_obj)}")
+    # logger.debug(f"@_from_abstract_local3dcrs Extracting CRS info from {type_name} with URI {get_obj_uri(crs_obj)}")
 
     # --- Offsets -----------------------------------------------------------
     x_offset = 0.0
@@ -435,7 +436,7 @@ def _from_abstract_local3dcrs(
     # --- Z direction -------------------------------------------------------
     z_increasing_downward: bool = False
     zid_raw = get_object_attribute_no_verif(crs_obj, "zincreasing_downward")
-    logging.debug(f"v2.0.1 ZIncreasingDownward raw value: {zid_raw}")
+    logger.debug(f"v2.0.1 ZIncreasingDownward raw value: {zid_raw}")
     if zid_raw is not None:
         if isinstance(zid_raw, bool):
             z_increasing_downward = zid_raw
@@ -477,8 +478,8 @@ def _from_abstract_local3dcrs(
 
     # Direction from VerticalCrs overrides the top-level ZIncreasingDownward
     # only when explicitly set.
-    # logging.debug("z_increasing_downward before vertical CRS details: %s", z_increasing_downward)
-    # logging.debug(
+    # logger.debug("z_increasing_downward before vertical CRS details: %s", z_increasing_downward)
+    # logger.debug(
     #     f"Vertical CRS details: {vertical_details} -- vertical_crs_obj type: {type(vertical_crs_obj).__name__ if vertical_crs_obj else 'None'}"
     # )
     if vertical_crs_obj is not None and vertical_details.get("z_increasing_downward") is not None:
@@ -486,7 +487,7 @@ def _from_abstract_local3dcrs(
     if vertical_details.get("uom"):
         vertical_uom = vertical_details["uom"]
 
-    # logging.debug("z_increasing_downward after vertical CRS details: %s", z_increasing_downward)
+    # logger.debug("z_increasing_downward after vertical CRS details: %s", z_increasing_downward)
 
     return CrsInfo(
         x_offset=x_offset,
@@ -575,6 +576,25 @@ def _from_local_engineering2d_crs(
     )
 
 
+def _from_projected_crs(crs_obj: Any) -> CrsInfo:
+    """
+    Handle a standalone ``ProjectedCrs`` document object — **EML v2.3 / RESQML v2.2**.
+
+    Such an object carries no local offset / rotation (those live in the
+    ``LocalEngineering2dCrs``); only the EPSG code, the UOM and the axis order are available.
+    """
+    type_name = type(crs_obj).__name__
+    details = _extract_projected_crs_details(crs_obj)
+    return CrsInfo(
+        projected_epsg_code=details.get("epsg_code"),
+        projected_uom=details.get("uom"),
+        projected_axis_order=details.get("axis_order"),
+        projected_wkt=details.get("wkt"),
+        projected_unknown=details.get("unknown"),
+        source_type=type_name,
+    )
+
+
 def _from_vertical_crs(crs_obj: Any) -> CrsInfo:
     """
     Handle a standalone ``VerticalCrs`` document object — **EML v2.3 / RESQML v2.2**.
@@ -627,7 +647,7 @@ def _from_local_engineering_compound_crs(
     vert_axis_uom_raw = get_object_attribute(crs_obj, "vertical_axis.uom")
     if vert_axis_uom_raw is not None:
         vert_axis_uom = _uom_to_str(vert_axis_uom_raw)
-        
+
     is_time = get_object_attribute(crs_obj, "vertical_axis.is_time")
     time_uom = None
     if is_time is not None and str(is_time).lower() in ("true", "1", "yes"):
@@ -857,6 +877,290 @@ def apply_from_crs_info(
 
 
 # ---------------------------------------------------------------------------
+# WGS84 reprojection (requires the 'crs' extra : pyproj)
+# ---------------------------------------------------------------------------
+
+#: EPSG code of WGS84 as a 2D geographic CRS (longitude, latitude).
+WGS84_2D_EPSG_CODE = 4326
+
+#: EPSG code of WGS84 as a 3D geographic CRS (longitude, latitude, ellipsoidal height).
+#: This is the target to use whenever a vertical CRS is known, since EPSG:4326 carries no height.
+WGS84_3D_EPSG_CODE = 4979
+
+#: Number of points reprojected per block by :func:`reproject_to_wgs84`. It bounds the scratch
+#: memory of the reprojection at ``3 x _REPROJECT_CHUNK x 8`` bytes (6 MiB here) whatever the size
+#: of the input, while staying large enough for the per-call PROJ overhead to be negligible.
+_REPROJECT_CHUNK = 1 << 18
+
+
+def crs_ogc_uri(epsg_code: int) -> str:
+    """
+    Return the OGC URI of an EPSG code, e.g. ``http://www.opengis.net/def/crs/EPSG/0/32631``.
+
+    This is the identifier form used by OGC API - Features and by JSON-FG ``coordRefSys``
+    members, and is the standard way to advertise a CRS in a GeoJSON-like document.
+    """
+    return f"http://www.opengis.net/def/crs/EPSG/0/{int(epsg_code)}"
+
+
+def crs_urn(epsg_code: int) -> str:
+    """
+    Return the OGC URN of an EPSG code, e.g. ``urn:ogc:def:crs:EPSG::32631``.
+
+    This is the form used by the (deprecated but still widely supported by GDAL / QGIS)
+    GeoJSON 2008 ``crs`` member.
+    """
+    return f"urn:ogc:def:crs:EPSG::{int(epsg_code)}"
+
+
+def is_pyproj_available() -> bool:
+    """Return ``True`` when :mod:`pyproj` (the ``crs`` extra) can be imported."""
+    try:
+        import pyproj  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+def build_source_crs_id(
+    projected_epsg_code: Optional[int],
+    vertical_epsg_code: Optional[int] = None,
+) -> Optional[str]:
+    """
+    Build the CRS identifier to hand over to pyproj.
+
+    Returns ``"EPSG:<h>+EPSG:<v>"`` (compound CRS) when a vertical code is given,
+    ``"EPSG:<h>"`` when only the horizontal one is known, and ``None`` when no
+    horizontal code is available (nothing can be reprojected in that case).
+    """
+    if projected_epsg_code is None:
+        return None
+    if vertical_epsg_code is not None:
+        return f"EPSG:{int(projected_epsg_code)}+EPSG:{int(vertical_epsg_code)}"
+    return f"EPSG:{int(projected_epsg_code)}"
+
+
+@lru_cache(maxsize=32)
+def _get_transformer(source_crs_id: str, target_epsg_code: int, network_enabled: bool = False):
+    """
+    Build (and cache) a pyproj ``Transformer``.  Building one costs a few ms, reuse is free.
+
+    ``network_enabled`` is part of the cache key on purpose: PROJ selects the transformation
+    pipeline when the transformer is built, so a transformer created while the network was
+    disabled would keep ignoring the geoid grids even after the network is turned on.
+    """
+    from pyproj import Transformer
+
+    # always_xy=True : force the (longitude, latitude) order on output, whatever the
+    # axis order declared by the EPSG registry (EPSG:4326 is officially lat/lon).
+    return Transformer.from_crs(source_crs_id, f"EPSG:{int(target_epsg_code)}", always_xy=True)
+
+
+def _build_transformer_with_vertical_fallback(
+    source_crs_id: str,
+    projected_epsg_code: Optional[int],
+    vertical_epsg_code: Optional[int],
+    network_enabled: bool,
+):
+    """
+    Build the transformer for *source_crs_id*, dropping the vertical CRS if it is unusable.
+
+    Returns ``(transformer, vertical_dropped)``.
+
+    A file can declare a vertical EPSG code that PROJ cannot resolve — most often a *datum*
+    code where a CRS code was expected (the Volve export declares ``EPSG:6230``, the ED50
+    datum, as its vertical CRS). The compound ``EPSG:h+EPSG:v`` then fails to build, and
+    refusing the whole transformation would leave the coordinates in their projected CRS
+    although the horizontal part is perfectly reprojectable. So the horizontal CRS is retried
+    alone and the Z column is passed through untouched, in its source vertical frame.
+    """
+    try:
+        return _get_transformer(source_crs_id, WGS84_3D_EPSG_CODE, network_enabled), False
+    except Exception as exc:
+        horizontal_only = build_source_crs_id(projected_epsg_code, None)
+        if vertical_epsg_code is None or horizontal_only is None or horizontal_only == source_crs_id:
+            raise
+        logger.warning(
+            "reproject_to_wgs84: the compound CRS %s could not be built (%s) — most likely an "
+            "invalid vertical EPSG code in the source object. Falling back to %s alone: "
+            "longitude and latitude are correct, the Z column is left in its source vertical frame.",
+            source_crs_id,
+            exc,
+            horizontal_only,
+        )
+        return _get_transformer(horizontal_only, WGS84_3D_EPSG_CODE, network_enabled), True
+
+
+@lru_cache(maxsize=32)
+def _vertical_axis_is_down(vertical_epsg_code: int) -> bool:
+    """
+    Return ``True`` when the vertical CRS counts positive values *downward* (a depth CRS,
+    e.g. EPSG:5715 "MSL depth"), ``False`` for a height CRS (e.g. EPSG:5714 "MSL height").
+    """
+    try:
+        from pyproj import CRS
+
+        for axis in CRS.from_epsg(int(vertical_epsg_code)).axis_info:
+            if (axis.direction or "").lower() == "down":
+                return True
+    except Exception as exc:
+        logger.debug("Cannot determine the axis direction of EPSG:%s : %s", vertical_epsg_code, exc)
+    return False
+
+
+def reproject_to_wgs84(
+    points: np.ndarray,
+    crs_info: Optional["CrsInfo"] = None,
+    *,
+    projected_epsg_code: Optional[int] = None,
+    vertical_epsg_code: Optional[int] = None,
+    z_is_up: bool = True,
+    use_network: bool = False,
+    inplace: bool = False,
+) -> np.ndarray:
+    """
+    Reproject *points* from their projected CRS to WGS84 (longitude, latitude, ellipsoidal height).
+
+    The input points are expected to be **already expressed in the projected CRS**, i.e.
+    :func:`apply_from_crs_info` must have been applied first (offsets, rotation, …).
+
+    Parameters
+    ----------
+    points:
+        ``(N, 3)`` array in the source projected CRS.
+    crs_info:
+        Source :class:`CrsInfo`; its EPSG codes are used unless overridden by the
+        *projected_epsg_code* / *vertical_epsg_code* parameters.
+    projected_epsg_code, vertical_epsg_code:
+        Explicit EPSG codes, taking precedence over *crs_info*.
+    z_is_up:
+        ``True`` (default) when the Z column holds heights counted upward — which is what
+        :func:`apply_from_crs_info` produces.  When the vertical CRS is a *depth* CRS the Z
+        sign is flipped accordingly before the transformation.
+    use_network:
+        When ``True``, allow PROJ to download the geoid / datum grids it needs from the PROJ
+        CDN.  **Without them a vertical datum transformation silently does nothing** (it can
+        be off by tens of metres), so a warning is emitted when a vertical CRS is requested
+        while the network is disabled.
+    inplace:
+        When ``True`` the result is written back into *points*.
+
+    Returns
+    -------
+    np.ndarray
+        ``(N, 3)`` array of ``[longitude, latitude, height]``.
+
+    Raises
+    ------
+    MissingExtraInstallation
+        When :mod:`pyproj` is not installed (``pip install energyml-utils[crs]``).
+    NotEnoughInformationError
+        When no horizontal EPSG code is available.
+    """
+    from energyml.utils.exception import MissingExtraInstallation, NotEnoughInformationError
+
+    if projected_epsg_code is None and crs_info is not None:
+        projected_epsg_code = crs_info.projected_epsg_code
+    if vertical_epsg_code is None and crs_info is not None:
+        vertical_epsg_code = crs_info.vertical_epsg_code
+
+    source_crs_id = build_source_crs_id(projected_epsg_code, vertical_epsg_code)
+    if source_crs_id is None:
+        raise NotEnoughInformationError(
+            "Cannot reproject to WGS84: no projected (horizontal) EPSG code found in the CRS object."
+        )
+
+    if not is_pyproj_available():
+        raise MissingExtraInstallation("crs")
+
+    import pyproj
+
+    pts = np.asarray(points, dtype=np.float64)
+    if pts.ndim == 1:
+        pts = pts.reshape(-1, 3)
+
+    flip_z = False
+    if vertical_epsg_code is not None:
+        # The vertical CRS counts depths (positive down) but Z holds heights: flip it back.
+        # Folded into the per-chunk copy below, so it costs no extra full-size buffer.
+        flip_z = z_is_up and _vertical_axis_is_down(vertical_epsg_code)
+
+    if crs_info is not None and crs_info.time_uom is not None:
+        logger.warning(
+            "reproject_to_wgs84: the source CRS is a time-based CRS (time_uom='%s'); "
+            "the Z column is a time, not a height — its reprojection is meaningless.",
+            crs_info.time_uom,
+        )
+
+    dest = pts if inplace else np.empty((len(pts), 3), dtype=np.float64)
+
+    network_was_enabled = pyproj.network.is_network_enabled()
+    if use_network and not network_was_enabled:
+        pyproj.network.set_network_enabled(True)
+    try:
+        transformer, vertical_dropped = _build_transformer_with_vertical_fallback(
+            source_crs_id,
+            projected_epsg_code,
+            vertical_epsg_code,
+            use_network or network_was_enabled,
+        )
+        if vertical_dropped:
+            # The Z column is passed through untouched, so it is still in the source vertical
+            # frame — flipping its sign for a vertical CRS that PROJ refused would be wrong.
+            flip_z = False
+        elif vertical_epsg_code is not None and not (use_network or network_was_enabled):
+            # Warned only once the vertical CRS is known to be usable, otherwise the message
+            # points at the wrong problem.
+            logger.warning(
+                "reproject_to_wgs84: vertical CRS EPSG:%s requested while the PROJ network is disabled — "
+                "the geoid grid may be missing and the vertical transformation silently skipped. "
+                "Pass use_network=True (or install the grids) for an accurate height.",
+                vertical_epsg_code,
+            )
+        if len(pts) == 1:
+            # pyproj takes its scalar code path for a 1-element array (and numpy warns about it)
+            z0 = -pts[0, 2] if flip_z else pts[0, 2]
+            if vertical_dropped:
+                lon, lat = transformer.transform(float(pts[0, 0]), float(pts[0, 1]))
+                height = pts[0, 2]
+            else:
+                lon, lat, height = transformer.transform(float(pts[0, 0]), float(pts[0, 1]), float(z0))
+            dest[0, 0], dest[0, 1], dest[0, 2] = lon, lat, height
+        else:
+            # pyproj needs one contiguous float64 buffer per axis, and the columns of a C-order
+            # (N, 3) array are strided — so a copy per axis is unavoidable. Doing it chunk by
+            # chunk makes that cost *constant* instead of proportional to N: three scratch
+            # buffers of _REPROJECT_CHUNK points, reused for every block, and
+            # ``inplace=True`` lets PROJ write its result back into them.
+            chunk = min(_REPROJECT_CHUNK, len(pts))
+            x = np.empty(chunk, dtype=np.float64)
+            y = np.empty(chunk, dtype=np.float64)
+            z = np.empty(chunk, dtype=np.float64)
+            for start in range(0, len(pts), chunk):
+                stop = min(start + chunk, len(pts))
+                n = stop - start
+                xv, yv, zv = x[:n], y[:n], z[:n]
+                np.copyto(xv, pts[start:stop, 0])
+                np.copyto(yv, pts[start:stop, 1])
+                np.copyto(zv, pts[start:stop, 2])
+                if flip_z:
+                    np.negative(zv, out=zv)
+                if vertical_dropped:
+                    transformer.transform(xv, yv, inplace=True)
+                else:
+                    transformer.transform(xv, yv, zv, inplace=True)
+                dest[start:stop, 0] = xv
+                dest[start:stop, 1] = yv
+                dest[start:stop, 2] = zv
+    finally:
+        if use_network and not network_was_enabled:
+            pyproj.network.set_network_enabled(False)
+
+    return dest
+
+
+# ---------------------------------------------------------------------------
 # Public factory
 # ---------------------------------------------------------------------------
 
@@ -926,6 +1230,9 @@ def extract_crs_info(
     if type_name_lower == "verticalcrs":
         return _from_vertical_crs(crs_obj)
 
+    if type_name_lower == "projectedcrs":
+        return _from_projected_crs(crs_obj)
+
     # ------------------------------------------------------------------
     # v2.0.1 types  (LocalDepth3dCrs, LocalTime3dCrs, AbstractLocal3dCrs)
     # ------------------------------------------------------------------
@@ -951,6 +1258,21 @@ def extract_crs_info(
         )
         return _from_local_engineering2d_crs(crs_obj, workspace)
 
+    # v2.2 pattern: has AbstractProjectedCrs / AbstractVerticalCrs → standalone CRS document
+    if get_object_attribute_rgx(crs_obj, "[Aa]bstract[Pp]rojected[Cc]rs") is not None:
+        logger.debug(
+            "extract_crs_info: unrecognised type '%s' — treating as ProjectedCrs (v2.2 pattern).",
+            type(crs_obj).__name__,
+        )
+        return _from_projected_crs(crs_obj)
+
+    if get_object_attribute_rgx(crs_obj, "[Aa]bstract[Vv]ertical[Cc]rs") is not None:
+        logger.debug(
+            "extract_crs_info: unrecognised type '%s' — treating as VerticalCrs (v2.2 pattern).",
+            type(crs_obj).__name__,
+        )
+        return _from_vertical_crs(crs_obj)
+
     # v2.2 pattern: has LocalEngineering2dCrs DOR → compound
     if get_object_attribute_rgx(crs_obj, "[Ll]ocal[Ee]ngineering2[dD][Cc]rs") is not None:
         logger.debug(
@@ -966,9 +1288,251 @@ def extract_crs_info(
     return CrsInfo(source_type=type(crs_obj).__name__)
 
 
+# ---------------------------------------------------------------------------
+# Coordinate frames — the single place that knows how the stages compose
+# ---------------------------------------------------------------------------
+
+
+class PointFrame(Enum):
+    """
+    Which coordinate frame a point array is expressed in.
+
+    The three values are the successive **stages of one pipeline**, not alternatives:
+
+    ``LOCAL`` --:func:`apply_from_crs_info`--> ``PROJECTED`` --:func:`reproject_to_wgs84`--> ``WGS84``
+
+    A frame can therefore only be reached from the one before it. In particular WGS84 is *not*
+    an alternative to the local transform: skipping ``LOCAL -> PROJECTED`` would hand pyproj
+    coordinates still offset by the local origin, and yield a wrong position rather than merely
+    large numbers.
+    """
+
+    LOCAL = "local"
+    """Raw coordinates, as stored in the energyml object (local engineering CRS)."""
+
+    PROJECTED = "projected"
+    """Rotation, offsets, Z-flip and axis order applied — metres in the projected CRS."""
+
+    WGS84 = "wgs84"
+    """Longitude / latitude / ellipsoidal height (EPSG:4979)."""
+
+    @property
+    def stage(self) -> int:
+        """Rank of the frame in the pipeline, used to order the transitions."""
+        return _FRAME_ORDER[self]
+
+
+_FRAME_ORDER = {PointFrame.LOCAL: 0, PointFrame.PROJECTED: 1, PointFrame.WGS84: 2}
+
+
+@dataclass
+class FramedPoints:
+    """
+    Result of :func:`to_frame`: the transformed points plus what was actually achieved.
+
+    ``frame`` is the frame the points are really in, which may be *earlier* than the requested
+    one: a WGS84 request degrades to :attr:`PointFrame.PROJECTED` when no EPSG code is available
+    or when ``pyproj`` is not installed. Callers use it to decide what to advertise (see the
+    ``crs`` / ``coordRefSys`` members of the GeoJSON writers) instead of silently claiming WGS84.
+    """
+
+    points: np.ndarray
+    """The ``(N, 3)`` float64 array, in :attr:`frame`."""
+
+    frame: PointFrame
+    """The frame actually reached."""
+
+    origin_shift: Optional[tuple] = None
+    """The ``(dx, dy, dz)`` vector subtracted from the coordinates, if any."""
+
+    degraded_reason: Optional[str] = None
+    """Why the requested frame could not be reached, when it could not."""
+
+
+def compute_origin_shift(
+    point_arrays,
+    *,
+    round_to: Optional[float] = 1.0,
+) -> tuple:
+    """
+    Compute a single recentring vector for a whole set of point arrays.
+
+    Projected coordinates carry 6 to 7 significant digits (a UTM easting is ~5·10⁵ m), and most
+    mesh formats are re-read as float32 by viewers, which leaves roughly decimetre precision.
+    Subtracting a common origin brings the coordinates near zero and restores it.
+
+    It must be computed **once for the whole export** and applied identically to every patch:
+    a per-patch shift would move the patches relative to each other.
+
+    Parameters
+    ----------
+    point_arrays:
+        Iterable of ``(N, 3)`` arrays. Empty arrays are ignored.
+    round_to:
+        Round the vector down to a multiple of this value, so the offset stays a readable
+        number that can be written in the output metadata. ``None`` disables the rounding.
+
+    Returns
+    -------
+    tuple
+        The ``(dx, dy, dz)`` vector to subtract; ``(0.0, 0.0, 0.0)`` when there is no point.
+    """
+    mins = None
+    maxs = None
+    for arr in point_arrays:
+        a = np.asarray(arr, dtype=np.float64).reshape(-1, 3)
+        if len(a) == 0:
+            continue
+        # Grid2d holes are stored as NaN, so nanmin/nanmax are the right reduction — but they warn
+        # on an all-NaN column, which is a legitimate input here. Drop the non-finite rows first.
+        a = a[np.isfinite(a).all(axis=1)]
+        if len(a) == 0:
+            continue
+        a_min = a.min(axis=0)
+        a_max = a.max(axis=0)
+        mins = a_min if mins is None else np.minimum(mins, a_min)
+        maxs = a_max if maxs is None else np.maximum(maxs, a_max)
+
+    if mins is None or maxs is None or not np.all(np.isfinite(mins)) or not np.all(np.isfinite(maxs)):
+        return (0.0, 0.0, 0.0)
+
+    center = (mins + maxs) / 2.0
+    if round_to:
+        center = np.floor(center / round_to) * round_to
+    return tuple(float(c) for c in center)
+
+
+def to_frame(
+    points: np.ndarray,
+    crs_info: Optional[CrsInfo],
+    target: PointFrame,
+    current: PointFrame = PointFrame.LOCAL,
+    *,
+    origin_shift: Optional[Any] = None,
+    use_network: bool = False,
+    inplace: bool = True,
+) -> FramedPoints:
+    """
+    Bring *points* from the *current* frame to the *target* one.
+
+    This is the only function that knows the order of the stages, so no caller has to remember
+    that the local transform comes first, and calling it twice on the same array is impossible:
+    when ``current`` already is ``target`` nothing is applied.
+
+    Parameters
+    ----------
+    points:
+        ``(N, 3)`` array. Modified in place when *inplace* is ``True`` (default) — the array
+        must then be owned and writeable (see ``mesh_numpy._ensure_float64_points``).
+    crs_info:
+        Source CRS. May be ``None``, in which case only ``origin_shift`` can be applied.
+    target:
+        Requested frame.
+    current:
+        Frame *points* is currently in.
+    origin_shift:
+        Explicit ``(dx, dy, dz)`` vector to subtract once the target frame is reached. Use
+        :func:`compute_origin_shift` to derive one for a whole export — this function
+        deliberately does not accept ``"auto"``, because a per-array shift would move the
+        arrays relative to each other.
+    use_network:
+        Allow PROJ to download the geoid grids used by the vertical transformation.
+    inplace:
+        When ``False``, *points* is left untouched and a copy is returned.
+
+    Returns
+    -------
+    FramedPoints
+        The points and the frame actually reached — which may be earlier than *target*.
+
+    Raises
+    ------
+    NotSupportedError
+        When *target* is before *current* in the pipeline: the inverse transforms are not
+        implemented, and silently returning unchanged coordinates would be worse.
+    """
+    from energyml.utils.exception import (
+        MissingExtraInstallation,
+        NotEnoughInformationError,
+        NotSupportedError,
+    )
+
+    pts = np.asarray(points, dtype=np.float64)
+    if pts.ndim == 1:
+        pts = pts.reshape(-1, 3)
+    if not inplace:
+        pts = pts.copy()
+
+    if target.stage < current.stage:
+        raise NotSupportedError(
+            f"Cannot go back from {current.value!r} to {target.value!r}: the inverse CRS "
+            "transforms are not implemented."
+        )
+
+    reached = current
+    degraded_reason: Optional[str] = None
+
+    if len(pts) == 0:
+        # Nothing to transform, but the frame is whatever was asked for: an empty patch must not
+        # make a whole export look 'degraded'.
+        return FramedPoints(points=pts, frame=target, origin_shift=None)
+
+    # --- Stage 1: LOCAL -> PROJECTED ---------------------------------------
+    if reached is PointFrame.LOCAL and target.stage >= PointFrame.PROJECTED.stage:
+        if crs_info is None:
+            degraded_reason = "no CRS information available for the local -> projected transform"
+            logger.warning("to_frame: %s — coordinates are left in the local frame.", degraded_reason)
+            return FramedPoints(points=pts, frame=reached, origin_shift=None, degraded_reason=degraded_reason)
+        apply_from_crs_info(pts, crs_info, inplace=True)
+        reached = PointFrame.PROJECTED
+
+    # --- Stage 2: PROJECTED -> WGS84 --------------------------------------
+    if reached is PointFrame.PROJECTED and target is PointFrame.WGS84:
+        try:
+            reproject_to_wgs84(pts, crs_info, use_network=use_network, inplace=True)
+            reached = PointFrame.WGS84
+        except NotEnoughInformationError as exc:
+            degraded_reason = str(exc)
+            logger.warning(
+                "to_frame: no projected EPSG code found — coordinates are left in the projected "
+                "frame instead of WGS84."
+            )
+        except MissingExtraInstallation:
+            degraded_reason = "pyproj is not installed (pip install energyml-utils[crs])"
+            logger.warning(
+                "to_frame: %s — coordinates are left in EPSG:%s instead of WGS84.",
+                degraded_reason,
+                getattr(crs_info, "projected_epsg_code", None),
+            )
+        except Exception as exc:
+            degraded_reason = f"{type(exc).__name__}: {exc}"
+            logger.warning("to_frame: reprojection to WGS84 failed (%s) — keeping projected coordinates.", exc)
+
+    # --- Recentring -------------------------------------------------------
+    applied_shift: Optional[tuple] = None
+    if origin_shift is not None:
+        shift = np.asarray(origin_shift, dtype=np.float64).reshape(3)
+        if np.any(shift):
+            pts -= shift
+            applied_shift = tuple(float(s) for s in shift)
+
+    return FramedPoints(points=pts, frame=reached, origin_shift=applied_shift, degraded_reason=degraded_reason)
+
+
 __all__ = [
     "CrsInfo",
     "extract_crs_info",
     "apply_from_crs_info",
     "apply_axis_order_swap",
+    "reproject_to_wgs84",
+    "build_source_crs_id",
+    "is_pyproj_available",
+    "crs_ogc_uri",
+    "crs_urn",
+    "PointFrame",
+    "FramedPoints",
+    "to_frame",
+    "compute_origin_shift",
+    "WGS84_2D_EPSG_CODE",
+    "WGS84_3D_EPSG_CODE",
 ]
