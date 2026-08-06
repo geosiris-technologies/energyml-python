@@ -97,3 +97,12 @@ rc/camunda
 # code profiling
 *.prof
 AUDIT.md
+
+# AI coding assistants: local instructions / settings, not part of the project
+.claude/
+CLAUDE.md
+AGENTS.md
+
+# Local scratch: dead code kept around locally, and output folders of ad-hoc runs
+_to_delete/
+results/
