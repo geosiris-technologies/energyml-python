@@ -149,15 +149,19 @@ max-line-length = "120"
 enable = true
 vcs = "git"
 style = "pep440"
+# The dev number is the CI run number when there is one, not the commit distance: the distance
+# repeats (a rerun, or two branches the same number of commits past the tag), and test.pypi
+# refuses a filename it has already seen, even once deleted. A `+local` suffix is not an option,
+# PyPI rejects local versions. Build and publish jobs of one run share GITHUB_RUN_NUMBER, so
+# `poetry publish` still finds the wheel the build job produced. Tagged commits stay clean.
 format-jinja = """
+    {%- set dev_number = env.get("GITHUB_RUN_NUMBER", distance) | int -%}
     {%- if distance == 0 -%}
         {{ serialize_pep440(base, stage, revision) }}
     {%- elif revision is not none -%}
-        {{ serialize_pep440(base, stage, revision + 1, dev=distance,
-            ) }}
+        {{ serialize_pep440(base, stage, revision + 1, dev=dev_number) }}
     {%- else -%}
-        {{ serialize_pep440(bump_version(base), stage, revision, dev=distance,
-            ) }}
+        {{ serialize_pep440(bump_version(base), stage, revision, dev=dev_number) }}
     {%- endif -%}
 """
 
