@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -232,6 +232,110 @@ def drop_empty_patches(meshes: Any, raise_when_empty: bool = False) -> List[Any]
     return kept
 
 
+# ---------------------------------------------------------------------------
+# Naming / grouping
+# ---------------------------------------------------------------------------
+
+#: Callable deriving a display name from a mesh patch (``AbstractMesh`` or ``NumpyMesh``). Used
+#: for the OBJ ``o``/``g`` lines today; the same signature is meant to carry over to whichever
+#: other format grows an equivalent per-object metadata slot (e.g. VTK block names).
+MeshNamer = Callable[[Any], str]
+
+#: Callable deriving a grouping key from a mesh patch, used to split an aggregated export into
+#: several named objects instead of one flat one. Two patches sharing a key land in the same
+#: object.
+MeshGroupKey = Callable[[Any], Any]
+
+
+def _patch_identifier(mesh: Any) -> Optional[str]:
+    """Return the URI-like identifier a reader stamped on *mesh*, if any."""
+    return getattr(mesh, "identifier", None) or getattr(mesh, "source_uuid", None)
+
+
+def _source_energyml_object(mesh: Any) -> Any:
+    """Return the source energyml object *mesh* was read from, if any.
+
+    Both mesh hierarchies carry it (``AbstractMesh.energyml_object`` / ``NumpyMesh.energyml_object``);
+    it is the one piece of patch metadata that is *not* patch-scoped — unlike ``identifier``,
+    which the legacy readers suffix with ``_patch{n}``, or ``source_uuid``, which only
+    ``NumpyMesh`` carries at all.
+    """
+    return getattr(mesh, "energyml_object", None)
+
+
+def by_energyml_object(fn: Callable[[Any], str]) -> MeshNamer:
+    """Adapt *fn* — a function of the source **energyml object** — into a :data:`MeshNamer`.
+
+    Every mesh patch keeps the energyml object it was read from on ``patch.energyml_object``;
+    this is the hook to name exports after it, e.g. ``by_energyml_object(get_obj_title)`` or
+    ``by_energyml_object(lambda o: get_obj_uri(o).uuid)``. Falls back to the patch's own
+    identifier (its URI) when no source object is attached, which is the case for a few
+    synthetic patches (e.g. the empty-wellbore-trajectory placeholder).
+    """
+
+    def _namer(mesh: Any) -> str:
+        obj = _source_energyml_object(mesh)
+        if obj is not None:
+            return fn(obj)
+        return _patch_identifier(mesh) or "mesh"
+
+    return _namer
+
+
+def group_by_source_object(mesh: Any) -> Any:
+    """:data:`MeshGroupKey` — one group per originating energyml object.
+
+    Keys on ``get_obj_uuid(patch.energyml_object)`` rather than the patch's own
+    ``identifier``/``source_uuid``: those are patch-scoped, and the legacy ``AbstractMesh`` (no
+    ``source_uuid`` field, ``identifier`` suffixed ``"..._patch{n}"``) would otherwise put every
+    patch of the same multi-patch representation in its own group instead of merging them.
+    """
+    obj = _source_energyml_object(mesh)
+    if obj is not None:
+        try:
+            from energyml.utils.introspection import get_obj_uuid
+
+            uuid = get_obj_uuid(obj)
+            if uuid:
+                return uuid
+        except Exception:
+            pass
+    return getattr(mesh, "source_uuid", None) or _patch_identifier(mesh)
+
+
+def group_by_qualified_type(mesh: Any) -> str:
+    """:data:`MeshGroupKey` — one group per RESQML/EML qualified type.
+
+    Reads the type off ``patch.energyml_object`` first: the mesh *container* class
+    (``SurfaceMesh``, ``NumpySurfaceMesh``, …) is shared by several RESQML types, and the
+    patch's own identifier is not reliably parseable as a URI (the legacy readers append
+    ``_patch{n}`` to it). Falls back to parsing the identifier, then to the container class name,
+    for patches with no source object attached. Returns a plain string, so it doubles as an
+    *object_namer* when an export should be grouped and named by type in one pass.
+    """
+    obj = _source_energyml_object(mesh)
+    if obj is not None:
+        try:
+            from energyml.utils.introspection import get_qualified_type_from_class
+
+            qualified_type = get_qualified_type_from_class(obj)
+            if qualified_type:
+                return qualified_type
+        except Exception:
+            pass
+    identifier = _patch_identifier(mesh)
+    if identifier:
+        try:
+            from energyml.utils.uri import Uri
+
+            parsed = Uri.parse(str(identifier))
+            if parsed.object_type:
+                return parsed.object_type
+        except Exception:
+            pass
+    return getattr(mesh, "source_type", None) or type(mesh).__name__
+
+
 def _parse_vtk_flat_faces(flat: np.ndarray) -> List[np.ndarray]:
     """Decode VTK flat face array ``[nv, v0, …, nv, v0, …]`` into a list of
     per-face index arrays."""
@@ -410,4 +514,9 @@ __all__ = [
     "EmptyMeshError",
     "drop_empty_patches",
     "resolve_origin_shift",
+    "MeshNamer",
+    "MeshGroupKey",
+    "by_energyml_object",
+    "group_by_source_object",
+    "group_by_qualified_type",
 ]
