@@ -39,6 +39,11 @@ from energyml.utils.data.export._base import (
     VTKExportOptions,
     VTKFormat,
     resolve_origin_shift,
+    MeshNamer,
+    MeshGroupKey,
+    by_energyml_object,
+    group_by_source_object,
+    group_by_qualified_type,
 )
 from energyml.utils.data.export._registry import (
     FormatSpec,
@@ -66,7 +71,11 @@ from energyml.utils.data.export.geojson import (  # noqa: E402,F401
     _prepare_geojson_points,
     export_geojson,
 )
-from energyml.utils.data.export.obj import export_obj  # noqa: E402
+from energyml.utils.data.export.obj import (  # noqa: E402
+    default_group_name,
+    default_object_name,
+    export_obj,
+)
 from energyml.utils.data.export.off import export_off, export_off_part  # noqa: E402
 from energyml.utils.data.export.stl import export_stl  # noqa: E402
 from energyml.utils.data.export.vtk import export_vtk  # noqa: E402
@@ -96,6 +105,14 @@ __all__ = [
     "export_stl",
     # Frame helpers
     "resolve_origin_shift",
+    # Naming / grouping (OBJ today; see FormatSpec.supports_naming)
+    "MeshNamer",
+    "MeshGroupKey",
+    "by_energyml_object",
+    "group_by_source_object",
+    "group_by_qualified_type",
+    "default_object_name",
+    "default_group_name",
     # UI helpers
     "supported_formats",
     "format_description",

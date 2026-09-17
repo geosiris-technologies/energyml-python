@@ -21,7 +21,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
-from energyml.utils.data.export._base import ExportFormat, ExportOptions, drop_empty_patches
+from energyml.utils.data.export._base import (
+    ExportFormat,
+    ExportOptions,
+    MeshGroupKey,
+    MeshNamer,
+    drop_empty_patches,
+)
 
 if TYPE_CHECKING:
     from energyml.utils.data.crs import PointFrame
@@ -72,6 +78,13 @@ class FormatSpec:
     are provided. OBJ uses it for its ``.mtl`` material file.
     """
 
+    supports_naming: bool = False
+    """
+    Whether the writer accepts ``object_namer`` / ``group_namer`` / ``group_by`` (see
+    :func:`export_mesh`). Only OBJ does today; ``export_mesh`` only forwards those kwargs when
+    this is set, so a format whose writer does not accept them is never called with them.
+    """
+
 
 _REGISTRY: Dict[ExportFormat, FormatSpec] = {}
 
@@ -116,12 +129,17 @@ def export_mesh(
     use_crs_displacement: bool = True,
     frame: Optional["PointFrame"] = None,
     origin_shift: Optional[Any] = None,
+    object_namer: Optional[MeshNamer] = None,
+    group_namer: Optional[MeshNamer] = None,
+    group_by: Optional[MeshGroupKey] = None,
 ) -> None:
     """Export mesh data to a file.
 
     Format is auto-detected from the file extension when *format* is None.
 
-    :param mesh_list: Meshes to export.
+    :param mesh_list: Meshes to export. Several source objects can be combined into one file by
+        passing their mesh lists together (nested lists are flattened) — pair that with
+        *group_by* so the output still distinguishes them.
     :param output_path: Destination file path.
     :param format: Explicit format; auto-detected from the extension when None.
     :param options: Format-specific options.
@@ -135,6 +153,14 @@ def export_mesh(
         from the coordinates. ``"auto"`` recentres on the bounding-box centre of the whole export,
         computed once and applied identically to every patch. Useful for projected coordinates,
         whose 6-7 significant digits lose precision when a viewer reads the file as float32.
+    :param object_namer: Callable ``mesh -> str`` naming each group's top-level object (OBJ's
+        ``o`` line). Ignored by formats whose :class:`FormatSpec` does not set
+        ``supports_naming`` — currently only OBJ. See :func:`~.obj.export_obj`.
+    :param group_namer: Callable ``mesh -> str`` naming each patch's sub-group (OBJ's ``g``
+        line). Same support scope as *object_namer*.
+    :param group_by: Callable ``mesh -> key`` splitting the export into several named objects,
+        e.g. :func:`~._base.group_by_source_object` or :func:`~._base.group_by_qualified_type`.
+        Same support scope as *object_namer*.
     """
     path = Path(output_path)
     if format is None:
@@ -156,6 +182,15 @@ def export_mesh(
         "frame": frame,
         "origin_shift": origin_shift,
     }
+
+    if spec.supports_naming:
+        kwargs["object_namer"] = object_namer
+        kwargs["group_namer"] = group_namer
+        kwargs["group_by"] = group_by
+    elif object_namer is not None or group_namer is not None or group_by is not None:
+        logger.warning(
+            "%s does not support object_namer/group_namer/group_by — ignoring them.", format.value
+        )
 
     mesh_list = drop_empty_patches(mesh_list, raise_when_empty=True)
 
